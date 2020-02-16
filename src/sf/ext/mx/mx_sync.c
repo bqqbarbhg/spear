@@ -6,6 +6,7 @@
 #endif
 
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,7 +47,7 @@ uint32_t mx_sema_pool_alloc()
 
 		// Try to re-use a freed semaphore
 		while ((mask = mxa_load32_nf(&block->free_mask)) != 0) {
-			uint32_t bit_ix = mx_clz32(mask);
+			uint32_t bit_ix = mx_ctz32(mask);
 			uint32_t bit_mask = UINT32_C(1) << bit_ix;
 			uint32_t clear_mask = ~bit_mask;
 			if (mxa_and32_acq(&block->free_mask, clear_mask) & bit_mask) {
@@ -58,7 +59,7 @@ uint32_t mx_sema_pool_alloc()
 		// Try to allocate a new semaphore from this block.
 		// Note that the mask is negated as 0 means not initialized!
 		while ((mask = ~ mxa_load32_nf(&block->init_mask)) != 0) {
-			uint32_t bit_ix = mx_clz32(mask);
+			uint32_t bit_ix = mx_ctz32(mask);
 			uint32_t bit_mask = UINT32_C(1) << bit_ix;
 			if (~ mxa_or32_acq(&block->init_mask, bit_mask) & bit_mask) {
 				// block->init_mask: ^^^ block->semaphores[bit_ix] ^^^
@@ -144,7 +145,7 @@ void mx_sema_pool_clean()
 
 		// Iterate through free semaphores and try to "allocate" them
 		while ((mask = mxa_load32(&block->free_mask)) != 0) {
-			uint32_t bit_ix = mx_clz32(mask);
+			uint32_t bit_ix = mx_ctz32(mask);
 			uint32_t bit_mask = UINT32_C(1) << bit_ix;
 			uint32_t clear_mask = ~bit_mask;
 			if (mxa_and32_acq(&block->free_mask, clear_mask) & bit_mask) {
@@ -443,7 +444,7 @@ static mx_forceinline int semaphore_spin(mx_semaphore *s, uint32_t num, uint32_t
 	while (spin-- > 0) {
 		int32_t count = (int32_t)mxa_load32_nf((uint32_t*)&s->count);
 		if (count >= (int32_t)num) {
-			if (mxa_cas32_acq(&s->count, (uint32_t)count, (uint32_t)count - num)) {
+			if (mxa_cas32_acq((uint32_t*)&s->count, (uint32_t)count, (uint32_t)count - num)) {
 				// s->count: ^^^ ^^^
 				return 1;
 			}

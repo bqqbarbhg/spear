@@ -48,8 +48,11 @@ void SpriteAssetType::load(Asset asset, const AssetLoadInfo &info)
 	sg_image_desc desc = { };
 	desc.width = width;
 	desc.height = height;
-	desc.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
+	desc.min_filter = SG_FILTER_LINEAR;
 	desc.mag_filter = SG_FILTER_LINEAR;
+	desc.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
+	desc.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
+	desc.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
 	desc.pixel_format = SG_PIXELFORMAT_RGBA8;
 	desc.content.subimage[0][0].ptr = pixels;
 	desc.content.subimage[0][0].size = width * height * 4;

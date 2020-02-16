@@ -18,6 +18,40 @@ struct Quad
 	Vertex v[4];
 };
 
+static const char *shaderVsGlsl = R"(
+precision mediump float;
+
+attribute vec2 aPosition;
+attribute vec2 aTexCoord;
+attribute vec4 aColor;
+
+varying vec2 vTexCoord;
+varying vec4 vColor;
+
+void main()
+{
+	gl_Position = vec4(aPosition.x, aPosition.y, 0.5, 1.0);
+	vTexCoord = aTexCoord;
+	vColor = aColor;
+}
+)";
+
+static const char *shaderFsGlsl = R"(
+precision mediump float;
+
+uniform sampler2D uTexture;
+
+varying vec2 vTexCoord;
+varying vec4 vColor;
+
+void main()
+{
+	vec4 color = texture2D(uTexture, vTexCoord);
+	gl_FragColor = color * vColor;
+}
+)";
+
+
 static const char *shaderVsHlsl = R"(
 struct VS_INPUT
 {
@@ -60,9 +94,16 @@ float4 main(FS_INPUT input): SV_Target0
 }
 )";
 
+struct SpriteDraw
+{
+	Sprite sprite;
+	sf::Mat23 transform;
+	sf::Vec4 color;
+};
 
 struct SpriteBatch::Data
 {
+	sf::Array<SpriteDraw> draws;
 	uint32_t imageIndex = 0;
 	sf::Array<Quad> quads;
 	sg_buffer vertexBuffer;
@@ -93,7 +134,8 @@ struct SpriteBatch::Data
 				desc.vs.source = shaderVsHlsl;
 				desc.fs.source = shaderFsHlsl;
 			} else {
-				sf_failf("Unsupported backend");
+				desc.vs.source = shaderVsGlsl;
+				desc.fs.source = shaderFsGlsl;
 			}
 
 			shader = sg_make_shader(&desc);

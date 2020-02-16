@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 // These are pretty heavy but also sadly necessary.
 // TODO: Should look into reimplementing these>
@@ -95,62 +96,6 @@ sf_inline int64_t max(int64_t a, int64_t b) { return a < b ? b : a; }
 template <typename T>
 sf_inline T clamp(const T &v, const T &min, const T &max) { return ::sf::min(::sf::max(v, min), max); }
 
-#if SF_CC_MSC
-
-sf_inline uint32_t countLeadingZeros(uint32_t mask) {
-	sf_assert(mask != 0);
-	unsigned long index;
-	_BitScanForward(&index, mask);
-	return index;
-}
-
-sf_inline uint32_t countTrailingZeros(uint32_t mask) {
-	sf_assert(mask != 0);
-	unsigned long index;
-	_BitScanReverse(&index, mask);
-	return index;
-}
-
-#if SF_ARCH_X64 || SF_ARCH_ARM64
-
-sf_inline uint32_t countLeadingZeros(uint64_t mask) {
-	sf_assert(mask != 0);
-	unsigned long index;
-	_BitScanForward64(&index, mask);
-	return index;
-}
-
-sf_inline uint32_t countTrailingZeros(uint64_t mask) {
-	sf_assert(mask != 0);
-	unsigned long index;
-	_BitScanReverse64(&index, mask);
-	return index;
-}
-
-#else
-
-sf_inline uint32_t countLeadingZeros(uint64_t mask) {
-	sf_assert(mask != 0);
-	unsigned long index;
-	if (mask & UINT32_MAX) _BitScanForward(&index, (uint32_t)mask);
-	else _BitScanForward(&index, (uint32_t)(mask >> 32u));
-	return index;
-}
-
-sf_inline uint32_t countTrailingZeros(uint64_t mask) {
-	sf_assert(mask != 0);
-	unsigned long index;
-	if (mask >> 32u) _BitScanReverse(&index, (uint32_t)(mask >> 32u));
-	else _BitScanReverse(&index, (uint32_t)mask);
-	return index;
-}
-
-#endif
-
-#else
-	#error "TODO"
-#endif
-
 // -- Float intrinsics
 
 #if SF_ARCH_X86
@@ -161,8 +106,8 @@ sf_inline uint32_t countTrailingZeros(uint64_t mask) {
 #else
 	sf_inline float sqrt(float a) { return ::sqrtf(a); }
 	sf_inline double sqrt(double a) { return ::sqrt(a); }
-	sf_inline float abs(float a, float b) { return fabsf(a, b); }
-	sf_inline double abs(float a, float b) { return fabs(a, b); }
+	sf_inline float abs(float a) { return ::fabsf(a); }
+	sf_inline double abs(double a) { return ::fabs(a); }
 #endif
 
 // -- Constants
@@ -179,11 +124,12 @@ char *memPrintf(const char *fmt, ...);
 
 // Print to debugger or console window
 void debugPrint(const char *fmt, ...);
+void debugPrintLine(const char *fmt, ...);
 
 // Formatted assertions
 #if SF_DEBUG
-	#define sf_assertf(cond, ...) do { if (!(cond)) { ::sf::debugPrint("Assertion failed: " __VA_ARGS__); sf_debugbreak(); } } while (0)
-	#define sf_failf(...) do { ::sf::debugPrint("Failed: " __VA_ARGS__); sf_debugbreak(); } while (0)
+	#define sf_assertf(cond, ...) do { if (!(cond)) { ::sf::debugPrintLine("Assertion failed: " __VA_ARGS__); sf_debugbreak(); } } while (0)
+	#define sf_failf(...) do { ::sf::debugPrintLine("Failed: " __VA_ARGS__); sf_debugbreak(); } while (0)
 #else
 	#define sf_assertf(cond, ...) (void)0
 	#define sf_failf(...) (void)0
@@ -227,20 +173,20 @@ typedef void (*MoveRangeFn)(void *dst, void *src, size_t size);
 typedef void (*CopyRangeFn)(void *dst, const void *src, size_t size);
 typedef void (*DestructRangeFn)(void *data, size_t size);
 
-template <typename T> sf_noinline inline typename std::enable_if_t<!IsZeroInitializable<T>::value>
+template <typename T> sf_noinline inline typename std::enable_if<!IsZeroInitializable<T>::value>::type
 constructRangeImp(void *data, size_t size) {
 	for (T *t = (T*)data, *e = t + size; t != e; t++) {
 		new (t) T();
 	}
 }
 
-template <typename T> sf_forceinline inline typename std::enable_if_t<IsZeroInitializable<T>::value>
+template <typename T> sf_forceinline inline typename std::enable_if<IsZeroInitializable<T>::value>::type
 constructRangeImp(void *data, size_t size) {
 	memset(data, 0, sizeof(T) * size);
 }
 
 
-template <typename T> sf_noinline inline typename std::enable_if_t<!IsRelocatable<T>::value>
+template <typename T> sf_noinline inline typename std::enable_if<!IsRelocatable<T>::value>::type
 moveRangeImp(void *dst, void *src, size_t size) {
 	for (T *d = (T*)dst, *s = (T*)src, *e = d + size; d != e; d++, s++) {
 		new (d) T(std::move(*s));
@@ -248,12 +194,12 @@ moveRangeImp(void *dst, void *src, size_t size) {
 	}
 }
 
-template <typename T> sf_forceinline inline typename std::enable_if_t<IsRelocatable<T>::value>
+template <typename T> sf_forceinline inline typename std::enable_if<IsRelocatable<T>::value>::type
 moveRangeImp(void *dst, void *src, size_t size) {
 	memcpy(dst, src, size * sizeof(T));
 }
 
-template <typename T> sf_noinline inline typename std::enable_if_t<!IsCopyable<T>::value>
+template <typename T> sf_noinline inline typename std::enable_if<!IsCopyable<T>::value>::type
 copyRangeImp(void *dst, const void *src, size_t size) {
 	const T *s = (const T*)src;
 	for (T *d = (T*)dst, *e = d + size; d != e; d++, s++) {
@@ -261,19 +207,19 @@ copyRangeImp(void *dst, const void *src, size_t size) {
 	}
 }
 
-template <typename T> sf_forceinline inline typename std::enable_if_t<IsCopyable<T>::value>
+template <typename T> sf_forceinline inline typename std::enable_if<IsCopyable<T>::value>::type
 copyRangeImp(void *dst, const void *src, size_t size) {
 	memcpy(dst, src, size * sizeof(T));
 }
 
-template <typename T> sf_noinline inline typename std::enable_if_t<HasDestructor<T>::value>
+template <typename T> sf_noinline inline typename std::enable_if<HasDestructor<T>::value>::type
 destructRangeImp(void *data, size_t size) {
 	for (T *t = (T*)data, *e = t + size; t != e; t++) {
 		t->~T();
 	}
 }
 
-template <typename T> sf_forceinline inline typename std::enable_if_t<!HasDestructor<T>::value>
+template <typename T> sf_forceinline inline typename std::enable_if<!HasDestructor<T>::value>::type
 destructRangeImp(void *, size_t) {
 	// Nop
 }

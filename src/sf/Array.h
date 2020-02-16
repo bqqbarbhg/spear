@@ -142,6 +142,19 @@ struct Array
 		size = 0;
 	}
 
+	void trim() {
+		if (capacity == size) return;
+		capacity = size;
+		if (size == 0) {
+			destructRangeImp<T>(data, size);
+		} else {
+			T *newData = (T*)memAlloc(capacity * sizeof(T));
+			moveRangeImp<T>(newData, data, size);
+			if (data != (T*)(this + 1)) memFree(data);
+			data = newData;
+		}
+	}
+
 	void reserve(size_t size) {
 		if (size > this->capacity) impGrowTo(size);
 	}

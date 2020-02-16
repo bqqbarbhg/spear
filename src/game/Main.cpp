@@ -14,7 +14,7 @@ constexpr uint32_t MsaaSamples = 1;
 struct TestGame
 {
 	SpriteBatch sb;
-	Sprite testSprite = loadAsset<Sprite>("dude.png");
+	Sprite testSprite = loadAsset<Sprite>("data/dude.png");
 
 	void render()
 	{

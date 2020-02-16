@@ -143,7 +143,6 @@ struct HashMap
 				}
 			}
 		}
-		return nullptr;
 	}
 
 protected:

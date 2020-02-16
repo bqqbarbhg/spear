@@ -87,4 +87,26 @@ void debugPrint(const char *fmt, ...)
 	va_end(args);
 }
 
+void debugPrintLine(const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+
+#if SF_OS_WINDOWS
+	{
+		char line[512];
+		vsnprintf(line, sizeof(line), fmt, args);
+		OutputDebugStringA(line);
+		OutputDebugStringA("\n");
+	}
+#else
+	{
+		vprintf(fmt, args);
+		putchar('\n');
+	}
+#endif
+
+	va_end(args);
+}
+
 }

@@ -1,8 +1,10 @@
 #pragma once
 
 #include "Sprite.h"
+#include "Font.h"
 #include "sf/Matrix.h"
 #include "sf/Vector.h"
+#include "sf/String.h"
 
 struct SpriteBatch
 {

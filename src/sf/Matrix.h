@@ -168,9 +168,9 @@ struct Mat23
 		, m10(0.0f), m11(1.0f), m12(0.0f)
 	{ }
 
-	Mat23(float m00, float m01, float m10, float m11, float m20, float m21)
+	Mat23(float m00, float m01, float m02, float m10, float m11, float m12)
 		: m00(m00), m01(m01), m02(m02)
-		, m10(m10), m11(m11), m12(m21)
+		, m10(m10), m11(m11), m12(m12)
 	{ }
 
 };

@@ -136,7 +136,7 @@ static mx_forceinline void *mxa_load_ptr_rel(const void *src) { void *v; mxa_imp
 
 // -- Misc intrinsics
 
-static mx_forceinline uint32_t mx_clz32(uint32_t mask)
+static mx_forceinline uint32_t mx_ctz32(uint32_t mask)
 {
 	unsigned long index;
 	_BitScanForward(&index, (unsigned long)mask);
