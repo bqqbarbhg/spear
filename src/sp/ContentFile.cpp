@@ -95,7 +95,9 @@ ContentFile::LoadHandle ContentFile::load(const sf::String &name, Callback callb
 	req.user_data_size = sizeof(ContentFileInfo);
 	sfetch_handle_t handle = sfetch_send(&req);
 
-	return { handle.id };
+	LoadHandle lh;
+	lh.id = handle.id;
+	return lh;
 }
 
 void ContentFile::cancel(LoadHandle handle)

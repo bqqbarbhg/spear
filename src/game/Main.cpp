@@ -42,6 +42,8 @@ struct TestGame
 
 	void render()
 	{
+		frameIndex++;
+
 		sp::ContentFile::update();
 		sp::Asset::update();
 		sp::Sprite::update();
@@ -51,8 +53,10 @@ struct TestGame
 		canvas.draw(dude, sf::Mat23());
 		canvas.draw(guy, sf::Mat23());
 
+		int n = 0;
 		for (sp::SpriteRef &ref : items) {
 			canvas.draw(ref, sf::Mat23());
+			// if (n++ > frameIndex / 32) break;
 		}
 
 		sgl_defaults();
@@ -66,7 +70,7 @@ struct TestGame
 		float x = -1.0f;
 		float xs = 0.2f;
 		float ys = -0.2f;
-		int n = 0;
+		n = 0;
 		for (sp::Atlas *atlas : atlases) {
 			sg_image image;
 			image.id = atlas->getTexture();

@@ -14,10 +14,11 @@ namespace sp {
 
 // TODO: Some of these could be dynamic
 static const uint32_t AtlasDeleteQueueFrames = 4;
-static const uint32_t AtlasExtent = 1024;
+static const uint32_t MinAtlasExtent = 128;
+static const uint32_t MaxAtlasExtent = 1024;
 static const uint32_t AtlasLevels = 3;
 static const uint32_t TargetPages = 4;
-static const uint32_t MaxSpriteExtent = 256;
+static const uint32_t MaxSpriteExtent = 248;
 
 struct SpriteImp;
 struct AtlasImp;
@@ -36,7 +37,6 @@ struct SpriteList
 	sf::Array<AtlasImp*> atlases;
 	sf::Array<SpriteImp*> residencyQueue;
 	RectPacker packer;
-	MipImage atlasImage;
 };
 
 SpriteList g_spriteList;
@@ -57,6 +57,7 @@ struct SpriteImp : Sprite
 	void *data;
 	sf::SmallArray<SpriteResidency, 2> residency;
 	bool inResidencyQueue = false;
+	uint32_t flushesThisFrame = 0;
 };
 
 const AssetType Sprite::AssetType = { "Sprite", sizeof(SpriteImp),
@@ -200,7 +201,7 @@ void Sprite::updateAtlasesForRendering()
 		area += sprite->width * sprite->height;
 	}
 
-	uint32_t atlasArea = AtlasExtent * AtlasExtent;
+	uint32_t atlasArea = MaxAtlasExtent * MaxAtlasExtent;
 	uint32_t numPages = (area + atlasArea - 1) / atlasArea;
 
 	// Remove pages until we get to target
@@ -270,21 +271,45 @@ void Sprite::updateAtlasesForRendering()
 		return 0;
 	});
 
-
-	if (list.atlasImage.levels.size == 0) {
-		list.atlasImage = MipImage(AtlasExtent, AtlasExtent, AtlasLevels);
-	}
-
 	while (list.residencyQueue.size > 0) {
 		AtlasImp *atlas = new AtlasImp();
-		atlas->width = AtlasExtent;
-		atlas->height = AtlasExtent;
 		list.atlases.push(atlas);
 
 		uint32_t pad = 1 << AtlasLevels;
 
-		list.atlasImage.levels[0].clear();
-		list.packer.reset(AtlasExtent, AtlasExtent);
+		uint32_t extent = MinAtlasExtent;
+
+		// Try to pack to smaller atlases first
+		// NOTE: We can skip attempting to pack the largest
+		// size as it will be done again anyway
+		while (extent < MaxAtlasExtent) {
+			list.packer.reset(extent, extent);
+			bool failed = false;
+			for (SpriteImp *sprite : list.residencyQueue) {
+				uint32_t x, y;
+
+				// Pad and align the sprites
+				uint32_t width = sprite->width + pad;
+				uint32_t height = sprite->height + pad;
+				width += (uint32_t)-(int32_t)width & (pad - 1);
+				height += (uint32_t)-(int32_t)height & (pad - 1);
+
+				if (!list.packer.pack(width, height, x, y)) {
+					failed = true;
+					break;
+				}
+			}
+
+			if (!failed) break;
+			extent *= 2;
+		}
+
+		atlas->width = extent;
+		atlas->height = extent;
+
+		list.packer.reset(extent, extent);
+		MipImage image(extent, extent);
+		image.levels[0].clear();
 
 		SpriteImp **dst = list.residencyQueue.data;
 		for (SpriteImp *sprite : list.residencyQueue) {
@@ -317,7 +342,7 @@ void Sprite::updateAtlasesForRendering()
 				}
 
 				// Blit the image content
-				list.atlasImage.levels[0].blit(x, y, sprite->data, sprite->width, sprite->height);
+				image.levels[0].blit(x, y, sprite->data, sprite->width, sprite->height);
 			} else {
 				// Did not fit: Keep in the list
 				*dst++ = sprite;
@@ -325,15 +350,15 @@ void Sprite::updateAtlasesForRendering()
 		}
 
 		// Generate mips
-		list.atlasImage.calculateMips();
+		image.calculateMips();
 
 		// Initialize the GPU texture
 		{
 			sg_image_desc desc = { };
 			desc.type = SG_IMAGETYPE_2D;
-			desc.width = AtlasExtent;
-			desc.height = AtlasExtent;
-			desc.num_mipmaps = AtlasLevels;
+			desc.width = extent;
+			desc.height = extent;
+			desc.num_mipmaps = image.levels.size;
 			desc.usage = SG_USAGE_IMMUTABLE;
 			desc.pixel_format = SG_PIXELFORMAT_RGBA8;
 			desc.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
@@ -344,9 +369,9 @@ void Sprite::updateAtlasesForRendering()
 			desc.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
 			desc.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
 			desc.label = "Atlas Page";
-			for (uint32_t i = 0; i < AtlasLevels; i++) {
-				desc.content.subimage[0][i].ptr = list.atlasImage.levels[i].data;
-				desc.content.subimage[0][i].size = list.atlasImage.levels[i].byteSize();
+			for (uint32_t i = 0; i < image.levels.size; i++) {
+				desc.content.subimage[0][i].ptr = image.levels[i].data;
+				desc.content.subimage[0][i].size = image.levels[i].byteSize();
 			}
 			atlas->image = sg_make_image(&desc);
 		}

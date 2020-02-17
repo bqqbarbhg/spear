@@ -60,6 +60,18 @@ void Image::blit(uint32_t x, uint32_t y, const void *srcData, uint32_t w, uint32
 	}
 }
 
+MipImage::MipImage(uint32_t width, uint32_t height)
+	: width(width), height(height)
+{
+	uint32_t w = width, h = height;
+	levels.push(Image(w, h));
+	while (w > 1 || h > 1) {
+		w = w > 1 ? w >> 1 : 1;
+		h = h > 1 ? h >> 1 : 1;
+		levels.push(Image(w, h));
+	}
+}
+
 MipImage::MipImage(uint32_t width, uint32_t height, uint32_t numLevels)
 	: width(width), height(height)
 {

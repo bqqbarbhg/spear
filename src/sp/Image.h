@@ -41,6 +41,7 @@ struct MipImage
 	uint32_t width, height;
 
 	MipImage() : width(0), height(0) { }
+	MipImage(uint32_t width, uint32_t height);
 	MipImage(uint32_t width, uint32_t height, uint32_t numLevels);
 
 	void calculateMips();

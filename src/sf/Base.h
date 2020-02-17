@@ -53,10 +53,6 @@ namespace sf {
 	sf_inline void *memAlloc(size_t size) { return malloc(size); }
 	sf_inline void *memRealloc(void *ptr, size_t size) { return realloc(ptr, size); }
 	sf_inline void memFree(void *ptr) { free(ptr); }
-
-	sf_inline void *alignedAlloc(size_t size, size_t align) { return _aligned_malloc(size, align); }
-	sf_inline void *alignedRealloc(void *ptr, size_t size, size_t align) { return _aligned_realloc(ptr, size, align); }
-	sf_inline void alignedFree(void *ptr) { _aligned_free(ptr); }
 #endif
 
 // -- Useful inline functions
