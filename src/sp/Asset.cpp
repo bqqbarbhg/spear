@@ -90,6 +90,9 @@ struct AssetLibrary
 
 		sp_asset_log("Create: %s %s", type->name, asset->name.data);
 
+		// TODO: Manual loading
+		asset->startLoading();
+
 		return asset;
 	}
 

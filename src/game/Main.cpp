@@ -18,7 +18,27 @@ struct TestGame
 	sp::SpriteRef dude { "dude.png" };
 	sp::SpriteRef guy { "guy.png" };
 
+	sf::Array<sp::SpriteRef> items;
 	sp::Canvas canvas;
+
+	uint32_t frameIndex = 0;
+
+	TestGame()
+	{
+		items.push(sp::SpriteRef{"Card/Axe.png" });
+		items.push(sp::SpriteRef{"Card/Bow.png" });
+		items.push(sp::SpriteRef{"Card/Club.png" });
+		items.push(sp::SpriteRef{"Card/Dagger.png" });
+		items.push(sp::SpriteRef{"Card/Firebolt_Spell.png" });
+		items.push(sp::SpriteRef{"Card/Flame_Spell.png" });
+		items.push(sp::SpriteRef{"Card/Hammer.png" });
+		items.push(sp::SpriteRef{"Card/Healing_Potion.png" });
+		items.push(sp::SpriteRef{"Card/Light_Helmet.png" });
+		items.push(sp::SpriteRef{"Card/Longsword.png" });
+		items.push(sp::SpriteRef{"Card/Shortsword.png" });
+		items.push(sp::SpriteRef{"Card/Spear.png" });
+		items.push(sp::SpriteRef{"Card/Vest.png" });
+	}
 
 	void render()
 	{
@@ -26,8 +46,46 @@ struct TestGame
 		sp::Asset::update();
 		sp::Sprite::update();
 
+		canvas.clear();
+
 		canvas.draw(dude, sf::Mat23());
 		canvas.draw(guy, sf::Mat23());
+
+		for (sp::SpriteRef &ref : items) {
+			canvas.draw(ref, sf::Mat23());
+		}
+
+		sgl_defaults();
+
+		sgl_enable_texture();
+
+		sf::SmallArray<sp::Atlas*, 8> atlases;
+		sp::Atlas::getAtlases(atlases);
+
+		float y = 1.0f;
+		float x = -1.0f;
+		float xs = 0.2f;
+		float ys = -0.2f;
+		int n = 0;
+		for (sp::Atlas *atlas : atlases) {
+			sg_image image;
+			image.id = atlas->getTexture();
+			sgl_texture(image);
+
+			sgl_begin_quads();
+			sgl_v2f_t2f(x, y, 0.0f, 0.0f);
+			sgl_v2f_t2f(x+xs, y, 1.0f, 0.0f);
+			sgl_v2f_t2f(x+xs, y+ys, 1.0f, 1.0f);
+			sgl_v2f_t2f(x, y+ys, 0.0f, 1.0f);
+			sgl_end();
+
+			if (++n % 2 == 0) {
+				x += xs;
+				y = 1.0f;
+			} else {
+				y += ys;
+			}
+		}
 
 		sp::Sprite::updateAtlasesForRendering();
 
@@ -38,6 +96,8 @@ struct TestGame
 		pass_action.colors[0].val[2] = (float)0xed / 255.0f;
 		pass_action.colors[0].val[3] = (float)0xff / 255.0f;
 		sg_begin_default_pass(&pass_action, sapp_width(), sapp_height());
+
+		sgl_draw();
 
 		sg_end_pass();
 		sg_commit();

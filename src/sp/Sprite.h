@@ -8,6 +8,9 @@ namespace sp {
 
 struct Atlas
 {
+	uint32_t getTexture();
+
+	static void getAtlases(sf::Array<Atlas*> &atlases);
 };
 
 struct SpriteResidency

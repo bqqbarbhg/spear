@@ -73,6 +73,7 @@ typedef enum sapp_event_type {
     SAPP_EVENTTYPE_RESUMED,
     SAPP_EVENTTYPE_UPDATE_CURSOR,
     SAPP_EVENTTYPE_QUIT_REQUESTED,
+    SAPP_EVENTTYPE_CLIPBOARD_PASTED,
     _SAPP_EVENTTYPE_NUM,
     _SAPP_EVENTTYPE_FORCE_U32 = 0x7FFFFFFF
 } sapp_event_type;
@@ -266,6 +267,8 @@ typedef struct sapp_desc {
     bool alpha;                         /* whether the framebuffer should have an alpha channel (ignored on some platforms) */
     const char* window_title;           /* the window title as UTF-8 encoded string */
     bool user_cursor;                   /* if true, user is expected to manage cursor image in SAPP_EVENTTYPE_UPDATE_CURSOR */
+    bool enable_clipboard;              /* enable clipboard access, default is false */
+    int clipboard_size;                 /* max size of clipboard content in bytes */
 
     const char* html5_canvas_name;      /* the name (id) of the HTML5 canvas element, default is "canvas" */
     bool html5_canvas_resize;           /* if true, the HTML5 canvas size is set to sapp_desc.width/height, otherwise canvas size is tracked */
@@ -307,8 +310,14 @@ SOKOL_API_DECL void sapp_request_quit(void);
 SOKOL_API_DECL void sapp_cancel_quit(void);
 /* intiate a "hard quit" (quit application without sending SAPP_EVENTTYPE_QUIT_REQUSTED) */
 SOKOL_API_DECL void sapp_quit(void);
+/* call from inside event callback to consume the current event (don't forward to platform) */
+SOKOL_API_DECL void sapp_consume_event(void);
 /* get the current frame counter (for comparison with sapp_event.frame_count) */
 SOKOL_API_DECL uint64_t sapp_frame_count(void);
+/* write string into clipboard */
+SOKOL_API_DECL void sapp_set_clipboard_string(const char* str);
+/* read string from clipboard (usually during SAPP_EVENTTYPE_CLIPBOARD_PASTED) */
+SOKOL_API_DECL const char* sapp_get_clipboard_string(void);
 
 /* special run-function for SOKOL_NO_ENTRY (in standard mode this is an empty stub) */
 SOKOL_API_DECL int sapp_run(const sapp_desc* desc);
@@ -344,13 +353,7 @@ SOKOL_API_DECL const void* sapp_win32_get_hwnd(void);
 /* Android: get native activity handle */
 SOKOL_API_DECL const void* sapp_android_get_native_activity(void);
 
-// BQQ EXTENSIONS:
-
-/* Request a frame rendered right after this one */
-SOKOL_API_DECL void sapp_request_refresh(void);
-
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
 #endif // SOKOL_APP_INCLUDED
-

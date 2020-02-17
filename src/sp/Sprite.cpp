@@ -5,16 +5,19 @@
 #include "Image.h"
 
 #include "ext/stb/stb_image.h"
+#include "ext/stb/stb_image_resize.h"
 #include "ext/sokol/sokol_gfx.h"
 
 #include "sf/Vector.h"
 
 namespace sp {
 
+// TODO: Some of these could be dynamic
 static const uint32_t AtlasDeleteQueueFrames = 4;
 static const uint32_t AtlasExtent = 1024;
 static const uint32_t AtlasLevels = 3;
-static const uint32_t TargetPages = 8;
+static const uint32_t TargetPages = 4;
+static const uint32_t MaxSpriteExtent = 256;
 
 struct SpriteImp;
 struct AtlasImp;
@@ -72,6 +75,27 @@ static void loadImp(void *user, const ContentFile &file)
 	stbi_uc *pixels = stbi_load_from_memory((const stbi_uc*)file.data, (int)file.size, &width, &height, NULL, 4);
 	if (!pixels) return;
 
+	if (width > MaxSpriteExtent || height > MaxSpriteExtent) {
+		uint32_t srcWidth = width, srcHeight = height;
+		double aspect = (double)width / (double)height;
+		if (width >= height) {
+			width = MaxSpriteExtent;
+			height = (uint32_t)(MaxSpriteExtent / aspect);
+		} else {
+			height = MaxSpriteExtent;
+			width = (uint32_t)(MaxSpriteExtent * aspect);
+		}
+
+		stbi_uc *newPixels = (stbi_uc*)malloc(width * height * 4);
+		stbir_resize_uint8_srgb(
+			pixels, srcWidth, srcHeight, 0,
+			newPixels, width, height, 0,
+			4, 3, 0);
+
+		free(pixels);
+		pixels = newPixels;
+	}
+
 	imp->data = pixels;
 	imp->width = width;
 	imp->height = height;
@@ -86,7 +110,7 @@ void SpriteImp::startLoadingImp()
 
 void SpriteImp::unloadImp()
 {
-	stbi_image_free(data);
+	free(data);
 
 	// Remove the sprite from all the atlases
 	SpriteList &list = g_spriteList;
@@ -100,6 +124,21 @@ void SpriteImp::unloadImp()
 				break;
 			}
 		}
+	}
+}
+
+uint32_t Atlas::getTexture()
+{
+	AtlasImp *imp = (AtlasImp*)this;
+	return imp->image.id;
+}
+
+void Atlas::getAtlases(sf::Array<Atlas*> &atlases)
+{
+	sf::MutexGuard mg(g_spriteList.mutex);
+	SpriteList &list = g_spriteList;
+	for (AtlasImp *atlas : list.atlases) {
+		atlases.push(atlas);
 	}
 }
 
@@ -171,7 +210,7 @@ void Sprite::updateAtlasesForRendering()
 
 		// Count how many sprites we would need to relocate
 		// if we were to remove this atlas page
-		for (AtlasImp *atlas : list.atlases) {
+		for (AtlasImp *&atlas : list.atlases) {
 			uint32_t numRelocate = 0;
 			for (SpriteImp *sprite : atlas->sprites) {
 				if (sprite->residency.size == 1) {

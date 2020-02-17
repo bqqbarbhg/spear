@@ -1,4 +1,533 @@
 
+/*
+    Do this:
+        #define SOKOL_IMPL
+    before you include this file in *one* C or C++ file to create the
+    implementation.
+
+    Optionally provide the following defines with your own implementations:
+
+    SOKOL_ASSERT(c)     - your own assert macro (default: assert(c))
+    SOKOL_LOG(msg)      - your own logging function (default: puts(msg))
+    SOKOL_UNREACHABLE() - a guard macro for unreachable code (default: assert(false))
+    SOKOL_ABORT()       - called after an unrecoverable error (default: abort())
+    SOKOL_WIN32_FORCE_MAIN  - define this on Win32 to use a main() entry point instead of WinMain
+    SOKOL_NO_ENTRY      - define this if sokol_app.h shouldn't "hijack" the main() function
+    SOKOL_API_DECL      - public function declaration prefix (default: extern)
+    SOKOL_API_IMPL      - public function implementation prefix (default: -)
+    SOKOL_CALLOC        - your own calloc function (default: calloc(n, s))
+    SOKOL_FREE          - your own free function (default: free(p))
+
+    Optionally define the following to force debug checks and validations
+    even in release mode:
+
+    SOKOL_DEBUG         - by default this is defined if _DEBUG is defined
+
+    If sokol_app.h is compiled as a DLL, define the following before
+    including the declaration or implementation:
+
+    SOKOL_DLL
+
+    On Windows, SOKOL_DLL will define SOKOL_API_DECL as __declspec(dllexport)
+    or __declspec(dllimport) as needed.
+
+    Portions of the Windows and Linux GL initialization and event code have been
+    taken from GLFW (http://www.glfw.org/)
+
+    iOS onscreen keyboard support 'inspired' by libgdx.
+
+    If you use sokol_app.h together with sokol_gfx.h, include both headers
+    in the implementation source file, and include sokol_app.h before
+    sokol_gfx.h since sokol_app.h will also include the required 3D-API
+    headers.
+
+    On Windows, a minimal 'GL header' and function loader is integrated which
+    contains just enough of GL for sokol_gfx.h. If you want to use your own
+    GL header-generator/loader instead, define SOKOL_WIN32_NO_GL_LOADER
+    before including the implementation part of sokol_app.h.
+
+    For example code, see https://github.com/floooh/sokol-samples/tree/master/sapp
+
+    FEATURE OVERVIEW
+    ================
+    sokol_app.h provides a minimalistic cross-platform API which
+    implements the 'application-wrapper' parts of a 3D application:
+
+    - a common application entry function
+    - creates a window and 3D-API context/device with a 'default framebuffer'
+    - makes the rendered frame visible
+    - provides keyboard-, mouse- and low-level touch-events
+    - platforms: MacOS, iOS, HTML5, Win32, Linux, Android (TODO: RaspberryPi)
+    - 3D-APIs: Metal, D3D11, GL3.2, GLES2, GLES3, WebGL, WebGL2
+
+    FEATURE/PLATFORM MATRIX
+    =======================
+                        | Windows | macOS | Linux |  iOS  | Android | Raspi | HTML5
+    --------------------+---------+-------+-------+-------+---------+-------+-------
+    gl 3.x              | YES     | YES   | YES   | ---   | ---     | ---   | ---
+    gles2/webgl         | ---     | ---   | ---   | YES   | YES     | TODO  | YES
+    gles3/webgl2        | ---     | ---   | ---   | YES   | YES     | ---   | YES
+    metal               | ---     | YES   | ---   | YES   | ---     | ---   | ---
+    d3d11               | YES     | ---   | ---   | ---   | ---     | ---   | ---
+    KEY_DOWN            | YES     | YES   | YES   | SOME  | TODO    | TODO  | YES
+    KEY_UP              | YES     | YES   | YES   | SOME  | TODO    | TODO  | YES
+    CHAR                | YES     | YES   | YES   | YES   | TODO    | TODO  | YES
+    MOUSE_DOWN          | YES     | YES   | YES   | ---   | ---     | TODO  | YES
+    MOUSE_UP            | YES     | YES   | YES   | ---   | ---     | TODO  | YES
+    MOUSE_SCROLL        | YES     | YES   | YES   | ---   | ---     | TODO  | YES
+    MOUSE_MOVE          | YES     | YES   | YES   | ---   | ---     | TODO  | YES
+    MOUSE_ENTER         | YES     | YES   | YES   | ---   | ---     | TODO  | YES
+    MOUSE_LEAVE         | YES     | YES   | YES   | ---   | ---     | TODO  | YES
+    TOUCHES_BEGAN       | ---     | ---   | ---   | YES   | YES     | ---   | YES
+    TOUCHES_MOVED       | ---     | ---   | ---   | YES   | YES     | ---   | YES
+    TOUCHES_ENDED       | ---     | ---   | ---   | YES   | YES     | ---   | YES
+    TOUCHES_CANCELLED   | ---     | ---   | ---   | YES   | YES     | ---   | YES
+    RESIZED             | YES     | YES   | YES   | YES   | YES     | ---   | YES
+    ICONIFIED           | YES     | YES   | YES   | ---   | ---     | ---   | ---
+    RESTORED            | YES     | YES   | YES   | ---   | ---     | ---   | ---
+    SUSPENDED           | ---     | ---   | ---   | YES   | YES     | ---   | TODO
+    RESUMED             | ---     | ---   | ---   | YES   | YES     | ---   | TODO
+    QUIT_REQUESTED      | YES     | YES   | YES   | ---   | ---     | TODO  | ---
+    UPDATE_CURSOR       | YES     | YES   | TODO  | ---   | ---     | ---   | TODO
+    IME                 | TODO    | TODO? | TODO  | ???   | TODO    | ???   | ???
+    key repeat flag     | YES     | YES   | YES   | ---   | ---     | TODO  | YES
+    windowed            | YES     | YES   | YES   | ---   | ---     | TODO  | YES
+    fullscreen          | YES     | YES   | TODO  | YES   | YES     | TODO  | ---
+    pointer lock        | TODO    | TODO  | TODO  | ---   | ---     | TODO  | TODO
+    screen keyboard     | ---     | ---   | ---   | YES   | TODO    | ---   | YES
+    swap interval       | YES     | YES   | YES   | YES   | TODO    | TODO  | YES
+    high-dpi            | YES     | YES   | TODO  | YES   | YES     | TODO  | YES
+    clipboard           | YES     | YES   | TODO  | ---   | ---     | ---   | YES
+
+    TODO
+    ====
+    - Linux clipboard support
+    - sapp_consume_event() on non-web platforms?
+
+    STEP BY STEP
+    ============
+    --- Add a sokol_main() function to your code which returns a sapp_desc structure
+        with initialization parameters and callback function pointers. This
+        function is called very early, usually at the start of the
+        platform's entry function (e.g. main or WinMain). You should do as
+        little as possible here, since the rest of your code might be called
+        from another thread (this depends on the platform):
+
+            sapp_desc sokol_main(int argc, char* argv[]) {
+                return (sapp_desc) {
+                    .width = 640,
+                    .height = 480,
+                    .init_cb = my_init_func,
+                    .frame_cb = my_frame_func,
+                    .cleanup_cb = my_cleanup_func,
+                    .event_cb = my_event_func,
+                    ...
+                };
+            }
+
+        There are many more setup parameters, but these are the most important.
+        For a complete list search for the sapp_desc structure declaration
+        below.
+
+        DO NOT call any sokol-app function from inside sokol_main(), since
+        sokol-app will not be initialized at this point.
+
+        The .width and .height parameters are the preferred size of the 3D
+        rendering canvas. The actual size may differ from this depending on
+        platform and other circumstances. Also the canvas size may change at
+        any time (for instance when the user resizes the application window,
+        or rotates the mobile device).
+
+        All provided function callbacks will be called from the same thread,
+        but this may be different from the thread where sokol_main() was called.
+
+        .init_cb (void (*)(void))
+            This function is called once after the application window,
+            3D rendering context and swap chain have been created. The
+            function takes no arguments and has no return value.
+        .frame_cb (void (*)(void))
+            This is the per-frame callback, which is usually called 60
+            times per second. This is where your application would update
+            most of its state and perform all rendering.
+        .cleanup_cb (void (*)(void))
+            The cleanup callback is called once right before the application
+            quits.
+        .event_cb (void (*)(const sapp_event* event))
+            The event callback is mainly for input handling, but in the
+            future may also be used to communicate other types of events
+            to the application. Keep the event_cb struct member zero-initialized
+            if your application doesn't require event handling.
+        .fail_cb (void (*)(const char* msg))
+            The fail callback is called when a fatal error is encountered
+            during start which doesn't allow the program to continue.
+            Providing a callback here gives you a chance to show an error message
+            to the user. The default behaviour is SOKOL_LOG(msg)
+
+        As you can see, those 'standard callbacks' don't have a user_data
+        argument, so any data that needs to be preserved between callbacks
+        must live in global variables. If you're allergic to global variables
+        or cannot use them for other reasons, an alternative set of callbacks
+        can be defined in sapp_desc, together with a user_data pointer:
+
+        .user_data (void*)
+            The user-data argument for the callbacks below
+        .init_userdata_cb (void (*)(void* user_data))
+        .frame_userdata_cb (void (*)(void* user_data))
+        .cleanup_userdata_cb (void (*)(void* user_data))
+        .event_cb (void(*)(const sapp_event* event, void* user_data))
+        .fail_cb (void(*)(const char* msg, void* user_data))
+            These are the user-data versions of the callback functions. You
+            can mix those with the standard callbacks that don't have the
+            user_data argument.
+
+        The function sapp_userdata() can be used to query the user_data
+        pointer provided in the sapp_desc struct.
+
+        You can call sapp_query_desc() to get a copy of the
+        original sapp_desc structure.
+
+        NOTE that there's also an alternative compile mode where sokol_app.h
+        doesn't "hijack" the main() function. Search below for SOKOL_NO_ENTRY.
+
+    --- Implement the initialization callback function (init_cb), this is called
+        once after the rendering surface, 3D API and swap chain have been
+        initialized by sokol_app. All sokol-app functions can be called
+        from inside the initialization callback, the most useful functions
+        at this point are:
+
+        int sapp_width(void)
+            Returns the current width of the default framebuffer, this may change
+            from one frame to the next.
+        int sapp_height(void)
+            Likewise, returns the current height of the default framebuffer.
+
+        bool sapp_gles2(void)
+            Returns true if a GLES2 or WebGL context has been created. This
+            is useful when a GLES3/WebGL2 context was requested but is not
+            available so that sokol_app.h had to fallback to GLES2/WebGL.
+
+        const void* sapp_metal_get_device(void)
+        const void* sapp_metal_get_renderpass_descriptor(void)
+        const void* sapp_metal_get_drawable(void)
+            If the Metal backend has been selected, these functions return pointers
+            to various Metal API objects required for rendering, otherwise
+            they return a null pointer. These void pointers are actually
+            Objective-C ids converted with an ARC __bridge cast so that
+            they ids can be tunnel through C code. Also note that the returned
+            pointers to the renderpass-descriptor and drawable may change from one
+            frame to the next, only the Metal device object is guaranteed to
+            stay the same.
+
+        const void* sapp_macos_get_window(void)
+            On macOS, get the NSWindow object pointer, otherwise a null pointer.
+            Before being used as Objective-C object, the void* must be converted
+            back with an ARC __bridge cast.
+
+        const void* sapp_ios_get_window(void)
+            On iOS, get the UIWindow object pointer, otherwise a null pointer.
+            Before being used as Objective-C object, the void* must be converted
+            back with an ARC __bridge cast.
+
+        const void* sapp_win32_get_hwnd(void)
+            On Windows, get the window's HWND, otherwise a null pointer. The
+            HWND has been cast to a void pointer in order to be tunneled
+            through code which doesn't include Windows.h.
+
+        const void* sapp_d3d11_get_device(void);
+        const void* sapp_d3d11_get_device_context(void);
+        const void* sapp_d3d11_get_render_target_view(void);
+        const void* sapp_d3d11_get_depth_stencil_view(void);
+            Similar to the sapp_metal_* functions, the sapp_d3d11_* functions
+            return pointers to D3D11 API objects required for rendering,
+            only if the D3D11 backend has been selected. Otherwise they
+            return a null pointer. Note that the returned pointers to the
+            render-target-view and depth-stencil-view may change from one
+            frame to the next!
+
+        const void* sapp_android_get_native_activity(void);
+            On Android, get the native activity ANativeActivity pointer, otherwise
+            a null pointer.
+
+    --- Implement the frame-callback function, this function will be called
+        on the same thread as the init callback, but might be on a different
+        thread than the sokol_main() function. Note that the size of
+        the rendering framebuffer might have changed since the frame callback
+        was called last. Call the functions sapp_width() and sapp_height()
+        each frame to get the current size.
+
+    --- Optionally implement the event-callback to handle input events.
+        sokol-app provides the following type of input events:
+            - a 'virtual key' was pressed down or released
+            - a single text character was entered (provided as UTF-32 code point)
+            - a mouse button was pressed down or released (left, right, middle)
+            - mouse-wheel or 2D scrolling events
+            - the mouse was moved
+            - the mouse has entered or left the application window boundaries
+            - low-level, portable multi-touch events (began, moved, ended, cancelled)
+            - the application window was resized, iconified or restored
+            - the application was suspended or restored (on mobile platforms)
+            - the user or application code has asked to quit the application
+            - a string was pasted to the system clipboard
+
+        To explicitly 'consume' an event and prevent that the event is
+        forwarded for further handling to the operating system, call
+        sapp_consume_event() from inside the event handler (NOTE that
+        this behaviour is currently only implemented for some HTML5
+        events, support for other platforms and event types will
+        be added as needed, please open a github ticket and/or provide
+        a PR if needed).
+
+        NOTE: Do *not* call any 3D API functions in the event callback
+        function, since the 3D API context may not be active when the
+        event callback is called (it may work on some platforms and
+        3D APIs, but not others, and the exact behaviour may change
+        between sokol-app versions).
+
+    --- Implement the cleanup-callback function, this is called once
+        after the user quits the application (see the section
+        "APPLICATION QUIT" for detailed information on quitting
+        behaviour, and how to intercept a pending quit (for instance to show a
+        "Really Quit?" dialog box). Note that the cleanup-callback isn't
+        called on the web and mobile platforms.
+
+    CLIPBOARD SUPPORT
+    =================
+    Applications can send and receive UTF-8 encoded text data from and to the
+    system clipboard. By default, clipboard support is disabled and
+    must be enabled at startup via the following sapp_desc struct
+    members:
+
+        sapp_desc.enable_clipboard  - set to true to enable clipboard support
+        sapp_desc.clipboard_size    - size of the internal clipboard buffer in bytes
+
+    Enabling the clipboard will dynamically allocate a clipboard buffer
+    for UTF-8 encoded text data of the requested size in bytes, the default
+    size if 8 KBytes. Strings that don't fit into the clipboard buffer
+    (including the terminating zero) will be silently clipped, so it's
+    important that you provide a big enough clipboard size for your
+    use case.
+
+    To send data to the clipboard, call sapp_set_clipboard_string() with
+    a pointer to an UTF-8 encoded, null-terminated C-string.
+
+    NOTE that on the HTML5 platform, sapp_set_clipboard_string() must be
+    called from inside a 'short-lived event handler', and there are a few
+    other HTML5-specific caveats to workaround. You'll basically have to
+    tinker until it works in all browsers :/ (maybe the situation will
+    improve when all browsers agree on and implement the new
+    HTML5 navigator.clipboard API).
+
+    To get data from the clipboard, check for the SAPP_EVENTTYPE_CLIPBOARD_PASTED
+    event in your event handler function, and then call sapp_get_clipboard_string()
+    to obtain the updated UTF-8 encoded text.
+
+    NOTE that behaviour of sapp_get_clipboard_string() is slightly different
+    depending on platform:
+
+        - on the HTML5 platform, the internal clipboard buffer will only be updated
+          right before the SAPP_EVENTTYPE_CLIPBOARD_PASTED event is sent,
+          and sapp_get_clipboard_string() will simply return the current content
+          of the clipboard buffer
+        - on 'native' platforms, the call to sapp_get_clipboard_string() will
+          update the internal clipboard buffer with the most recent data
+          from the system clipboard
+
+    Portable code should check for the SAPP_EVENTTYPE_CLIPBOARD_PASTED event,
+    and then call sapp_get_clipboard_string() right in the event handler.
+
+    The SAPP_EVENTTYPE_CLIPBOARD_PASTED event will be generated by sokol-app
+    as follows:
+
+        - on macOS: when the Cmd+V key is pressed down
+        - on HTML5: when the browser sends a 'paste' event to the global 'window' object
+        - on all other platforms: when the Ctrl+V key is pressed down
+
+    HIGH-DPI RENDERING
+    ==================
+    You can set the sapp_desc.high_dpi flag during initialization to request
+    a full-resolution framebuffer on HighDPI displays. The default behaviour
+    is sapp_desc.high_dpi=false, this means that the application will
+    render to a lower-resolution framebuffer on HighDPI displays and the
+    rendered content will be upscaled by the window system composer.
+
+    In a HighDPI scenario, you still request the same window size during
+    sokol_main(), but the framebuffer sizes returned by sapp_width()
+    and sapp_height() will be scaled up according to the DPI scaling
+    ratio. You can also get a DPI scaling factor with the function
+    sapp_dpi_scale().
+
+    Here's an example on a Mac with Retina display:
+
+    sapp_desc sokol_main() {
+        return (sapp_desc) {
+            .width = 640,
+            .height = 480,
+            .high_dpi = true,
+            ...
+        };
+    }
+
+    The functions sapp_width(), sapp_height() and sapp_dpi_scale() will
+    return the following values:
+
+    sapp_width      -> 1280
+    sapp_height     -> 960
+    sapp_dpi_scale  -> 2.0
+
+    If the high_dpi flag is false, or you're not running on a Retina display,
+    the values would be:
+
+    sapp_width      -> 640
+    sapp_height     -> 480
+    sapp_dpi_scale  -> 1.0
+
+    APPLICATION QUIT
+    ================
+    Without special quit handling, a sokol_app.h application will exist
+    'gracefully' when the user clicks the window close-button. 'Graceful
+    exit' means that the application-provided cleanup callback will be
+    called.
+
+    This 'graceful exit' is only supported on native desktop platforms, on
+    the web and mobile platforms an application may be terminated at any time
+    by the user or browser/OS runtime environment without a chance to run
+    custom shutdown code.
+
+    On the web platform, you can call the following function to let the
+    browser open a standard popup dialog before the user wants to leave a site:
+
+        sapp_html5_ask_leave_site(bool ask);
+
+    The initial state of the associated internal flag can be provided
+    at startup via sapp_desc.html5_ask_leave_site.
+
+    This feature should only be used sparingly in critical situations - for
+    instance when the user would loose data - since popping up modal dialog
+    boxes is considered quite rude in the web world. Note that there's no way
+    to customize the content of this dialog box or run any code as a result
+    of the user's decision. Also note that the user must have interacted with
+    the site before the dialog box will appear. These are all security measures
+    to prevent fishing.
+
+    On native desktop platforms, sokol_app.h provides more control over the
+    application-quit-process. It's possible to initiate a 'programmatic quit'
+    from the application code, and a quit initiated by the application user
+    can be intercepted (for instance to show a custom dialog box).
+
+    This 'programmatic quit protocol' is implemented trough 3 functions
+    and 1 event:
+
+        - sapp_quit(): This function simply quits the application without
+          giving the user a chance to intervene. Usually this might
+          be called when the user clicks the 'Ok' button in a 'Really Quit?'
+          dialog box
+        - sapp_request_quit(): Calling sapp_request_quit() will send the
+          event SAPP_EVENTTYPE_QUIT_REQUESTED to the applications event handler
+          callback, giving the user code a chance to intervene and cancel the
+          pending quit process (for instance to show a 'Really Quit?' dialog
+          box). If the event handler callback does nothing, the application
+          will be quit as usual. To prevent this, call the function
+          sapp_cancel_quit() from inside the event handler.
+        - sapp_cancel_quit(): Cancels a pending quit request, either initiated
+          by the user clicking the window close button, or programmatically
+          by calling sapp_request_quit(). The only place where calling this
+          function makes sense is from inside the event handler callback when
+          the SAPP_EVENTTYPE_QUIT_REQUESTED event has been received.
+        - SAPP_EVENTTYPE_QUIT_REQUESTED: this event is sent when the user
+          clicks the window's close button or application code calls the
+          sapp_request_quit() function. The event handler callback code can handle
+          this event by calling sapp_cancel_quit() to cancel the quit.
+          If the event is ignored, the application will quit as usual.
+
+    The Dear ImGui HighDPI sample contains example code of how to
+    implement a 'Really Quit?' dialog box with Dear ImGui (native desktop
+    platforms only), and for showing the hardwired "Leave Site?" dialog box
+    when running on the web platform:
+
+        https://floooh.github.io/sokol-html5/wasm/imgui-highdpi-sapp.html
+
+    FULLSCREEN
+    ==========
+    If the sapp_desc.fullscreen flag is true, sokol-app will try to create
+    a fullscreen window on platforms with a 'proper' window system
+    (mobile devices will always use fullscreen). The implementation details
+    depend on the target platform, in general sokol-app will use a
+    'soft approach' which doesn't interfere too much with the platform's
+    window system (for instance borderless fullscreen window instead of
+    a 'real' fullscreen mode). Such details might change over time
+    as sokol-app is adapted for different needs.
+
+    The most important effect of fullscreen mode to keep in mind is that
+    the requested canvas width and height will be ignored for the initial
+    window size, calling sapp_width() and sapp_height() will instead return
+    the resolution of the fullscreen canvas (however the provided size
+    might still be used for the non-fullscreen window, in case the user can
+    switch back from fullscreen- to windowed-mode).
+
+    ONSCREEN KEYBOARD
+    =================
+    On some platforms which don't provide a physical keyboard, sokol-app
+    can display the platform's integrated onscreen keyboard for text
+    input. To request that the onscreen keyboard is shown, call
+
+        sapp_show_keyboard(true);
+
+    Likewise, to hide the keyboard call:
+
+        sapp_show_keyboard(false);
+
+    Note that on the web platform, the keyboard can only be shown from
+    inside an input handler. On such platforms, sapp_show_keyboard()
+    will only work as expected when it is called from inside the
+    sokol-app event callback function. When called from other places,
+    an internal flag will be set, and the onscreen keyboard will be
+    called at the next 'legal' opportunity (when the next input event
+    is handled).
+
+    OPTIONAL: DON'T HIJACK main() (#define SOKOL_NO_ENTRY)
+    ======================================================
+    In its default configuration, sokol_app.h "hijacks" the platform's
+    standard main() function. This was done because different platforms
+    have different main functions which are not compatible with
+    C's main() (for instance WinMain on Windows has completely different
+    arguments). However, this "main hijacking" posed a problem for
+    usage scenarios like integrating sokol_app.h with other languages than
+    C or C++, so an alternative SOKOL_NO_ENTRY mode has been added
+    in which the user code provides the platform's main function:
+
+    - define SOKOL_NO_ENTRY before including the sokol_app.h implementation
+    - do *not* provide a sokol_main() function
+    - instead provide the standard main() function of the platform
+    - from the main function, call the function ```sapp_run()``` which
+      takes a pointer to an ```sapp_desc``` structure.
+    - ```sapp_run()``` takes over control and calls the provided init-, frame-,
+      shutdown- and event-callbacks just like in the default model, it
+      will only return when the application quits (or not at all on some
+      platforms, like emscripten)
+
+    NOTE: SOKOL_NO_ENTRY is currently not supported on Android.
+
+    TEMP NOTE DUMP
+    ==============
+    - onscreen keyboard support on Android requires Java :(, should we even bother?
+    - sapp_desc needs a bool whether to initialize depth-stencil surface
+    - GL context initialization needs more control (at least what GL version to initialize)
+    - application icon
+    - mouse pointer visibility(?)
+    - the UPDATE_CURSOR event currently behaves differently between Win32 and OSX
+      (Win32 sends the event each frame when the mouse moves and is inside the window
+      client area, OSX sends it only once when the mouse enters the client area)
+    - the Android implementation calls cleanup_cb() and destroys the egl context in onDestroy
+      at the latest but should do it earlier, in onStop, as an app is "killable" after onStop
+      on Android Honeycomb and later (it can't be done at the moment as the app may be started
+      again after onStop and the sokol lifecycle does not yet handle context teardown/bringup)
+
+    FIXME: ERROR HANDLING (this will need an error callback function)
+
+
+
+*/
+
 /*-- IMPLEMENTATION ----------------------------------------------------------*/
 #ifdef SOKOL_IMPL
 #define SOKOL_APP_IMPL_INCLUDED (1)
@@ -10,6 +539,7 @@
 #pragma warning(disable:4054)   /* 'type cast': from function pointer */
 #pragma warning(disable:4055)   /* 'type cast': from data pointer */
 #pragma warning(disable:4505)   /* unreferenced local function has been removed */
+#pragma warning(disable:4115)   /* /W4: 'ID3D11ModuleInstance': named type definition in parentheses (in d3d11.h) */
 #endif
 
 #include <string.h> /* memset */
@@ -130,9 +660,9 @@ typedef struct {
     bool cleanup_called;
     bool quit_requested;
     bool quit_ordered;
+    bool event_consumed;
     const char* html5_canvas_name;
     bool html5_ask_leave_site;
-    bool refresh_requested;
     char window_title[_SAPP_MAX_TITLE_LENGTH];      /* UTF-8 */
     wchar_t window_title_wide[_SAPP_MAX_TITLE_LENGTH];   /* UTF-32 or UCS-2 */
     uint64_t frame_count;
@@ -143,6 +673,9 @@ typedef struct {
     sapp_event event;
     sapp_desc desc;
     sapp_keycode keycodes[SAPP_MAX_KEYCODES];
+    bool clipboard_enabled;
+    int clipboard_size;
+    char* clipboard;
 } _sapp_state;
 static _sapp_state _sapp;
 
@@ -192,7 +725,7 @@ _SOKOL_PRIVATE void _sapp_call_cleanup(void) {
     }
 }
 
-_SOKOL_PRIVATE void _sapp_call_event(const sapp_event* e) {
+_SOKOL_PRIVATE bool _sapp_call_event(const sapp_event* e) {
     if (!_sapp.cleanup_called) {
         if (_sapp.desc.event_cb) {
             _sapp.desc.event_cb(e);
@@ -200,6 +733,13 @@ _SOKOL_PRIVATE void _sapp_call_event(const sapp_event* e) {
         else if (_sapp.desc.event_userdata_cb) {
             _sapp.desc.event_userdata_cb(e, _sapp.desc.user_data);
         }
+    }
+    if (_sapp.event_consumed) {
+        _sapp.event_consumed = false;
+        return true;
+    }
+    else {
+        return false;
     }
 }
 
@@ -232,6 +772,11 @@ _SOKOL_PRIVATE void _sapp_init_state(const sapp_desc* desc) {
     _sapp.swap_interval = _sapp_def(_sapp.desc.swap_interval, 1);
     _sapp.html5_canvas_name = _sapp_def(_sapp.desc.html5_canvas_name, "canvas");
     _sapp.html5_ask_leave_site = _sapp.desc.html5_ask_leave_site;
+    _sapp.clipboard_enabled = _sapp.desc.enable_clipboard;
+    if (_sapp.clipboard_enabled) {
+        _sapp.clipboard_size = _sapp_def(_sapp.desc.clipboard_size, 8192);
+        _sapp.clipboard = (char*) SOKOL_CALLOC(1, _sapp.clipboard_size);
+    }
     if (_sapp.desc.window_title) {
         _sapp_strcpy(_sapp.desc.window_title, _sapp.window_title, sizeof(_sapp.window_title));
     }
@@ -239,6 +784,14 @@ _SOKOL_PRIVATE void _sapp_init_state(const sapp_desc* desc) {
         _sapp_strcpy("sokol_app", _sapp.window_title, sizeof(_sapp.window_title));
     }
     _sapp.dpi_scale = 1.0f;
+}
+
+_SOKOL_PRIVATE void _sapp_discard_state(void) {
+    if (_sapp.clipboard_enabled) {
+        SOKOL_ASSERT(_sapp.clipboard);
+        SOKOL_FREE((void*)_sapp.clipboard);
+    }
+    memset(&_sapp, 0, sizeof(_sapp));
 }
 
 _SOKOL_PRIVATE void _sapp_init_event(sapp_event_type type) {
@@ -452,6 +1005,7 @@ _SOKOL_PRIVATE void _sapp_run(const sapp_desc* desc) {
     NSApp.delegate = _sapp_macos_app_dlg_obj;
     [NSApp activateIgnoringOtherApps:YES];
     [NSApp run];
+    _sapp_discard_state();
 }
 
 /* MacOS entry function */
@@ -709,7 +1263,6 @@ _SOKOL_PRIVATE void _sapp_macos_app_event(sapp_event_type type) {
 }
 - (void)drawRect:(NSRect)bound {
     _sapp_macos_frame();
-    glFlush();
     [[_sapp_view_obj openGLContext] flushBuffer];
 }
 #endif
@@ -756,6 +1309,16 @@ _SOKOL_PRIVATE void _sapp_macos_app_event(sapp_event_type type) {
 - (void)rightMouseUp:(NSEvent*)event {
     _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_UP, SAPP_MOUSEBUTTON_RIGHT, _sapp_macos_mod(event.modifierFlags));
 }
+- (void)otherMouseDown:(NSEvent*)event {
+    if (2 == event.buttonNumber) {
+        _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_DOWN, SAPP_MOUSEBUTTON_MIDDLE, _sapp_macos_mod(event.modifierFlags));
+    }
+}
+- (void)otherMouseUp:(NSEvent*)event {
+    if (2 == event.buttonNumber) {
+        _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_UP, SAPP_MOUSEBUTTON_MIDDLE, _sapp_macos_mod(event.modifierFlags));
+    }
+}
 - (void)mouseMoved:(NSEvent*)event {
     _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_MOVE, SAPP_MOUSEBUTTON_INVALID , _sapp_macos_mod(event.modifierFlags));
 }
@@ -787,7 +1350,15 @@ _SOKOL_PRIVATE void _sapp_macos_app_event(sapp_event_type type) {
 - (void)keyDown:(NSEvent*)event {
     if (_sapp_events_enabled()) {
         const uint32_t mods = _sapp_macos_mod(event.modifierFlags);
-        _sapp_macos_key_event(SAPP_EVENTTYPE_KEY_DOWN, _sapp_translate_key(event.keyCode), event.isARepeat, mods);
+        /* NOTE: macOS doesn't send keyUp events while the Cmd key is pressed,
+            as a workaround, to prevent key presses from sticking we'll send
+            a keyup event following right after the keydown if SUPER is also pressed
+        */
+        const sapp_keycode key_code = _sapp_translate_key(event.keyCode);
+        _sapp_macos_key_event(SAPP_EVENTTYPE_KEY_DOWN, key_code, event.isARepeat, mods);
+        if (0 != (mods & SAPP_MODIFIER_SUPER)) {
+            _sapp_macos_key_event(SAPP_EVENTTYPE_KEY_UP, key_code, event.isARepeat, mods);
+        }
         const NSString* chars = event.characters;
         const NSUInteger len = chars.length;
         if (len > 0) {
@@ -802,6 +1373,11 @@ _SOKOL_PRIVATE void _sapp_macos_app_event(sapp_event_type type) {
                 _sapp.event.key_repeat = event.isARepeat;
                 _sapp_call_event(&_sapp.event);
             }
+        }
+        /* if this is a Cmd+V (paste), also send a CLIPBOARD_PASTE event */
+        if (_sapp.clipboard_enabled && (mods == SAPP_MODIFIER_SUPER) && (key_code == SAPP_KEYCODE_V)) {
+            _sapp_init_event(SAPP_EVENTTYPE_CLIPBOARD_PASTED);
+            _sapp_call_event(&_sapp.event);
         }
     }
 }
@@ -846,6 +1422,31 @@ _SOKOL_PRIVATE void _sapp_macos_app_event(sapp_event_type type) {
     }
 }
 @end
+
+void _sapp_macos_set_clipboard_string(const char* str) {
+    @autoreleasepool {
+        NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
+        [pasteboard declareTypes:@[NSPasteboardTypeString] owner:nil];
+        [pasteboard setString:@(str) forType:NSPasteboardTypeString];
+    }
+}
+
+const char* _sapp_macos_get_clipboard_string(void) {
+    SOKOL_ASSERT(_sapp.clipboard);
+    @autoreleasepool {
+        _sapp.clipboard[0] = 0;
+        NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
+        if (![[pasteboard types] containsObject:NSPasteboardTypeString]) {
+            return _sapp.clipboard;
+        }
+        NSString* str = [pasteboard stringForType:NSPasteboardTypeString];
+        if (!str) {
+            return _sapp.clipboard;
+        }
+        _sapp_strcpy([str UTF8String], _sapp.clipboard, _sapp.clipboard_size);
+    }
+    return _sapp.clipboard;
+}
 
 #endif /* MacOS */
 
@@ -900,6 +1501,7 @@ _SOKOL_PRIVATE void _sapp_run(const sapp_desc* desc) {
     static int argc = 1;
     static char* argv[] = { (char*)"sokol_app" };
     UIApplicationMain(argc, argv, nil, NSStringFromClass([_sapp_app_delegate class]));
+    _sapp_discard_state();
 }
 
 /* iOS entry function */
@@ -1265,6 +1867,16 @@ EM_JS(void, sapp_js_unfocus_textfield, (void), {
     document.getElementById("_sokol_app_input_element").blur();
 });
 
+EMSCRIPTEN_KEEPALIVE void _sapp_emsc_onpaste(const char* str) {
+    if (_sapp.clipboard_enabled) {
+        _sapp_strcpy(str, _sapp.clipboard, _sapp.clipboard_size);
+        if (_sapp_events_enabled()) {
+            _sapp_init_event(SAPP_EVENTTYPE_CLIPBOARD_PASTED);
+            _sapp_call_event(&_sapp.event);
+        }
+    }
+}
+
 /*  https://developer.mozilla.org/en-US/docs/Web/API/WindowEventHandlers/onbeforeunload */
 EMSCRIPTEN_KEEPALIVE int _sapp_html5_get_ask_leave_site(void) {
     return _sapp.html5_ask_leave_site ? 1 : 0;
@@ -1278,6 +1890,35 @@ EM_JS(void, sapp_js_hook_beforeunload, (void), {
         }
     });
 });
+
+EM_JS(void, sapp_js_init_clipboard, (void), {
+    window.addEventListener('paste', function(event) {
+        var pasted_str = event.clipboardData.getData('text');
+        ccall('_sapp_emsc_onpaste', 'void', ['string'], [pasted_str]);
+    });
+});
+
+EM_JS(void, sapp_js_write_clipboard, (const char* c_str), {
+    var str = UTF8ToString(c_str);
+    var ta = document.createElement('textarea');
+    ta.setAttribute('autocomplete', 'off');
+    ta.setAttribute('autocorrect', 'off');
+    ta.setAttribute('autocapitalize', 'off');
+    ta.setAttribute('spellcheck', 'false');
+    ta.style.left = -100 + 'px';
+    ta.style.top = -100 + 'px';
+    ta.style.height = 1;
+    ta.style.width = 1;
+    ta.value = str;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+});
+
+_SOKOL_PRIVATE void _sapp_emsc_set_clipboard_string(const char* str) {
+    sapp_js_write_clipboard(str);
+}
 
 /* called from the emscripten event handler to update the keyboard visibility
     state, this must happen from an JS input event handler, otherwise
@@ -1492,6 +2133,7 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_key_cb(int emsc_type, const EmscriptenKeyboard
                 break;
         }
         if (type != SAPP_EVENTTYPE_INVALID) {
+            bool send_keyup_followup = false;
             _sapp_init_event(type);
             _sapp.event.key_repeat = emsc_event->repeat;
             if (emsc_event->ctrlKey) {
@@ -1508,9 +2150,25 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_key_cb(int emsc_type, const EmscriptenKeyboard
             }
             if (type == SAPP_EVENTTYPE_CHAR) {
                 _sapp.event.char_code = emsc_event->charCode;
+                /* workaround to make Cmd+V work on Safari */
+                if ((emsc_event->metaKey) && (emsc_event->charCode == 118)) {
+                    retval = false;
+                }
             }
             else {
                 _sapp.event.key_code = _sapp_translate_key(emsc_event->keyCode);
+                /* Special hack for macOS: if the Super key is pressed, macOS doesn't
+                    send keyUp events. As a workaround, to prevent keys from
+                    "sticking", we'll send a keyup event following a keydown
+                    when the SUPER key is pressed
+                */
+                if ((type == SAPP_EVENTTYPE_KEY_DOWN) &&
+                    (_sapp.event.key_code != SAPP_KEYCODE_LEFT_SUPER) &&
+                    (_sapp.event.key_code != SAPP_KEYCODE_RIGHT_SUPER) &&
+                    (_sapp.event.modifiers & SAPP_MODIFIER_SUPER))
+                {
+                    send_keyup_followup = true;
+                }
                 /* only forward a certain key ranges to the browser */
                 switch (_sapp.event.key_code) {
                     case SAPP_KEYCODE_WORLD_1:
@@ -1576,7 +2234,16 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_key_cb(int emsc_type, const EmscriptenKeyboard
                         break;
                 }
             }
-            _sapp_call_event(&_sapp.event);
+            if (_sapp_call_event(&_sapp.event)) {
+                /* consume event via sapp_consume_event() */
+                retval = true;
+            }
+            if (send_keyup_followup) {
+                _sapp.event.type = SAPP_EVENTTYPE_KEY_UP;
+                if (_sapp_call_event(&_sapp.event)) {
+                    retval = true;
+                }
+            }
         }
     }
     _sapp_emsc_update_keyboard_state();
@@ -1742,9 +2409,16 @@ _SOKOL_PRIVATE void _sapp_emsc_init_keytable(void) {
     _sapp.keycodes[224] = SAPP_KEYCODE_LEFT_SUPER;
 }
 
+_SOKOL_PRIVATE void _sapp_emsc_init_clipboard(void) {
+    sapp_js_init_clipboard();
+}
+
 _SOKOL_PRIVATE void _sapp_run(const sapp_desc* desc) {
     _sapp_init_state(desc);
     _sapp_emsc_init_keytable();
+    if (_sapp.clipboard_enabled) {
+        _sapp_emsc_init_clipboard();
+    }
     double w, h;
     if (_sapp.desc.html5_canvas_resize) {
         w = (double) _sapp.desc.width;
@@ -1811,6 +2485,8 @@ _SOKOL_PRIVATE void _sapp_run(const sapp_desc* desc) {
     emscripten_request_animation_frame_loop(_sapp_emsc_frame, 0);
 
     sapp_js_hook_beforeunload();
+
+    // NOT A BUG: do not call _sapp_discard_state()
 }
 
 #if !defined(SOKOL_NO_ENTRY)
@@ -3069,6 +3745,12 @@ _SOKOL_PRIVATE bool _sapp_win32_utf8_to_wide(const char* src, wchar_t* dst, int 
     }
 }
 
+_SOKOL_PRIVATE bool _sapp_win32_wide_to_utf8(const wchar_t* src, char* dst, int dst_num_bytes) {
+    SOKOL_ASSERT(src && dst && (dst_num_bytes > 1));
+    memset(dst, 0, dst_num_bytes);
+    return 0 != WideCharToMultiByte(CP_UTF8, 0, src, -1, dst, dst_num_bytes, NULL, NULL);
+}
+
 _SOKOL_PRIVATE void _sapp_win32_show_mouse(bool shown) {
     ShowCursor((BOOL)shown);
 }
@@ -3233,16 +3915,16 @@ _SOKOL_PRIVATE bool _sapp_win32_update_dimensions(void) {
 
 _SOKOL_PRIVATE uint32_t _sapp_win32_mods(void) {
     uint32_t mods = 0;
-    if (GetKeyState(VK_SHIFT) & (1<<31)) {
+    if (GetKeyState(VK_SHIFT) & (1<<15)) {
         mods |= SAPP_MODIFIER_SHIFT;
     }
-    if (GetKeyState(VK_CONTROL) & (1<<31)) {
+    if (GetKeyState(VK_CONTROL) & (1<<15)) {
         mods |= SAPP_MODIFIER_CTRL;
     }
-    if (GetKeyState(VK_MENU) & (1<<31)) {
+    if (GetKeyState(VK_MENU) & (1<<15)) {
         mods |= SAPP_MODIFIER_ALT;
     }
-    if ((GetKeyState(VK_LWIN) | GetKeyState(VK_RWIN)) & (1<<31)) {
+    if ((GetKeyState(VK_LWIN) | GetKeyState(VK_RWIN)) & (1<<15)) {
         mods |= SAPP_MODIFIER_SUPER;
     }
     return mods;
@@ -3276,6 +3958,15 @@ _SOKOL_PRIVATE void _sapp_win32_key_event(sapp_event_type type, int vk, bool rep
         _sapp.event.key_code = _sapp.keycodes[vk];
         _sapp.event.key_repeat = repeat;
         _sapp_call_event(&_sapp.event);
+        /* check if a CLIPBOARD_PASTED event must be sent too */
+        if (_sapp.clipboard_enabled &&
+            (type == SAPP_EVENTTYPE_KEY_DOWN) &&
+            (_sapp.event.modifiers == SAPP_MODIFIER_CTRL) &&
+            (_sapp.event.key_code == SAPP_KEYCODE_V))
+        {
+            _sapp_init_event(SAPP_EVENTTYPE_CLIPBOARD_PASTED);
+            _sapp_call_event(&_sapp.event);
+        }
     }
 }
 
@@ -3527,6 +4218,69 @@ _SOKOL_PRIVATE void _sapp_win32_init_dpi(void) {
     }
 }
 
+_SOKOL_PRIVATE bool _sapp_win32_set_clipboard_string(const char* str) {
+    SOKOL_ASSERT(str);
+    SOKOL_ASSERT(_sapp_win32_hwnd);
+    SOKOL_ASSERT(_sapp.clipboard_enabled && (_sapp.clipboard_size > 0));
+
+    wchar_t* wchar_buf = 0;
+    const int wchar_buf_size = _sapp.clipboard_size * sizeof(wchar_t);
+    HANDLE object = GlobalAlloc(GMEM_MOVEABLE, wchar_buf_size);
+    if (!object) {
+        goto error;
+    }
+    wchar_buf = (wchar_t*) GlobalLock(object);
+    if (!wchar_buf) {
+        goto error;
+    }
+    if (!_sapp_win32_utf8_to_wide(str, wchar_buf, wchar_buf_size)) {
+        goto error;
+    }
+    GlobalUnlock(wchar_buf);
+    wchar_buf = 0;
+    if (!OpenClipboard(_sapp_win32_hwnd)) {
+        goto error;
+    }
+    EmptyClipboard();
+    SetClipboardData(CF_UNICODETEXT, object);
+    CloseClipboard();
+    return true;
+
+error:
+    if (wchar_buf) {
+        GlobalUnlock(object);
+    }
+    if (object) {
+        GlobalFree(object);
+    }
+    return false;
+}
+
+_SOKOL_PRIVATE const char* _sapp_win32_get_clipboard_string(void) {
+    SOKOL_ASSERT(_sapp.clipboard_enabled && _sapp.clipboard);
+    SOKOL_ASSERT(_sapp_win32_hwnd);
+    if (!OpenClipboard(_sapp_win32_hwnd)) {
+        /* silently ignore any errors and just return the current
+           content of the local clipboard buffer
+        */
+        return _sapp.clipboard;
+    }
+    HANDLE object = GetClipboardData(CF_UNICODETEXT);
+    if (!object) {
+        CloseClipboard();
+        return _sapp.clipboard;
+    }
+    const wchar_t* wchar_buf = (const wchar_t*) GlobalLock(object);
+    if (!wchar_buf) {
+        CloseClipboard();
+        return _sapp.clipboard;
+    }
+    _sapp_win32_wide_to_utf8(wchar_buf, _sapp.clipboard, _sapp.clipboard_size);
+    GlobalUnlock(object);
+    CloseClipboard();
+    return _sapp.clipboard;
+}
+
 _SOKOL_PRIVATE void _sapp_run(const sapp_desc* desc) {
     _sapp_init_state(desc);
     _sapp_win32_init_keytable();
@@ -3550,29 +4304,22 @@ _SOKOL_PRIVATE void _sapp_run(const sapp_desc* desc) {
     bool done = false;
     while (!(done || _sapp.quit_ordered)) {
         MSG msg;
-
-		if (_sapp.refresh_requested || MsgWaitForMultipleObjects(0, NULL, false, 100, QS_ALLEVENTS) == WAIT_OBJECT_0) {
-			_sapp.refresh_requested = false;
-			while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
-				if (WM_QUIT == msg.message) {
-					done = true;
-					continue;
-				}
-				else {
-					TranslateMessage(&msg);
-					DispatchMessage(&msg);
-				}
-			}
-		}
-
+        while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
+            if (WM_QUIT == msg.message) {
+                done = true;
+                continue;
+            }
+            else {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+        }
         _sapp_frame();
         #if defined(SOKOL_D3D11)
-            IDXGISwapChain_Present(_sapp_dxgi_swap_chain, 0, 0);
+            IDXGISwapChain_Present(_sapp_dxgi_swap_chain, _sapp.swap_interval, 0);
             if (IsIconic(_sapp_win32_hwnd)) {
                 Sleep(16 * _sapp.swap_interval);
-            } else {
-				Sleep(2);
-			}
+            }
         #endif
         #if defined(SOKOL_GLCORE33)
             _sapp_wgl_swap_buffers();
@@ -3598,11 +4345,12 @@ _SOKOL_PRIVATE void _sapp_run(const sapp_desc* desc) {
         _sapp_wgl_shutdown();
     #endif
     _sapp_win32_destroy_window();
+    _sapp_discard_state();
 }
 
 static char** _sapp_win32_command_line_to_utf8_argv(LPWSTR w_command_line, int* o_argc) {
     int argc = 0;
-    char** argv;
+    char** argv = 0;
     char* args;
 
     LPWSTR* w_argv = CommandLineToArgvW(w_command_line, &argc);
@@ -4373,6 +5121,8 @@ void ANativeActivity_onCreate(ANativeActivity* activity, void* saved_state, size
     activity->callbacks->onLowMemory = _sapp_android_on_low_memory;
 
     SOKOL_LOG("NativeActivity successfully created");
+
+    /* NOT A BUG: do NOT call sapp_discard_state() */
 }
 
 #endif /* Android */
@@ -5855,6 +6605,15 @@ _SOKOL_PRIVATE void _sapp_x11_key_event(sapp_event_type type, sapp_keycode key, 
         _sapp.event.key_repeat = repeat;
         _sapp.event.modifiers = mods;
         _sapp_call_event(&_sapp.event);
+        /* check if a CLIPBOARD_PASTED event must be sent too */
+        if (_sapp.clipboard_enabled &&
+            (type == SAPP_EVENTTYPE_KEY_DOWN) &&
+            (_sapp.event.modifiers == SAPP_MODIFIER_CTRL) &&
+            (_sapp.event.key_code == SAPP_KEYCODE_V))
+        {
+            _sapp_init_event(SAPP_EVENTTYPE_CLIPBOARD_PASTED);
+            _sapp_call_event(&_sapp.event);
+        }
     }
 }
 
@@ -6201,6 +6960,7 @@ _SOKOL_PRIVATE void _sapp_run(const sapp_desc* desc) {
     _sapp_glx_destroy_context();
     _sapp_x11_destroy_window();
     XCloseDisplay(_sapp_x11_display);
+    _sapp_discard_state();
 }
 
 #if !defined(SOKOL_NO_ENTRY)
@@ -6316,6 +7076,44 @@ SOKOL_API_IMPL void sapp_quit(void) {
     _sapp.quit_ordered = true;
 }
 
+SOKOL_API_IMPL void sapp_consume_event(void) {
+    _sapp.event_consumed = true;
+}
+
+/* NOTE: on HTML5, sapp_set_clipboard_string() must be called from within event handler! */
+SOKOL_API_IMPL void sapp_set_clipboard_string(const char* str) {
+    if (!_sapp.clipboard_enabled) {
+        return;
+    }
+    SOKOL_ASSERT(str);
+    #if defined(__APPLE__) && defined(TARGET_OS_IPHONE) && !TARGET_OS_IPHONE
+        _sapp_macos_set_clipboard_string(str);
+    #elif defined(__EMSCRIPTEN__)
+        _sapp_emsc_set_clipboard_string(str);
+    #elif defined(_WIN32)
+        _sapp_win32_set_clipboard_string(str);
+    #else
+        /* not implemented */
+    #endif
+    _sapp_strcpy(str, _sapp.clipboard, _sapp.clipboard_size);
+}
+
+SOKOL_API_IMPL const char* sapp_get_clipboard_string(void) {
+    if (!_sapp.clipboard_enabled) {
+        return "";
+    }
+    #if defined(__APPLE__) && defined(TARGET_OS_IPHONE) && !TARGET_OS_IPHONE
+        return _sapp_macos_get_clipboard_string();
+    #elif defined(__EMSCRIPTEN__)
+        return _sapp.clipboard;
+    #elif defined(_WIN32)
+        return _sapp_win32_get_clipboard_string();
+    #else
+        /* not implemented */
+        return _sapp.clipboard;
+    #endif
+}
+
 SOKOL_API_IMPL const void* sapp_metal_get_device(void) {
     SOKOL_ASSERT(_sapp.valid);
     #if defined(SOKOL_METAL)
@@ -6428,10 +7226,6 @@ SOKOL_API_IMPL void sapp_html5_ask_leave_site(bool ask) {
     _sapp.html5_ask_leave_site = ask;
 }
 
-SOKOL_API_DECL void sapp_request_refresh(void) {
-    _sapp.refresh_requested = true;
-}
-
 #undef _sapp_def
 
 #ifdef _MSC_VER
@@ -6439,4 +7233,3 @@ SOKOL_API_DECL void sapp_request_refresh(void) {
 #endif
 
 #endif /* SOKOL_IMPL */
-

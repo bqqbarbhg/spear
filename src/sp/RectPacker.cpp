@@ -28,7 +28,7 @@ bool RectPacker::pack(uint32_t w, uint32_t h, uint32_t &x, uint32_t &y)
 
 	uint32_t ix = 0;
 	for (;;) {
-		Rect &rect = rs[ix];
+		Rect rect = rs[ix];
 		uint32_t childIndex = rect.childIndex;
 		if (childIndex > 0) {
 
@@ -58,11 +58,12 @@ bool RectPacker::pack(uint32_t w, uint32_t h, uint32_t &x, uint32_t &y)
 			if (dw + dh == 0) {
 				x = rect.x;
 				y = rect.y;
-				rect.childIndex = ~0u;
+				rects[ix].childIndex = ~0u;
 				return true;
 			}
 
 			// Prepare to recurse into children
+			rects[ix].childIndex = rects.size;
 			ix = rects.size;
 
 			// Setup child rectangles depending on the aspect ratio
