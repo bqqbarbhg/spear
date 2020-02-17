@@ -14,7 +14,9 @@ struct String
 	String(const char *data, size_t size) : data(data), size(size) { }
 	sf_forceinline explicit String(const char *data) : data(data), size(strlen(data)) { }
 	template <size_t N>
-	String(const char (&arr)[N]) : data(arr), size(N) { }
+	String(const char (&arr)[N]) : data(arr), size(N - 1) {
+		sf_assert(N > 0 && arr[N - 1] == '\0');
+	}
 
 	bool operator==(const String &rhs) const { return size == rhs.size && memcmp(data, rhs.data, size) == 0; }
 	bool operator!=(const String &rhs) const { return size != rhs.size || memcmp(data, rhs.data, size) != 0; }
@@ -31,7 +33,9 @@ struct CString : String
 	}
 	sf_forceinline explicit CString(const char *data) : String(data) { }
 	template <size_t N>
-	CString(const char (&arr)[N]) : String(arr, N) { }
+	CString(const char (&arr)[N]) : String(arr, N) {
+		sf_assert(N > 0 && arr[N - 1] == '\0');
+	}
 };
 
 struct StringBuf

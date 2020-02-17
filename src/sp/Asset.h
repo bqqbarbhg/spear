@@ -106,6 +106,11 @@ struct Ref
 		if (ptr) ptr->release();
 		ptr = newPtr;
 	}
+
+	void load(const sf::String &name) {
+		if (ptr) ptr->release();
+		ptr = Asset::load<T>(name);
+	}
 };
 
 }

@@ -15,10 +15,9 @@ struct ContentFile
 	};
 
 	// Lifecycle
-	static void init();
+	static void init(const sf::String &root);
 	static void update();
 
-	static LoadHandle load(const sf::CString &name, Callback callback, void *user);
 	static LoadHandle load(const sf::String &name, Callback callback, void *user);
 	static void cancel(LoadHandle handle);
 

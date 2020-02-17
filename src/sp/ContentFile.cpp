@@ -18,6 +18,7 @@ struct ContentFileInfo
 struct ContentFileQueue
 {
 	sf::Mutex mutex;
+	sf::StringBuf root;
 	sf::Array<char> fileBuffers[NumBuffers];
 	sf::Array<sfetch_handle_t> cancelledHandles;
 };
@@ -61,8 +62,9 @@ static void fetchCallback(const sfetch_response_t *response)
 	}
 }
 
-void ContentFile::init()
+void ContentFile::init(const sf::String &root)
 {
+	g_queue.root = root;
 	for (auto &buffer : g_queue.fileBuffers) {
 		buffer.resizeUninit(BufferSize);
 	}
@@ -77,27 +79,23 @@ void ContentFile::update()
 	sfetch_dowork();
 }
 
-ContentFile::LoadHandle ContentFile::load(const sf::CString &name, Callback callback, void *user)
+ContentFile::LoadHandle ContentFile::load(const sf::String &name, Callback callback, void *user)
 {
 	ContentFileInfo info;
 	info.callback = callback;
 	info.user = user;
 
+	sf::SmallStringBuf<256> path;
+	path.append(g_queue.root, name);
+
 	sfetch_request_t req = { };
 	req.callback = &fetchCallback;
-	req.path = name.data;
+	req.path = path.data;
 	req.user_data_ptr = &info;
 	req.user_data_size = sizeof(ContentFileInfo);
 	sfetch_handle_t handle = sfetch_send(&req);
 
 	return { handle.id };
-}
-
-ContentFile::LoadHandle ContentFile::load(const sf::String &name, Callback callback, void *user)
-{
-	sf::SmallStringBuf<256> buf;
-	buf.append(name);
-	return load((sf::CString)buf, callback, user);
 }
 
 void ContentFile::cancel(LoadHandle handle)

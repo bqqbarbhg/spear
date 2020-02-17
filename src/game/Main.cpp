@@ -14,8 +14,8 @@ constexpr uint32_t MsaaSamples = 1;
 
 struct TestGame
 {
-	sp::SpriteRef dude { "data/dude.png" };
-	sp::SpriteRef guy { "data/guy.png" };
+	sp::SpriteRef dude { "dude.png" };
+	sp::SpriteRef guy { "guy.png" };
 
 	void render()
 	{
@@ -34,7 +34,11 @@ struct TestGame
 		if (guy) guy->shouldBeLoaded();
 
 		if (stm_sec(stm_now()) > 2.0) {
-			dude.reset();
+			if (guy) {
+				guy.reset();
+				dude.reset();
+				dude.load("dude.png");
+			}
 		}
 
 		sg_end_pass();
@@ -71,7 +75,7 @@ static void init()
 
 	stm_setup();
 
-	sp::ContentFile::init();
+	sp::ContentFile::init("data/");
 	sp::Asset::init();
 
 	game = new TestGame();
