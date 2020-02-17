@@ -6,15 +6,13 @@
 
 #include "sf/Base.h"
 
-#include "engine/Asset.h"
-#include "engine/SpriteBatch.h"
+#include "sp/Sprite.h"
 
 constexpr uint32_t MsaaSamples = 1;
 
 struct TestGame
 {
-	SpriteBatch sb;
-	Sprite testSprite = loadAsset<Sprite>("data/dude.png");
+	sp::SpriteRef sprite { "dude.png" };
 
 	void render()
 	{
@@ -26,8 +24,7 @@ struct TestGame
 		pass_action.colors[0].val[3] = (float)0xff / 255.0f;
 		sg_begin_default_pass(&pass_action, sapp_width(), sapp_height());
 
-		sb.draw(testSprite, sf::Mat23(), sf::Vec4(1.0f));
-		sb.end();
+		sprite->shouldBeLoaded();
 
 		sg_end_pass();
 		sg_commit();
@@ -63,8 +60,6 @@ static void init()
 
 	stm_setup();
 
-	setupAssets();
-
 	game = new TestGame();
 }
 
@@ -75,8 +70,6 @@ static void event(const sapp_event *e)
 static void frame()
 {
 	float dt = (float)stm_sec(stm_laptime(&g_last_time));
-
-	updateAssets();
 
 	game->render();
 }

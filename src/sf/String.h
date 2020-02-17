@@ -13,6 +13,8 @@ struct String
 	String() : data(nullptr), size(0) { }
 	String(const char *data, size_t size) : data(data), size(size) { }
 	sf_forceinline explicit String(const char *data) : data(data), size(strlen(data)) { }
+	template <size_t N>
+	String(const char (&arr)[N]) : data(arr), size(N) { }
 
 	bool operator==(const String &rhs) const { return size == rhs.size && memcmp(data, rhs.data, size) == 0; }
 	bool operator!=(const String &rhs) const { return size != rhs.size || memcmp(data, rhs.data, size) != 0; }

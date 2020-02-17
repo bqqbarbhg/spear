@@ -35,6 +35,21 @@ void memFree(void *ptr)
 	free(ptr);
 }
 
+void *alignedAlloc(size_t size, size_t align)
+{
+	return _aligned_malloc(size, align);
+}
+
+void *alignedRealloc(void *ptr, size_t size, size_t align)
+{
+	return _aligned_realloc(ptr, size, align);
+}
+
+void alignedFree(void *ptr)
+{
+	return _aligned_free(ptr);
+}
+
 #endif // SF_DEBUG (for debug allocation)
 
 char *memPrintf(const char *fmt, ...)

@@ -104,6 +104,18 @@ struct HashMap
 	}
 
 	template <typename KT>
+	InsertResult<Entry> insert(const KT &key)
+	{
+		uint32_t index;
+		bool inserted = insertImp(key, index);
+		Entry *entry = &data[index];
+		if (inserted) {
+			new (&entry->val) V();
+		}
+		return { *entry, inserted };
+	}
+
+	template <typename KT>
 	InsertResult<Entry> insert(const KT &key, const V &value)
 	{
 		uint32_t index;
