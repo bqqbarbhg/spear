@@ -90,9 +90,10 @@ struct Ref
 		return *this;
 	}
 
-	T *operator->() { return ptr; }
+	T *operator->() const { return ptr; }
 	explicit operator bool() const { return ptr != nullptr; }
 	bool operator!() const { return ptr == nullptr; }
+	operator T*() const { return ptr; }
 
 	void reset() {
 		if (ptr) {

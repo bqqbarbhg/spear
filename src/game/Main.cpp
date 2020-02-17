@@ -9,6 +9,7 @@
 #include "sp/Sprite.h"
 #include "sp/Asset.h"
 #include "sp/ContentFile.h"
+#include "sp/Canvas.h"
 
 constexpr uint32_t MsaaSamples = 1;
 
@@ -17,10 +18,18 @@ struct TestGame
 	sp::SpriteRef dude { "dude.png" };
 	sp::SpriteRef guy { "guy.png" };
 
+	sp::Canvas canvas;
+
 	void render()
 	{
 		sp::ContentFile::update();
 		sp::Asset::update();
+		sp::Sprite::update();
+
+		canvas.draw(dude, sf::Mat23());
+		canvas.draw(guy, sf::Mat23());
+
+		sp::Sprite::updateAtlasesForRendering();
 
 		sg_pass_action pass_action = { };
 		pass_action.colors[0].action = SG_ACTION_CLEAR;
@@ -29,17 +38,6 @@ struct TestGame
 		pass_action.colors[0].val[2] = (float)0xed / 255.0f;
 		pass_action.colors[0].val[3] = (float)0xff / 255.0f;
 		sg_begin_default_pass(&pass_action, sapp_width(), sapp_height());
-
-		if (dude) dude->shouldBeLoaded();
-		if (guy) guy->shouldBeLoaded();
-
-		if (stm_sec(stm_now()) > 2.0) {
-			if (guy) {
-				guy.reset();
-				dude.reset();
-				dude.load("dude.png");
-			}
-		}
 
 		sg_end_pass();
 		sg_commit();

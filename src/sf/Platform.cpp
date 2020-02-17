@@ -7,7 +7,7 @@ extern "C" {
 
 void sf_debug_log(const char *str)
 {
-	sf::debugPrint("%s", str);
+	sf::debugPrintLine("%s", str);
 }
 
 #ifdef __cplusplus

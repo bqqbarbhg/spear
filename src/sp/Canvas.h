@@ -10,13 +10,19 @@ namespace sp {
 struct Sprite;
 struct Font;
 
+struct CanvasImp;
 struct Canvas
 {
-	static Canvas *create();
-	static void free(Canvas *c);
+	Canvas();
+	~Canvas();
+	Canvas(const Canvas &rhs) = delete;
+	Canvas(Canvas &&rhs) : imp(rhs.imp) { rhs.imp = nullptr; }
 
-	void draw(uint32_t layer, Sprite *s, const sf::Mat23 &transform);
-	void drawText(uint32_t layer, Font *f, sf::String str, const sf::Vec2 &pos);
+	void clear();
+	void draw(Sprite *s, const sf::Mat23 &transform);
+	void drawText(Font *f, sf::String str, const sf::Vec2 &pos);
+
+	CanvasImp *imp;
 };
 
 }

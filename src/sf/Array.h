@@ -88,7 +88,7 @@ struct Array
 		new (&data[size++]) T(t);
 	}
 
-	void push(const T &&t) {
+	void push(T &&t) {
 		if (size == capacity) impGrowOne();
 		new (&data[size++]) T(std::move(t));
 	}
@@ -98,6 +98,14 @@ struct Array
 		T *ptr = &data[size++];
 		new (ptr) T();
 		return *ptr;
+	}
+
+	T *pushUninit(size_t num) {
+		static_assert(!HasDestructor<T>::value, "Trying to pushUninit() on type with a destructor!");
+		if (size + num > capacity) impGrowToGeometric(size + num);
+		T *ptr = &data[size];
+		size += num;
+		return ptr;
 	}
 
 	void push(const T *ts, size_t num) {
@@ -177,12 +185,27 @@ struct Array
 
 	void removeSwap(size_t index) {
 		sf_assert(index < size);
+		data[index].~T();
 		if (index < --size) {
-			data[index].~T();
 			new (&data[index]) T(std::move(data[size]));
 			data[size].~T();
 		}
 	}
+
+	void removeSwapPtr(T *t) { removeSwap((size_t)(t - data)); }
+
+	void removeOrdered(size_t index) {
+		sf_assert(index < size);
+		uint32_t end = --size;
+		while (index < end) {
+			data[index].~T();
+			new (&data[index]) T(std::move(data[index + 1]));
+			index++;
+		}
+		data[index].~T();
+	}
+
+	void removeOrderedPtr(T *t) { removeOrdered((size_t)(t - data)); }
 
 protected:
 	Array(T *data, size_t capacity) : data(data), size(0), capacity((uint32_t)capacity) { }
