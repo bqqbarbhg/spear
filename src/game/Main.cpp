@@ -7,15 +7,21 @@
 #include "sf/Base.h"
 
 #include "sp/Sprite.h"
+#include "sp/Asset.h"
+#include "sp/ContentFile.h"
 
 constexpr uint32_t MsaaSamples = 1;
 
 struct TestGame
 {
-	sp::SpriteRef sprite { "dude.png" };
+	sp::SpriteRef dude { "data/dude.png" };
+	sp::SpriteRef guy { "data/guy.png" };
 
 	void render()
 	{
+		sp::ContentFile::update();
+		sp::Asset::update();
+
 		sg_pass_action pass_action = { };
 		pass_action.colors[0].action = SG_ACTION_CLEAR;
 		pass_action.colors[0].val[0] = (float)0x64 / 255.0f;
@@ -24,7 +30,12 @@ struct TestGame
 		pass_action.colors[0].val[3] = (float)0xff / 255.0f;
 		sg_begin_default_pass(&pass_action, sapp_width(), sapp_height());
 
-		sprite->shouldBeLoaded();
+		if (dude) dude->shouldBeLoaded();
+		if (guy) guy->shouldBeLoaded();
+
+		if (stm_sec(stm_now()) > 2.0) {
+			dude.reset();
+		}
 
 		sg_end_pass();
 		sg_commit();
@@ -59,6 +70,9 @@ static void init()
 	}
 
 	stm_setup();
+
+	sp::ContentFile::init();
+	sp::Asset::init();
 
 	game = new TestGame();
 }

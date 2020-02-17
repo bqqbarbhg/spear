@@ -8,8 +8,6 @@ namespace sp {
 struct Sprite : Asset
 {
 	static const AssetType AssetType;
-
-	virtual void startLoadingImp() final;
 };
 
 using SpriteRef = Ref<Sprite>;

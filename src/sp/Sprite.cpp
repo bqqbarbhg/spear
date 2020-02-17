@@ -10,6 +10,9 @@ namespace sp {
 
 struct SpriteImp : Sprite
 {
+	virtual void startLoadingImp() final;
+	virtual void unloadImp() final;
+
 	sg_image image;
 };
 
@@ -20,6 +23,10 @@ const AssetType Sprite::AssetType = { "Sprite", sizeof(SpriteImp),
 static void loadImp(void *user, const ContentFile &file)
 {
 	SpriteImp *imp = (SpriteImp*)user;
+	if (!file.isValid()) {
+		imp->failLoadingImp();
+		return;
+	}
 
 	int width, height;
 	stbi_uc *pixels = stbi_load_from_memory((const stbi_uc*)file.data, (int)file.size, &width, &height, NULL, 4);
@@ -44,9 +51,14 @@ static void loadImp(void *user, const ContentFile &file)
 	imp->finishLoadingImp();
 }
 
-void Sprite::startLoadingImp()
+void SpriteImp::startLoadingImp()
 {
 	ContentFile::load(name, &loadImp, this);
+}
+
+void SpriteImp::unloadImp()
+{
+	sg_destroy_image(image);
 }
 
 }

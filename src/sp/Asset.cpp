@@ -4,7 +4,10 @@
 #include "sf/HashMap.h"
 #include "sf/Array.h"
 
-const uint32_t FreeQueueFrames = 60;
+const uint32_t UnloadQueueFrames = 4;
+const uint32_t FreeQueueFrames = 16;
+
+#define sp_asset_log(...) sf::debugPrintLine(__VA_ARGS__)
 
 enum class LoadState
 {
@@ -26,7 +29,7 @@ namespace sp {
 		"Asset type mismatch: Expected %u, but asset is %u", \
 		(expected)->name, (type)->name)
 
-struct AssetToFree
+struct PendingAsset
 {
 	Asset *asset;
 	uint32_t frameIndex;
@@ -36,8 +39,9 @@ struct AssetLibrary
 {
 	sf::Mutex mutex;
 	sf::HashMap<sf::String, Asset*> assetsByName;
-	sf::Array<AssetToFree> assetsToFree;
-	uint32_t frameIndex;
+	sf::Array<PendingAsset> assetsToFree;
+	uint32_t frameIndex = 0;
+	uint32_t numAssetsLoading = 0;
 
 	Asset *findAsset(const sf::String &name, const AssetType *type)
 	{
@@ -69,17 +73,23 @@ struct AssetLibrary
 			return asset;
 		}
 
-		// Allocate the asset
-		Asset *asset = (Asset*)sf::memAlloc(type->size);
+		// Allocate the asset and space for the name
+		Asset *asset = (Asset*)sf::memAlloc(type->size + name.size + 1);
+		char *nameCopy = (char*)asset + type->size;
+		memcpy(nameCopy, name.data, name.size);
+		nameCopy[name.size] = '\0';
 
 		// Call the asset type constructor, patch the name,
 		// and finally patch `result.entry` to point to
 		// the asset and its name.
 		type->init(asset);
 		asset->type = type;
-		asset->name = name;
+		asset->name = sf::CString(nameCopy, name.size);
 		result.entry.key = asset->name;
 		result.entry.val = asset;
+
+		sp_asset_log("Create: %s %s", type->name, asset->name.data);
+
 		return asset;
 	}
 
@@ -89,7 +99,9 @@ struct AssetLibrary
 		if (asset->flags & Flag_Freed) return;
 		asset->flags |= Flag_Freed;
 
-		AssetToFree &pendingFree = assetsToFree.push();
+		sp_asset_log("Queue free: %s %s", asset->type->name, asset->name.data);
+
+		PendingAsset &pendingFree = assetsToFree.push();
 		pendingFree.asset = asset;
 		pendingFree.frameIndex = frameIndex;
 	}
@@ -99,8 +111,8 @@ struct AssetLibrary
 		sf::MutexGuard mg(mutex);
 		frameIndex++;
 
-		for (size_t index = 0; index < assetsToFree.size; index++) {
-			AssetToFree &pendingFree = assetsToFree[index];
+		for (uint32_t index = 0; index < assetsToFree.size; index++) {
+			PendingAsset &pendingFree = assetsToFree[index];
 			Asset *asset = pendingFree.asset;
 
 			if (frameIndex - pendingFree.frameIndex < FreeQueueFrames) {
@@ -110,18 +122,36 @@ struct AssetLibrary
 
 			if (mxa_load32_nf(&asset->refcount) > 0) {
 				// Asset has been revived
-				assetsToFree.removeSwap(index);
-				index--;
+				asset->flags &= ~Flag_Freed;
+				assetsToFree.removeSwap(index--);
 				continue;
 			}
 
-			// TODO: Unload
+			LoadState state = (LoadState)mxa_load32_nf(&asset->state);
+			if (state == LoadState::Loading) {
+				// Wait for the asset to finish loading
+				continue;
+			}
+
+			// Unload the asset if necessary
+			if (state == LoadState::Loaded) {
+				if (mxa_cas32_nf(&asset->state, (uint32_t)LoadState::Loaded, (uint32_t)LoadState::Unloaded)) {
+					sp_asset_log("Unload: %s %s", asset->type->name, asset->name.data);
+					asset->unloadImp();
+				} else {
+					continue;
+				}
+			}
+
+			sp_asset_log("Delete: %s %s", asset->type->name, asset->name.data);
 
 			// Remove the asset from the map
 			sf::String name = asset->name;
 			assetsByName.remove(name);
 			asset->~Asset();
 			sf::memFree(asset);
+
+			assetsToFree.removeSwap(index--);
 		}
 	}
 };
@@ -147,6 +177,13 @@ bool Asset::isLoaded() const
 	return s == LoadState::Loaded;
 }
 
+bool Asset::isFailed() const
+{
+	sf_assert(refcount > 0);
+	LoadState s = (LoadState)mxa_load32_acq(&state);
+	return s == LoadState::Failed;
+}
+
 bool Asset::shouldBeLoaded()
 {
 	sf_assert(refcount > 0);
@@ -156,11 +193,14 @@ bool Asset::shouldBeLoaded()
 		sf::debugPrintLine("Asset not loaded before use: %s %s", type->name, name.data);
 		startLoading();
 	}
+	return false;
 }
 
 void Asset::startLoading()
 {
-	if (!mxa_cas32_nf(&state, (uint32_t)LoadState::Unloaded, (uint32_t)LoadState::Loading)) return;
+	if (!mxa_cas32_acq(&state, (uint32_t)LoadState::Unloaded, (uint32_t)LoadState::Loading)) return;
+	mxa_inc32_rel(&g_library.numAssetsLoading);
+	sp_asset_log("Start load: %s %s", type->name, name.data);
 	startLoadingImp();
 }
 
@@ -193,10 +233,31 @@ void Asset::finishLoadingImp()
 {
 	bool res = mxa_cas32_rel(&state, (uint32_t)LoadState::Loading, (uint32_t)LoadState::Loaded);
 	sf_assertf(res, "Invalid state transition");
+	mxa_dec32_rel(&g_library.numAssetsLoading);
+	sp_asset_log("Finish load: %s %s", type->name, name.data);
 }
 
-void Asset::freeImp()
+void Asset::failLoadingImp()
 {
+	// sf::debugPrintLine("Failed to load: %s %s", type->name, name.data);
+	bool res = mxa_cas32_rel(&state, (uint32_t)LoadState::Loading, (uint32_t)LoadState::Failed);
+	sf_assertf(res, "Invalid state transition");
+	mxa_dec32_rel(&g_library.numAssetsLoading);
+	sp_asset_log("Fail load: %s %s", type->name, name.data);
+}
+
+void Asset::init()
+{
+}
+
+void Asset::update()
+{
+	g_library.update();
+}
+
+uint32_t Asset::getNumAssetsLoading()
+{
+	return mxa_load32_acq(&g_library.numAssetsLoading);
 }
 
 }

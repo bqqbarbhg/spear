@@ -23,6 +23,17 @@ struct String
 	const char *end() const { return data + size; }
 };
 
+struct CString : String
+{
+	CString() : String("", 0) { }
+	CString(const char *data, size_t size) : String(data, size) {
+		sf_assert(data[size] == '\0');
+	}
+	sf_forceinline explicit CString(const char *data) : String(data) { }
+	template <size_t N>
+	CString(const char (&arr)[N]) : String(arr, N) { }
+};
+
 struct StringBuf
 {
 	char *data;
@@ -86,6 +97,7 @@ struct StringBuf
 	StringBuf& operator=(String s);
 
 	operator String() const { return String(data, size); }
+	operator CString() const { return CString(data, size); }
 
 	void clear() {
 		size = 0;

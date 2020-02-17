@@ -19,7 +19,7 @@ struct AssetType
 
 struct Asset
 {
-	sf::StringBuf name;
+	sf::CString name;
 	const AssetType *type;
 	uint32_t state;
 	uint32_t refcount;
@@ -29,6 +29,7 @@ struct Asset
 	virtual ~Asset();
 
 	bool isLoaded() const;
+	bool isFailed() const;
 	bool shouldBeLoaded();
 
 	void startLoading();
@@ -49,12 +50,18 @@ struct Asset
 		return (T*)createImp(name, &T::AssetType);
 	}
 
+	// Globals
+	static void init();
+	static void update();
+	static uint32_t getNumAssetsLoading();
+
 	// Virtuals
 	virtual void startLoadingImp() = 0;
+	virtual void unloadImp() = 0;
 
 	// Implementation
 	void finishLoadingImp();
-	void freeImp();
+	void failLoadingImp();
 };
 
 template <typename T>
@@ -84,6 +91,21 @@ struct Ref
 	}
 
 	T *operator->() { return ptr; }
+	explicit operator bool() const { return ptr != nullptr; }
+	bool operator!() const { return ptr == nullptr; }
+
+	void reset() {
+		if (ptr) {
+			ptr->release();
+			ptr = nullptr;
+		}
+	}
+
+	void reset(T *newPtr) {
+		if (newPtr) newPtr->retain();
+		if (ptr) ptr->release();
+		ptr = newPtr;
+	}
 };
 
 }
