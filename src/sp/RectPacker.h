@@ -12,6 +12,10 @@ struct RectPacker
 		uint32_t childIndex;
 	};
 
+	RectPacker() = default;
+	RectPacker(const RectPacker &) = default;
+	RectPacker(RectPacker &&) = default;
+
 	sf::Array<Rect> rects;
 	void reset(uint32_t width, uint32_t height);
 	bool pack(uint32_t width, uint32_t height, uint32_t &x, uint32_t &y);

@@ -323,4 +323,16 @@ struct SmallArray : Array<T>
 
 template <typename T> struct IsZeroInitializable<Array<T>> { enum { value = 1 }; };
 
+template <typename T>
+static bool findRemoveSwap(Array<T> &arr, const T &t)
+{
+	for (T &other : arr) {
+		if (t == other) {
+			arr.removeSwapPtr(&other);
+			return true;
+		}
+	}
+	return false;
+}
+
 }

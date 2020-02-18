@@ -1043,6 +1043,7 @@ typedef struct sg_image_desc {
     float max_lod;
     sg_image_content content;
     const char* label;
+    bool bqq_copy_target;
     /* GL specific */
     uint32_t gl_textures[SG_NUM_INFLIGHT_FRAMES];
     /* Metal specific */
@@ -1599,6 +1600,28 @@ SOKOL_API_DECL void sg_fail_pass(sg_pass pass_id);
 SOKOL_API_DECL sg_context sg_setup_context(void);
 SOKOL_API_DECL void sg_activate_context(sg_context ctx_id);
 SOKOL_API_DECL void sg_discard_context(sg_context ctx_id);
+
+
+/* bqq extensions */
+typedef struct sg_bqq_subimage_rect {
+    int src_x;
+    int src_y;
+    int dst_x;
+    int dst_y;
+    int width;
+    int height;
+} sg_bqq_subimage_rect;
+
+typedef struct sg_bqq_subimage_copy_desc {
+    sg_image dst_image;
+    sg_image src_image;
+    const sg_bqq_subimage_rect *rects;
+    int num_rects;
+    int num_mips;
+} sg_bqq_subimage_copy_desc;
+
+SOKOL_API_DECL void sg_bqq_copy_subimages(const sg_bqq_subimage_copy_desc *desc);
+SOKOL_API_DECL void sg_bqq_generate_mipmaps(sg_image image);
 
 #ifdef _MSC_VER
 #pragma warning(pop)

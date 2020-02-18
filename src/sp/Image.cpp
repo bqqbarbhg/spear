@@ -44,7 +44,7 @@ static float *generateSrgbLookup()
 	return data;
 }
 
-void Image::blit(uint32_t x, uint32_t y, const void *srcData, uint32_t w, uint32_t h)
+void Image::blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const void *srcData)
 {
 	sf_assert(x + w <= width);
 	sf_assert(y + h <= height);
@@ -57,6 +57,20 @@ void Image::blit(uint32_t x, uint32_t y, const void *srcData, uint32_t w, uint32
 		memcpy(dst, src, srcStride);
 		dst += dstStride;
 		src += srcStride;
+	}
+}
+
+void Image::clear(uint32_t x, uint32_t y, uint32_t w, uint32_t h)
+{
+	sf_assert(x + w <= width);
+	sf_assert(y + h <= height);
+
+	uint32_t srcStride = w * 4;
+	uint32_t dstStride = width * 4;
+	uint8_t *dst = data + y * dstStride + x * 4;
+	for (uint32_t dy = 0; dy < h; dy++) {
+		memset(dst, 0, srcStride);
+		dst += dstStride;
 	}
 }
 

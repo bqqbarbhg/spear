@@ -62,29 +62,6 @@ struct CanvasImp
 	void render(const CanvasRenderOpts &pots);
 };
 
-static void filterAtlases(sf::Array<Atlas*> &atlases, sf::Slice<SpriteResidency> residency)
-{
-	Atlas **dst = atlases.data;
-	SpriteResidency *res = residency.begin(), *resEnd = residency.end();
-	for (Atlas *atlas : atlases) {
-
-		// Skip residency until we find `atlas` (or skip past it)
-		while (res < resEnd && res->atlas < atlas) {
-			res++;
-		}
-
-		if (res != resEnd && res->atlas == atlas) {
-			// Found the atlas in residency, add to `dst`
-			// Note that the write is always before the pointer to `atlas`
-			// and cannot be seen by the iteration.
-			*dst++ = atlas;
-		}
-	}
-
-	// Remove the atlases past `dst`
-	atlases.resize(dst - atlases.data);
-}
-
 CanvasRenderer::CanvasRenderer()
 {
 	spriteShader = sg_make_shader(Sprite_Sprite_shader_desc());
@@ -138,7 +115,6 @@ CanvasRenderer::CanvasRenderer()
 
 CanvasRenderer::~CanvasRenderer()
 {
-	sg_destroy_shader(spriteShader);
 }
 
 static uint32_t packChannel(float f)
@@ -155,16 +131,16 @@ static uint32_t packColor(const sf::Vec4 &col)
 	return r | (g << 8) | (b << 16) | (a << 24);
 }
 
-static void spriteToQuad(Quad &quad, const SpriteDraw &draw, const SpriteResidency &residency)
+static void spriteToQuad(Quad &quad, const SpriteDraw &draw)
 {
 	Sprite *sprite = draw.sprite;
-	float rcpAtlasWidth = 1.0f / (float)residency.atlas->width;
-	float rcpAtlasHeight = 1.0f / (float)residency.atlas->height;
+	float rcpAtlasWidth = 1.0f / (float)sprite->atlas->width;
+	float rcpAtlasHeight = 1.0f / (float)sprite->atlas->height;
 
-	float uvMinX = (float)residency.x * rcpAtlasWidth;
-	float uvMinY = (float)residency.y * rcpAtlasWidth;
-	float uvMaxX = (float)(residency.x + sprite->width) * rcpAtlasWidth;
-	float uvMaxY = (float)(residency.y + sprite->height) * rcpAtlasWidth;
+	float uvMinX = (float)sprite->x * rcpAtlasWidth;
+	float uvMinY = (float)sprite->y * rcpAtlasHeight;
+	float uvMaxX = (float)(sprite->x + sprite->width) * rcpAtlasWidth;
+	float uvMaxY = (float)(sprite->y + sprite->height) * rcpAtlasHeight;
 
 	uint32_t color = packColor(draw.color);
 
@@ -197,28 +173,16 @@ static void spriteToQuad(Quad &quad, const SpriteDraw &draw, const SpriteResiden
 
 void CanvasRenderer::drawSprites(sf::Slice<SpriteDraw> draws, Atlas *atlas)
 {
+	sf_assert(draws.size > 0);
 	sf_assert(draws.size <= MaxQuadsPerDraw);
-
-	sf::SmallArray<SpriteResidency, 16> residency;
 
 	quads.clear();
 	for (const SpriteDraw &draw : draws) {
 		Sprite *sprite = draw.sprite;
-		sf_assert(sprite->isLoaded());
-
-		residency.clear();
-		sprite->getResidency(residency);
-		SpriteResidency *res = nullptr;
-		for (SpriteResidency &r : residency) {
-			if (r.atlas == atlas) {
-				res = &r;
-				break;
-			}
-		}
-		sf_assert(res != nullptr);
+		sf_assert(sprite->isLoaded() && sprite->atlas == atlas);
 
 		Quad &quad = quads.pushUninit();
-		spriteToQuad(quad, draw, *res);
+		spriteToQuad(quad, draw);
 	}
 
 	uint32_t offset = sg_append_buffer(quadVertexBuffer, quads.data, quads.byteSize());
@@ -226,15 +190,13 @@ void CanvasRenderer::drawSprites(sf::Slice<SpriteDraw> draws, Atlas *atlas)
 	spriteBindings.vertex_buffer_offsets[0] = offset;
 	spriteBindings.fs_images[SLOT_Sprite_atlasTexture].id = atlas->getTexture();
 
+	sg_apply_bindings(&spriteBindings);
 	sg_draw(0, 6 * draws.size, 1);
 }
 
 void CanvasImp::render(const CanvasRenderOpts &opts)
 {
 	sf::Slice<SpriteDraw> draws = spriteDraws;
-
-	sf::SmallArray<Atlas*, 16> atlases;
-	sf::SmallArray<SpriteResidency, 16> residency;
 
 	CanvasRenderer &renderer = getCanvasRenderer();
 
@@ -246,39 +208,24 @@ void CanvasImp::render(const CanvasRenderOpts &opts)
 
 	uint32_t begin = 0;
 	while (begin < draws.size) {
-		atlases.clear();
-
 		Sprite *sprite = draws[begin].sprite;
 		if (!sprite->shouldBeLoaded()) {
 			begin++;
 			continue;
 		}
 
-		sprite->getResidency(residency);
-		if (residency.size == 0) {
-			begin++;
-			continue;
-		}
+		Atlas *atlas = sprite->atlas;
 
-		// Initialize with the list of atlases the
-		// first sprite can use
-		for (SpriteResidency &r : residency) {
-			atlases.push(r.atlas);
-		}
-		Atlas *atlas = atlases[0];
-
-		// Keep appending sprites that share some atlases
+		// Keep appending sprites that are in the same atlas
 		uint32_t end = begin + 1;
 		for (; end < draws.size && end - begin < MaxQuadsPerDraw; end++) {
 			sprite = draws[end].sprite;
-			if (!sprite->shouldBeLoaded()) continue;
-
-			draws[end].sprite->getResidency(residency);
-			if (residency.size == 0) continue;
-
-			filterAtlases(atlases, residency);
-			if (atlases.size == 0) break;
-			atlas = atlases[0];
+			if (!sprite->shouldBeLoaded()) break;
+			if (sprite->atlas != atlas) {
+				atlas->brokeBatch();
+				sprite->atlas->brokeBatch();
+				break;
+			}
 		}
 
 		renderer.drawSprites(sf::slice(draws.data + begin, end - begin), atlas);
@@ -305,13 +252,11 @@ void Canvas::clear()
 void Canvas::draw(Sprite *s, const sf::Mat23 &transform)
 {
 	if (!s) return;
-	if (s->shouldBeLoaded()) {
-		s->willBeRendered();
-	}
 
 	SpriteDraw &draw = imp->spriteDraws.push();
 	draw.sprite.reset(s);
 	draw.transform = transform;
+	draw.color = sf::Vec4(1.0f);
 }
 
 void Canvas::drawText(Font *f, sf::String str, const sf::Vec2 &pos)

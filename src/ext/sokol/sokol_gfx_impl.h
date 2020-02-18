@@ -383,6 +383,7 @@ typedef struct {
     _sg_slot_t slot;
     sg_image_type type;
     bool render_target;
+    bool bqq_copy_target;
     int width;
     int height;
     int depth;
@@ -558,6 +559,7 @@ typedef struct {
     _sg_slot_t slot;
     sg_image_type type;
     bool render_target;
+    bool bqq_copy_target;
     int width;
     int height;
     int depth;
@@ -3027,6 +3029,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
     _SG_GL_CHECK_ERROR();
     img->type = desc->type;
     img->render_target = desc->render_target;
+    img->bqq_copy_target = desc->bqq_copy_target;
     img->width = desc->width;
     img->height = desc->height;
     img->depth = desc->depth;
@@ -4243,14 +4246,85 @@ _SOKOL_PRIVATE void _sg_update_image(_sg_image_t* img, const sg_image_content* d
     _sg_gl_restore_texture_binding(0);
 }
 
+/* bqq extensions */
+
+_SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc, _sg_image_t *dst_img, const _sg_image_t *src_img)
+{
+	_SG_GL_CHECK_ERROR();
+
+    // Push original state
+    GLuint gl_orig_fb;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&gl_orig_fb);
+    _sg_gl_store_texture_binding(0);
+
+    // Create temporary framebuffer to copy from
+    GLuint temp_fb;
+	_SG_GL_CHECK_ERROR();
+    glGenFramebuffers(1, &temp_fb);
+	_SG_GL_CHECK_ERROR();
+    glBindFramebuffer(GL_FRAMEBUFFER, temp_fb);
+	_SG_GL_CHECK_ERROR();
+
+    GLuint src_tex = src_img->gl_tex[src_img->active_slot];
+    GLuint dst_tex = dst_img->gl_tex[dst_img->active_slot];
+
+	for (int mip_index = 0; mip_index < desc->num_mips; mip_index++) {
+		_sg_gl_bind_texture(0, GL_TEXTURE_2D, src_tex);
+
+		_SG_GL_CHECK_ERROR();
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, src_tex, mip_index);
+		_SG_GL_CHECK_ERROR();
+
+		_sg_gl_bind_texture(0, GL_TEXTURE_2D, dst_tex);
+
+        for (int rect_index = 0; rect_index < desc->num_rects; rect_index++) {
+            const sg_bqq_subimage_rect *rect = &desc->rects[rect_index];
+			int dst_x = rect->dst_x >> mip_index;
+			int dst_y = rect->dst_y >> mip_index;
+			int src_x = rect->src_x >> mip_index;
+			int src_y = rect->src_y >> mip_index;
+			int width = rect->width >> mip_index;
+			int height = rect->height >> mip_index;
+			if (width == 0) width = 1;
+			if (height == 0) height = 1;
+
+			_SG_GL_CHECK_ERROR();
+			glCopyTexSubImage2D(GL_TEXTURE_2D, mip_index, dst_x, dst_y, src_x, src_y, width, height);
+			_SG_GL_CHECK_ERROR();
+        }
+    }
+
+	_SG_GL_CHECK_ERROR();
+    glDeleteFramebuffers(1, &temp_fb);
+	_SG_GL_CHECK_ERROR();
+
+    // Pop original state
+    _sg_gl_restore_texture_binding(0);
+    glBindFramebuffer(GL_FRAMEBUFFER, gl_orig_fb);
+
+    _SG_GL_CHECK_ERROR();
+}
+
+_SOKOL_PRIVATE void _sg_bqq_generate_mipmaps(_sg_image_t *img)
+{
+    // Push original state
+    _sg_gl_store_texture_binding(0);
+
+    glBindTexture(img->gl_target, img->gl_tex[img->active_slot]);
+    glGenerateMipmap(img->gl_target);
+
+    // Pop original state
+    _sg_gl_restore_texture_binding(0);
+}
+
 /*== D3D11 BACKEND IMPLEMENTATION ============================================*/
 #elif defined(SOKOL_D3D11)
 
 /*-- enum translation functions ----------------------------------------------*/
-_SOKOL_PRIVATE D3D11_USAGE _sg_d3d11_usage(sg_usage usg) {
+_SOKOL_PRIVATE D3D11_USAGE _sg_d3d11_usage(sg_usage usg, bool bqq_copy_target) {
     switch (usg) {
         case SG_USAGE_IMMUTABLE:
-            return D3D11_USAGE_IMMUTABLE;
+            return bqq_copy_target ? D3D11_USAGE_DEFAULT : D3D11_USAGE_IMMUTABLE;
         case SG_USAGE_DYNAMIC:
         case SG_USAGE_STREAM:
             return D3D11_USAGE_DYNAMIC;
@@ -4633,7 +4707,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_buffer(_sg_buffer_t* buf, const sg_b
         D3D11_BUFFER_DESC d3d11_desc;
         memset(&d3d11_desc, 0, sizeof(d3d11_desc));
         d3d11_desc.ByteWidth = buf->size;
-        d3d11_desc.Usage = _sg_d3d11_usage(buf->usage);
+        d3d11_desc.Usage = _sg_d3d11_usage(buf->usage, false);
         d3d11_desc.BindFlags = buf->type == SG_BUFFERTYPE_VERTEXBUFFER ? D3D11_BIND_VERTEX_BUFFER : D3D11_BIND_INDEX_BUFFER;
         d3d11_desc.CPUAccessFlags = _sg_d3d11_cpu_access_flags(buf->usage);
         D3D11_SUBRESOURCE_DATA* init_data_ptr = 0;
@@ -4695,6 +4769,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
 
     img->type = desc->type;
     img->render_target = desc->render_target;
+    img->bqq_copy_target = desc->bqq_copy_target;
     img->width = desc->width;
     img->height = desc->height;
     img->depth = desc->depth;
@@ -4771,7 +4846,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
             else {
                 img->d3d11_format = _sg_d3d11_pixel_format(img->pixel_format);
                 d3d11_tex_desc.Format = img->d3d11_format;
-                d3d11_tex_desc.Usage = _sg_d3d11_usage(img->usage);
+                d3d11_tex_desc.Usage = _sg_d3d11_usage(img->usage, img->bqq_copy_target);
                 d3d11_tex_desc.CPUAccessFlags = _sg_d3d11_cpu_access_flags(img->usage);
             }
             if (img->d3d11_format == DXGI_FORMAT_UNKNOWN) {
@@ -4836,7 +4911,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
             else {
                 img->d3d11_format = _sg_d3d11_pixel_format(img->pixel_format);
                 d3d11_tex_desc.Format = img->d3d11_format;
-                d3d11_tex_desc.Usage = _sg_d3d11_usage(img->usage);
+                d3d11_tex_desc.Usage = _sg_d3d11_usage(img->usage, img->bqq_copy_target);
                 d3d11_tex_desc.CPUAccessFlags = _sg_d3d11_cpu_access_flags(img->usage);
             }
             if (img->d3d11_format == DXGI_FORMAT_UNKNOWN) {
@@ -5673,6 +5748,46 @@ _SOKOL_PRIVATE void _sg_update_image(_sg_image_t* img, const sg_image_content* d
             }
         }
     }
+}
+
+/* bqq extensions */
+
+_SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc, _sg_image_t *dst_img, const _sg_image_t *src_img)
+{
+    ID3D11Resource *dst_res = (ID3D11Resource*)dst_img->d3d11_tex2d;
+    ID3D11Resource *src_res = (ID3D11Resource*)src_img->d3d11_tex2d;
+
+	for (int mip_index = 0; mip_index < desc->num_mips; mip_index++) {
+
+        for (int rect_index = 0; rect_index < desc->num_rects; rect_index++) {
+            const sg_bqq_subimage_rect *rect = &desc->rects[rect_index];
+			int dst_x = rect->dst_x >> mip_index;
+			int dst_y = rect->dst_y >> mip_index;
+			int src_x = rect->src_x >> mip_index;
+			int src_y = rect->src_y >> mip_index;
+			int width = rect->width >> mip_index;
+			int height = rect->height >> mip_index;
+			if (width == 0) width = 1;
+			if (height == 0) height = 1;
+
+            int subres_index = mip_index;
+
+            D3D11_BOX box;
+            box.left = src_x;
+            box.top = src_y;
+            box.front = 0;
+            box.right = src_x + width;
+            box.bottom = src_y + height;
+            box.back = 1;
+
+            ID3D11DeviceContext_CopySubresourceRegion(_sg.d3d11.ctx, dst_res, subres_index, dst_x, dst_y, 0, src_res, subres_index, &box);
+        }
+    }
+}
+
+_SOKOL_PRIVATE void _sg_bqq_generate_mipmaps(_sg_image_t *img)
+{
+    SOKOL_UNREACHABLE;
 }
 
 /*== METAL BACKEND IMPLEMENTATION ============================================*/
@@ -9568,6 +9683,25 @@ SOKOL_API_IMPL sg_pipeline_desc sg_query_pipeline_defaults(const sg_pipeline_des
 SOKOL_API_IMPL sg_pass_desc sg_query_pass_defaults(const sg_pass_desc* desc) {
     SOKOL_ASSERT(_sg.valid && desc);
     return _sg_pass_desc_defaults(desc);
+}
+
+/* bqq extensions */
+
+SOKOL_API_DECL void sg_bqq_copy_subimages(const sg_bqq_subimage_copy_desc *desc)
+{
+    _sg_image_t* src_img = _sg_lookup_image(&_sg.pools, desc->src_image.id);
+    _sg_image_t* dst_img = _sg_lookup_image(&_sg.pools, desc->dst_image.id);
+    SOKOL_ASSERT(dst_img->bqq_copy_target);
+    if (src_img && src_img->slot.state == SG_RESOURCESTATE_VALID
+        && dst_img && dst_img->slot.state == SG_RESOURCESTATE_VALID) {
+		_sg_bqq_copy_subimage(desc, dst_img, src_img);
+    }
+}
+
+SOKOL_API_DECL void sg_bqq_generate_mipmaps(sg_image image)
+{
+    _sg_image_t* img = _sg_lookup_image(&_sg.pools, image.id);
+	_sg_bqq_generate_mipmaps(img);
 }
 
 #ifdef _MSC_VER

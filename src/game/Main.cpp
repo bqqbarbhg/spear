@@ -38,6 +38,18 @@ struct TestGame
 		items.push(sp::SpriteRef{"Card/Shortsword.png" });
 		items.push(sp::SpriteRef{"Card/Spear.png" });
 		items.push(sp::SpriteRef{"Card/Vest.png" });
+
+		float x = 0.0f, y = 0.0f;
+		canvas.clear();
+		// canvas.draw(dude, sf::mat2D::translate(x, y) * sf::mat2D::scale(0.1f, -0.1f));
+		for (auto &item : items) {
+			canvas.draw(item, sf::mat2D::translate(x, y) * sf::mat2D::scale(0.1f, -0.1f));
+			x += 0.1f;
+			if (x >= 0.35f) {
+				x = 0.0f;
+				y -= 0.1f;
+			}
+		}
 	}
 
 	void debugRenderAtlases()
@@ -83,11 +95,8 @@ struct TestGame
 		sp::Asset::update();
 		sp::Sprite::update();
 
-		canvas.clear();
 
-		canvas.draw(dude, sf::Mat23());
-
-		sp::Sprite::updateAtlasesForRendering();
+		debugRenderAtlases();
 
 		sg_pass_action pass_action = { };
 		pass_action.colors[0].action = SG_ACTION_CLEAR;

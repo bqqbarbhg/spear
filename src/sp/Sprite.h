@@ -10,15 +10,10 @@ struct Atlas
 {
 	uint32_t width = 0, height = 0;
 
+	void brokeBatch();
 	uint32_t getTexture();
 
 	static void getAtlases(sf::Array<Atlas*> &atlases);
-};
-
-struct SpriteResidency
-{
-	Atlas *atlas;
-	uint32_t x, y;
 };
 
 struct Sprite : Asset
@@ -26,16 +21,13 @@ struct Sprite : Asset
 	static const AssetType AssetType;
 
 	// Only valid for loaded sprites!
+	Atlas *atlas = nullptr;
+	uint32_t x = 0, y = 0;
 	uint32_t width = 0, height = 0;
-
-	void willBeRendered();
-	void getResidency(sf::Array<SpriteResidency> &dst) const;
-	bool isResident() const;
 
 	// Globals
 
 	static void update();
-	static void updateAtlasesForRendering();
 };
 
 using SpriteRef = Ref<Sprite>;

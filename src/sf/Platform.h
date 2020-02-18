@@ -154,6 +154,8 @@
 
 #if SF_CC_MSC
 	#define sf_debugbreak() __debugbreak()
+#elif SF_OS_WASM
+	#define sf_debugbreak() sf_wasm_debugbreak(__FILE__, __LINE__)
 #elif SF_CC_GNU
 	#define sf_debugbreak() __builtin_trap()
 #else
@@ -174,6 +176,10 @@ extern "C" {
 #endif
 
 void sf_debug_log(const char *str);
+
+#if SF_OS_WASM
+void sf_wasm_debugbreak(const char *file, int line);
+#endif
 
 #ifdef __cplusplus
 }

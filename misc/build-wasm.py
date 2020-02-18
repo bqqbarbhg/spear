@@ -10,6 +10,7 @@ src_dir = os.path.abspath(src_dir)
 objects = []
 
 optimize = "-o" in sys.argv
+webgl2 = "--webgl2" in sys.argv
 
 def compile_file(path, cpp):
     args = ["emcc", path, "-c", "-I" + src_dir]
@@ -18,7 +19,10 @@ def compile_file(path, cpp):
     else:
         args += ["-g"]
     if cpp:
-        args.append("-std=c++11")
+        args += ["-std=c++11"]
+    if webgl2:
+        args += ["-s", "MAX_WEBGL_VERSION=2"]
+        args += ["-DSP_USE_WEBGL2=1"]
 
     outname = os.path.basename(path)
     outname = os.path.splitext(outname)[0] + ".o"
@@ -46,6 +50,8 @@ def link_files():
         args += ["-O2"]
     else:
         args += ["-g"]
+    if webgl2:
+        args += ["-s", "MAX_WEBGL_VERSION=2"]
     args += ["-s", "WASM=1", "-o" "spear.js"]
     args += ["-s", "TOTAL_MEMORY=268435456"]
 

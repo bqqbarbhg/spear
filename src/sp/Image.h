@@ -13,7 +13,7 @@ struct Image
 	Image(uint32_t width, uint32_t height)
 		: data((uint8_t*)sf::memAlloc(width * height * 4))
 		, width(width)
-		, height(width)
+		, height(height)
 	{
 	}
 	Image(const Image &rhs) = delete;
@@ -32,7 +32,8 @@ struct Image
 
 	size_t byteSize() const { return width * height * 4; }
 
-	void blit(uint32_t x, uint32_t y, const void *data, uint32_t w, uint32_t h);
+	void blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const void *data);
+	void clear(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
 };
 
 struct MipImage

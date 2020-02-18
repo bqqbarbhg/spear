@@ -3186,6 +3186,13 @@ static PFN_glFrontFace _sapp_glFrontFace;
 typedef void  (GL_APIENTRY *PFN_glCullFace)(GLenum mode);
 static PFN_glCullFace _sapp_glCullFace;
 
+/* bqq extension */
+
+typedef void (GL_APIENTRY *PFN_glCopyTexSubImage2D)(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
+static PFN_glCopyTexSubImage2D _sapp_glCopyTexSubImage2D;
+typedef void (GL_APIENTRY *PFN_glGenerateMipmap)(GLenum target);
+static PFN_glGenerateMipmap _sapp_glGenerateMipmap;
+
 _SOKOL_PRIVATE void* _sapp_win32_glgetprocaddr(const char* name) {
     void* proc_addr = (void*) _sapp_wglGetProcAddress(name);
     if (0 == proc_addr) {
@@ -3294,6 +3301,10 @@ _SOKOL_PRIVATE  void _sapp_win32_gl_loadfuncs(void) {
     _SAPP_GLPROC(glGenVertexArrays);
     _SAPP_GLPROC(glFrontFace);
     _SAPP_GLPROC(glCullFace);
+
+    /* bqq extension */
+    _SAPP_GLPROC(glCopyTexSubImage2D);
+    _SAPP_GLPROC(glGenerateMipmap);
 }
 #define glBindVertexArray _sapp_glBindVertexArray
 #define glFramebufferTextureLayer _sapp_glFramebufferTextureLayer
@@ -3389,6 +3400,8 @@ _SOKOL_PRIVATE  void _sapp_win32_gl_loadfuncs(void) {
 #define glGenVertexArrays _sapp_glGenVertexArrays
 #define glFrontFace _sapp_glFrontFace
 #define glCullFace _sapp_glCullFace
+#define glCopyTexSubImage2D _sapp_glCopyTexSubImage2D
+#define glGenerateMipmap _sapp_glGenerateMipmap
 
 #endif /* SOKOL_WIN32_NO_GL_LOADER */
 

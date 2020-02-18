@@ -417,11 +417,11 @@ Mat44 operator*(const Mat44 &l, const Mat44 &r) {
 Mat23 operator*(const Mat23 &l, const Mat23 &r)
 {
 	return {
-		l.m00*r.m00 + l.m01*r.m10 + l.m02,
-		l.m00*r.m01 + l.m01*r.m11 + l.m02,
+		l.m00*r.m00 + l.m01*r.m10,
+		l.m10*r.m00 + l.m11*r.m10,
+		l.m00*r.m01 + l.m01*r.m11,
+		l.m10*r.m01 + l.m11*r.m11,
 		l.m00*r.m02 + l.m01*r.m12 + l.m02,
-		l.m10*r.m00 + l.m11*r.m10 + l.m12,
-		l.m10*r.m01 + l.m11*r.m11 + l.m12,
 		l.m10*r.m02 + l.m11*r.m12 + l.m12,
 	};
 }
@@ -666,10 +666,10 @@ Mat44 perspectiveGL(float fov, float aspect, float near, float far)
 
 namespace mat2D {
 
-Mat23 translateX(float x) { return { 0, 0, 0, 0, x, 0 }; }
-Mat23 translateY(float y) { return { 0, 0, 0, 0, 0, y }; }
-Mat23 translate(float x, float y) { return { 0, 0, 0, 0, x, y }; }
-Mat23 translate(const Vec2 &amount) { return { 0, 0, 0, 0, amount.x, amount.y }; }
+Mat23 translateX(float x) { return { 1, 0, 0, 1, x, 0 }; }
+Mat23 translateY(float y) { return { 1, 0, 0, 1, 0, y }; }
+Mat23 translate(float x, float y) { return { 1, 0, 0, 1, x, y }; }
+Mat23 translate(const Vec2 &amount) { return { 1, 0, 0, 1, amount.x, amount.y }; }
 
 Mat23 scaleX(float x) { return { x, 0, 0, 1, 0, 0 }; }
 Mat23 scaleY(float y) { return { 1, 0, 0, y, 0, 0 }; }
