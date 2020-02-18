@@ -10,6 +10,11 @@ namespace sp {
 struct Sprite;
 struct Font;
 
+struct CanvasRenderOpts
+{
+	sf::Mat44 transform;
+};
+
 struct CanvasImp;
 struct Canvas
 {
@@ -21,6 +26,7 @@ struct Canvas
 	void clear();
 	void draw(Sprite *s, const sf::Mat23 &transform);
 	void drawText(Font *f, sf::String str, const sf::Vec2 &pos);
+	void render(const CanvasRenderOpts &opts);
 
 	CanvasImp *imp;
 };

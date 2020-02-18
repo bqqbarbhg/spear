@@ -40,25 +40,8 @@ struct TestGame
 		items.push(sp::SpriteRef{"Card/Vest.png" });
 	}
 
-	void render()
+	void debugRenderAtlases()
 	{
-		frameIndex++;
-
-		sp::ContentFile::update();
-		sp::Asset::update();
-		sp::Sprite::update();
-
-		canvas.clear();
-
-		canvas.draw(dude, sf::Mat23());
-		canvas.draw(guy, sf::Mat23());
-
-		int n = 0;
-		for (sp::SpriteRef &ref : items) {
-			canvas.draw(ref, sf::Mat23());
-			// if (n++ > frameIndex / 32) break;
-		}
-
 		sgl_defaults();
 
 		sgl_enable_texture();
@@ -70,7 +53,7 @@ struct TestGame
 		float x = -1.0f;
 		float xs = 0.2f;
 		float ys = -0.2f;
-		n = 0;
+		int n = 0;
 		for (sp::Atlas *atlas : atlases) {
 			sg_image image;
 			image.id = atlas->getTexture();
@@ -90,6 +73,19 @@ struct TestGame
 				y += ys;
 			}
 		}
+	}
+
+	void render()
+	{
+		frameIndex++;
+
+		sp::ContentFile::update();
+		sp::Asset::update();
+		sp::Sprite::update();
+
+		canvas.clear();
+
+		canvas.draw(dude, sf::Mat23());
 
 		sp::Sprite::updateAtlasesForRendering();
 
@@ -102,6 +98,8 @@ struct TestGame
 		sg_begin_default_pass(&pass_action, sapp_width(), sapp_height());
 
 		sgl_draw();
+
+		canvas.render(sp::CanvasRenderOpts());
 
 		sg_end_pass();
 		sg_commit();

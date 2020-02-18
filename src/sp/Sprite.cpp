@@ -44,7 +44,6 @@ SpriteList g_spriteList;
 struct AtlasImp : Atlas
 {
 	sf::Array<SpriteImp*> sprites;
-	uint32_t width, height;
 	sg_image image;
 };
 
@@ -53,7 +52,6 @@ struct SpriteImp : Sprite
 	virtual void startLoadingImp() final;
 	virtual void unloadImp() final;
 
-	uint32_t width, height;
 	void *data;
 	sf::SmallArray<SpriteResidency, 2> residency;
 	bool inResidencyQueue = false;
@@ -166,6 +164,13 @@ void Sprite::getResidency(sf::Array<SpriteResidency> &dst) const
 
 	dst.clear();
 	dst.push(imp->residency.data, imp->residency.size);
+}
+
+bool Sprite::isResident() const
+{
+	SpriteImp *imp = (SpriteImp*)this;
+	sf_assert(isLoaded());
+	return imp->residency.size > 0;
 }
 
 void Sprite::update()

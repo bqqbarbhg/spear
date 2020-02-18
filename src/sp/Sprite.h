@@ -8,6 +8,8 @@ namespace sp {
 
 struct Atlas
 {
+	uint32_t width = 0, height = 0;
+
 	uint32_t getTexture();
 
 	static void getAtlases(sf::Array<Atlas*> &atlases);
@@ -23,8 +25,12 @@ struct Sprite : Asset
 {
 	static const AssetType AssetType;
 
+	// Only valid for loaded sprites!
+	uint32_t width = 0, height = 0;
+
 	void willBeRendered();
 	void getResidency(sf::Array<SpriteResidency> &dst) const;
+	bool isResident() const;
 
 	// Globals
 

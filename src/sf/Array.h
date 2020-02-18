@@ -100,6 +100,12 @@ struct Array
 		return *ptr;
 	}
 
+	T &pushUninit() {
+		static_assert(!HasDestructor<T>::value, "Trying to pushUninit() on type with a destructor!");
+		if (size == capacity) impGrowOne();
+		return data[size++];
+	}
+
 	T *pushUninit(size_t num) {
 		static_assert(!HasDestructor<T>::value, "Trying to pushUninit() on type with a destructor!");
 		if (size + num > capacity) impGrowToGeometric(size + num);

@@ -149,6 +149,9 @@ struct Mat44
 		, m30(m30), m31(m31), m32(m32), m33(m33)
 	{ }
 
+	void writeColMajor(float *dst) const {
+		memcpy(dst, v, sizeof(v));
+	}
 };
 
 struct Mat23
