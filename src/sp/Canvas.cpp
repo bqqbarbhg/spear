@@ -76,6 +76,9 @@ CanvasRenderer::CanvasRenderer()
 		desc.layout.attrs[2].format = SG_VERTEXFORMAT_UBYTE4N;
 
 		desc.index_type = SG_INDEXTYPE_UINT16;
+		desc.blend.enabled = true;
+		desc.blend.src_factor_rgb = desc.blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
+		desc.blend.dst_factor_rgb = desc.blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
 
 		spritePipeline = sg_make_pipeline(&desc);
 	}

@@ -25,19 +25,22 @@ struct TestGame
 
 	TestGame()
 	{
-		items.push(sp::SpriteRef{"Card/Axe.png" });
-		items.push(sp::SpriteRef{"Card/Bow.png" });
-		items.push(sp::SpriteRef{"Card/Club.png" });
-		items.push(sp::SpriteRef{"Card/Dagger.png" });
-		items.push(sp::SpriteRef{"Card/Firebolt_Spell.png" });
-		items.push(sp::SpriteRef{"Card/Flame_Spell.png" });
-		items.push(sp::SpriteRef{"Card/Hammer.png" });
-		items.push(sp::SpriteRef{"Card/Healing_Potion.png" });
-		items.push(sp::SpriteRef{"Card/Light_Helmet.png" });
-		items.push(sp::SpriteRef{"Card/Longsword.png" });
-		items.push(sp::SpriteRef{"Card/Shortsword.png" });
-		items.push(sp::SpriteRef{"Card/Spear.png" });
-		items.push(sp::SpriteRef{"Card/Vest.png" });
+		items.push(sp::SpriteRef{"Card/Axe.png"});
+		items.push(sp::SpriteRef{"Card/Bow.png"});
+		items.push(sp::SpriteRef{"Card/Club.png"});
+		items.push(sp::SpriteRef{"Card/Dagger.png"});
+		items.push(sp::SpriteRef{"Card/Firebolt_Spell.png"});
+		items.push(sp::SpriteRef{"Card/Flame_Spell.png"});
+		items.push(sp::SpriteRef{"Card/Hammer.png"});
+		items.push(sp::SpriteRef{"Card/Light_Helmet.png"});
+		items.push(sp::SpriteRef{"Card/Longsword.png"});
+		items.push(sp::SpriteRef{"Card/Potion.png"});
+		items.push(sp::SpriteRef{"Card/Rod.png"});
+		items.push(sp::SpriteRef{"Card/Shield.png"});
+		items.push(sp::SpriteRef{"Card/Shortsword.png"});
+		items.push(sp::SpriteRef{"Card/Spear.png"});
+		items.push(sp::SpriteRef{"Card/Vest.png"});
+		items.push(sp::SpriteRef{"Card/Wand.png"});
 
 		float x = 0.0f, y = 0.0f;
 		canvas.clear();

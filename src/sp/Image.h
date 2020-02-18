@@ -33,6 +33,7 @@ struct Image
 	size_t byteSize() const { return width * height * 4; }
 
 	void blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const void *data);
+	void premultiply();
 	void clear(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
 };
 

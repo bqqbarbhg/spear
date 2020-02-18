@@ -6,8 +6,8 @@
 #define SOKOL_LOG(msg) sf_debug_log(msg)
 
 #if SF_OS_WINDOWS
-	// #define SOKOL_D3D11
-	#define SOKOL_GLCORE33
+	#define SOKOL_D3D11
+	// #define SOKOL_GLCORE33
 #elif SF_OS_WASM
 	#ifdef SP_USE_WEBGL2
 		#define SOKOL_GLES3

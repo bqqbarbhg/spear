@@ -128,6 +128,7 @@ static void loadImp(void *user, const ContentFile &file)
 	MipImage image(atlasWidth, atlasHeight);
 
 	image.levels[0].blit(0, 0, width, height, pixels);
+	image.levels[0].premultiply();
 	image.levels[0].clear(width, 0, atlasWidth - width, atlasHeight);
 	image.levels[0].clear(0, height, width, atlasHeight - height);
 	image.calculateMips();
