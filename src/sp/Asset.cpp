@@ -3,8 +3,11 @@
 #include "sf/ext/mx/mx_platform.h"
 #include "sf/HashMap.h"
 #include "sf/Array.h"
+#include "sf/Mutex.h"
 
-const uint32_t UnloadQueueFrames = 4;
+namespace sp {
+
+// How many frames to wait before actually deleting assets
 const uint32_t FreeQueueFrames = 16;
 
 #define sp_asset_log(...) sf::debugPrintLine(__VA_ARGS__)
@@ -19,15 +22,38 @@ enum class LoadState
 
 enum AssetFlags
 {
+	// The asset has been freed
 	Flag_Freed = 1,
 };
 
-namespace sp {
+struct AssetKey
+{
+	sf::String name;
+	const AssetProps *props;
 
-#define sp_assert_type(type, expected) \
-	sf_assertf((type) == (expected), \
-		"Asset type mismatch: Expected %u, but asset is %u", \
-		(expected)->name, (type)->name)
+	bool operator==(const AssetKey &rhs) const
+	{
+		if (name != rhs.name) return false;
+		return props->equal(*rhs.props);
+	}
+};
+
+uint32_t hash(const AssetKey &key) {
+	uint32_t h = sf::hash(key.name);
+	h = sf::hashCombine(h, key.props->hash());
+	return h;
+}
+
+// NOTE: This is zero-initialized!
+struct AssetTypeImp
+{
+
+	// Mapping from name+props to assets
+	sf::HashMap<AssetKey, Asset*> assetMap;
+};
+
+static_assert(sizeof(AssetType::impData) >= sizeof(AssetTypeImp), "impData too small");
+static_assert(sizeof(AssetType::impData) <= sizeof(AssetTypeImp) * 4, "impData too large");
 
 struct PendingAsset
 {
@@ -35,21 +61,27 @@ struct PendingAsset
 	uint32_t frameIndex;
 };
 
-struct AssetLibrary
+struct AssetContext
 {
 	sf::Mutex mutex;
-	sf::HashMap<sf::String, Asset*> assetsByName;
 	sf::Array<PendingAsset> assetsToFree;
 	uint32_t frameIndex = 0;
+
+	// Number of assets loading at the moment
 	uint32_t numAssetsLoading = 0;
 
-	Asset *findAsset(const sf::String &name, const AssetType *type)
+	Asset *findAsset(AssetType *type, const sf::String &name, const AssetProps &props)
 	{
 		sf::MutexGuard mg(mutex);
-		auto pair = assetsByName.find(name);
+		AssetTypeImp *typeImp = (AssetTypeImp*)type->impData;
+
+		// Look up the asset in the type's asset map
+		AssetKey key = { name, &props };
+		auto pair = typeImp->assetMap.find(key);
+
+		// If found increase refcount and return the asset
 		if (pair) {
 			Asset *asset = pair->val;
-			sp_assert_type(asset->type, type);
 			asset->retain();
 			return asset;
 		} else {
@@ -57,41 +89,47 @@ struct AssetLibrary
 		}
 	}
 
-	Asset *createAsset(const sf::String &name, const AssetType *type)
+	Asset *createAsset(AssetType *type, const sf::String &name, const AssetProps &props)
 	{
 		sf::MutexGuard mg(mutex);
+		AssetTypeImp *typeImp = (AssetTypeImp*)type->impData;
 
-		// Insert the assert with key referencing local `name`
-		// and no asset pointer (!).
-		auto result = assetsByName.insert(name);
+		// Insert the asset to the type's asset map
+		// NOTE: The inserted `AssetKey` will refer to local data,
+		// but it will be reassigned before leaving the mutex!
+		AssetKey key = { name, &props };
+		auto result = typeImp->assetMap.insert(key);
 
-		// Early return if it already exists
+		// Early return if found: Bump refcount and return existing asset
 		if (!result.inserted) {
 			Asset *asset = result.entry.val;
-			sp_assert_type(asset->type, type);
 			asset->retain();
 			return asset;
 		}
 
-		// Allocate the asset and space for the name
-		Asset *asset = (Asset*)sf::memAlloc(type->size + name.size + 1);
-		char *nameCopy = (char*)asset + type->size;
+		// Allocate the asset and name/props
+		size_t size = type->instanceSize + type->propertySize + name.size + 1;
+		Asset *asset = (Asset*)sf::memAlloc(size);
+		AssetProps *propCopy = (AssetProps*)(asset + 1);
+		char *nameCopy = (char*)propCopy + type->propertySize;
+
+		// Copy name/props
+		propCopy->copy(props);
 		memcpy(nameCopy, name.data, name.size);
 		nameCopy[name.size] = '\0';
 
-		// Call the asset type constructor, patch the name,
-		// and finally patch `result.entry` to point to
-		// the asset and its name.
-		type->init(asset);
+		// Construct the asset
+		type->ctorFn(asset);
 		asset->type = type;
 		asset->name = sf::CString(nameCopy, name.size);
-		result.entry.key = asset->name;
+		asset->props = propCopy;
+
+		// Patch the key and value, propSize should be fine from the insert
+		result.entry.key.name = asset->name;
+		result.entry.key.props = propCopy;
 		result.entry.val = asset;
 
 		sp_asset_log("Create: %s %s", type->name, asset->name.data);
-
-		// TODO: Manual loading
-		asset->startLoading();
 
 		return asset;
 	}
@@ -99,8 +137,8 @@ struct AssetLibrary
 	void addPendingFree(Asset *asset)
 	{
 		sf::MutexGuard mg(mutex);
-		if (asset->flags & Flag_Freed) return;
-		asset->flags |= Flag_Freed;
+		if (asset->impFlags & Flag_Freed) return;
+		asset->impFlags |= Flag_Freed;
 
 		sp_asset_log("Queue free: %s %s", asset->type->name, asset->name.data);
 
@@ -118,29 +156,29 @@ struct AssetLibrary
 			PendingAsset &pendingFree = assetsToFree[index];
 			Asset *asset = pendingFree.asset;
 
+			// Still waiting in the free queue
 			if (frameIndex - pendingFree.frameIndex < FreeQueueFrames) {
-				// Asset is still waiting to be freed
 				continue;
 			}
 
+			// Remove the asset from the free list if it has been revived
 			if (mxa_load32_nf(&asset->refcount) > 0) {
-				// Asset has been revived
-				asset->flags &= ~Flag_Freed;
+				asset->impFlags &= ~Flag_Freed;
 				assetsToFree.removeSwap(index--);
 				continue;
 			}
 
-			LoadState state = (LoadState)mxa_load32_nf(&asset->state);
+			// Wait for the asset to finish loading
+			LoadState state = (LoadState)mxa_load32_nf(&asset->impState);
 			if (state == LoadState::Loading) {
-				// Wait for the asset to finish loading
 				continue;
 			}
 
 			// Unload the asset if necessary
 			if (state == LoadState::Loaded) {
-				if (mxa_cas32_nf(&asset->state, (uint32_t)LoadState::Loaded, (uint32_t)LoadState::Unloaded)) {
+				if (mxa_cas32_nf(&asset->impState, (uint32_t)LoadState::Loaded, (uint32_t)LoadState::Unloaded)) {
 					sp_asset_log("Unload: %s %s", asset->type->name, asset->name.data);
-					asset->unloadImp();
+					asset->assetUnload();
 				} else {
 					continue;
 				}
@@ -149,62 +187,52 @@ struct AssetLibrary
 			sp_asset_log("Delete: %s %s", asset->type->name, asset->name.data);
 
 			// Remove the asset from the map
-			sf::String name = asset->name;
-			assetsByName.remove(name);
+			AssetTypeImp *typeImp = (AssetTypeImp*)asset->type->impData;
+			AssetKey key = { asset->name, asset->props };
+			typeImp->assetMap.remove(key);
+
+			// Call the virtual destructor and free memory
+			asset->props->~AssetProps();
 			asset->~Asset();
 			sf::memFree(asset);
 
+			// Remove from the free list
 			assetsToFree.removeSwap(index--);
 		}
 	}
 };
 
-AssetLibrary g_library;
+AssetContext g_assetContext;
+
+AssetProps::~AssetProps()
+{
+}
+
+uint32_t NoAssetProps::hash() const
+{
+	return 0;
+}
+
+bool NoAssetProps::equal(const AssetProps &rhs) const
+{
+	return true;
+}
+
+void NoAssetProps::copy(const AssetProps &rhs)
+{
+}
 
 Asset::Asset()
 	: type(nullptr)
-	, state((uint32_t)LoadState::Unloaded)
+	, props(nullptr)
 	, refcount(1)
-	, flags(0)
+	, impState((uint32_t)LoadState::Unloaded)
+	, impFlags(0)
 {
 }
 
 Asset::~Asset()
 {
-}
-
-bool Asset::isLoaded() const
-{
-	sf_assert(refcount > 0);
-	LoadState s = (LoadState)mxa_load32_acq(&state);
-	return s == LoadState::Loaded;
-}
-
-bool Asset::isFailed() const
-{
-	sf_assert(refcount > 0);
-	LoadState s = (LoadState)mxa_load32_acq(&state);
-	return s == LoadState::Failed;
-}
-
-bool Asset::shouldBeLoaded()
-{
-	sf_assert(refcount > 0);
-	LoadState s = (LoadState)mxa_load32_acq(&state);
-	if (s == LoadState::Loaded) return true;
-	if (s == LoadState::Unloaded) {
-		sf::debugPrintLine("Asset not loaded before use: %s %s", type->name, name.data);
-		startLoading();
-	}
-	return false;
-}
-
-void Asset::startLoading()
-{
-	if (!mxa_cas32_acq(&state, (uint32_t)LoadState::Unloaded, (uint32_t)LoadState::Loading)) return;
-	mxa_inc32_rel(&g_library.numAssetsLoading);
-	sp_asset_log("Start load: %s %s", type->name, name.data);
-	startLoadingImp();
 }
 
 void Asset::retain()
@@ -216,51 +244,104 @@ void Asset::release()
 {
 	uint32_t count = mxa_dec32_nf(&refcount) - 1;
 	if (count == 0) {
-		g_library.addPendingFree(this);
+		g_assetContext.addPendingFree(this);
 	}
 }
 
-Asset *Asset::findImp(const sf::String &name, const AssetType *type)
+bool Asset::isLoaded() const
 {
-	sf_assert(type != nullptr);
-	return g_library.findAsset(name, type);
+	sf_assert(refcount > 0);
+
+	LoadState s = (LoadState)mxa_load32_acq(&impState);
+	return s == LoadState::Loaded;
 }
 
-Asset *Asset::createImp(const sf::String &name, const AssetType *type)
+bool Asset::isFailed() const
 {
-	sf_assert(type != nullptr);
-	return g_library.createAsset(name, type);
+	sf_assert(refcount > 0);
+
+	LoadState s = (LoadState)mxa_load32_acq(&impState);
+	return s == LoadState::Failed;
 }
 
-void Asset::finishLoadingImp()
+bool Asset::shouldBeLoaded()
 {
-	bool res = mxa_cas32_rel(&state, (uint32_t)LoadState::Loading, (uint32_t)LoadState::Loaded);
+	sf_assert(refcount > 0);
+
+	LoadState s = (LoadState)mxa_load32_acq(&impState);
+	if (s == LoadState::Loaded) return true;
+	if (s == LoadState::Unloaded) {
+		sf::debugPrintLine("Asset not loaded before use: %s %s", type->name, name.data);
+		startLoading();
+	}
+	return false;
+}
+
+void Asset::startLoading()
+{
+	sf_assert(refcount > 0);
+
+	// Transition from Unloaded -> Loading
+	if (!mxa_cas32_acq(&impState, (uint32_t)LoadState::Unloaded, (uint32_t)LoadState::Loading)) return;
+	sp_asset_log("Start load: %s %s", type->name, name.data);
+
+	// Increment the number of assets loading
+	mxa_inc32_rel(&g_assetContext.numAssetsLoading);
+
+	assetStartLoading();
+}
+
+void Asset::assetFinishLoading()
+{
+	sf_assert(refcount > 0);
+
+	// Transition from Loading -> Loaded (must succeed)
+	bool res = mxa_cas32_rel(&impState, (uint32_t)LoadState::Loading, (uint32_t)LoadState::Loaded);
 	sf_assertf(res, "Invalid state transition");
-	mxa_dec32_rel(&g_library.numAssetsLoading);
+	mxa_dec32_rel(&g_assetContext.numAssetsLoading);
+
 	sp_asset_log("Finish load: %s %s", type->name, name.data);
 }
 
-void Asset::failLoadingImp()
+void Asset::assetFailLoading()
 {
-	// sf::debugPrintLine("Failed to load: %s %s", type->name, name.data);
-	bool res = mxa_cas32_rel(&state, (uint32_t)LoadState::Loading, (uint32_t)LoadState::Failed);
+	sf_assert(refcount > 0);
+
+	// Transition from Loading -> Failed (must succeed)
+	bool res = mxa_cas32_rel(&impState, (uint32_t)LoadState::Loading, (uint32_t)LoadState::Failed);
 	sf_assertf(res, "Invalid state transition");
-	mxa_dec32_rel(&g_library.numAssetsLoading);
+	mxa_dec32_rel(&g_assetContext.numAssetsLoading);
+
 	sp_asset_log("Fail load: %s %s", type->name, name.data);
 }
 
-void Asset::init()
+void Asset::globalInit()
 {
 }
 
-void Asset::update()
+void Asset::globalCleanup()
 {
-	g_library.update();
 }
 
-uint32_t Asset::getNumAssetsLoading()
+void Asset::globalUpdate()
 {
-	return mxa_load32_acq(&g_library.numAssetsLoading);
+	g_assetContext.update();
+}
+
+Asset *impFind(AssetType *type, const sf::String &name, const AssetProps &props)
+{
+	return g_assetContext.findAsset(type, name, props);
+}
+
+Asset *impCreate(AssetType *type, const sf::String &name, const AssetProps &props)
+{
+	Asset *asset = g_assetContext.createAsset(type, name, props);
+
+	// TODO: Manual loading
+	asset->startLoading();
+
+	return asset;
+
 }
 
 }

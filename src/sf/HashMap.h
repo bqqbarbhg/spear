@@ -141,7 +141,7 @@ struct HashMap
 	}
 
 	template <typename KT>
-	void remove(const KT &key)
+	bool remove(const KT &key)
 	{
 		uint32_t index;
 		rhmap_iter iter = { &map, hash(key) };
@@ -153,8 +153,17 @@ struct HashMap
 					new (&data[index]) Entry(std::move(data[map.size]));
 					data[map.size].~Entry();
 				}
+				return true;
 			}
 		}
+		return false;
+	}
+
+	Entry *removeAt(Entry *it)
+	{
+		bool res = remove(it->key);
+		sf_assert(res);
+		return it;
 	}
 
 protected:

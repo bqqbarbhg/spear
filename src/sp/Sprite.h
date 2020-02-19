@@ -1,35 +1,59 @@
 #pragma once
 
 #include "Asset.h"
-#include "sf/String.h"
-#include "sf/Array.h"
 #include "sf/Vector.h"
+#include "sf/Array.h"
+#include "ext/sokol/sokol_defs.h"
 
 namespace sp {
 
 struct Atlas
 {
+	// Texture extents and handle
 	uint32_t width = 0, height = 0;
+	sg_image image = { 0 };
 
+	// Record a batch break caused by this atlas,
+	// used for optimizing atlases
 	void brokeBatch();
-	uint32_t getTexture();
 
+	// -- Static API
+
+	// Query a list of currently active atlases
 	static void getAtlases(sf::Array<Atlas*> &atlases);
+};
+
+struct SpriteProps : AssetProps
+{
+	// Combine sprites with the same `atlasName` into a single atlas.
+	sf::SmallStringBuf<16> atlasName;
+
+	virtual uint32_t hash() const final;
+	virtual bool equal(const AssetProps &rhs) const final;
+	virtual void copy(const AssetProps &rhs) final;
 };
 
 struct Sprite : Asset
 {
 	static const AssetType AssetType;
+	using PropType = SpriteProps;
 
-	// Only valid for loaded sprites!
+	// -- Only valid for loaded sprites
+
+	// Atlas and position
 	Atlas *atlas = nullptr;
 	uint32_t x = 0, y = 0;
 	uint32_t width = 0, height = 0;
+
+	// Cropped quad vertices
 	sf::Vec2 minVert, maxVert;
 
-	// Globals
+	// -- Static API
 
-	static void update();
+	// Lifecycle
+	static void globalInit();
+	static void globalCleanup();
+	static void globalUpdate();
 };
 
 using SpriteRef = Ref<Sprite>;

@@ -48,7 +48,7 @@
 
 #define SF_OS_WINDOWS 0 // < Win32 desktop application
 #define SF_OS_WASM 0    // < WebAssembly (but not Emscripten)
-#define SF_OS_GENERIC 0     // < Modern C++11-17 OS wrappers
+#define SF_OS_GENERIC 0 // < Modern C++11-17 OS wrappers
 
 #if defined(SF_DEF_OS_WIDOWS) || defined(SF_DEF_OS_WASM) || defined(SF_DEF_OS_GENERIC) || defined(SF_DEF_GENERIC)
 	#define SF_FOUND_OS 1
@@ -149,6 +149,20 @@
 #define sf_inline static sf_forceinline
 
 #define sf_arraysize(arr) (sizeof(arr) / sizeof(*(arr)))
+
+// -- Platform
+
+#if SF_ARCH_X64 || SF_ARCH_ARM64
+	#define SF_FAST_64BIT 1
+#elif SF_ARCH_WASM
+	#if defined(SF_DEF_WASM_64BIT)
+		#define SF_FAST_64BIT 1
+	#else
+		#define SF_FAST_64BIT 0
+	#endif
+#elif SF_ARCH_X86 || SF_ARCH_ARM || SF_ARCH_GENERIC
+	#define SF_FAST_64BIT 0
+#endif
 
 // -- Debugging
 

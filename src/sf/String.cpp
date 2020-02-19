@@ -133,13 +133,4 @@ sf_noinline void StringBuf::impGrowToGeometric(size_t sz) {
 	capacity = (uint32_t)sz;
 }
 
-uint32_t hash(const String &str)
-{
-	uint32_t h = 0x811c9dc5;
-	for (char c : str) {
-		 h = (h ^ (uint8_t)c) * 0x01000193;
-	}
-	return h;
-}
-
 }

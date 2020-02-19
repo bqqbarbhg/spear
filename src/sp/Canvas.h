@@ -9,10 +9,38 @@ namespace sp {
 
 struct Sprite;
 struct Font;
+struct Canvas;
 
 struct CanvasRenderOpts
 {
 	sf::Mat44 transform;
+	sf::Vec4 color = sf::Vec4(1.0f);
+};
+
+struct SpriteDraw
+{
+	Sprite *sprite = nullptr;
+	sf::Mat23 transform;
+	sf::Vec2 anchor;
+	sf::Vec4 color = sf::Vec4(1.0f);
+	float depth = 0.0f;
+};
+
+struct TextDraw
+{
+	Font *font = nullptr;
+	sf::String string;
+	sf::Mat23 transform;
+	sf::Vec4 color = sf::Vec4(1.0f);
+	float depth = 0.0f;
+};
+
+struct CanvasDraw
+{
+	Canvas *canvas;
+	sf::Mat23 transform;
+	sf::Vec4 color = sf::Vec4(1.0f);
+	float depth = 0.0f;
 };
 
 struct CanvasImp;
@@ -20,15 +48,25 @@ struct Canvas
 {
 	Canvas();
 	~Canvas();
+	Canvas(Canvas &&rhs) noexcept;
 	Canvas(const Canvas &rhs) = delete;
-	Canvas(Canvas &&rhs) : imp(rhs.imp) { rhs.imp = nullptr; }
 
 	void clear();
-	void draw(Sprite *s, const sf::Mat23 &transform);
-	void drawText(Font *f, sf::String str, const sf::Vec2 &pos);
+
+	void draw(const SpriteDraw &draw);
+	void drawText(const TextDraw &draw);
+	void drawCanvas(const CanvasDraw &draw);
+
 	void render(const CanvasRenderOpts &opts);
 
-	CanvasImp *imp;
+	alignas(void*) char impData[128];
+
+	// -- Static API
+
+	// Lifecycle
+	static void globalInit();
+	static void globalCleanup();
+	static void globalUpdate();
 };
 
 }

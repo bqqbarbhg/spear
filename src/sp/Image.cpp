@@ -73,6 +73,13 @@ MipImage::MipImage(uint32_t width, uint32_t height, uint32_t numLevels)
 	}
 }
 
+void MipImage::clear()
+{
+	for (Image &level : levels) {
+		level.clear();
+	}
+}
+
 void MipImage::calculateMips()
 {
 	for (uint32_t level = 1; level < levels.size; level++) {

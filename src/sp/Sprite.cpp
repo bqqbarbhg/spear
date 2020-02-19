@@ -1,8 +1,12 @@
 #include "Sprite.h"
 
 #include "ContentFile.h"
-#include "RectPacker.h"
 #include "Image.h"
+#include "RectPacker.h"
+
+#include "sf/Mutex.h"
+#include "sf/Vector.h"
+#include "sf/Sort.h"
 
 #include "ext/stb/stb_image.h"
 #include "ext/stb/stb_image_resize.h"
@@ -10,61 +14,9 @@
 #include "ext/sokol/sokol_gfx.h"
 #include "sf/ext/mx/mx_platform.h"
 
-#include "sf/Vector.h"
-
 namespace sp {
 
-// TODO: Some of these could be dynamic
-static const uint32_t AtlasDeleteQueueFrames = 4;
-static const uint32_t MinAtlasExtent = 64;
-static const uint32_t MaxAtlasExtent = 1024;
-static const uint32_t AtlasLevels = 3;
-static const uint32_t AtlasPadding = 1 << AtlasLevels;
-static const uint32_t MaxSpriteExtent = 256 - AtlasPadding;
-static const uint32_t FramesBetweenReassign = 60;
-static const uint32_t MinAtlasesToForceReassign = 16;
-
-struct SpriteImp;
-struct AtlasImp;
-
-struct AtlasToDelete
-{
-	AtlasImp *atlas;
-	uint32_t frameIndex;
-};
-
-struct SpriteList
-{
-	sf::Mutex mutex;
-	uint32_t frameIndex = 0;
-	sf::Array<AtlasToDelete> atlasesToDelete;
-	sf::Array<AtlasImp*> atlases;
-	RectPacker packer;
-};
-
-SpriteList g_spriteList;
-
-struct AtlasImp : Atlas
-{
-	sf::Array<SpriteImp*> sprites;
-	sg_image image;
-
-	uint32_t numBrokenBatches = 0;
-	uint32_t frameCreated = 0;
-};
-
-struct SpriteImp : Sprite
-{
-	virtual void startLoadingImp() final;
-	virtual void unloadImp() final;
-
-	uint32_t prevX = 0, prevY = 0;
-	uint32_t flushesThisFrame = 0;
-};
-
-const AssetType Sprite::AssetType = { "Sprite", sizeof(SpriteImp),
-	[](Asset *a) { new ((SpriteImp*)a) SpriteImp(); }
-};
+// -- Misc utility
 
 // https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
 static uint32_t roundToPow2(uint32_t v)
@@ -98,7 +50,7 @@ static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
 		const uint8_t *a = alpha + y * w * 4;
 		for (x = 0; x < w; x++) {
 			if (*a != 0) {
-				rect.minY = (uint32_t)y;
+				rect.minY = (uint32_t)sf::max(y - 1, 0);
 				y = h;
 				break;
 			}
@@ -106,7 +58,7 @@ static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
 		}
 	}
 
-	if (rect.minY == h) {
+	if (y == h) {
 		// Empty rectangle
 		rect.minY = 0;
 		rect.minX = 0;
@@ -119,7 +71,7 @@ static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
 		const uint8_t *a = alpha + y * w * 4;
 		for (x = 0; x < w; x++) {
 			if (*a != 0) {
-				rect.maxY = (uint32_t)y + 1;
+				rect.maxY = (uint32_t)sf::min(y + 2, h);
 				y = 0;
 				break;
 			}
@@ -131,7 +83,7 @@ static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
 		const uint8_t *a = alpha + x * 4;
 		for (y = 0; y < h; y++) {
 			if (*a != 0) {
-				rect.minX = (uint32_t)x;
+				rect.minX = (uint32_t)sf::max(x - 1, 0);
 				x = w;
 				break;
 			}
@@ -143,7 +95,7 @@ static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
 		const uint8_t *a = alpha + x * 4;
 		for (y = 0; y < h; y++) {
 			if (*a != 0) {
-				rect.maxX = (uint32_t)x + 1;
+				rect.maxX = (uint32_t)sf::min(x + 2, w);
 				x = 0;
 				break;
 			}
@@ -154,11 +106,91 @@ static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
 	return rect;
 }
 
+static const uint32_t AtlasDeleteQueueFrames = 4;
+static const uint32_t MinAtlasExtent = 64;
+static const uint32_t AtlasLevels = 3;
+static const uint32_t AtlasPadding = 1 << AtlasLevels;
+static const uint32_t FramesBetweenReassign = 60;
+static const uint32_t MinAtlasesToForceReassign = 16;
+static const uint32_t ClearImageExtent = 256;
+
+struct SpriteImp;
+struct AtlasImp;
+
+struct AtlasToDelete
+{
+	AtlasImp *atlas;
+	uint32_t frameIndex;
+};
+
+struct SpriteContext
+{
+	sf::Mutex mutex;
+	uint32_t frameIndex = 0;
+
+	// Bookkeeping
+	sf::Array<AtlasToDelete> atlasesToDelete;
+	sf::Array<AtlasImp*> atlases;
+
+	// Texture limits
+	uint32_t maxSpriteExtent;
+	uint32_t maxAtlasExtent;
+
+	// For clearing atlases
+	sg_image clearImage;
+};
+
+struct AtlasImp : Atlas
+{
+	sf::Array<SpriteImp*> sprites;
+
+	uint32_t numBrokenBatches = 0;
+	uint32_t frameCreated = 0;
+};
+
+struct SpriteImp : Sprite
+{
+	virtual void assetStartLoading() final;
+	virtual void assetUnload() final;
+
+	// Temporary, used during reassignment
+	uint32_t prevX = 0, prevY = 0;
+};
+
+SpriteContext g_spriteContext;
+
+uint32_t SpriteProps::hash() const
+{
+	uint32_t h = 0;
+	h = sf::hashCombine(h, sf::hash(atlasName));
+	return h;
+}
+
+bool SpriteProps::equal(const AssetProps &rhs) const
+{
+	const SpriteProps &r = (const SpriteProps&)rhs;
+	if (atlasName != r.atlasName) return false;
+	return true;
+}
+
+void SpriteProps::copy(const AssetProps &rhs)
+{
+	const SpriteProps &r = (const SpriteProps&)rhs;
+	atlasName = r.atlasName;
+}
+
+
+const AssetType Sprite::AssetType = { "Sprite", sizeof(SpriteImp), sizeof(Sprite::PropType),
+	[](Asset *a) { new ((SpriteImp*)a) SpriteImp(); }
+};
+
 static void loadImp(void *user, const ContentFile &file)
 {
+	SpriteContext &ctx = g_spriteContext;
+
 	SpriteImp *imp = (SpriteImp*)user;
 	if (!file.isValid()) {
-		imp->failLoadingImp();
+		imp->assetFailLoading();
 		return;
 	}
 
@@ -166,15 +198,15 @@ static void loadImp(void *user, const ContentFile &file)
 	stbi_uc *pixels = stbi_load_from_memory((const stbi_uc*)file.data, (int)file.size, &width, &height, NULL, 4);
 	if (!pixels) return;
 
-	if (width > MaxSpriteExtent || height > MaxSpriteExtent) {
+	if (width > (int)ctx.maxSpriteExtent || height > (int)ctx.maxSpriteExtent) {
 		uint32_t srcWidth = width, srcHeight = height;
 		double aspect = (double)width / (double)height;
 		if (width >= height) {
-			width = MaxSpriteExtent;
-			height = (uint32_t)(MaxSpriteExtent / aspect);
+			width = ctx.maxSpriteExtent;
+			height = (uint32_t)(ctx.maxSpriteExtent / aspect);
 		} else {
-			height = MaxSpriteExtent;
-			width = (uint32_t)(MaxSpriteExtent * aspect);
+			height = ctx.maxSpriteExtent;
+			width = (uint32_t)(ctx.maxSpriteExtent * aspect);
 		}
 
 		stbi_uc *newPixels = (stbi_uc*)malloc(width * height * 4);
@@ -237,7 +269,6 @@ static void loadImp(void *user, const ContentFile &file)
 		desc.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
 		desc.mag_filter = SG_FILTER_LINEAR;
 		desc.max_lod = (float)(AtlasLevels - 1);
-		desc.max_anisotropy = 0;
 		desc.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
 		desc.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
 		desc.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
@@ -255,32 +286,32 @@ static void loadImp(void *user, const ContentFile &file)
 	imp->atlas = atlas;
 
 	{
-		SpriteList &list = g_spriteList;
-		sf::MutexGuard mg(list.mutex);
-		list.atlases.push(atlas);
-		atlas->frameCreated = list.frameIndex;
+		sf::MutexGuard mg(ctx.mutex);
+		ctx.atlases.push(atlas);
+		atlas->frameCreated = ctx.frameIndex;
 	}
 
-	imp->finishLoadingImp();
+	imp->assetFinishLoading();
 }
 
-void SpriteImp::startLoadingImp()
+void SpriteImp::assetStartLoading()
 {
 	ContentFile::load(name, &loadImp, this);
 }
 
-void SpriteImp::unloadImp()
+void SpriteImp::assetUnload()
 {
-	// Remove the sprite from all the atlases
-	SpriteList &list = g_spriteList;
-	sf::MutexGuard mg(g_spriteList.mutex);
+	SpriteContext &ctx = g_spriteContext;
+	sf::MutexGuard mg(ctx.mutex);
 
+	// Remove from the atlas
 	AtlasImp *atlasImp = (AtlasImp*)atlas;
 	sf::findRemoveSwap(atlasImp->sprites, this);
 
+	// If this was the last sprite in the atlas delete it
 	if (atlasImp->sprites.size == 0) {
-		sf::findRemoveSwap(list.atlases, atlasImp);
-		list.atlasesToDelete.push({ atlasImp, list.frameIndex });
+		sf::findRemoveSwap(ctx.atlases, atlasImp);
+		ctx.atlasesToDelete.push({ atlasImp, ctx.frameIndex });
 	}
 }
 
@@ -290,22 +321,50 @@ void Atlas::brokeBatch()
 	mxa_inc32_nf(&imp->numBrokenBatches);
 }
 
-uint32_t Atlas::getTexture()
-{
-	AtlasImp *imp = (AtlasImp*)this;
-	return imp->image.id;
-}
-
 void Atlas::getAtlases(sf::Array<Atlas*> &atlases)
 {
-	sf::MutexGuard mg(g_spriteList.mutex);
-	SpriteList &list = g_spriteList;
-	for (AtlasImp *atlas : list.atlases) {
+	SpriteContext &ctx = g_spriteContext;
+	sf::MutexGuard mg(ctx.mutex);
+
+	for (AtlasImp *atlas : ctx.atlases) {
 		atlases.push(atlas);
 	}
 }
 
-static float scoreAtlasForReassigning(SpriteList &list, AtlasImp *atlas)
+void Sprite::globalInit()
+{
+	sg_limits limits = sg_query_limits();
+
+	SpriteContext &ctx = g_spriteContext;
+	ctx.maxSpriteExtent = sf::min(256u, limits.max_image_size_2d);
+	ctx.maxAtlasExtent = sf::min(2048u, limits.max_image_size_2d);
+
+	{
+		MipImage clearImage(ClearImageExtent, ClearImageExtent);
+		sg_image_desc desc = { };
+		desc.type = SG_IMAGETYPE_2D;
+		desc.width = ClearImageExtent;
+		desc.height = ClearImageExtent;
+		desc.num_mipmaps = clearImage.levels.size;
+		desc.usage = SG_USAGE_IMMUTABLE;
+		desc.pixel_format = SG_PIXELFORMAT_RGBA8;
+		desc.label = "Clear texture";
+		for (uint32_t i = 0; i < clearImage.levels.size; i++) {
+			desc.content.subimage[0][i].ptr = clearImage.levels[i].data;
+			desc.content.subimage[0][i].size = clearImage.levels[i].byteSize();
+		}
+		ctx.clearImage = sg_make_image(&desc);
+	}
+}
+
+void Sprite::globalCleanup()
+{
+	SpriteContext &ctx = g_spriteContext;
+
+	sg_destroy_image(ctx.clearImage);
+}
+
+static float scoreAtlasForReassigning(SpriteContext &ctx, AtlasImp *atlas)
 {
 	uint32_t brokenBatches = mxa_load32_nf(&atlas->numBrokenBatches);
 	float brokenBatchesPerFrame = (float)brokenBatches / (float)FramesBetweenReassign;
@@ -318,14 +377,14 @@ static float scoreAtlasForReassigning(SpriteList &list, AtlasImp *atlas)
 
 	float wastedArea = 1.0f - (float)spriteArea / (float)atlasArea;
 
-	if (atlas->width == MaxAtlasExtent && atlas->height == MaxAtlasExtent && wastedArea < 0.5f) {
+	if (atlas->width == ctx.maxAtlasExtent && atlas->height == ctx.maxAtlasExtent && wastedArea < 0.5f) {
 		return 0.0f;
 	}
 
 	float score = brokenBatchesPerFrame + wastedArea * 10.0f;
 
 	// Old atlases with only one texture
-	if (list.frameIndex - atlas->frameCreated > 240 && atlas->sprites.size == 1) {
+	if (ctx.frameIndex - atlas->frameCreated > 240 && atlas->sprites.size == 1) {
 		score += 20.0f;
 	}
 
@@ -361,41 +420,31 @@ static bool tryPackSprites(RectPacker &packer, sf::Slice<SpriteImp*> sprites)
 
 static void sortSpritesToPack(sf::Slice<SpriteImp*> sprites)
 {
-	qsort(sprites.data, sprites.size, sizeof(SpriteImp*),
-	[](const void *va, const void *vb) -> int {
-		SpriteImp *a = *(SpriteImp**)va, *b = *(SpriteImp**)vb;
-		uint32_t as = sf::min(a->width, a->height) * 64 + sf::max(a->width, a->height);
-		uint32_t bs = sf::min(b->width, b->height) * 64 + sf::max(b->width, b->height);
-		if (as > bs) return -1;
-		if (as < bs) return +1;
-		return 0;
+	sf::sortByRev(sprites, [](const SpriteImp *s) {
+		return sf::min(s->width, s->height) * 64 + sf::max(s->width, s->height);
 	});
 }
 
-static void reassignAtlases(SpriteList &list)
+static void reassignAtlases(SpriteContext &ctx)
 {
 	// Collect and score atlases
 	sf::SmallArray<AtlasWithScore, 64> rating;
-	rating.reserve(list.atlases.size);
-	for (AtlasImp *atlas : list.atlases) {
-		rating.push({ atlas, scoreAtlasForReassigning(list, atlas) });
+	rating.reserve(ctx.atlases.size);
+	for (AtlasImp *atlas : ctx.atlases) {
+		rating.push({ atlas, scoreAtlasForReassigning(ctx, atlas) });
 	}
 
 	// Reset batch break counters
-	for (AtlasImp *atlas : list.atlases) {
+	for (AtlasImp *atlas : ctx.atlases) {
 		atlas->numBrokenBatches = 0;
 	}
 
 	// No point in reassigning one or less atlas
-	if (list.atlases.size <= 1) return;
+	if (ctx.atlases.size <= 1) return;
 
 	// Sort by descending score
-	qsort(rating.data, rating.size, sizeof(AtlasWithScore),
-	[](const void *va, const void *vb) {
-		AtlasWithScore *a = (AtlasWithScore*)va, *b = (AtlasWithScore*)vb;
-		if (a->score > b->score) return -1; 
-		if (a->score < b->score) return +1; 
-		return 0;
+	sf::sortByRev(rating, [](const AtlasWithScore &a) {
+		return a.score;
 	});
 
 	// Nothing worth reassigning
@@ -411,7 +460,7 @@ static void reassignAtlases(SpriteList &list)
 		sortSpritesToPack(spritesToPack);
 
 		AtlasImp *atlas = atlasScore.atlas;
-		packer.reset(MaxAtlasExtent, MaxAtlasExtent);
+		packer.reset(ctx.maxAtlasExtent, ctx.maxAtlasExtent);
 		if (!tryPackSprites(packer, spritesToPack)) break;
 		numFit++;
 	}
@@ -426,7 +475,7 @@ static void reassignAtlases(SpriteList &list)
 	if (numFit <= 1) return;
 
 	// Try to find the minimum extent that works
-	uint32_t minWidth = MaxAtlasExtent, minHeight = MaxAtlasExtent;
+	uint32_t minWidth = ctx.maxAtlasExtent, minHeight = ctx.maxAtlasExtent;
 	while (minWidth / 2 >= MinAtlasExtent && minHeight / 2 >= MinAtlasExtent) {
 		packer.reset(minWidth / 2, minHeight / 2);
 		if (!tryPackSprites(packer, spritesToPack)) break;
@@ -464,11 +513,20 @@ static void reassignAtlases(SpriteList &list)
 	AtlasImp *resultAtlas = new AtlasImp();
 	resultAtlas->width = minWidth;
 	resultAtlas->height = minHeight;
-	resultAtlas->frameCreated = list.frameIndex;
+	resultAtlas->frameCreated = ctx.frameIndex;
 
 	MipImage zeroImage(minWidth, minHeight);
 	for (Image &image : zeroImage.levels) {
 		image.clear();
+	}
+	uint32_t numMips = 1;
+	{
+		uint32_t w = minWidth, h = minHeight;
+		while (w > 1 || h > 1) {
+			numMips++;
+			w = sf::max(w / 2, 1u);
+			h = sf::max(h / 2, 1u);
+		}
 	}
 
 	// Initialize the GPU texture
@@ -477,7 +535,7 @@ static void reassignAtlases(SpriteList &list)
 		desc.type = SG_IMAGETYPE_2D;
 		desc.width = minWidth;
 		desc.height = minHeight;
-		desc.num_mipmaps = zeroImage.levels.size;
+		desc.num_mipmaps = numMips;
 		desc.usage = SG_USAGE_IMMUTABLE;
 		desc.pixel_format = SG_PIXELFORMAT_RGBA8;
 		desc.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
@@ -489,14 +547,39 @@ static void reassignAtlases(SpriteList &list)
 		desc.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
 		desc.label = "Atlas Page";
 		desc.bqq_copy_target = true;
-		for (uint32_t i = 0; i < zeroImage.levels.size; i++) {
-			desc.content.subimage[0][i].ptr = zeroImage.levels[i].data;
-			desc.content.subimage[0][i].size = zeroImage.levels[i].byteSize();
-		}
 		resultAtlas->image = sg_make_image(&desc);
 	}
 
 	sf::SmallArray<sg_bqq_subimage_rect, 32> rects;
+
+	// Clear the atlas first
+	{
+		for (uint32_t y = 0; y < minHeight; y += ClearImageExtent) {
+			for (uint32_t x = 0; x < minWidth; x += ClearImageExtent) {
+				sg_bqq_subimage_rect &rect = rects.push();
+				rect.src_x = 0;
+				rect.src_y = 0;
+				rect.dst_x = x;
+				rect.dst_y = y;
+				rect.width = sf::min(minWidth - x, ClearImageExtent);
+				rect.height = sf::min(minHeight - y, ClearImageExtent);
+			}
+		}
+
+		sg_bqq_subimage_copy_desc desc = { };
+		desc.dst_image = resultAtlas->image;
+		desc.src_image = ctx.clearImage;
+		// WebGL 1 can't copy from anything but the top-level...
+		#if defined(SOKOL_GLES2)
+			desc.num_mips = 1;
+		#else
+			desc.num_mips = AtlasLevels;
+		#endif
+
+		desc.rects = rects.data;
+		desc.num_rects = rects.size;
+		sg_bqq_copy_subimages(&desc);
+	}
 
 	// Reassign and copy sprite data
 	packer.reset(minWidth, minHeight);
@@ -534,10 +617,10 @@ static void reassignAtlases(SpriteList &list)
 		desc.num_rects = rects.size;
 		sg_bqq_copy_subimages(&desc);
 
-		// Remove the old atlas from the list
+		// Remove the old atlas from the ctx
 		atlas->sprites.clear();
-		sf::findRemoveSwap(list.atlases, atlas);
-		list.atlasesToDelete.push({ atlas, list.frameIndex });
+		sf::findRemoveSwap(ctx.atlases, atlas);
+		ctx.atlasesToDelete.push({ atlas, ctx.frameIndex });
 	}
 
 	// Generate mipmaps afterwards on WebGL 1
@@ -545,28 +628,16 @@ static void reassignAtlases(SpriteList &list)
 		sg_bqq_generate_mipmaps(resultAtlas->image);
 	#endif
 
-	list.atlases.push(resultAtlas);
+	ctx.atlases.push(resultAtlas);
 }
 
-void Sprite::update()
+void Sprite::globalUpdate()
 {
-	sf::MutexGuard mg(g_spriteList.mutex);
-	SpriteList &list = g_spriteList;
-	list.frameIndex++;
+	SpriteContext &ctx = g_spriteContext;
+	sf::MutexGuard mg(ctx.mutex);
 
-	for (uint32_t i = 0; i < list.atlasesToDelete.size; i++) {
-		if (list.frameIndex - list.atlasesToDelete[i].frameIndex < AtlasDeleteQueueFrames) continue;
-		AtlasImp *atlas = list.atlasesToDelete[i].atlas;
-
-		sg_destroy_image(atlas->image);
-		delete atlas;
-
-		list.atlasesToDelete.removeSwap(i--);
-	}
-
-	if (list.frameIndex % FramesBetweenReassign == 0 || list.atlases.size >= MinAtlasesToForceReassign) {
-		reassignAtlases(list);
-	}
+	ctx.frameIndex++;
 }
 
 }
+

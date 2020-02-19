@@ -139,6 +139,29 @@ void debugPrintLine(const char *fmt, ...);
 	#define sf_failf(...) (void)0
 #endif
 
+// Generic buffer hash
+uint32_t hashBuffer(const void *data, size_t size);
+sf_inline uint32_t hashCombine(uint32_t a, uint32_t b) {
+	return  ((a << 5u | a >> 27u) ^ b) * UINT32_C(0x9e3779b9);
+}
+uint32_t hash(uint32_t val);
+uint32_t hashReverse32(uint32_t hash);
+
+template <typename T>
+sf_inline int compare(const T &lhs, const T &rhs) {
+	if (lhs < rhs) return -1;
+	if (rhs < lhs) return +1;
+	return 0;
+}
+
+template <typename T>
+sf_inline void swap(T &a, T &b)
+{
+	T tmp(std::move(a));
+	a.~T(); new (&a) T(std::move(b));
+	b.~T(); new (&b) T(std::move(tmp));
+}
+
 // -- Type traits
 
 // Can the type be initialized by calling `memset(0)`
@@ -262,7 +285,7 @@ struct Slice
 };
 
 template <typename T>
-Slice<T> slice(T *data, size_t size) { return Slice<T>(data, size); }
+sf_inline Slice<T> slice(T *data, size_t size) { return Slice<T>(data, size); }
 
 }
 

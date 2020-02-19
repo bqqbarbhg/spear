@@ -125,6 +125,13 @@ struct StringBuf
 
 	void format(const char *fmt, ...);
 
+	bool operator==(const sf::String &rhs) const {
+		return (sf::String)*this == rhs;
+	}
+	bool operator!=(const sf::String &rhs) const {
+		return (sf::String)*this != rhs;
+	}
+
 protected:
 	StringBuf(char *data, uint32_t capacity) : data(data), size(0), capacity(capacity) { }
 
@@ -207,7 +214,9 @@ sf_inline bool operator==(const String &lhs, const StringBuf &rhs) {
 	return lhs == (String)rhs;
 }
 
-uint32_t hash(const String &str);
+sf_inline uint32_t hash(const String &str) {
+	return hashBuffer(str.data, str.size);
+}
 
 template <> struct IsZeroInitializable<String> { enum { value = 1 }; };
 
