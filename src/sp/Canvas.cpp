@@ -149,26 +149,36 @@ static void spriteToQuad(Quad &quad, const SpriteDraw &draw)
 
 	const sf::Mat23 &t = draw.transform;
 
-	quad.v[0].position.x = t.m02;
-	quad.v[0].position.y = t.m12;
+	float xx0 = sprite->minVert.x*t.m00 + t.m02;
+	float xx1 = sprite->maxVert.x*t.m00 + t.m02;
+	float yy0 = sprite->minVert.y*t.m11 + t.m12;
+	float yy1 = sprite->maxVert.y*t.m11 + t.m12;
+
+	float xy0 = sprite->minVert.y*t.m01;
+	float xy1 = sprite->maxVert.y*t.m01;
+	float yx0 = sprite->minVert.x*t.m10;
+	float yx1 = sprite->maxVert.x*t.m10;
+
+	quad.v[0].position.x = xx0 + xy0;
+	quad.v[0].position.y = yx0 + yy0;
 	quad.v[0].texCoord.x = uvMinX;
 	quad.v[0].texCoord.y = uvMinY;
 	quad.v[0].color = color;
 
-	quad.v[1].position.x = t.m02 + t.m00;
-	quad.v[1].position.y = t.m12 + t.m10;
+	quad.v[1].position.x = xx1 + xy0;
+	quad.v[1].position.y = yx1 + yy0;
 	quad.v[1].texCoord.x = uvMaxX;
 	quad.v[1].texCoord.y = uvMinY;
 	quad.v[1].color = color;
 
-	quad.v[2].position.x = t.m02 + t.m01;
-	quad.v[2].position.y = t.m12 + t.m11;
+	quad.v[2].position.x = xx0 + xy1;
+	quad.v[2].position.y = yx0 + yy1;
 	quad.v[2].texCoord.x = uvMinX;
 	quad.v[2].texCoord.y = uvMaxY;
 	quad.v[2].color = color;
 
-	quad.v[3].position.x = t.m02 + t.m00 + t.m01;
-	quad.v[3].position.y = t.m12 + t.m10 + t.m11;
+	quad.v[3].position.x = xx1 + xy1;
+	quad.v[3].position.y = yx1 + yy1;
 	quad.v[3].texCoord.x = uvMaxX;
 	quad.v[3].texCoord.y = uvMaxY;
 	quad.v[3].color = color;

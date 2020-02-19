@@ -22,6 +22,7 @@ static const uint32_t AtlasLevels = 3;
 static const uint32_t AtlasPadding = 1 << AtlasLevels;
 static const uint32_t MaxSpriteExtent = 256 - AtlasPadding;
 static const uint32_t FramesBetweenReassign = 60;
+static const uint32_t MinAtlasesToForceReassign = 16;
 
 struct SpriteImp;
 struct AtlasImp;
@@ -78,6 +79,81 @@ static uint32_t roundToPow2(uint32_t v)
 	return v;
 }
 
+struct CropRect
+{
+	uint32_t minX, minY;
+	uint32_t maxX, maxY;
+};
+
+static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
+{
+	CropRect rect;
+	const uint8_t *alpha = data + 3;
+	int32_t x, y;
+	int32_t w = (int32_t)width;
+	int32_t h = (int32_t)height;
+	uint32_t stride = 4 * width;
+
+	for (y = 0; y < h; y++) {
+		const uint8_t *a = alpha + y * w * 4;
+		for (x = 0; x < w; x++) {
+			if (*a != 0) {
+				rect.minY = (uint32_t)y;
+				y = h;
+				break;
+			}
+			a += 4;
+		}
+	}
+
+	if (rect.minY == h) {
+		// Empty rectangle
+		rect.minY = 0;
+		rect.minX = 0;
+		rect.maxX = 1;
+		rect.maxY = 1;
+		return rect;
+	}
+
+	for (y = h - 1; y >= 0; y--) {
+		const uint8_t *a = alpha + y * w * 4;
+		for (x = 0; x < w; x++) {
+			if (*a != 0) {
+				rect.maxY = (uint32_t)y + 1;
+				y = 0;
+				break;
+			}
+			a += 4;
+		}
+	}
+
+	for (x = 0; x < w; x++) {
+		const uint8_t *a = alpha + x * 4;
+		for (y = 0; y < h; y++) {
+			if (*a != 0) {
+				rect.minX = (uint32_t)x;
+				x = w;
+				break;
+			}
+			a += stride;
+		}
+	}
+
+	for (x = w - 1; x >= 0; x--) {
+		const uint8_t *a = alpha + x * 4;
+		for (y = 0; y < h; y++) {
+			if (*a != 0) {
+				rect.maxX = (uint32_t)x + 1;
+				x = 0;
+				break;
+			}
+			a += stride;
+		}
+	}
+
+	return rect;
+}
+
 static void loadImp(void *user, const ContentFile &file)
 {
 	SpriteImp *imp = (SpriteImp*)user;
@@ -111,6 +187,17 @@ static void loadImp(void *user, const ContentFile &file)
 		pixels = newPixels;
 	}
 
+	CropRect rect = cropAlpha(pixels, width, height);
+	uint32_t stride = width * 4;
+
+	imp->minVert.x = (float)rect.minX / (float)width;
+	imp->minVert.y = (float)rect.minY / (float)height;
+	imp->maxVert.x = (float)rect.maxX / (float)width;
+	imp->maxVert.y = (float)rect.maxY / (float)height;
+
+	width = rect.maxX - rect.minX;
+	height = rect.maxY - rect.minY;
+
 	imp->width = width;
 	imp->height = height;
 
@@ -127,7 +214,8 @@ static void loadImp(void *user, const ContentFile &file)
 
 	MipImage image(atlasWidth, atlasHeight);
 
-	image.levels[0].blit(0, 0, width, height, pixels);
+	stbi_uc *basePixels = pixels + rect.minY * stride + rect.minX * 4;
+	image.levels[0].blit(0, 0, width, height, basePixels, stride);
 	image.levels[0].premultiply();
 	image.levels[0].clear(width, 0, atlasWidth - width, atlasHeight);
 	image.levels[0].clear(0, height, width, atlasHeight - height);
@@ -275,11 +363,11 @@ static void sortSpritesToPack(sf::Slice<SpriteImp*> sprites)
 {
 	qsort(sprites.data, sprites.size, sizeof(SpriteImp*),
 	[](const void *va, const void *vb) -> int {
-		SpriteImp *a = (SpriteImp*)va, *b = (SpriteImp*)vb;
-		uint32_t as = sf::max(a->width, a->height) * 32 + sf::min(a->width, a->height);
-		uint32_t bs = sf::max(b->width, b->height) * 32 + sf::min(b->width, b->height);
-		if (as < bs) return +1;
+		SpriteImp *a = *(SpriteImp**)va, *b = *(SpriteImp**)vb;
+		uint32_t as = sf::min(a->width, a->height) * 64 + sf::max(a->width, a->height);
+		uint32_t bs = sf::min(b->width, b->height) * 64 + sf::max(b->width, b->height);
 		if (as > bs) return -1;
+		if (as < bs) return +1;
 		return 0;
 	});
 }
@@ -305,8 +393,8 @@ static void reassignAtlases(SpriteList &list)
 	qsort(rating.data, rating.size, sizeof(AtlasWithScore),
 	[](const void *va, const void *vb) {
 		AtlasWithScore *a = (AtlasWithScore*)va, *b = (AtlasWithScore*)vb;
-		if (a->score < b->score) return +1; 
 		if (a->score > b->score) return -1; 
+		if (a->score < b->score) return +1; 
 		return 0;
 	});
 
@@ -324,7 +412,7 @@ static void reassignAtlases(SpriteList &list)
 
 		AtlasImp *atlas = atlasScore.atlas;
 		packer.reset(MaxAtlasExtent, MaxAtlasExtent);
-		if (!tryPackSprites(packer, atlas->sprites)) break;
+		if (!tryPackSprites(packer, spritesToPack)) break;
 		numFit++;
 	}
 
@@ -476,8 +564,7 @@ void Sprite::update()
 		list.atlasesToDelete.removeSwap(i--);
 	}
 
-	// TODO: Only run this on some frames
-	if (list.frameIndex % FramesBetweenReassign == 0 || true) {
+	if (list.frameIndex % FramesBetweenReassign == 0 || list.atlases.size >= MinAtlasesToForceReassign) {
 		reassignAtlases(list);
 	}
 }

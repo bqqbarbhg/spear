@@ -3,6 +3,7 @@
 #include "Asset.h"
 #include "sf/String.h"
 #include "sf/Array.h"
+#include "sf/Vector.h"
 
 namespace sp {
 
@@ -24,6 +25,7 @@ struct Sprite : Asset
 	Atlas *atlas = nullptr;
 	uint32_t x = 0, y = 0;
 	uint32_t width = 0, height = 0;
+	sf::Vec2 minVert, maxVert;
 
 	// Globals
 

@@ -16,15 +16,21 @@ constexpr uint32_t MsaaSamples = 1;
 struct TestGame
 {
 	sp::SpriteRef dude { "dude.png" };
-	sp::SpriteRef guy { "guy.png" };
 
 	sf::Array<sp::SpriteRef> items;
 	sp::Canvas canvas;
+	sp::Canvas otherCanvas;
 
 	uint32_t frameIndex = 0;
 
 	TestGame()
 	{
+		otherCanvas.draw(sp::SpriteRef{"ghost.png"}, sf::Mat23());
+		otherCanvas.draw(sp::SpriteRef{"dot_left.png"}, sf::Mat23());
+		otherCanvas.draw(sp::SpriteRef{"dot_top.png"}, sf::Mat23());
+		otherCanvas.draw(sp::SpriteRef{"dot_right.png"}, sf::Mat23());
+		otherCanvas.draw(sp::SpriteRef{"dot_bottom.png"}, sf::Mat23());
+
 		items.push(sp::SpriteRef{"Card/Axe.png"});
 		items.push(sp::SpriteRef{"Card/Bow.png"});
 		items.push(sp::SpriteRef{"Card/Club.png"});
@@ -112,6 +118,7 @@ struct TestGame
 		sgl_draw();
 
 		canvas.render(sp::CanvasRenderOpts());
+		otherCanvas.render(sp::CanvasRenderOpts());
 
 		sg_end_pass();
 		sg_commit();

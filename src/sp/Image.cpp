@@ -4,20 +4,25 @@
 
 namespace sp {
 
-void Image::blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const void *srcData)
+void Image::blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const void *srcData, uint32_t srcStride)
 {
 	sf_assert(x + w <= width);
 	sf_assert(y + h <= height);
 
-	uint32_t srcStride = w * 4;
+	uint32_t lineSize = w * 4;
 	uint32_t dstStride = width * 4;
 	uint8_t *dst = data + y * dstStride + x * 4;
 	const uint8_t *src = (const uint8_t*)srcData;
 	for (uint32_t dy = 0; dy < h; dy++) {
-		memcpy(dst, src, srcStride);
+		memcpy(dst, src, lineSize);
 		dst += dstStride;
 		src += srcStride;
 	}
+}
+
+void Image::blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const void *data)
+{
+	blit(x, y, w, h, data, w * 4);
 }
 
 void Image::premultiply()
