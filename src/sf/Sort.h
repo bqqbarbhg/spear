@@ -27,7 +27,7 @@ void impSort(T *data, size_t size, Cmp cmpFn)
 	for (;;) {
 		sf_assert(left != right);
 
-		if (right - left <= 16 && false) {
+		if (right - left <= 16) {
 
 			// Insertion sort
 			T *it = left + 1;
@@ -65,8 +65,15 @@ void impSort(T *data, size_t size, Cmp cmpFn)
 				else if (hi == pivot) pivot = lo;
 			}
 
+			lo = hi;
+
+			if (rng) {
+				while (lo > left && !cmpFn(lo[-1], lo[0])) --lo;
+				while (hi < right && !cmpFn(hi[0], hi[1])) ++hi;
+			}
+
 			size_t limit = (right - left) >> 2;
-			size_t numLeft = hi - left;
+			size_t numLeft = lo - left;
 			size_t numRight = right - hi;
 			if (rng == 0 && limit > 128 && (numLeft < limit || numRight < limit)) {
 				rng = 1;
@@ -79,7 +86,7 @@ void impSort(T *data, size_t size, Cmp cmpFn)
 					top->right = right;
 					top++;
 				}
-				right = hi;
+				right = lo;
 				continue;
 			} else if (numRight > 1) {
 				left = hi + 1;
