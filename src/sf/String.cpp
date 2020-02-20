@@ -19,6 +19,7 @@ StringBuf::StringBuf(String s)
 	if (s.size > 0) {
 		data = (char*)memAlloc(s.size + 1);
 		memcpy(data, s.data, s.size);
+		data[s.size] = '\0';
 		capacity = size = (uint32_t)s.size;
 	} else {
 		data = (char*)"";

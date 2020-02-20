@@ -13,7 +13,7 @@ struct Game
 
 	Game()
 	{
-		sp::ContentFile::addRelativeFileRoot("data/");
+		sp::ContentFile::addRelativeFileRoot("data");
 	}
 
 	void update(float dt)

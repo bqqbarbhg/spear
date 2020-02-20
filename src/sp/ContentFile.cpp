@@ -74,9 +74,15 @@ struct FetchFilePackage : ContentPackage
 {
 	sf::StringBuf root;
 
-	FetchFilePackage(const sf::String &root)
-		: root(root)
+	FetchFilePackage(const sf::String &root_)
+		: root(root_)
 	{
+		if (root.size > 0) {
+			char c = root.data[root.size - 1];
+			if (c != '/' && c != '\\') {
+				root.append('/');
+			}
+		}
 	}
 
 	virtual bool shouldTryToLoad(const sf::String &name) final
