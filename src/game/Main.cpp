@@ -8,7 +8,7 @@
 
 struct Game
 {
-	sp::SpriteRef sprite{"dude.png"};
+	sp::SpriteRef sprite{"grid.png"};
 	sp::Canvas canvas;
 
 	Game()

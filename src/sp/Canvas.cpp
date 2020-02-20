@@ -192,10 +192,10 @@ static void spriteToQuad(Quad &quad, const SpriteDraw &draw, const CanvasRenderO
 	float rcpAtlasWidth = 1.0f / (float)sprite->atlas->width;
 	float rcpAtlasHeight = 1.0f / (float)sprite->atlas->height;
 
-	float uvMinX = (float)sprite->x * rcpAtlasWidth;
-	float uvMinY = (float)sprite->y * rcpAtlasHeight;
-	float uvMaxX = (float)(sprite->x + sprite->width) * rcpAtlasWidth;
-	float uvMaxY = (float)(sprite->y + sprite->height) * rcpAtlasHeight;
+	float uvMinX = ((float)sprite->x + 0.5f) * rcpAtlasWidth;
+	float uvMinY = ((float)sprite->y + 0.5f) * rcpAtlasHeight;
+	float uvMaxX = ((float)(sprite->x + sprite->width) - 0.5f) * rcpAtlasWidth;
+	float uvMaxY = ((float)(sprite->y + sprite->height) - 0.5f) * rcpAtlasHeight;
 
 	uint32_t color = packColor(draw.color * opts.color);
 
