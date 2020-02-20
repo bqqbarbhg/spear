@@ -112,25 +112,36 @@ void debugPrintLine(const char *fmt, ...)
 
 uint32_t hashBuffer(const void *data, size_t size)
 {
-	uint32_t hash = 0;
 
 #if SF_FAST_64BIT
+	uint64_t hash = 0;
 
 	const uint64_t seed = UINT64_C(0x517cc1b727220a95);
 	const uint64_t *word = (const uint64_t*)data;
 	while (size >= 8) {
-		hash = ((hash << 5u | hash >> 27u) ^ *word++) * seed;
+		hash = ((hash << 5u | hash >> 59u) ^ *word++) * seed;
 		size -= 8;
 	}
 
 	if (size >= 4) {
 		const uint32_t *word32 = (const uint32_t*)word;
-		hash = ((hash << 5u | hash >> 27u) ^ *word32) * seed;
+		hash = ((hash << 5u | hash >> 59u) ^ *word32) * seed;
 		word = (const uint64_t*)(word32 + 1);
 		size -= 4;
 	}
 
+	const uint8_t *byte = (const uint8_t*)word;
+	if (size > 0) {
+		uint64_t w = 0;
+		while (size > 0) {
+			w = w << 8 | *byte++;
+			size--;
+		}
+		hash = ((hash << 5u | hash >> 59u) ^ w) * seed;
+	}
+
 #else
+	uint32_t hash = 0;
 
 	const uint32_t seed = UINT32_C(0x9e3779b9);
 	const uint32_t *word = (const uint32_t*)data;
@@ -138,8 +149,6 @@ uint32_t hashBuffer(const void *data, size_t size)
 		hash = ((hash << 5u | hash >> 27u) ^ *word++) * seed;
 		size -= 4;
 	}
-
-#endif
 
 	const uint8_t *byte = (const uint8_t*)word;
 	if (size > 0) {
@@ -151,7 +160,9 @@ uint32_t hashBuffer(const void *data, size_t size)
 		hash = ((hash << 5u | hash >> 27u) ^ w) * seed;
 	}
 
-	return hash;
+#endif
+
+	return (uint32_t)hash;
 }
 
 // https://github.com/skeeto/hash-prospector

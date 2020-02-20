@@ -110,7 +110,7 @@ struct Array
 		static_assert(!HasDestructor<T>::value, "Trying to pushUninit() on type with a destructor!");
 		if (size + num > capacity) impGrowToGeometric(size + num);
 		T *ptr = &data[size];
-		size += num;
+		size += (uint32_t)num;
 		return ptr;
 	}
 

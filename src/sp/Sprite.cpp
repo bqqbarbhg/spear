@@ -275,7 +275,7 @@ static void loadImp(void *user, const ContentFile &file)
 		desc.label = "Single Atlas";
 		for (uint32_t i = 0; i < image.levels.size; i++) {
 			desc.content.subimage[0][i].ptr = image.levels[i].data;
-			desc.content.subimage[0][i].size = image.levels[i].byteSize();
+			desc.content.subimage[0][i].size = (int)image.levels[i].byteSize();
 		}
 		atlas->image = sg_make_image(&desc);
 	}
@@ -351,7 +351,7 @@ void Sprite::globalInit()
 		desc.label = "Clear texture";
 		for (uint32_t i = 0; i < clearImage.levels.size; i++) {
 			desc.content.subimage[0][i].ptr = clearImage.levels[i].data;
-			desc.content.subimage[0][i].size = clearImage.levels[i].byteSize();
+			desc.content.subimage[0][i].size = (int)clearImage.levels[i].byteSize();
 		}
 		ctx.clearImage = sg_make_image(&desc);
 	}

@@ -52,6 +52,7 @@ struct CanvasContext
 	sg_buffer quadVertexBuffer;
 
 	sf::Array<Quad> quads;
+	size_t quadsLeftThisFrame = MaxQuadsPerDraw;
 };
 
 CanvasContext g_canvasContext;
@@ -135,7 +136,7 @@ void Canvas::draw(const SpriteDraw &draw)
 	if (!draw.sprite) return;
 	draw.sprite->retain();
 
-	if (imp->spriteDraws.size > 0 && draw.depth > imp->spriteDraws.back().draw.depth) {
+	if (imp->spriteDraws.size > 0 && draw.depth < imp->spriteDraws.back().draw.depth) {
 		imp->spriteDrawsSorted = false;
 	}
 	SpriteDrawImp &drawImp = imp->spriteDraws.pushUninit();
@@ -150,7 +151,7 @@ void Canvas::drawText(const TextDraw &draw)
 	// TODO draw.font->retain();
 	sf_failf("TODO");
 
-	if (imp->textDraws.size > 0 && draw.depth > imp->textDraws.back().draw.depth) {
+	if (imp->textDraws.size > 0 && draw.depth < imp->textDraws.back().draw.depth) {
 		imp->textDrawsSorted = false;
 	}
 	TextDrawImp &drawImp = imp->textDraws.pushUninit();
@@ -163,7 +164,7 @@ void Canvas::drawCanvas(const CanvasDraw &draw)
 	CanvasImp *imp = (CanvasImp*)impData;
 	if (!draw.canvas) return;
 
-	if (imp->canvasDraws.size > 0 && draw.depth > imp->canvasDraws.back().draw.depth) {
+	if (imp->canvasDraws.size > 0 && draw.depth < imp->canvasDraws.back().draw.depth) {
 		imp->canvasDrawsSorted = false;
 	}
 	CanvasDrawImp &drawImp = imp->canvasDraws.pushUninit();
@@ -237,8 +238,12 @@ static void spriteToQuad(Quad &quad, const SpriteDraw &draw, const CanvasRenderO
 
 static void drawSprites(CanvasContext &ctx, sf::Slice<SpriteDrawImp> draws, Atlas *atlas, const CanvasRenderOpts &opts)
 {
-	sf_assert(draws.size > 0);
 	sf_assert(draws.size <= MaxQuadsPerDraw);
+
+	draws.size = sf::min(draws.size, ctx.quadsLeftThisFrame);
+	ctx.quadsLeftThisFrame -= draws.size;
+
+	if (draws.size == 0) return;
 
 	ctx.quads.clear();
 	for (const SpriteDrawImp &drawImp : draws) {
@@ -251,14 +256,14 @@ static void drawSprites(CanvasContext &ctx, sf::Slice<SpriteDrawImp> draws, Atla
 		spriteToQuad(quad, draw, opts);
 	}
 
-	uint32_t offset = sg_append_buffer(ctx.quadVertexBuffer, ctx.quads.data, ctx.quads.byteSize());
+	uint32_t offset = sg_append_buffer(ctx.quadVertexBuffer, ctx.quads.data, (int)ctx.quads.byteSize());
 
 	ctx.spriteBindings.vertex_buffer_offsets[0] = offset;
 	ctx.spriteBindings.fs_images[SLOT_Sprite_atlasTexture] = atlas->image;
 
 
 	sg_apply_bindings(&ctx.spriteBindings);
-	sg_draw(0, 6 * draws.size, 1);
+	sg_draw(0, 6 * (int)draws.size, 1);
 }
 
 static void drawTexts(CanvasContext &ctx, sf::Slice<TextDrawImp> draws)
@@ -426,7 +431,7 @@ void Canvas::globalInit()
 		sg_buffer_desc desc = { };
 		desc.type = SG_BUFFERTYPE_INDEXBUFFER;
 		desc.content = indices.data;
-		desc.size = indices.byteSize();
+		desc.size = (int)indices.byteSize();
 		desc.label = "quadIndexBuffer";
 		ctx.quadIndexBuffer = sg_make_buffer(&desc);
 	}
@@ -456,6 +461,8 @@ void Canvas::globalCleanup()
 
 void Canvas::globalUpdate()
 {
+	CanvasContext &ctx = g_canvasContext;
+	ctx.quadsLeftThisFrame = MaxQuadsPerFrame;
 }
 
 
