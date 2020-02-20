@@ -19,9 +19,20 @@ struct Game
 	void update(float dt)
 	{
 		canvas.clear();
-		sp::SpriteDraw draw;
-		draw.sprite = sprite;
-		canvas.draw(draw);
+
+		{
+			sp::SpriteDraw draw;
+			draw.sprite = sprite;
+			draw.transform = sf::mat2D::scale(0.02f);
+			canvas.draw(draw);
+		}
+
+		{
+			sp::SpriteDraw draw;
+			draw.sprite = sprite;
+			draw.transform = sf::mat2D::scale(0.02f) * sf::mat2D::translateX(-1.0f);
+			canvas.draw(draw);
+		}
 	}
 
 	void render()

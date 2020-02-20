@@ -223,10 +223,10 @@ static void loadImp(void *user, const ContentFile &file)
 	CropRect rect = cropAlpha(pixels, width, height);
 	uint32_t stride = width * 4;
 
-	imp->minVert.x = (float)rect.minX / (float)width;
-	imp->minVert.y = (float)rect.minY / (float)height;
-	imp->maxVert.x = (float)rect.maxX / (float)width;
-	imp->maxVert.y = (float)rect.maxY / (float)height;
+	imp->minVert.x = (float)(rect.minX - 0.5f) / (float)width;
+	imp->minVert.y = (float)(rect.minY - 0.5f) / (float)height;
+	imp->maxVert.x = (float)(rect.maxX + 0.5f) / (float)width;
+	imp->maxVert.y = (float)(rect.maxY + 0.5f) / (float)height;
 
 	width = rect.maxX - rect.minX;
 	height = rect.maxY - rect.minY;
@@ -270,9 +270,9 @@ static void loadImp(void *user, const ContentFile &file)
 		desc.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
 		desc.mag_filter = SG_FILTER_LINEAR;
 		desc.max_lod = (float)(AtlasLevels - 1);
-		desc.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
-		desc.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
-		desc.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
+		desc.wrap_u = SG_WRAP_REPEAT;
+		desc.wrap_v = SG_WRAP_REPEAT;
+		desc.wrap_w = SG_WRAP_REPEAT;
 		desc.label = "Single Atlas";
 		for (uint32_t i = 0; i < image.levels.size; i++) {
 			desc.content.subimage[0][i].ptr = image.levels[i].data;
