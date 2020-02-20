@@ -148,14 +148,7 @@ uint32_t hash(uint32_t val);
 uint32_t hashReverse32(uint32_t hash);
 
 template <typename T>
-sf_inline int compare(const T &lhs, const T &rhs) {
-	if (lhs < rhs) return -1;
-	if (rhs < lhs) return +1;
-	return 0;
-}
-
-template <typename T>
-sf_inline void swap(T &a, T &b)
+sf_inline void impSwap(T &a, T &b)
 {
 	T tmp(std::move(a));
 	a.~T(); new (&a) T(std::move(b));

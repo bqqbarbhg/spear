@@ -15,7 +15,7 @@ webgl2 = "--webgl2" in sys.argv
 def compile_file(path, cpp):
     args = ["emcc", path, "-c", "-I" + src_dir]
     if optimize:
-        args += ["-O2"]
+        args += ["-O2", "-DNDEBUG"]
     else:
         args += ["-g"]
     if cpp:

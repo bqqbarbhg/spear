@@ -308,7 +308,7 @@ void Canvas::render(const CanvasRenderOpts &opts)
 	uint64_t nextCanvas = imp->canvasDraws.size > 0 ? imp->canvasDraws[0].sortKey : UINT64_MAX;
 
 	uint64_t next = sf::min(nextSprite, nextText, nextCanvas);
-	while (next != UINT_MAX) {
+	while (next != UINT64_MAX) {
 
 		// All sort keys are unique so dispatch to the type whose sort key
 		// is equal to the lowest one

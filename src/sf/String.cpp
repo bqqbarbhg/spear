@@ -5,6 +5,14 @@
 
 namespace sf {
 
+bool String::operator<(const String &rhs) const
+{
+	size_t len = sf::min(size, rhs.size);
+	int cmp = memcmp(data, rhs.data, len);
+	if (cmp != 0) return cmp < 0;
+	return size < rhs.size;
+}
+
 StringBuf::StringBuf(String s)
 {
 	sf_assert(s.size < UINT32_MAX);
@@ -89,12 +97,7 @@ void StringBuf::format(const char *fmt, ...)
 	va_copy(args2, args1);
 
 	// First pass: Try to format to a the current buffer
-	int appendSize;
-	if (capacity == 0) {
-		appendSize = vsnprintf(nullptr, 0, fmt, args1);
-	} else {
-		appendSize = vsnprintf(data + size, capacity - size, fmt, args1);
-	}
+	int appendSize = vsnprintf(data + size, capacity - size, fmt, args1);
 
 	if (appendSize < 0) return;
 	va_end(args1);
@@ -104,6 +107,7 @@ void StringBuf::format(const char *fmt, ...)
 		impGrowToGeometric(size + appendSize);
 		vsnprintf(data + size, capacity - size, fmt, args2);
 	}
+	size += appendSize;
 
 	va_end(args2);
 }

@@ -3,8 +3,6 @@
 #include "sf/Base.h"
 #include "sf/Array.h"
 
-extern int LOOPCOUNT;
-
 namespace sf {
 
 // -- Slice
@@ -27,18 +25,23 @@ void impSort(T *data, size_t size, Cmp cmpFn)
 	for (;;) {
 		sf_assert(left != right);
 
-		if (right - left <= 16) {
+		if (right - left <= 32) {
 
 			// Insertion sort
-			T *it = left + 1;
-			while (it <= right) {
-				T *jt = it;
-				while (jt != left && cmpFn(jt[0], jt[-1])) {
-					swap(jt[0], jt[-1]);
-					jt--;
+			T *hi = left + 1;
+			while (hi <= right) {
+				if (cmpFn(*hi, hi[-1])) {
+					T *lo = hi;
+					T tmp(std::move(*hi));
+					do {
+						lo->~T(); new (lo) T(std::move(lo[-1]));
+						lo--;
+					} while (lo != left && cmpFn(tmp, lo[-1]));
+					lo->~T(); new (lo) T(std::move(tmp));
 				}
-				it++;
+				hi++;
 			}
+
 		} else {
 
 			// Partition
@@ -53,38 +56,43 @@ void impSort(T *data, size_t size, Cmp cmpFn)
 
 			T *lo = left - 1;
 			T *hi = right + 1;
-			LOOPCOUNT += (int)(hi - lo);
 
 			for (;;) {
 				do lo++; while (cmpFn(*lo, *pivot));
 				do hi--; while (cmpFn(*pivot, *hi));
 				if (lo >= hi) break;
-				swap(*lo, *hi);
+				impSwap(*lo, *hi);
 
 				if (lo == pivot) pivot = hi;
 				else if (hi == pivot) pivot = lo;
 			}
 
 			lo = hi;
-
-			if (rng) {
-				while (lo > left && !cmpFn(lo[-1], lo[0])) --lo;
-				while (hi < right && !cmpFn(hi[0], hi[1])) ++hi;
+			if (!cmpFn(*lo, *pivot)) {
+				while (lo > left && !cmpFn(lo[-1], *pivot)) --lo;
+			}
+			if (!cmpFn(*pivot, *hi)) {
+				while (hi < right && !cmpFn(*pivot, hi[1])) ++hi;
 			}
 
-			size_t limit = (right - left) >> 2;
+			size_t limit = ((right - left) >> 2) * 3;
 			size_t numLeft = lo - left;
 			size_t numRight = right - hi;
-			if (rng == 0 && limit > 128 && (numLeft < limit || numRight < limit)) {
+			if (rng == 0 && limit > 128 && (numLeft > limit || numRight > limit)) {
 				rng = 1;
 			}
 
 			if (numLeft > 0) {
 				if (numRight > 1) {
-					sf_assert(top - stack < sf_arraysize(stack));
 					top->left = hi + 1;
 					top->right = right;
 					top++;
+
+					if (top - stack >= (sf_arraysize(stack) >> 1)) {
+						// Transition to heap sort
+						right = lo;
+						break;
+					}
 				}
 				right = lo;
 				continue;
@@ -100,7 +108,52 @@ void impSort(T *data, size_t size, Cmp cmpFn)
 			left = (T*)top->left;
 			right = (T*)top->right;
 		} else {
-			break;
+			// Done!
+			return;
+		}
+	}
+
+	// Heap sort
+	for (;;) {
+		sf_assert(left != right);
+
+		// No insertion sort here as this code should only be
+		// executed for malicious inputs.
+
+		size_t num = right - left + 1;
+		size_t start = (num - 1) >> 1;
+		size_t end = num - 1;
+		for (;;) {
+
+			size_t root = start;
+			size_t child;
+			while ((child = root*2 + 1) <= end) {
+				size_t next = cmpFn(left[child], left[root]) ? root : child;
+				if (child + 1 <= end && cmpFn(left[next], left[child + 1])) {
+					next = child + 1;
+				}
+				if (next == root) break;
+				impSwap(left[root], left[next]);
+				root = next;
+			}
+
+			if (start > 0) {
+				start--;
+			} else if (end > 0) {
+				impSwap(left[end], left[0]);
+				end--;
+			} else {
+				break;
+			}
+		}
+
+		if (top != stack) {
+			--top;
+			left = (T*)top->left;
+			right = (T*)top->right;
+		} else {
+			// Done!
+			return;
 		}
 	}
 }

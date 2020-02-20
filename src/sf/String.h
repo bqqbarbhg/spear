@@ -23,6 +23,8 @@ struct String
 
 	const char *begin() const { return data; }
 	const char *end() const { return data + size; }
+
+	bool operator<(const String &rhs) const;
 };
 
 struct CString : String
@@ -130,6 +132,9 @@ struct StringBuf
 	}
 	bool operator!=(const sf::String &rhs) const {
 		return (sf::String)*this != rhs;
+	}
+	bool operator<(const String &rhs) const {
+		return (sf::String)*this < rhs;
 	}
 
 protected:
