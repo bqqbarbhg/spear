@@ -151,8 +151,8 @@ struct HashMap
 				if (index < map.size) {
 					data[index].~Entry();
 					new (&data[index]) Entry(std::move(data[map.size]));
-					data[map.size].~Entry();
 				}
+				data[map.size].~Entry();
 				return true;
 			}
 		}

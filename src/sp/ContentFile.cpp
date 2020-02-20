@@ -253,23 +253,24 @@ void ContentFile::globalUpdate()
 
 			// Load from the next source
 			while (file.stage < ctx.packages.size) {
-				ContentPackage *package = ctx.packages[file.stage];
+				ContentPackage *package = ctx.packages[file.stage++];
 				if (!package->shouldTryToLoad(file.name)) {
 					// Don't even try to load from this package
-					file.stage++;
 					continue;
 				}
 
 				// Queue the load
 				loads.push({ file.name, file.handle, package });
+				file.currentPackage = package;
 				break;
 			}
 
-			if (file.stage >= ctx.packages.size) {
+			if (file.stage >= ctx.packages.size && file.currentPackage == nullptr) {
 				// Tried to load from all sources, remove from the list
 				// and report failure later outside of the mutex
 				doneFiles.push(std::move(file));
 				it = ctx.files.removeAt(it);
+				continue;
 			}
 
 			// Advance to next file
@@ -286,16 +287,16 @@ void ContentFile::globalUpdate()
 		}
 	}
 	for (PendingLoad &load : loads) {
-		if (load.package->startLoadingFile(load.handle, load.name)) {
-			// Started loading succesfully
+		if (!load.package->startLoadingFile(load.handle, load.name)) {
+			// Failed loading, roll back currentPackage and stage
 			sf::MutexGuard mg(ctx.mutex);
 
 			auto pair = ctx.files.find(load.handle.id);
 			sf_assert(pair != nullptr);
 			PendingFile &file = pair->val;	
+			file.currentPackage = nullptr;
+			file.stage--;
 
-			file.currentPackage = load.package;
-			file.stage++;
 		}
 	}
 }

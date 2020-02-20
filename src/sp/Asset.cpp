@@ -114,7 +114,7 @@ struct AssetContext
 		char *nameCopy = (char*)propCopy + type->propertySize;
 
 		// Copy name/props
-		propCopy->copy(props);
+		props.copyTo(propCopy);
 		memcpy(nameCopy, name.data, name.size);
 		nameCopy[name.size] = '\0';
 
@@ -218,7 +218,7 @@ bool NoAssetProps::equal(const AssetProps &rhs) const
 	return true;
 }
 
-void NoAssetProps::copy(const AssetProps &rhs)
+void NoAssetProps::copyTo(AssetProps *uninitDst) const
 {
 }
 
@@ -328,12 +328,12 @@ void Asset::globalUpdate()
 	g_assetContext.update();
 }
 
-Asset *impFind(AssetType *type, const sf::String &name, const AssetProps &props)
+Asset *Asset::impFind(AssetType *type, const sf::String &name, const AssetProps &props)
 {
 	return g_assetContext.findAsset(type, name, props);
 }
 
-Asset *impCreate(AssetType *type, const sf::String &name, const AssetProps &props)
+Asset *Asset::impCreate(AssetType *type, const sf::String &name, const AssetProps &props)
 {
 	Asset *asset = g_assetContext.createAsset(type, name, props);
 

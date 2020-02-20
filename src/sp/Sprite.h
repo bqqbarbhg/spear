@@ -30,12 +30,12 @@ struct SpriteProps : AssetProps
 
 	virtual uint32_t hash() const final;
 	virtual bool equal(const AssetProps &rhs) const final;
-	virtual void copy(const AssetProps &rhs) final;
+	virtual void copyTo(AssetProps *rhs) const final;
 };
 
 struct Sprite : Asset
 {
-	static const AssetType AssetType;
+	static AssetType AssetType;
 	using PropType = SpriteProps;
 
 	// -- Only valid for loaded sprites

@@ -141,7 +141,7 @@ void Canvas::draw(const SpriteDraw &draw)
 	}
 	SpriteDrawImp &drawImp = imp->spriteDraws.pushUninit();
 	drawImp.draw = draw;
-	drawImp.sortKey = makeSortKey(draw.depth, imp->nextDrawIndex++);
+	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
 }
 
 void Canvas::drawText(const TextDraw &draw)
@@ -156,7 +156,7 @@ void Canvas::drawText(const TextDraw &draw)
 	}
 	TextDrawImp &drawImp = imp->textDraws.pushUninit();
 	drawImp.draw = draw;
-	drawImp.sortKey = makeSortKey(draw.depth, imp->nextDrawIndex++);
+	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
 }
 
 void Canvas::drawCanvas(const CanvasDraw &draw)
@@ -169,7 +169,7 @@ void Canvas::drawCanvas(const CanvasDraw &draw)
 	}
 	CanvasDrawImp &drawImp = imp->canvasDraws.pushUninit();
 	drawImp.draw = draw;
-	drawImp.sortKey = makeSortKey(draw.depth, imp->nextDrawIndex++);
+	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
 }
 
 static uint32_t packChannel(float f)
@@ -330,27 +330,28 @@ void Canvas::render(const CanvasRenderOpts &opts)
 
 			do {
 				Sprite *sprite = draws[spriteI].draw.sprite;
-				if (!sprite->shouldBeLoaded()) {
-					spriteI++;
-					continue;
-				}
 
-				Atlas *atlas = sprite->atlas;
+				if (sprite->shouldBeLoaded()) {
+					Atlas *atlas = sprite->atlas;
 
-				// Keep appending sprites that are in the same atlas
-				uint32_t end = spriteI + 1;
-				for (; end < numDraws && end - spriteI < MaxQuadsPerDraw; end++) {
-					if (draws[end].sortKey > next) break;
-					sprite = draws[end].draw.sprite;
-					if (!sprite->shouldBeLoaded()) break;
-					if (sprite->atlas != atlas) {
-						atlas->brokeBatch();
-						sprite->atlas->brokeBatch();
-						break;
+					// Keep appending sprites that are in the same atlas
+					uint32_t end = spriteI + 1;
+					for (; end < numDraws && end - spriteI < MaxQuadsPerDraw; end++) {
+						if (draws[end].sortKey > next) break;
+						sprite = draws[end].draw.sprite;
+						if (!sprite->shouldBeLoaded()) break;
+						if (sprite->atlas != atlas) {
+							atlas->brokeBatch();
+							sprite->atlas->brokeBatch();
+							break;
+						}
 					}
-				}
 
-				drawSprites(ctx, sf::slice(draws + spriteI, end - spriteI), atlas, opts);
+					drawSprites(ctx, sf::slice(draws + spriteI, end - spriteI), atlas, opts);
+					spriteI = end;
+				} else {
+					spriteI++;
+				}
 
 				nextSprite = spriteI < numDraws ? draws[spriteI].sortKey : UINT64_MAX;
 			} while (nextSprite < next);

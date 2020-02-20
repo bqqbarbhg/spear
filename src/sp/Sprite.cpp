@@ -173,14 +173,15 @@ bool SpriteProps::equal(const AssetProps &rhs) const
 	return true;
 }
 
-void SpriteProps::copy(const AssetProps &rhs)
+void SpriteProps::copyTo(AssetProps *uninitDst) const
 {
-	const SpriteProps &r = (const SpriteProps&)rhs;
-	atlasName = r.atlasName;
+	SpriteProps *dst = (SpriteProps*)uninitDst;
+	new (dst) SpriteProps();
+	dst->atlasName.append(atlasName);
 }
 
 
-const AssetType Sprite::AssetType = { "Sprite", sizeof(SpriteImp), sizeof(Sprite::PropType),
+AssetType Sprite::AssetType = { "Sprite", sizeof(SpriteImp), sizeof(Sprite::PropType),
 	[](Asset *a) { new ((SpriteImp*)a) SpriteImp(); }
 };
 

@@ -26,7 +26,7 @@ struct AssetProps
 	virtual ~AssetProps();
 	virtual uint32_t hash() const = 0;
 	virtual bool equal(const AssetProps &rhs) const = 0;
-	virtual void copy(const AssetProps &rhs) = 0;
+	virtual void copyTo(AssetProps *uninitDst) const = 0;
 };
 
 // Use this for assets that have no properties
@@ -34,8 +34,9 @@ struct NoAssetProps : AssetProps
 {
 	virtual uint32_t hash() const final;
 	virtual bool equal(const AssetProps &rhs) const final;
-	virtual void copy(const AssetProps &rhs);
+	virtual void copyTo(AssetProps *uninitDst) const = 0;
 };
+
 
 // Asset that can be loaded/derived from from a name and an optional property blob.
 // To implement a new asset type you need to override `assetStartLoading() and `assetUnload()`,
