@@ -32,6 +32,16 @@
 #include "ContentFile.h"
 #include "Canvas.h"
 
+namespace sp {
+
+struct MainConfig
+{
+	sapp_desc *sappDesc;
+};
+
+}
+
+void spConfig(sp::MainConfig &config);
 void spInit();
 void spCleanup();
 void spEvent(const sapp_event *e);
@@ -116,6 +126,10 @@ sapp_desc sokol_main(int argc, char **argv)
 	desc.window_title = SP_WINDOW_TITLE;
 
 	desc.sample_count = SP_SAMPLE_COUNT;
+
+	sp::MainConfig config;
+	config.sappDesc = &desc;
+	spConfig(config);
 
 	return desc;
 }

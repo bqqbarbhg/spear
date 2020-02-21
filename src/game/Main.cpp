@@ -89,6 +89,11 @@ struct Game
 
 Game *game;
 
+void spConfig(sp::MainConfig &config)
+{
+	config.sappDesc->window_title = "Spear";
+}
+
 void spInit()
 {
 	game = new Game();
