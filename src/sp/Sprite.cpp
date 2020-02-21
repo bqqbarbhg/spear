@@ -345,6 +345,7 @@ void Sprite::globalInit()
 
 	{
 		MipImage clearImage(ClearImageExtent, ClearImageExtent);
+		clearImage.clear();
 		sg_image_desc desc = { };
 		desc.type = SG_IMAGETYPE_2D;
 		desc.width = ClearImageExtent;
@@ -452,7 +453,7 @@ static void reassignAtlases(SpriteContext &ctx)
 	});
 
 	// Nothing worth reassigning
-	if (rating[0].score <= 5.0f) return;
+	if (rating[0].score <= 5.0f && ctx.atlases.size < MinAtlasesToForceReassign) return;
 
 	sf::Array<SpriteImp*> spritesToPack;
 
@@ -641,6 +642,10 @@ void Sprite::globalUpdate()
 	sf::MutexGuard mg(ctx.mutex);
 
 	ctx.frameIndex++;
+
+	if (ctx.frameIndex % FramesBetweenReassign == 0 || ctx.atlases.size >= MinAtlasesToForceReassign) {
+		reassignAtlases(ctx);
+	}
 }
 
 }

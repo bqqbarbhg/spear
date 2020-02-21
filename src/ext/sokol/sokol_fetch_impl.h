@@ -1029,7 +1029,7 @@ typedef struct _sfetch_channel_t {
     _sfetch_ring_t thread_outgoing;
     _sfetch_thread_t thread;
     #endif
-    void (*request_handler)(struct _sfetch_channel_t *chn, struct _sfetch_t* ctx, uint32_t slot_id);
+    void (*request_handler)(struct _sfetch_t* ctx, uint32_t slot_id);
     bool valid;
 } _sfetch_channel_t;
 
@@ -1659,7 +1659,7 @@ _SOKOL_PRIVATE void _sfetch_thread_dequeue_outgoing(_sfetch_thread_t* thread, _s
 
 /* CURL */
 
-#if _SFETCH_HAS_THREADS
+#if _SFETCH_HAS_THREADS && defined(SOKOL_FETCH_USE_CURL)
 
 typedef enum {
     _sfetch_CURLE_OK = 0,
@@ -1921,7 +1921,7 @@ _SOKOL_PRIVATE int _sfetch_curl_process(_sfetch_channel_t *chn) {
 
 			lane->item = 0;
 
-			// Enqueue the 
+			// Enqueue the completed imet
 			item->thread.finished = true;
 			SOKOL_ASSERT(!_sfetch_ring_full(&chn->thread_outgoing));
 			_sfetch_thread_enqueue_outgoing(&chn->thread, &chn->thread_outgoing, item->handle.id);
@@ -1966,13 +1966,30 @@ _SOKOL_PRIVATE void _sfetch_curl_cleanup(_sfetch_channel_t *chn) {
 	}
 }
 
+#else
+
+_SOKOL_PRIVATE void _sfetch_curl_global_setup()  { }
+_SOKOL_PRIVATE void _sfetch_curl_global_cleanup() { }
+_SOKOL_PRIVATE void _sfetch_curl_setup(_sfetch_channel_t *chn) { }
+_SOKOL_PRIVATE void _sfetch_curl_add_request(_sfetch_channel_t *chn, _sfetch_item_t *item) {
+#if _SFETCH_HAS_THREADS
+	item->thread.finished = true;
+	item->thread.failed = true;
+	item->thread.error_code = SFETCH_ERROR_CURL_FAILED;
+	SOKOL_ASSERT(!_sfetch_ring_full(&chn->thread_outgoing));
+	_sfetch_thread_enqueue_outgoing(&chn->thread, &chn->thread_outgoing, item->handle.id);
+#endif
+}
+_SOKOL_PRIVATE int _sfetch_curl_process(_sfetch_channel_t *chn) { return 0; }
+_SOKOL_PRIVATE void _sfetch_curl_cleanup(_sfetch_channel_t *chn) { }
+
 #endif
 
 /*=== IO CHANNEL implementation ==============================================*/
 
 /* per-channel request handler for native platforms accessing the local filesystem */
 #if _SFETCH_HAS_THREADS
-_SOKOL_PRIVATE void _sfetch_request_handler(_sfetch_channel_t *chn, _sfetch_t* ctx, uint32_t slot_id) {
+_SOKOL_PRIVATE void _sfetch_request_handler(_sfetch_t* ctx, uint32_t slot_id) {
     _sfetch_state_t state;
     _sfetch_path_t* path;
     _sfetch_item_thread_t* thread;
@@ -2107,7 +2124,7 @@ _SOKOL_PRIVATE void* _sfetch_channel_thread_func(void* arg) {
 
         /* slot_id will be invalid if the thread was woken up to join */
         if (!_sfetch_thread_stop_requested(&chn->thread) && slot_id != 0) {
-			chn->request_handler(chn, chn->ctx, slot_id);
+			chn->request_handler(chn->ctx, slot_id);
 			SOKOL_ASSERT(!_sfetch_ring_full(&chn->thread_outgoing));
 			_sfetch_thread_enqueue_outgoing(&chn->thread, &chn->thread_outgoing, slot_id);
         }
@@ -2315,7 +2332,7 @@ _SOKOL_PRIVATE void _sfetch_channel_discard(_sfetch_channel_t* chn) {
     chn->valid = false;
 }
 
-_SOKOL_PRIVATE bool _sfetch_channel_init(_sfetch_channel_t* chn, _sfetch_t* ctx, uint32_t num_items, uint32_t num_lanes, void (*request_handler)(_sfetch_channel_t *chn,_sfetch_t* ctx, uint32_t)) {
+_SOKOL_PRIVATE bool _sfetch_channel_init(_sfetch_channel_t* chn, _sfetch_t* ctx, uint32_t num_items, uint32_t num_lanes, void (*request_handler)(_sfetch_t* ctx, uint32_t)) {
     SOKOL_ASSERT(chn && (num_items > 0) && request_handler);
     SOKOL_ASSERT(!chn->valid);
     bool valid = true;

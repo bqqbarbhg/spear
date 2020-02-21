@@ -4817,8 +4817,10 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
         /* prepare initial content pointers */
         D3D11_SUBRESOURCE_DATA* init_data = 0;
         if (!injected && (img->usage == SG_USAGE_IMMUTABLE) && !img->render_target) {
-            _sg_d3d11_fill_subres_data(img, &desc->content);
-            init_data = _sg.d3d11.subres_data;
+            if (desc->content.subimage[0][0].size > 0) {
+				_sg_d3d11_fill_subres_data(img, &desc->content);
+				init_data = _sg.d3d11.subres_data;
+            }
         }
         if (img->type != SG_IMAGETYPE_3D) {
             /* 2D-, cube- or array-texture */
@@ -8056,7 +8058,7 @@ _SOKOL_PRIVATE bool _sg_validate_image_desc(const sg_image_desc* desc) {
             const bool valid_nonrt_fmt = !_sg_is_valid_rendertarget_depth_format(fmt);
             SOKOL_VALIDATE(valid_nonrt_fmt, _SG_VALIDATE_IMAGEDESC_NONRT_PIXELFORMAT);
             /* FIXME: should use the same "expected size" computation as in _sg_validate_update_image() here */
-            if (!ext && (usage == SG_USAGE_IMMUTABLE)) {
+            if (!ext && (usage == SG_USAGE_IMMUTABLE) && !desc->bqq_copy_target) {
                 const int num_faces = desc->type == SG_IMAGETYPE_CUBE ? 6:1;
                 const int num_mips = desc->num_mipmaps;
                 for (int face_index = 0; face_index < num_faces; face_index++) {
