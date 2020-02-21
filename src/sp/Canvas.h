@@ -15,6 +15,9 @@ struct CanvasRenderOpts
 {
 	sf::Mat44 transform;
 	sf::Vec4 color = sf::Vec4(1.0f);
+
+	static CanvasRenderOpts windowPixels();
+	static CanvasRenderOpts pixels(uint32_t width, uint32_t height);
 };
 
 struct SpriteDraw
@@ -58,6 +61,8 @@ struct Canvas
 	void drawCanvas(const CanvasDraw &draw);
 
 	void render(const CanvasRenderOpts &opts);
+
+	bool isLoaded() const;
 
 	alignas(void*) char impData[128];
 

@@ -197,7 +197,10 @@ static void loadImp(void *user, const ContentFile &file)
 
 	int width, height;
 	stbi_uc *pixels = stbi_load_from_memory((const stbi_uc*)file.data, (int)file.size, &width, &height, NULL, 4);
-	if (!pixels) return;
+	if (!pixels) {
+		imp->assetFailLoading();
+		return;
+	}
 
 	if (width > (int)ctx.maxSpriteExtent || height > (int)ctx.maxSpriteExtent) {
 		uint32_t srcWidth = width, srcHeight = height;

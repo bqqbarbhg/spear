@@ -149,8 +149,10 @@ struct HashMap
 			if (key == data[index].key) {
 				rhmap_remove(&iter);
 				if (index < map.size) {
+					Entry &swap = data[map.size];
+					rhmap_update(&map, hash(swap.key), map.size, index);
 					data[index].~Entry();
-					new (&data[index]) Entry(std::move(data[map.size]));
+					new (&data[index]) Entry(std::move(swap));
 				}
 				data[map.size].~Entry();
 				return true;

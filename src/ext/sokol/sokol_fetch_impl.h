@@ -881,6 +881,20 @@ typedef struct _sfetch_buffer_t {
     uint32_t size;
 } _sfetch_buffer_t;
 
+typedef void _sfetch_CURL;
+typedef void _sfetch_CURLM;
+
+typedef struct {
+    _sfetch_CURL *curl;
+    struct _sfetch_item_t *item;
+} _sfetch_curl_lane_t;
+
+typedef struct {
+    _sfetch_CURLM *multi;
+    _sfetch_curl_lane_t *lanes;
+    int num_active;
+} _sfetch_curl_thread_t;
+
 /* a thread with incoming and outgoing message queue syncing */
 #if _SFETCH_PLATFORM_POSIX
 typedef struct {
@@ -890,6 +904,7 @@ typedef struct {
     pthread_mutex_t outgoing_mutex;
     pthread_mutex_t running_mutex;
     pthread_mutex_t stop_mutex;
+    _sfetch_curl_thread_t curl;
     bool stop_requested;
     bool valid;
 } _sfetch_thread_t;
@@ -901,6 +916,7 @@ typedef struct {
     CRITICAL_SECTION outgoing_critsec;
     CRITICAL_SECTION running_critsec;
     CRITICAL_SECTION stop_critsec;
+    _sfetch_curl_thread_t curl;
     bool stop_requested;
     bool valid;
 } _sfetch_thread_t;
@@ -962,7 +978,7 @@ typedef enum _sfetch_state_t {
 
 /* an internal request item */
 #define _SFETCH_INVALID_LANE (0xFFFFFFFF)
-typedef struct {
+typedef struct _sfetch_item_t {
     sfetch_handle_t handle;
     _sfetch_state_t state;
     uint32_t channel;
@@ -1001,7 +1017,7 @@ typedef struct {
 
 /* an IO channel with its own IO thread */
 struct _sfetch_t;
-typedef struct {
+typedef struct _sfetch_channel_t {
     struct _sfetch_t* ctx;  /* back-pointer to thread-local _sfetch state pointer,
                                since this isn't accessible from the IO threads */
     _sfetch_ring_t free_lanes;
@@ -1013,7 +1029,7 @@ typedef struct {
     _sfetch_ring_t thread_outgoing;
     _sfetch_thread_t thread;
     #endif
-    void (*request_handler)(struct _sfetch_t* ctx, uint32_t slot_id);
+    void (*request_handler)(struct _sfetch_channel_t *chn, struct _sfetch_t* ctx, uint32_t slot_id);
     bool valid;
 } _sfetch_channel_t;
 
@@ -1602,6 +1618,19 @@ _SOKOL_PRIVATE uint32_t _sfetch_thread_dequeue_incoming(_sfetch_thread_t* thread
     return item;
 }
 
+_SOKOL_PRIVATE uint32_t _sfetch_thread_try_dequeue_incoming(_sfetch_thread_t* thread, _sfetch_ring_t* incoming) {
+    /* called from thread function */
+    SOKOL_ASSERT(thread && thread->valid);
+    SOKOL_ASSERT(incoming && incoming->buf);
+    uint32_t item = 0;
+    EnterCriticalSection(&thread->incoming_critsec);
+    if (!_sfetch_ring_empty(incoming) && !thread->stop_requested) {
+        item = _sfetch_ring_dequeue(incoming);
+    }
+    LeaveCriticalSection(&thread->incoming_critsec);
+    return item;
+}
+
 _SOKOL_PRIVATE bool _sfetch_thread_enqueue_outgoing(_sfetch_thread_t* thread, _sfetch_ring_t* outgoing, uint32_t item) {
     /* called from thread function */
     SOKOL_ASSERT(thread && thread->valid);
@@ -1628,11 +1657,322 @@ _SOKOL_PRIVATE void _sfetch_thread_dequeue_outgoing(_sfetch_thread_t* thread, _s
 }
 #endif /* _SFETCH_PLATFORM_WINDOWS */
 
+/* CURL */
+
+#if _SFETCH_HAS_THREADS
+
+typedef enum {
+    _sfetch_CURLE_OK = 0,
+    _sfetch_CURLE_LAST = 96,
+} _sfetch_CURLcode;
+
+typedef enum {
+  _sfetch_CURLM_CALL_MULTI_PERFORM = -1,
+  _sfetch_CURLM_OK = 0,
+  _sfetch_CURLM_LAST = 10,
+} _sfetch_CURLMcode;
+
+typedef enum {
+    _sfetch_CURLINFO_RESPONSE_CODE = 0x200002,
+} _sfetch_CURLINFO;
+
+typedef enum {
+	_sfetch_CURLOPT_SSL_VERIFYPEER = 64,
+    _sfetch_CURLOPT_WRITEDATA = 10001,
+    _sfetch_CURLOPT_URL = 10002,
+    _sfetch_CURLOPT_WRITEFUNCTION = 20011,
+} _sfetch_CURLoption;
+
+typedef enum {
+	_sfetch_CURLMSG_NONE,
+	_sfetch_CURLMSG_DONE,
+	_sfetch_CURLMSG_LAST,
+} _sfetch_CURLMSG;
+
+typedef struct {
+	_sfetch_CURLMSG msg;
+	_sfetch_CURL *easy_handle;
+	union {
+		void *whatever;
+		_sfetch_CURLcode result;
+	} data;
+} _sfetch_CURLMsg;
+
+#define _SFETCH_CURL_FUNCTIONS \
+    _SFETCH_CURL_FUNC(_sfetch_CURLcode, global_init, long flags) \
+    _SFETCH_CURL_FUNC(_sfetch_CURLcode, global_cleanup, void) \
+    _SFETCH_CURL_FUNC(_sfetch_CURL *, easy_init, void) \
+	_SFETCH_CURL_FUNC(void, easy_cleanup, _sfetch_CURL *curl) \
+	_SFETCH_CURL_FUNC(_sfetch_CURLcode, easy_setopt, _sfetch_CURL *curl, _sfetch_CURLoption option, ...) \
+	_SFETCH_CURL_FUNC(_sfetch_CURLcode, easy_perform, _sfetch_CURL *curl) \
+	_SFETCH_CURL_FUNC(_sfetch_CURLcode, easy_getinfo, _sfetch_CURL *curl, _sfetch_CURLINFO info, ...) \
+	_SFETCH_CURL_FUNC(_sfetch_CURLM *, multi_init, void) \
+	_SFETCH_CURL_FUNC(_sfetch_CURLMcode, multi_cleanup, _sfetch_CURLM *multi_handle) \
+	_SFETCH_CURL_FUNC(_sfetch_CURLMcode, multi_add_handle, _sfetch_CURLM *multi_handle, _sfetch_CURL *curl_handle) \
+	_SFETCH_CURL_FUNC(_sfetch_CURLMcode, multi_remove_handle, _sfetch_CURLM *multi_handle, _sfetch_CURL *curl_handle) \
+	_SFETCH_CURL_FUNC(_sfetch_CURLMcode, multi_perform, _sfetch_CURLM *multi_handle, int *running_handles) \
+	_SFETCH_CURL_FUNC(_sfetch_CURLMcode, multi_wait, _sfetch_CURLM *multi_handle, struct curl_waitfd extra_fds[], unsigned int extra_nfds, int timeout_ms, int *numfds) \
+	_SFETCH_CURL_FUNC(_sfetch_CURLMsg *, multi_info_read, _sfetch_CURLM *multi_handle, int *msgs_in_queue) \
+
+#define _SFETCH_CURL_FUNC(ret, name, ...) typedef ret _sfetch_curl_##name##_t(__VA_ARGS__);
+_SFETCH_CURL_FUNCTIONS
+#undef _SFETCH_CURL_FUNC
+
+typedef struct {
+    bool ok;
+
+	#define _SFETCH_CURL_FUNC(ret, name, ...) _sfetch_curl_##name##_t *name;
+	_SFETCH_CURL_FUNCTIONS
+	#undef _SFETCH_CURL_FUNC
+
+} _sfetch_curl_global_t;
+
+static _sfetch_curl_global_t _sfetch_curl_global;
+
+#if defined(SOKOL_CURL_STATIC)
+
+#elif _SFETCH_PLATFORM_WINDOWS
+
+typedef struct {
+    CRITICAL_SECTION critsec;
+	HMODULE module;
+    bool loaded;
+} _sfetch_curl_win32_global_t;
+
+_sfetch_curl_win32_global_t _sfetch_curl_win32_global;
+
+_SOKOL_PRIVATE void _sfetch_curl_global_setup() {
+	_sfetch_curl_win32_global_t *global = &_sfetch_curl_win32_global;
+    InitializeCriticalSection(&global->critsec);
+}
+
+_SOKOL_PRIVATE void _sfetch_curl_global_cleanup() {
+	_sfetch_curl_global_t *c = &_sfetch_curl_global;
+    if (c->ok) {
+        c->global_cleanup();
+    }
+
+    DeleteCriticalSection(&_sfetch_curl_win32_global.critsec);
+    if (_sfetch_curl_win32_global.module != NULL) {
+		FreeLibrary(_sfetch_curl_win32_global.module);
+    }
+}
+
+_SOKOL_PRIVATE _sfetch_curl_global_t *_sfetch_curl_load() {
+
+	_sfetch_curl_global_t *c = &_sfetch_curl_global;
+
+    EnterCriticalSection(&_sfetch_curl_win32_global.critsec);
+
+    if (!_sfetch_curl_win32_global.loaded) {
+        _sfetch_curl_win32_global.loaded = true;
+
+		HMODULE module = NULL;
+
+		#if defined(_M_X64)
+			module = LoadLibraryW(L"libcurl-x64.dll");
+		#elif defined(_M_IX86)
+			module = LoadLibraryW(L"libcurl-x86.dll");
+		#endif
+
+		if (!module) module = LoadLibraryW(L"libcurl.dll");
+
+        bool ok = module != NULL;
+
+		#define _SFETCH_CURL_FUNC(ret, name, ...) \
+            ok = ok && (c->name = (_sfetch_curl_##name##_t*)GetProcAddress(module, "curl_" #name)) != NULL;
+		_SFETCH_CURL_FUNCTIONS
+		#undef _SFETCH_CURL_FUNC
+
+        ok = ok && !c->global_init(0x3);
+
+        if (ok) {
+			_sfetch_curl_win32_global.module = module;
+            c->ok = true;
+        } else {
+			FreeLibrary(module);
+        }
+    }
+
+    LeaveCriticalSection(&_sfetch_curl_win32_global.critsec);
+
+	return c->ok ? c : 0;
+}
+
+#endif
+
+_SOKOL_PRIVATE size_t _sfetch_curl_handler(const void *ptr, size_t size, size_t count, void *user) {
+	_sfetch_item_t *item = (_sfetch_item_t*)user;
+    size_t num_bytes = size * count;
+   
+    if (item->thread.failed) return 0;
+
+    size_t offset = item->thread.fetched_size;
+    size_t bytes_left = item->buffer.size - offset;
+    if (num_bytes <= bytes_left) {
+		memcpy(item->buffer.ptr + offset, ptr, num_bytes);
+		item->thread.fetched_size = (uint32_t)(offset + num_bytes);
+        return count;
+    } else {
+		// We don't care about partial reads, just fail here
+        item->thread.error_code = SFETCH_ERROR_BUFFER_TOO_SMALL;
+        item->thread.failed = true;
+        return 0;
+    }
+}
+
+_SOKOL_PRIVATE void _sfetch_curl_setup(_sfetch_channel_t *chn) {
+    memset(&chn->thread.curl, 0, sizeof(_sfetch_curl_thread_t));
+}
+
+_SOKOL_PRIVATE void _sfetch_curl_add_request(_sfetch_channel_t *chn, _sfetch_item_t *item) {
+    _sfetch_t *ctx = chn->ctx;
+    _sfetch_curl_thread_t *ct = &chn->thread.curl;
+
+    // First of all, add the item to the lanes so it can
+    // be processed in `_sfetch_curl_process()`
+    if (!ct->lanes) {
+        ct->lanes = (_sfetch_curl_lane_t*)SOKOL_MALLOC(sizeof(_sfetch_curl_lane_t) * ctx->desc.num_lanes);
+        SOKOL_ASSERT(ct->lanes);
+        memset(ct->lanes, 0, sizeof(_sfetch_curl_lane_t) * ctx->desc.num_lanes);
+    }
+    ct->lanes[item->lane].item = item;
+
+    _sfetch_curl_global_t *c = _sfetch_curl_load();
+    bool ok = c != 0;
+
+    // Initialize the thread's CURL multi context
+    if (ct->multi == NULL) {
+        ok = ok && (ct->multi = c->multi_init()) != 0;
+    }
+
+    // Initialize the lane's easy context
+	_sfetch_CURL *curl = ct->lanes[item->lane].curl;
+    if (!curl) {
+        ok = ok && (curl = c->easy_init()) != 0;
+        ok = ok && !c->easy_setopt(curl, _sfetch_CURLOPT_WRITEFUNCTION, &_sfetch_curl_handler);
+        ok = ok && !c->easy_setopt(curl, _sfetch_CURLOPT_SSL_VERIFYPEER, (long)0);
+
+        if (ok) {
+			ct->lanes[item->lane].curl = curl;
+        } else if (curl) {
+			c->easy_cleanup(curl);
+        }
+    }
+
+    // Setup the request
+	ok = ok && !c->easy_setopt(curl, _sfetch_CURLOPT_WRITEDATA, item);
+	ok = ok && !c->easy_setopt(curl, _sfetch_CURLOPT_URL, (char*)item->path.buf);
+	ok = ok && !c->multi_add_handle(ct->multi, curl);
+
+    if (!ok) {
+		item->thread.failed = true;
+        item->thread.error_code = SFETCH_ERROR_CURL_FAILED;
+    }
+
+	ct->num_active++;
+}
+
+_SOKOL_PRIVATE int _sfetch_curl_process(_sfetch_channel_t *chn) {
+    _sfetch_t *ctx = chn->ctx;
+    _sfetch_curl_thread_t *ct = &chn->thread.curl;
+
+    if (ct->num_active == 0) return 0;
+
+    _sfetch_curl_global_t *c = _sfetch_curl_load();
+    if (c) {
+		int running;
+		c->multi_perform(ct->multi, &running);
+
+		// Process completed requests
+		_sfetch_CURLMsg *msg;
+		int num_msg;
+		while ((msg = c->multi_info_read(ct->multi, &num_msg)) != 0) {
+			if (msg->msg != _sfetch_CURLMSG_DONE) continue;
+
+			_sfetch_curl_lane_t *lane = 0;
+			for (uint32_t i = 0; i < ctx->desc.num_lanes; i++) {
+				if (ct->lanes[i].curl == msg->easy_handle) {
+					lane = &ct->lanes[i];
+                    break;
+				}
+			}
+			SOKOL_ASSERT(lane != 0);
+			_sfetch_item_t *item = lane->item;
+			bool ok = msg->data.result == _sfetch_CURLE_OK;
+
+            _sfetch_CURLcode code;
+			code = c->multi_remove_handle(ct->multi, lane->curl);
+            SOKOL_ASSERT(code == _sfetch_CURLE_OK);
+
+			long status;
+			ok = ok && !(code = c->easy_getinfo(lane->curl, _sfetch_CURLINFO_RESPONSE_CODE, &status));
+
+			if (!ok) {
+				item->thread.failed = true;
+				item->thread.error_code = SFETCH_ERROR_CURL_FAILED;
+			} else if (status < 200 || status >= 300) {
+				item->thread.failed = true;
+				item->thread.error_code = status == 404 ? SFETCH_ERROR_FILE_NOT_FOUND : SFETCH_ERROR_INVALID_HTTP_STATUS;
+			} else {
+                // Success!
+                item->thread.content_size = item->thread.fetched_size;
+            }
+
+			lane->item = 0;
+
+			// Enqueue the 
+			item->thread.finished = true;
+			SOKOL_ASSERT(!_sfetch_ring_full(&chn->thread_outgoing));
+			_sfetch_thread_enqueue_outgoing(&chn->thread, &chn->thread_outgoing, item->handle.id);
+
+            ct->num_active--;
+		}
+
+		if (ct->num_active == 0) return 0;
+        c->multi_wait(ct->multi, 0, 0, 10, 0);
+        return 1;
+
+    } else {
+		// Immediately enqueue all files if CURL is not available
+		for (uint32_t i = 0; i < ctx->desc.num_lanes; i++) {
+			_sfetch_item_t *item = ct->lanes[i].item;
+			if (!item) continue;
+
+			ct->lanes[i].item = 0;
+			item->thread.finished = true;
+			SOKOL_ASSERT(!_sfetch_ring_full(&chn->thread_outgoing));
+			_sfetch_thread_enqueue_outgoing(&chn->thread, &chn->thread_outgoing, item->handle.id);
+		}
+
+        return 0;
+    }
+}
+
+_SOKOL_PRIVATE void _sfetch_curl_cleanup(_sfetch_channel_t *chn) {
+	_sfetch_t *ctx = chn->ctx;
+    _sfetch_thread_t *thread = &chn->thread;
+    if (!thread->curl.multi) return;
+
+	_sfetch_curl_global_t *c = _sfetch_curl_load();
+	for (uint32_t i = 0; i < ctx->desc.num_lanes; i++) {
+		_sfetch_CURL *curl = thread->curl.lanes[i].curl;
+        if (curl) {
+            c->easy_cleanup(curl);
+        }
+	}
+	if (thread->curl.multi) {
+		c->multi_cleanup(thread->curl.multi);
+	}
+}
+
+#endif
+
 /*=== IO CHANNEL implementation ==============================================*/
 
 /* per-channel request handler for native platforms accessing the local filesystem */
 #if _SFETCH_HAS_THREADS
-_SOKOL_PRIVATE void _sfetch_request_handler(_sfetch_t* ctx, uint32_t slot_id) {
+_SOKOL_PRIVATE void _sfetch_request_handler(_sfetch_channel_t *chn, _sfetch_t* ctx, uint32_t slot_id) {
     _sfetch_state_t state;
     _sfetch_path_t* path;
     _sfetch_item_thread_t* thread;
@@ -1661,11 +2001,13 @@ _SOKOL_PRIVATE void _sfetch_request_handler(_sfetch_t* ctx, uint32_t slot_id) {
             thread->failed = true;
         }
         else {
+
             /* open file if not happened yet */
             if (!_sfetch_file_handle_valid(thread->file_handle)) {
                 SOKOL_ASSERT(path->buf[0]);
                 SOKOL_ASSERT(thread->fetched_offset == 0);
                 SOKOL_ASSERT(thread->fetched_size == 0);
+
                 thread->file_handle = _sfetch_file_open(path);
                 if (_sfetch_file_handle_valid(thread->file_handle)) {
                     thread->content_size = _sfetch_file_size(thread->file_handle);
@@ -1728,6 +2070,11 @@ _SOKOL_PRIVATE void _sfetch_request_handler(_sfetch_t* ctx, uint32_t slot_id) {
     /* ignore items in PAUSED or FAILED state */
 }
 
+_SOKOL_PRIVATE bool _sfetch_is_http_request(const _sfetch_item_t *item)
+{
+	return strncmp(item->path.buf, "http://", 7) || strncmp(item->path.buf, "https://", 8);
+}
+
 #if _SFETCH_PLATFORM_WINDOWS
 _SOKOL_PRIVATE DWORD WINAPI _sfetch_channel_thread_func(LPVOID arg) {
 #else
@@ -1735,17 +2082,39 @@ _SOKOL_PRIVATE void* _sfetch_channel_thread_func(void* arg) {
 #endif
     _sfetch_channel_t* chn = (_sfetch_channel_t*) arg;
     _sfetch_thread_entered(&chn->thread);
+
+    _sfetch_curl_setup(chn);
+
     while (!_sfetch_thread_stop_requested(&chn->thread)) {
-        /* block until work arrives */
-        uint32_t slot_id = _sfetch_thread_dequeue_incoming(&chn->thread, &chn->thread_incoming);
+
+        uint32_t slot_id;
+        if (_sfetch_curl_process(chn)) {
+            // Don't block if CURL has active connections
+			slot_id = _sfetch_thread_try_dequeue_incoming(&chn->thread, &chn->thread_incoming);
+        } else {
+			/* block until work arrives */
+			slot_id = _sfetch_thread_dequeue_incoming(&chn->thread, &chn->thread_incoming);
+        }
+
+		// Add all HTTP requests to CURL
+        while (slot_id != 0) {
+			_sfetch_item_t* item = _sfetch_pool_item_lookup(&chn->ctx->pool, slot_id);
+			if (_sfetch_is_http_request(item)) {
+				_sfetch_curl_add_request(chn, item);
+				slot_id = _sfetch_thread_try_dequeue_incoming(&chn->thread, &chn->thread_incoming);
+            }
+        }
+
         /* slot_id will be invalid if the thread was woken up to join */
-        if (!_sfetch_thread_stop_requested(&chn->thread)) {
-            SOKOL_ASSERT(0 != slot_id);
-            chn->request_handler(chn->ctx, slot_id);
-            SOKOL_ASSERT(!_sfetch_ring_full(&chn->thread_outgoing));
-            _sfetch_thread_enqueue_outgoing(&chn->thread, &chn->thread_outgoing, slot_id);
+        if (!_sfetch_thread_stop_requested(&chn->thread) && slot_id != 0) {
+			chn->request_handler(chn, chn->ctx, slot_id);
+			SOKOL_ASSERT(!_sfetch_ring_full(&chn->thread_outgoing));
+			_sfetch_thread_enqueue_outgoing(&chn->thread, &chn->thread_outgoing, slot_id);
         }
     }
+
+	_sfetch_curl_cleanup(chn);
+
     _sfetch_thread_leaving(&chn->thread);
     return 0;
 }
@@ -1946,7 +2315,7 @@ _SOKOL_PRIVATE void _sfetch_channel_discard(_sfetch_channel_t* chn) {
     chn->valid = false;
 }
 
-_SOKOL_PRIVATE bool _sfetch_channel_init(_sfetch_channel_t* chn, _sfetch_t* ctx, uint32_t num_items, uint32_t num_lanes, void (*request_handler)(_sfetch_t* ctx, uint32_t)) {
+_SOKOL_PRIVATE bool _sfetch_channel_init(_sfetch_channel_t* chn, _sfetch_t* ctx, uint32_t num_items, uint32_t num_lanes, void (*request_handler)(_sfetch_channel_t *chn,_sfetch_t* ctx, uint32_t)) {
     SOKOL_ASSERT(chn && (num_items > 0) && request_handler);
     SOKOL_ASSERT(!chn->valid);
     bool valid = true;
@@ -2179,6 +2548,8 @@ SOKOL_API_IMPL void sfetch_setup(const sfetch_desc_t* desc) {
     ctx->setup = true;
     ctx->valid = true;
 
+    _sfetch_curl_global_setup();
+
     /* replace zero-init items with default values */
     ctx->desc.max_requests = _sfetch_def(ctx->desc.max_requests, 128);
     ctx->desc.num_channels = _sfetch_def(ctx->desc.num_channels, 1);
@@ -2208,6 +2579,9 @@ SOKOL_API_IMPL void sfetch_shutdown(void) {
         }
     }
     _sfetch_pool_discard(&ctx->pool);
+
+    _sfetch_curl_global_cleanup();
+
     ctx->setup = false;
     SOKOL_FREE(ctx);
     _sfetch = 0;

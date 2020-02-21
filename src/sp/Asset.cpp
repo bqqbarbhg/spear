@@ -110,7 +110,7 @@ struct AssetContext
 		// Allocate the asset and name/props
 		size_t size = type->instanceSize + type->propertySize + name.size + 1;
 		Asset *asset = (Asset*)sf::memAlloc(size);
-		AssetProps *propCopy = (AssetProps*)(asset + 1);
+		AssetProps *propCopy = (AssetProps*)((char*)asset + type->instanceSize);
 		char *nameCopy = (char*)propCopy + type->propertySize;
 
 		// Copy name/props

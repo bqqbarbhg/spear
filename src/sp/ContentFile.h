@@ -13,9 +13,11 @@ struct ContentLoadHandle {
 
 struct ContentPackage
 {
+	sf::StringBuf name;
+
 	virtual ~ContentPackage();
-	virtual bool shouldTryToLoad(const sf::String &name) = 0;
-	virtual bool startLoadingFile(ContentLoadHandle handle, const sf::String &name) = 0;
+	virtual bool shouldTryToLoad(const sf::CString &name) = 0;
+	virtual bool startLoadingFile(ContentLoadHandle handle, const sf::CString &name) = 0;
 };
 
 struct ContentFile

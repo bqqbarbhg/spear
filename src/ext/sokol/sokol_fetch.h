@@ -67,7 +67,8 @@ typedef enum {
     SFETCH_ERROR_BUFFER_TOO_SMALL,
     SFETCH_ERROR_UNEXPECTED_EOF,
     SFETCH_ERROR_INVALID_HTTP_STATUS,
-    SFETCH_ERROR_CANCELLED
+    SFETCH_ERROR_CANCELLED,
+    SFETCH_ERROR_CURL_FAILED,
 } sfetch_error_t;
 
 /* the response struct passed to the response callback */

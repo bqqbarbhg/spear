@@ -8,31 +8,63 @@
 
 struct Game
 {
-	sp::SpriteRef sprite{"grid.png"};
 	sp::Canvas canvas;
 
 	Game()
 	{
-		sp::ContentFile::addRelativeFileRoot("data");
+		sp::ContentFile::addRelativeFileRoot("");
+
+		canvas.clear();
+
+		for (int y = 0; y < 5; y++) {
+			for (int x = 0; x < 10; x++) {
+				sf::StringBuf url;
+				url.format("https://placekitten.com/%d/%d", 100 + x, 100 + y);
+				sp::SpriteRef sprite{url};
+				sp::SpriteDraw draw;
+				draw.sprite = sprite;
+				draw.transform = sf::mat2D::scale(200.0f, 200.0f) * sf::mat2D::translate((float)x, (float)y);
+				canvas.draw(draw);
+			}
+		}
+	}
+
+	void debugRenderAtlases()
+	{
+		sgl_defaults();
+
+		sgl_enable_texture();
+
+		sf::SmallArray<sp::Atlas*, 8> atlases;
+		sp::Atlas::getAtlases(atlases);
+
+		float xs = 0.2f * (float)sapp_height() / (float)sapp_width();
+		float ys = -0.2f;
+		float y = -1.0f - ys;
+		float x = -1.0f;
+		int n = 0;
+		for (sp::Atlas *atlas : atlases) {
+			sgl_texture(atlas->image);
+
+			sgl_begin_quads();
+			sgl_v2f_t2f(x, y, 0.0f, 0.0f);
+			sgl_v2f_t2f(x+xs, y, 1.0f, 0.0f);
+			sgl_v2f_t2f(x+xs, y+ys, 1.0f, 1.0f);
+			sgl_v2f_t2f(x, y+ys, 0.0f, 1.0f);
+			sgl_end();
+
+			if (++n % 2 == 0) {
+				x += xs;
+				y = -1.0f - ys;
+			} else {
+				y -= ys;
+			}
+		}
 	}
 
 	void update(float dt)
 	{
-		canvas.clear();
-
-		{
-			sp::SpriteDraw draw;
-			draw.sprite = sprite;
-			draw.transform = sf::mat2D::scale(0.02f);
-			canvas.draw(draw);
-		}
-
-		{
-			sp::SpriteDraw draw;
-			draw.sprite = sprite;
-			draw.transform = sf::mat2D::scale(0.02f) * sf::mat2D::translateX(-1.0f);
-			canvas.draw(draw);
-		}
+		debugRenderAtlases();
 	}
 
 	void render()
@@ -46,7 +78,7 @@ struct Game
 
 		sg_begin_default_pass(&pass_action, sapp_width(), sapp_height());
 
-		canvas.render(sp::CanvasRenderOpts{});
+		canvas.render(sp::CanvasRenderOpts::windowPixels());
 
 		sgl_draw();
 

@@ -8,7 +8,9 @@
 
 namespace sp {
 
-static constexpr uint32_t NumBuffers = 4;
+#define sp_file_log(...) sf::debugPrintLine(__VA_ARGS__)
+
+static constexpr uint32_t NumLanes = 4;
 static constexpr uint32_t BufferSize = 4 * 1024 * 1024;
 
 // From EmbeddedFiles.cpp
@@ -42,7 +44,7 @@ struct ContentFileContext
 	sf::Array<FetchFilePackage*> fetchPackages;
 	sf::Array<ContentPackage*> packages;
 
-	sf::Array<char> fetchBuffers[NumBuffers];
+	sf::Array<char> fetchBuffers[NumLanes];
 };
 
 ContentFileContext g_contentFileContext;
@@ -83,15 +85,17 @@ struct FetchFilePackage : ContentPackage
 				root.append('/');
 			}
 		}
+
+		name.append("Fetch(", root_, ")");
 	}
 
-	virtual bool shouldTryToLoad(const sf::String &name) final
+	virtual bool shouldTryToLoad(const sf::CString &name) final
 	{
 		// TODO: Separate absolute and relative files?
 		return true;
 	}
 
-	virtual bool startLoadingFile(ContentLoadHandle handle, const sf::String &name) final
+	virtual bool startLoadingFile(ContentLoadHandle handle, const sf::CString &name) final
 	{
 		sf::SmallStringBuf<256> path;
 		path.append(root, name);
@@ -171,6 +175,8 @@ void ContentFile::packageFileLoaded(ContentLoadHandle handle, const void *data, 
 		memcpy((void*)file.file.data, data, size);
 	}
 
+	sp_file_log("%s: Loaded %s", file.currentPackage->name.data, file.name.data);
+
 	file.currentPackage = nullptr;
 }
 
@@ -182,6 +188,8 @@ void ContentFile::packageFileFailed(ContentLoadHandle handle)
 	auto pair = ctx.files.find(handle.id);
 	sf_assert(pair != nullptr);
 	PendingFile &file = pair->val;	
+
+	sp_file_log("%s: Failed %s", file.currentPackage->name.data, file.name.data);
 
 	file.currentPackage = nullptr;
 }
@@ -199,7 +207,7 @@ void ContentFile::globalInit()
 	ctx.packages.push(getEmbeddedContentPackage());
 
 	sfetch_desc_t desc = { };
-	desc.num_lanes = NumBuffers;
+	desc.num_lanes = NumLanes;
 	sfetch_setup(&desc);
 }
 
@@ -217,7 +225,7 @@ void ContentFile::globalCleanup()
 
 struct PendingLoad
 {
-	sf::String name; // < Name points to PendingFile::name which is stable w.r.t. moving
+	sf::CString name; // < Name points to PendingFile::name which is stable w.r.t. moving
 	ContentLoadHandle handle;
 	ContentPackage *package;
 };
@@ -286,6 +294,7 @@ void ContentFile::globalUpdate()
 
 	// Call callbacks outside the mutex
 	for (PendingFile &file : doneFiles) {
+		sp_file_log("Callback (%s) %s", file.file.isValid() ? "OK" : "FAIL", file.name.data);
 		file.callback(file.user, file.file);
 
 		if (!file.file.stableData) {
@@ -293,7 +302,11 @@ void ContentFile::globalUpdate()
 		}
 	}
 	for (PendingLoad &load : loads) {
+		sp_file_log("%s: Start load %s", load.package->name.data, load.name.data);
+
 		if (!load.package->startLoadingFile(load.handle, load.name)) {
+			sp_file_log("%s: Interrupted %s", load.package->name.data, load.name.data);
+
 			// Failed loading, roll back currentPackage and stage
 			sf::MutexGuard mg(ctx.mutex);
 
@@ -302,57 +315,9 @@ void ContentFile::globalUpdate()
 			PendingFile &file = pair->val;	
 			file.currentPackage = nullptr;
 			file.stage--;
-
 		}
 	}
 }
-
-// Fetch
-
-
-#if 0
-
-
-void ContentFile::addFileRoot(const sf::String &root)
-{
-}
-
-ContentFile::LoadHandle ContentFile::load(const sf::String &name, Callback callback, void *user)
-{
-	ContentFileContext &ctx = g_contentFileContext;
-
-	ContentFileInfo info;
-	info.callback = callback;
-	info.user = user;
-
-	sf::SmallStringBuf<256> path;
-	path.append(ctx.root, name);
-
-	sfetch_request_t req = { };
-	req.callback = &fetchCallback;
-	req.path = path.data;
-	req.user_data_ptr = &info;
-	req.user_data_size = sizeof(ContentFileInfo);
-	sfetch_handle_t handle = sfetch_send(&req);
-	sf_assert(sfetch_handle_valid(handle));
-
-	LoadHandle lh;
-	lh.id = handle.id;
-	return lh;
-}
-
-void ContentFile::cancel(ContentFile::LoadHandle handle)
-{
-	ContentFileContext &ctx = g_contentFileContext;
-	sf::MutexGuard mg(ctx.mutex);
-
-	sfetch_handle_t h = { handle.id };
-	if (!sfetch_handle_valid(h)) return;
-
-	ctx.cancelledHandles.push(h);
-	sfetch_cancel(h);
-}
-#endif
 
 }
 

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+  <Type Name="sf::Array&lt;*&gt;">
+    <DisplayString>{{ size={size} capacity={capacity} }}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>size</Size>
+        <ValuePointer>data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="sf::SmallArray&lt;*,*&gt;">
+    <DisplayString>{{ size={size} capacity={capacity} }}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>size</Size>
+        <ValuePointer>data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="sf::Slice&lt;*&gt;">
+    <DisplayString>{{ size={size} }}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>size</Size>
+        <ValuePointer>data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="sf::String">
+    <DisplayString>{data,[size]}</DisplayString>
+  </Type>
+
+  <Type Name="sf::CString">
+    <DisplayString>{data}</DisplayString>
+  </Type>
+
+  <Type Name="sf::StringBuf">
+    <DisplayString>{data}</DisplayString>
+  </Type>
+
+  <Type Name="sf::HashMap&lt;*,*&gt;">
+    <DisplayString>{{ size={map.size} capacity={map.capacity} }}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>map.size</Size>
+        <ValuePointer>data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+
+</AutoVisualizer>

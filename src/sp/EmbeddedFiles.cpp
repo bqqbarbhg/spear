@@ -586,9 +586,11 @@ struct EmbeddedContentPackage : ContentPackage
 	{
 		files["sp://White.png"] = whitePng;
 		files["sp://OpenSans-Ascii.ttf"] = openSansAsciiTtf;
+
+		name.append("Embedded");
 	}
 
-	virtual bool shouldTryToLoad(const sf::String &name) final
+	virtual bool shouldTryToLoad(const sf::CString &name) final
 	{
 		// Require sp:// prefix
 		if (name.size < 5) return false;
@@ -598,7 +600,7 @@ struct EmbeddedContentPackage : ContentPackage
 		return files.find(name) != nullptr;
 	}
 
-	virtual bool startLoadingFile(ContentLoadHandle handle, const sf::String &name) final
+	virtual bool startLoadingFile(ContentLoadHandle handle, const sf::CString &name) final
 	{
 		auto it = files.find(name);
 		sf_assert(it != nullptr);

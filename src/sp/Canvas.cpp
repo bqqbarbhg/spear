@@ -1,10 +1,13 @@
 #include "Canvas.h"
 
 #include "Sprite.h"
+#include "Font.h"
+
 #include "sf/Array.h"
 #include "sf/Sort.h"
 
 #include "ext/sokol/sokol_gfx.h"
+#include "ext/sokol/sokol_app.h"
 #include "shader/Sprite.h"
 
 namespace sp {
@@ -72,10 +75,28 @@ struct CanvasImp
 	bool spriteDrawsSorted = true;
 	bool textDrawsSorted = true;
 	bool canvasDrawsSorted = true;
+
+	bool loaded = true;
 };
 
 static_assert(sizeof(Canvas::impData) >= sizeof(CanvasImp), "impData too small");
 static_assert(sizeof(Canvas::impData) <= sizeof(CanvasImp) * 4, "impData too large");
+
+
+CanvasRenderOpts CanvasRenderOpts::windowPixels()
+{
+	return CanvasRenderOpts::pixels((uint32_t)sapp_width(), (uint32_t)sapp_height());
+}
+
+CanvasRenderOpts CanvasRenderOpts::pixels(uint32_t width, uint32_t height)
+{
+	CanvasRenderOpts opts;
+	opts.transform.m00 = +1.0f / (float)width;
+	opts.transform.m11 = -1.0f / (float)height;
+	opts.transform.m03 = -1.0f;
+	opts.transform.m13 = +1.0f;
+	return opts;
+}
 
 Canvas::Canvas()
 {
@@ -113,6 +134,8 @@ void Canvas::clear()
 	imp->textDrawsSorted = true;
 	imp->canvasDrawsSorted = true;
 
+	imp->loaded = true;
+
 	imp->nextDrawIndex = 0;
 
 	imp->textData.clear();
@@ -139,20 +162,26 @@ void Canvas::draw(const SpriteDraw &draw)
 	if (imp->spriteDraws.size > 0 && draw.depth < imp->spriteDraws.back().draw.depth) {
 		imp->spriteDrawsSorted = false;
 	}
+	if (!draw.sprite->isLoaded()) {
+		imp->loaded = false;
+	}
 	SpriteDrawImp &drawImp = imp->spriteDraws.pushUninit();
 	drawImp.draw = draw;
 	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
+
 }
 
 void Canvas::drawText(const TextDraw &draw)
 {
 	CanvasImp *imp = (CanvasImp*)impData;
 	if (!draw.font) return;
-	// TODO draw.font->retain();
-	sf_failf("TODO");
+	draw.font->retain();
 
 	if (imp->textDraws.size > 0 && draw.depth < imp->textDraws.back().draw.depth) {
 		imp->textDrawsSorted = false;
+	}
+	if (!draw.font->isLoaded()) {
+		imp->loaded = false;
 	}
 	TextDrawImp &drawImp = imp->textDraws.pushUninit();
 	drawImp.draw = draw;
@@ -393,6 +422,27 @@ void Canvas::render(const CanvasRenderOpts &opts)
 		}
 	}
 
+}
+
+bool Canvas::isLoaded() const
+{
+	CanvasImp *imp = (CanvasImp*)impData;
+	if (imp->loaded) return true;
+
+	for (SpriteDrawImp &draw : imp->spriteDraws) {
+		if (!draw.draw.sprite->isLoaded()) return false;
+	}
+
+	for (TextDrawImp &draw : imp->textDraws) {
+		if (!draw.draw.font->isLoaded()) return false;
+	}
+
+	for (CanvasDrawImp &canvas : imp->canvasDraws) {
+		if (!canvas.draw.canvas->isLoaded()) return false;
+	}
+
+	imp->loaded = true;
+	return true;
 }
 
 void Canvas::globalInit()

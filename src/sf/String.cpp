@@ -104,8 +104,8 @@ void StringBuf::format(const char *fmt, ...)
 	va_end(args1);
 
 	// Second pass: Potentially re-allocate and re-format
-	if (size + appendSize > capacity) {
-		impGrowToGeometric(size + appendSize);
+	if (size + appendSize + 1 > capacity) {
+		impGrowToGeometric(size + appendSize + 1);
 		vsnprintf(data + size, capacity - size, fmt, args2);
 	}
 	size += appendSize;
