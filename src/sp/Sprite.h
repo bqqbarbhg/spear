@@ -27,6 +27,8 @@ struct SpriteProps : AssetProps
 {
 	// Combine sprites with the same `atlasName` into a single atlas.
 	sf::SmallStringBuf<16> atlasName;
+	bool tileX = false;
+	bool tileY = false;
 
 	virtual uint32_t hash() const final;
 	virtual bool equal(const AssetProps &rhs) const final;
@@ -44,6 +46,7 @@ struct Sprite : Asset
 	Atlas *atlas = nullptr;
 	uint32_t x = 0, y = 0;
 	uint32_t width = 0, height = 0;
+	uint32_t paddedWidth = 0, paddedHeight = 0;
 
 	// Cropped quad vertices
 	sf::Vec2 minVert, maxVert;

@@ -293,8 +293,6 @@ void Asset::startLoading()
 
 void Asset::assetFinishLoading()
 {
-	sf_assert(refcount > 0);
-
 	// Transition from Loading -> Loaded (must succeed)
 	bool res = mxa_cas32_rel(&impState, (uint32_t)LoadState::Loading, (uint32_t)LoadState::Loaded);
 	sf_assertf(res, "Invalid state transition");
@@ -305,8 +303,6 @@ void Asset::assetFinishLoading()
 
 void Asset::assetFailLoading()
 {
-	sf_assert(refcount > 0);
-
 	// Transition from Loading -> Failed (must succeed)
 	bool res = mxa_cas32_rel(&impState, (uint32_t)LoadState::Loading, (uint32_t)LoadState::Failed);
 	sf_assertf(res, "Invalid state transition");

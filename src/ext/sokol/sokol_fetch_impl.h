@@ -2089,7 +2089,7 @@ _SOKOL_PRIVATE void _sfetch_request_handler(_sfetch_t* ctx, uint32_t slot_id) {
 
 _SOKOL_PRIVATE bool _sfetch_is_http_request(const _sfetch_item_t *item)
 {
-	return strncmp(item->path.buf, "http://", 7) || strncmp(item->path.buf, "https://", 8);
+	return !strncmp(item->path.buf, "http://", 7) || !strncmp(item->path.buf, "https://", 8);
 }
 
 #if _SFETCH_PLATFORM_WINDOWS
@@ -2119,6 +2119,8 @@ _SOKOL_PRIVATE void* _sfetch_channel_thread_func(void* arg) {
 			if (_sfetch_is_http_request(item)) {
 				_sfetch_curl_add_request(chn, item);
 				slot_id = _sfetch_thread_try_dequeue_incoming(&chn->thread, &chn->thread_incoming);
+            } else {
+                break;
             }
         }
 

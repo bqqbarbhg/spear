@@ -91,7 +91,7 @@ struct Asset
 	}
 	template <typename T>
 	static T *find(const sf::String &name, const typename T::PropType &props) {
-		sf_assert(sizeof(props) == T::AssetType->propertySize);
+		sf_assert(sizeof(props) == T::AssetType.propertySize);
 		return (T*)impFind(&T::AssetType, name, props);
 	}
 
@@ -102,7 +102,7 @@ struct Asset
 	}
 	template <typename T>
 	static T *load(const sf::String &name, const typename T::PropType &props) {
-		sf_assert(sizeof(props) == T::AssetType->propertySize);
+		sf_assert(sizeof(props) == T::AssetType.propertySize);
 		return (T*)impCreate(&T::AssetType, name, props);
 	}
 

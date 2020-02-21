@@ -144,6 +144,7 @@ uint32_t hashBuffer(const void *data, size_t size);
 sf_inline uint32_t hashCombine(uint32_t a, uint32_t b) {
 	return  ((a << 5u | a >> 27u) ^ b) * UINT32_C(0x9e3779b9);
 }
+sf_inline uint32_t hash(bool val) { return (uint32_t)val; }
 uint32_t hash(uint32_t val);
 uint32_t hashReverse32(uint32_t hash);
 

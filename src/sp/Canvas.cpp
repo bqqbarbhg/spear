@@ -201,6 +201,30 @@ void Canvas::drawCanvas(const CanvasDraw &draw)
 	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
 }
 
+void Canvas::draw(Sprite *sprite, const sf::Vec2 &pos, const sf::Vec2 &size)
+{
+	SpriteDraw d;
+	d.sprite = sprite;
+	d.transform.m00 = size.x;
+	d.transform.m11 = size.y;
+	d.transform.m02 = pos.x;
+	d.transform.m12 = pos.y;
+	draw(d);
+}
+
+void Canvas::draw(Sprite *sprite, const sf::Vec2 &pos, const sf::Vec2 &size, const sf::Vec4 &color)
+{
+	SpriteDraw d;
+	d.sprite = sprite;
+	d.transform.m00 = size.x;
+	d.transform.m11 = size.y;
+	d.transform.m02 = pos.x;
+	d.transform.m12 = pos.y;
+	d.color = color;
+	draw(d);
+}
+
+
 static uint32_t packChannel(float f)
 {
 	return sf::clamp((uint32_t)(f * 255.0f), 0u, 255u);
@@ -221,10 +245,10 @@ static void spriteToQuad(Quad &quad, const SpriteDraw &draw, const CanvasRenderO
 	float rcpAtlasWidth = 1.0f / (float)sprite->atlas->width;
 	float rcpAtlasHeight = 1.0f / (float)sprite->atlas->height;
 
-	float uvMinX = ((float)sprite->x - 0.5f) * rcpAtlasWidth;
-	float uvMinY = ((float)sprite->y - 0.5f) * rcpAtlasHeight;
-	float uvMaxX = ((float)(sprite->x + sprite->width) + 0.5f) * rcpAtlasWidth;
-	float uvMaxY = ((float)(sprite->y + sprite->height) + 0.5f) * rcpAtlasHeight;
+	float uvMinX = (float)sprite->x * rcpAtlasWidth;
+	float uvMinY = (float)sprite->y * rcpAtlasHeight;
+	float uvMaxX = (float)(sprite->x + sprite->width) * rcpAtlasWidth;
+	float uvMaxY = (float)(sprite->y + sprite->height) * rcpAtlasHeight;
 
 	uint32_t color = packColor(draw.color * opts.color);
 
@@ -289,7 +313,6 @@ static void drawSprites(CanvasContext &ctx, sf::Slice<SpriteDrawImp> draws, Atla
 
 	ctx.spriteBindings.vertex_buffer_offsets[0] = offset;
 	ctx.spriteBindings.fs_images[SLOT_Sprite_atlasTexture] = atlas->image;
-
 
 	sg_apply_bindings(&ctx.spriteBindings);
 	sg_draw(0, 6 * (int)draws.size, 1);

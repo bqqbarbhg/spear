@@ -12,10 +12,6 @@
 #define SP_WINDOW_TITLE "SP Game"
 #endif
 
-#ifndef SP_SAMPLE_COUNT
-#define SP_SAMPLE_COUNT 1
-#endif
-
 // Include this in only one file!
 // Sets up a main loop:
 // spInit()
@@ -50,6 +46,7 @@ void spFrame(float dt);
 namespace sp {
 
 static uint64_t impLastTime;
+static int impSampleCount;
 
 void impInit()
 {
@@ -70,7 +67,7 @@ void impInit()
 
 	{
 		sgl_desc_t desc = { };
-		desc.sample_count = SP_SAMPLE_COUNT;
+		desc.sample_count = impSampleCount;
 		sgl_setup(&desc);
 	}
 
@@ -124,12 +121,13 @@ sapp_desc sokol_main(int argc, char **argv)
 	desc.width = SP_WINDOW_WIDTH;
 	desc.height = SP_WINDOW_HEIGHT;
 	desc.window_title = SP_WINDOW_TITLE;
-
-	desc.sample_count = SP_SAMPLE_COUNT;
+	desc.sample_count = 1;
 
 	sp::MainConfig config;
 	config.sappDesc = &desc;
 	spConfig(config);
+
+	sp::impSampleCount = config.sappDesc->sample_count;
 
 	return desc;
 }

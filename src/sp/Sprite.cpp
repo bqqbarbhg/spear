@@ -50,7 +50,7 @@ static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
 		const uint8_t *a = alpha + y * w * 4;
 		for (x = 0; x < w; x++) {
 			if (*a != 0) {
-				rect.minY = (uint32_t)sf::max(y - 1, 0);
+				rect.minY = (uint32_t)y;
 				y = h;
 				break;
 			}
@@ -71,7 +71,7 @@ static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
 		const uint8_t *a = alpha + y * w * 4;
 		for (x = 0; x < w; x++) {
 			if (*a != 0) {
-				rect.maxY = (uint32_t)sf::min(y + 2, h);
+				rect.maxY = (uint32_t)(y + 1);
 				y = 0;
 				break;
 			}
@@ -83,7 +83,7 @@ static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
 		const uint8_t *a = alpha + x * 4;
 		for (y = 0; y < h; y++) {
 			if (*a != 0) {
-				rect.minX = (uint32_t)sf::max(x - 1, 0);
+				rect.minX = (uint32_t)x;
 				x = w;
 				break;
 			}
@@ -95,7 +95,7 @@ static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
 		const uint8_t *a = alpha + x * 4;
 		for (y = 0; y < h; y++) {
 			if (*a != 0) {
-				rect.maxX = (uint32_t)sf::min(x + 2, w);
+				rect.maxX = (uint32_t)(x + 1);
 				x = 0;
 				break;
 			}
@@ -107,11 +107,11 @@ static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
 }
 
 static const uint32_t AtlasDeleteQueueFrames = 4;
-static const uint32_t MinAtlasExtent = 64;
+static const uint32_t MinAtlasExtent = 32;
 static const uint32_t AtlasLevels = 3;
-static const uint32_t AtlasPadding = 1 << AtlasLevels;
+static const uint32_t AtlasPadding = 1 << (AtlasLevels - 1);
 static const uint32_t FramesBetweenReassign = 60;
-static const uint32_t MinAtlasesToForceReassign = 16;
+static const uint32_t MinAtlasesToForceReassign = 32;
 static const uint32_t ClearImageExtent = 256;
 
 struct SpriteImp;
@@ -163,6 +163,8 @@ uint32_t SpriteProps::hash() const
 {
 	uint32_t h = 0;
 	h = sf::hashCombine(h, sf::hash(atlasName));
+	h = sf::hashCombine(h, sf::hash(tileX));
+	h = sf::hashCombine(h, sf::hash(tileY));
 	return h;
 }
 
@@ -170,6 +172,8 @@ bool SpriteProps::equal(const AssetProps &rhs) const
 {
 	const SpriteProps &r = (const SpriteProps&)rhs;
 	if (atlasName != r.atlasName) return false;
+	if (tileX != r.tileX) return false;
+	if (tileY != r.tileY) return false;
 	return true;
 }
 
@@ -178,6 +182,8 @@ void SpriteProps::copyTo(AssetProps *uninitDst) const
 	SpriteProps *dst = (SpriteProps*)uninitDst;
 	new (dst) SpriteProps();
 	dst->atlasName.append(atlasName);
+	dst->tileX = tileX;
+	dst->tileY = tileY;
 }
 
 
@@ -226,36 +232,88 @@ static void loadImp(void *user, const ContentFile &file)
 	CropRect rect = cropAlpha(pixels, width, height);
 	uint32_t stride = width * 4;
 
-	imp->minVert.x = (float)(rect.minX - 0.5f) / (float)width;
-	imp->minVert.y = (float)(rect.minY - 0.5f) / (float)height;
-	imp->maxVert.x = (float)(rect.maxX + 0.5f) / (float)width;
-	imp->maxVert.y = (float)(rect.maxY + 0.5f) / (float)height;
+	imp->minVert.x = (float)rect.minX / (float)width;
+	imp->minVert.y = (float)rect.minY / (float)height;
+	imp->maxVert.x = (float)rect.maxX / (float)width;
+	imp->maxVert.y = (float)rect.maxY / (float)height;
+
+	uint32_t originalWidth = width;
+	uint32_t originalHeight = height;
 
 	width = rect.maxX - rect.minX;
 	height = rect.maxY - rect.minY;
 
+	imp->x = AtlasPadding;
+	imp->y = AtlasPadding;
 	imp->width = width;
 	imp->height = height;
 
 	// Create a single sprite atlas
 
-	uint32_t atlasWidth = width + AtlasPadding;
-	uint32_t atlasHeight = height + AtlasPadding;
+	uint32_t paddedWidth = sf::alignUp(width + AtlasPadding * 2, AtlasPadding);
+	uint32_t paddedHeight = sf::alignUp(height + AtlasPadding * 2, AtlasPadding);
+	imp->paddedWidth = paddedWidth;
+	imp->paddedHeight = paddedHeight;
+
+	uint32_t padRight = paddedWidth - (width + AtlasPadding);
+	uint32_t padBottom = paddedHeight - (height + AtlasPadding);
 
 	// TODO: Skip this for non-WebGL1 backends?
-	atlasWidth = roundToPow2(atlasWidth);
-	atlasHeight = roundToPow2(atlasHeight);
+	uint32_t atlasWidth = roundToPow2(paddedWidth);
+	uint32_t atlasHeight = roundToPow2(paddedHeight);
 	if (atlasWidth < MinAtlasExtent) atlasWidth = MinAtlasExtent;
 	if (atlasHeight < MinAtlasExtent) atlasHeight = MinAtlasExtent;
 
 	MipImage image(atlasWidth, atlasHeight);
 
 	stbi_uc *basePixels = pixels + rect.minY * stride + rect.minX * 4;
-	image.levels[0].blit(0, 0, width, height, basePixels, stride);
+
+	image.clear();
+	image.levels[0].blit(AtlasPadding, AtlasPadding, width, height, basePixels, stride);
+
+	SpriteProps *props = (SpriteProps*)imp->props;
+
+	// Smear the edge pixels if they are not transparent
+	{
+		// TODO: Threshold to consider edge transparent?
+		bool smearMinX = rect.minX == 0;
+		bool smearMinY = rect.minY == 0;
+		bool smearMaxX = rect.maxX == originalWidth;
+		bool smearMaxY = rect.maxY == originalWidth;
+		bool tileX = props->tileX;
+		bool tileY = props->tileY;
+
+		if (smearMinX | smearMaxX | smearMinY | smearMaxY | tileX | tileY) {
+			CropRect rects[4] = {
+				{ 0, 0, paddedWidth, AtlasPadding },
+				{ 0, height + AtlasPadding, paddedWidth, paddedHeight },
+				{ 0, AtlasPadding, AtlasPadding, AtlasPadding + height },
+				{ width + AtlasPadding, AtlasPadding, paddedWidth, AtlasPadding + height },
+			};
+
+			const uint32_t *src = (const uint32_t*)basePixels;
+			uint32_t *dst = (uint32_t*)image.levels[0].data;
+
+			for (CropRect rect : rects)
+			for (int32_t y = (int32_t)rect.minY; y < (int32_t)rect.maxY; y++)
+			for (int32_t x = (int32_t)rect.minX; x < (int32_t)rect.maxX; x++) {
+				int32_t sx = x - AtlasPadding, sy = y - AtlasPadding;
+				if (tileX) sx = (sx + width) % width;
+				if (tileY) sy = (sy + height) % height;
+				if (smearMinX & (sx < 0)) sx = 0;
+				if (smearMaxX & (sx >= width)) sx = width - 1;
+				if (smearMinY & (sy < 0)) sy = 0;
+				if (smearMaxY & (sy >= height)) sy = height - 1;
+				if (((uint32_t)sx < width) & ((uint32_t)sy < height)) {
+					dst[y*atlasWidth + x] = src[sy*originalWidth + sx];
+				}
+			}
+		}
+	}
+
 	image.levels[0].premultiply();
-	image.levels[0].clear(width, 0, atlasWidth - width, atlasHeight);
-	image.levels[0].clear(0, height, width, atlasHeight - height);
-	image.calculateMips();
+
+	image.calculateMips(AtlasLevels, 0, 0, paddedWidth, paddedHeight);
 
 	AtlasImp *atlas = new AtlasImp();
 	atlas->width = atlasWidth;
@@ -404,12 +462,7 @@ struct AtlasWithScore
 
 static bool packSprite(RectPacker &packer, Sprite *sprite, uint32_t &x, uint32_t &y)
 {
-	uint32_t pad = AtlasPadding;
-	uint32_t width = sprite->width + pad;
-	uint32_t height = sprite->height + pad;
-	width += (uint32_t)-(int32_t)width & (pad - 1);
-	height += (uint32_t)-(int32_t)height & (pad - 1);
-	return packer.pack(width, height, x, y);
+	return packer.pack(sprite->paddedWidth, sprite->paddedHeight, x, y);
 }
 
 static bool tryPackSprites(RectPacker &packer, sf::Slice<SpriteImp*> sprites)
@@ -510,8 +563,8 @@ static void reassignAtlases(SpriteContext &ctx)
 		sf_assert(res);
 		sprite->prevX = sprite->x;
 		sprite->prevY = sprite->y;
-		sprite->x = x;
-		sprite->y = y;
+		sprite->x = x + AtlasPadding;
+		sprite->y = y + AtlasPadding;
 	}
 
 	// Allocate the atlas
@@ -596,12 +649,12 @@ static void reassignAtlases(SpriteContext &ctx)
 		sg_image oldImg = atlas->image;
 		for (SpriteImp *sprite : atlas->sprites) {
 			sg_bqq_subimage_rect &rect = rects.pushUninit();
-			rect.src_x = sprite->prevX;
-			rect.src_y = sprite->prevY;
-			rect.dst_x = sprite->x;
-			rect.dst_y = sprite->y;
-			rect.width = sprite->width;
-			rect.height = sprite->height;
+			rect.src_x = sprite->prevX - AtlasPadding;
+			rect.src_y = sprite->prevY - AtlasPadding;
+			rect.dst_x = sprite->x - AtlasPadding;
+			rect.dst_y = sprite->y - AtlasPadding;
+			rect.width = sprite->paddedWidth;
+			rect.height = sprite->paddedHeight;
 
 			sprite->atlas = resultAtlas;
 			resultAtlas->sprites.push(sprite);

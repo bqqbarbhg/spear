@@ -16,17 +16,19 @@ struct Game
 
 		canvas.clear();
 
-		for (int y = 0; y < 5; y++) {
-			for (int x = 0; x < 10; x++) {
-				sf::StringBuf url;
-				url.format("https://placekitten.com/%d/%d", 100 + x, 100 + y);
-				sp::SpriteRef sprite{url};
-				sp::SpriteDraw draw;
-				draw.sprite = sprite;
-				draw.transform = sf::mat2D::scale(200.0f, 200.0f) * sf::mat2D::translate((float)x, (float)y);
-				canvas.draw(draw);
-			}
-		}
+		sp::SpriteProps props;
+		props.tileX = true;
+		props.tileY = true;
+		sp::SpriteRef grid{"data/hue.png", props};
+		sp::SpriteRef badGrid{"data/hue.png"};
+		sp::SpriteRef ghost{"data/ghost.png"};
+
+		canvas.draw(grid, sf::Vec2(0.0f, 0.0f), sf::Vec2(200.0f, 200.0f), sf::Vec4(0.5f));
+		canvas.draw(grid, sf::Vec2(200.0f, 0.0f), sf::Vec2(200.0f, 200.0f), sf::Vec4(0.5f));
+		canvas.draw(badGrid, sf::Vec2(0.0f, 200.0f), sf::Vec2(200.0f, 200.0f), sf::Vec4(0.5f));
+		canvas.draw(badGrid, sf::Vec2(200.0f, 200.0f), sf::Vec2(200.0f, 200.0f), sf::Vec4(0.5f));
+
+		canvas.draw(ghost, sf::Vec2(400.0f, 100.0f), sf::Vec2(400.0f, 400.0f));
 	}
 
 	void debugRenderAtlases()
@@ -92,6 +94,7 @@ Game *game;
 void spConfig(sp::MainConfig &config)
 {
 	config.sappDesc->window_title = "Spear";
+	config.sappDesc->sample_count = 4;
 }
 
 void spInit()

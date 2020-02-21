@@ -36,6 +36,7 @@ struct Image
 	void blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const void *data);
 	void premultiply();
 	void clear(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+	void clear(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const void *value);
 };
 
 struct MipImage
@@ -49,6 +50,7 @@ struct MipImage
 
 	void clear();
 	void calculateMips();
+	void calculateMips(uint32_t num, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 };
 
 }
