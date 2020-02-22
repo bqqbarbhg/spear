@@ -195,6 +195,8 @@ void sf_debug_log(const char *str);
 void sf_wasm_debugbreak(const char *file, int line);
 #endif
 
+void sf_set_debug_thread_name(const char *name);
+
 #ifdef __cplusplus
 }
 #endif

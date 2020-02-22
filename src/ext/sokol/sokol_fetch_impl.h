@@ -2097,6 +2097,11 @@ _SOKOL_PRIVATE DWORD WINAPI _sfetch_channel_thread_func(LPVOID arg) {
 #else
 _SOKOL_PRIVATE void* _sfetch_channel_thread_func(void* arg) {
 #endif
+
+#ifdef SOKOL_FETCH_THREAD_START
+    SOKOL_FETCH_THREAD_START();
+#endif
+
     _sfetch_channel_t* chn = (_sfetch_channel_t*) arg;
     _sfetch_thread_entered(&chn->thread);
 

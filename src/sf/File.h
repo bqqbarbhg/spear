@@ -1,8 +1,8 @@
 #pragma once
 
 #include <stdio.h>
-#include "sf/String.h"
-#include "sf/Array.h"
+#include "String.h"
+#include "Array.h"
 
 namespace sf {
 

@@ -1,5 +1,6 @@
 #include "Platform.h"
 #include "Base.h"
+#include "Thread.h"
 
 #include <stdio.h>
 
@@ -19,6 +20,11 @@ void sf_wasm_debugbreak(const char *file, int line)
 	abort();
 }
 #endif
+
+void sf_set_debug_thread_name(const char *name)
+{
+	sf::setDebugThreadName(sf::String(name));
+}
 
 #ifdef __cplusplus
 }

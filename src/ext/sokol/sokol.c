@@ -5,6 +5,8 @@
 #define SOKOL_IMPL
 #define SOKOL_GL_IMPL
 
+#define SOKOL_FETCH_THREAD_START() sf_set_debug_thread_name("Fetch Thread")
+
 #include "sokol_app.h"
 #include "sokol_gfx.h"
 #include "sokol_gl.h"
