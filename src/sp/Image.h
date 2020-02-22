@@ -47,6 +47,10 @@ struct MipImage
 	MipImage() : width(0), height(0) { }
 	MipImage(uint32_t width, uint32_t height);
 	MipImage(uint32_t width, uint32_t height, uint32_t numLevels);
+	MipImage(const MipImage&) = delete;
+	MipImage(MipImage&&) = default;
+	MipImage &operator=(const MipImage&) = delete;
+	MipImage &operator=(MipImage&&) = default;
 
 	void clear();
 	void calculateMips();

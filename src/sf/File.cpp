@@ -29,7 +29,7 @@ FILE *stdioFileOpen(sf::String name, const char *mode)
     errno_t err = _wfopen_s(&file, nameBuf.data, wMode);
 	return err == 0 ? file : nullptr;
 #else
-	sf::SmallStringBuf<512> nameBuf = name;
+	sf::SmallStringBuf<512> nameBuf(name);
 	return fopen(nameBuf.data, mode);
 #endif
 }
@@ -41,7 +41,7 @@ bool deleteFile(sf::String name)
 	if (!win32Utf8To16(nameBuf, name)) return false;
 	return DeleteFileW(nameBuf.data) != 0;
 #else
-	sf::SmallStringBuf<512> nameBuf = name;
+	sf::SmallStringBuf<512> nameBuf(name);
 	return remove(nameBuf.data) == 0;
 #endif
 }
@@ -56,8 +56,8 @@ bool replaceFile(sf::String dst, sf::String src)
 	if (!win32Utf8To16(srcBuf, src)) return false;
 	return MoveFileExW(srcBuf.data, dstBuf.data, MOVEFILE_REPLACE_EXISTING) != 0;
 #else
-	sf::SmallStringBuf<512> srcBuf = src;
-	sf::SmallStringBuf<512> dstBuf = dst;
+	sf::SmallStringBuf<512> srcBuf(src);
+	sf::SmallStringBuf<512> dstBuf(dst);
 	return rename(srcBuf.data, dstBuf.data) != 0;
 #endif
 }
@@ -134,8 +134,8 @@ bool createDirectory(sf::String name)
 	if (!win32Utf8To16(nameBuf, name)) return false;
 	return CreateDirectoryW(nameBuf.data, NULL) != 0;
 #else
-	sf::SmallStringBuf<512> nameBuf = name;
-	mkdir(nameBuf.data, 0777);
+	sf::SmallStringBuf<512> nameBuf(name);
+	return mkdir(nameBuf.data, 0777) == 0;
 #endif
 }
 

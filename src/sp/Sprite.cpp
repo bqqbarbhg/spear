@@ -110,6 +110,14 @@ struct AtlasToDelete
 	uint32_t frameIndex;
 };
 
+struct SpriteToCreate
+{
+	SpriteImp *sprite;
+	MipImage image;
+	uint32_t atlasWidth;
+	uint32_t atlasHeight;
+};
+
 struct SpriteContext
 {
 	sf::Mutex mutex;
@@ -117,6 +125,7 @@ struct SpriteContext
 
 	// Bookkeeping
 	sf::Array<AtlasToDelete> atlasesToDelete;
+	sf::Array<SpriteToCreate> spritesToCreate;
 	sf::Array<AtlasImp*> atlases;
 
 	// Texture limits
@@ -301,17 +310,31 @@ static void loadImp(void *user, const ContentFile &file)
 	image.levels[0].premultiply();
 
 	image.calculateMips(AtlasLevels, 0, 0, paddedWidth, paddedHeight);
+	free(pixels);
 
+	{
+		sf::MutexGuard mg(ctx.mutex);
+		SpriteToCreate &create = ctx.spritesToCreate.push();
+		create.sprite = imp;
+		create.image = std::move(image);
+		create.atlasWidth = atlasWidth;
+		create.atlasHeight = atlasHeight;
+	}
+}
+
+static void finishLoad(SpriteContext &ctx, SpriteToCreate &create)
+{
+	MipImage &image = create.image;
 	AtlasImp *atlas = new AtlasImp();
-	atlas->width = atlasWidth;
-	atlas->height = atlasHeight;
+	atlas->width = create.atlasWidth;
+	atlas->height = create.atlasHeight;
 
 	// Initialize the GPU texture
 	{
 		sg_image_desc desc = { };
 		desc.type = SG_IMAGETYPE_2D;
-		desc.width = atlasWidth;
-		desc.height = atlasHeight;
+		desc.width = create.atlasWidth;
+		desc.height = create.atlasHeight;
 		desc.num_mipmaps = image.levels.size;
 		desc.usage = SG_USAGE_IMMUTABLE;
 		desc.pixel_format = SG_PIXELFORMAT_RGBA8;
@@ -329,23 +352,18 @@ static void loadImp(void *user, const ContentFile &file)
 		atlas->image = sg_make_image(&desc);
 	}
 
-	free(pixels);
+	atlas->sprites.push(create.sprite);
+	create.sprite->atlas = atlas;
 
-	atlas->sprites.push(imp);
-	imp->atlas = atlas;
+	ctx.atlases.push(atlas);
+	atlas->frameCreated = ctx.frameIndex;
 
-	{
-		sf::MutexGuard mg(ctx.mutex);
-		ctx.atlases.push(atlas);
-		atlas->frameCreated = ctx.frameIndex;
-	}
-
-	imp->assetFinishLoading();
+	create.sprite->assetFinishLoading();
 }
 
 void SpriteImp::assetStartLoading()
 {
-	ContentFile::load(name, &loadImp, this);
+	ContentFile::loadAsync(name, &loadImp, this);
 }
 
 void SpriteImp::assetUnload()
@@ -691,6 +709,12 @@ void Sprite::globalUpdate()
 			++it;
 		}
 	}
+
+	// Sprites to create
+	for (SpriteToCreate &create : ctx.spritesToCreate) {
+		finishLoad(ctx, create);
+	}
+	ctx.spritesToCreate.clear();
 	
 	if (ctx.frameIndex % FramesBetweenReassign == 0 || ctx.atlases.size >= MinAtlasesToForceReassign) {
 		reassignAtlases(ctx);

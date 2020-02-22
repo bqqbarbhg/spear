@@ -3,8 +3,14 @@
 #include "sf/Mutex.h"
 #include "sf/Array.h"
 #include "sf/HashMap.h"
+#include "sf/Thread.h"
+#include "sf/Semaphore.h"
 
 #include "ext/sokol/sokol_fetch.h"
+
+#if SF_OS_EMSCRIPTEN
+	#include <emscripten/emscripten.h>
+#endif
 
 namespace sp {
 
@@ -27,6 +33,7 @@ struct PendingFile
 	ContentFile::Callback callback = nullptr;
 	void *user = nullptr;
 	bool cancelled = false;
+	bool mainThread = false;
 
 	uint32_t stage = 0;
 	ContentPackage *currentPackage = nullptr;
@@ -45,6 +52,11 @@ struct ContentFileContext
 	sf::Array<ContentPackage*> packages;
 
 	sf::Array<char> fetchBuffers[NumLanes];
+	sf::Array<PendingFile> mainThreadDoneFiles;
+
+	sf::Semaphore workerSemaphore;
+	sf::Thread *workerThread = nullptr;
+	bool joinThread = false;
 };
 
 ContentFileContext g_contentFileContext;
@@ -120,7 +132,7 @@ void ContentFile::addRelativeFileRoot(const sf::String &root)
 	ctx.fetchPackages.push(package);
 }
 
-ContentLoadHandle ContentFile::load(const sf::String &name, Callback callback, void *user)
+static ContentLoadHandle loadImp(const sf::String &name, ContentFile::Callback callback, void *user, bool mainThread)
 {
 	ContentFileContext &ctx = g_contentFileContext;
 	sf::MutexGuard mg(ctx.mutex);
@@ -140,8 +152,19 @@ ContentLoadHandle ContentFile::load(const sf::String &name, Callback callback, v
 	file.name = name;
 	file.callback = callback;
 	file.user = user;
+	file.mainThread = mainThread;
 
 	return handle;
+}
+
+ContentLoadHandle ContentFile::loadAsync(const sf::String &name, Callback callback, void *user)
+{
+	return loadImp(name, callback, user, false);
+}
+
+ContentLoadHandle ContentFile::loadMainThread(const sf::String &name, Callback callback, void *user)
+{
+	return loadImp(name, callback, user, true);
 }
 
 void ContentFile::cancel(ContentLoadHandle handle)
@@ -194,10 +217,69 @@ void ContentFile::packageFileFailed(ContentLoadHandle handle)
 	file.currentPackage = nullptr;
 }
 
-void ContentFile::globalInit()
+static void contentUpdateImp(ContentFileContext &ctx);
+
+static void setupInThread()
+{
+	sfetch_desc_t desc = { };
+	desc.num_lanes = NumLanes;
+	sfetch_setup(&desc);
+}
+
+static void cleanupInThread()
+{
+	sfetch_shutdown();
+}
+
+#if SF_OS_EMSCRIPTEN
+static bool emscriptenSetup = false;
+
+static void contentFileWorkerUpdate(void *arg)
+{
+	ContentFileContext &ctx = *(ContentFileContext*)arg;
+	if (!emscriptenSetup) {
+		emscriptenSetup = true;
+		setupInThread();
+	}
+
+	if (ctx.joinThread) {
+		cleanupInThread();
+		emscripten_pause_main_loop();
+		return;
+	}
+
+	contentUpdateImp(ctx);
+}
+#endif
+
+static void contentFileWorker(void *arg)
+{
+	ContentFileContext &ctx = *(ContentFileContext*)arg;
+
+#if SF_OS_EMSCRIPTEN
+
+	emscripten_set_main_loop_arg(&contentFileWorkerUpdate, &ctx, 0, false);
+
+#else
+
+	setupInThread();
+
+	for (;;) {
+		ctx.workerSemaphore.wait();
+		if (ctx.joinThread) break;
+
+		contentUpdateImp(ctx);
+	}
+
+	cleanupInThread();
+
+#endif
+
+}
+
+void ContentFile::globalInit(bool useWorker)
 {
 	ContentFileContext &ctx = g_contentFileContext;
-	sf::MutexGuard mg(ctx.mutex);
 
 	for (auto &buffer : ctx.fetchBuffers) {
 		buffer.resizeUninit(BufferSize);
@@ -206,17 +288,35 @@ void ContentFile::globalInit()
 	// Insert embedded content package as first always
 	ctx.packages.push(getEmbeddedContentPackage());
 
-	sfetch_desc_t desc = { };
-	desc.num_lanes = NumLanes;
-	sfetch_setup(&desc);
+	if (useWorker) {
+		sf::ThreadDesc desc;
+		desc.entry = &contentFileWorker;
+		desc.user = &ctx;
+		desc.name = "Content Thread";
+		sf::Thread *thread = sf::Thread::start(desc);
+		if (thread) {
+			ctx.workerThread = thread;
+			return;
+		}
+	}
+
+	// No worker, set up on this thread
+	setupInThread();
 }
 
 void ContentFile::globalCleanup()
 {
 	ContentFileContext &ctx = g_contentFileContext;
-	sf::MutexGuard mg(ctx.mutex);
 
-	sfetch_shutdown();
+	if (ctx.workerThread) {
+		ctx.joinThread = true;
+		ctx.workerSemaphore.signal();
+		sf::Thread::join(ctx.workerThread);
+	} else {
+		cleanupInThread();
+	}
+
+	sf::MutexGuard mg(ctx.mutex);
 
 	for (FetchFilePackage *package : ctx.fetchPackages) {
 		delete package;
@@ -230,10 +330,8 @@ struct PendingLoad
 	ContentPackage *package;
 };
 
-void ContentFile::globalUpdate()
+static void contentUpdateImp(ContentFileContext &ctx)
 {
-	ContentFileContext &ctx = g_contentFileContext;
-
 	sfetch_dowork();
 
 	sf::SmallArray<PendingFile, 16> doneFiles;
@@ -260,7 +358,11 @@ void ContentFile::globalUpdate()
 
 			// Report success if the file was loaded
 			if (file.file.isValid()) {
-				doneFiles.push(std::move(file));
+				if (file.mainThread && ctx.workerThread) {
+					ctx.mainThreadDoneFiles.push(std::move(file));
+				} else {
+					doneFiles.push(std::move(file));
+				}
 				it = ctx.files.removeAt(it);
 				continue;
 			}
@@ -282,7 +384,11 @@ void ContentFile::globalUpdate()
 			if (file.stage >= ctx.packages.size && file.currentPackage == nullptr) {
 				// Tried to load from all sources, remove from the list
 				// and report failure later outside of the mutex
-				doneFiles.push(std::move(file));
+				if (file.mainThread && ctx.workerThread) {
+					ctx.mainThreadDoneFiles.push(std::move(file));
+				} else {
+					doneFiles.push(std::move(file));
+				}
 				it = ctx.files.removeAt(it);
 				continue;
 			}
@@ -294,13 +400,14 @@ void ContentFile::globalUpdate()
 
 	// Call callbacks outside the mutex
 	for (PendingFile &file : doneFiles) {
-		sp_file_log("Callback (%s) %s", file.file.isValid() ? "OK" : "FAIL", file.name.data);
+		sp_file_log("Thread Callback (%s) %s", file.file.isValid() ? "OK" : "FAIL", file.name.data);
 		file.callback(file.user, file.file);
 
 		if (!file.file.stableData) {
 			sf::memFree((void*)file.file.data);
 		}
 	}
+
 	for (PendingLoad &load : loads) {
 		sp_file_log("%s: Start load %s", load.package->name.data, load.name.data);
 
@@ -316,6 +423,45 @@ void ContentFile::globalUpdate()
 			file.currentPackage = nullptr;
 			file.stage--;
 		}
+	}
+}
+
+void ContentFile::globalUpdate()
+{
+	ContentFileContext &ctx = g_contentFileContext;
+	if (ctx.workerThread) {
+		if (ctx.workerSemaphore.getCount() < 4) {
+			ctx.workerSemaphore.signal();
+		}
+
+		sf::SmallArray<PendingFile, 16> doneFiles;
+
+		// Get done files to process on the main thread
+		{
+			sf::MutexGuard mg(ctx.mutex);
+			doneFiles.reserve(ctx.mainThreadDoneFiles.size);
+			for (PendingFile &file : ctx.mainThreadDoneFiles) {
+				doneFiles.push(std::move(file));
+			}
+			ctx.mainThreadDoneFiles.clear();
+		}
+
+		// Call callbacks outside the mutex
+		for (PendingFile &file : doneFiles) {
+			sp_file_log("Main Callback (%s) %s", file.file.isValid() ? "OK" : "FAIL", file.name.data);
+			file.callback(file.user, file.file);
+
+			if (!file.file.stableData) {
+				sf::memFree((void*)file.file.data);
+			}
+		}
+
+	} else {
+		// Do the update on the main thread
+		contentUpdateImp(ctx);
+
+		// Main thread files should be called directly
+		sf_assert(ctx.mainThreadDoneFiles.size == 0);
 	}
 }
 

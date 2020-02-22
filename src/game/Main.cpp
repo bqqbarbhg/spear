@@ -181,16 +181,6 @@ void spConfig(sp::MainConfig &config)
 {
 	config.sappDesc->window_title = "Spear";
 	config.sappDesc->sample_count = 4;
-
-	sf::Array<char> data;
-	if (sf::readFile(data, "data/ghost.png")) {
-		sf::writeFile("data/ghost-copy.png", data);
-		sf::writeFile("data/ghost-copy2.png", data);
-	}
-
-	if (sf::readFile(data, "data/dot_bottom.png") && sf::writeFile("data/temp.png", data)) {
-		sf::replaceFile("data/ghost-copy2.png", "data/temp.png");
-	}
 }
 
 void spInit()

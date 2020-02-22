@@ -11,6 +11,7 @@ objects = []
 
 optimize = "-o" in sys.argv
 webgl2 = "--webgl2" in sys.argv
+threads = "--threads" in sys.argv
 
 def compile_file(path, cpp):
     args = ["emcc", path, "-c", "-I" + src_dir]
@@ -23,6 +24,8 @@ def compile_file(path, cpp):
     if webgl2:
         args += ["-s", "MAX_WEBGL_VERSION=2"]
         args += ["-DSP_USE_WEBGL2=1"]
+    if threads:
+        args += ["-s", "USE_PTHREADS=1"]
 
     outname = os.path.basename(path)
     outname = os.path.splitext(outname)[0] + ".o"
@@ -54,6 +57,8 @@ def link_files():
         args += ["-s", "MAX_WEBGL_VERSION=2"]
     args += ["-s", "WASM=1", "-o" "spear.js"]
     args += ["-s", "TOTAL_MEMORY=268435456"]
+    if threads:
+        args += ["-s", "USE_PTHREADS=1"]
 
     print("$ " + " ".join(args))
     subprocess.check_call(args, shell=True)

@@ -45,13 +45,14 @@ struct ContentFile
 
 	// Load a resource from `name`.
 	// Returns a handle that can be passed to `cancel()`.
-	static ContentLoadHandle load(const sf::String &name, Callback callback, void *user);
+	static ContentLoadHandle loadAsync(const sf::String &name, Callback callback, void *user);
+	static ContentLoadHandle loadMainThread(const sf::String &name, Callback callback, void *user);
 
 	// Cancel an in-flight load
 	static void cancel(ContentLoadHandle handle);
 
 	// Lifecycle
-	static void globalInit();
+	static void globalInit(bool useWorker);
 	static void globalCleanup();
 	static void globalUpdate();
 };

@@ -34,6 +34,7 @@ namespace sp {
 struct MainConfig
 {
 	sapp_desc *sappDesc;
+	bool useContentThread = true;
 };
 
 }
@@ -48,9 +49,12 @@ namespace sp {
 
 static uint64_t impLastTime;
 static int impSampleCount;
+static MainConfig impConfig;
 
 void impInit()
 {
+	sp::MainConfig &config = sp::impConfig;
+
 	{
 		sg_desc desc = { };
 
@@ -74,7 +78,7 @@ void impInit()
 
 	stm_setup();
 
-	sp::ContentFile::globalInit();
+	sp::ContentFile::globalInit(config.useContentThread);
 	sp::Asset::globalInit();
 	sp::Sprite::globalInit();
 	sp::Canvas::globalInit();
@@ -127,7 +131,7 @@ sapp_desc sokol_main(int argc, char **argv)
 	desc.window_title = SP_WINDOW_TITLE;
 	desc.sample_count = 1;
 
-	sp::MainConfig config;
+	sp::MainConfig &config = sp::impConfig;
 	config.sappDesc = &desc;
 	spConfig(config);
 

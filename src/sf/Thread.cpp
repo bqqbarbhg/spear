@@ -4,6 +4,13 @@
 #if SF_OS_WINDOWS
 	#define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
+#elif SF_USE_PTHREADS
+    #include <pthread.h>
+
+	#if SF_OS_EMSCRIPTEN
+		#include <emscripten/threading.h>
+	#endif
+
 #endif
 
 #if SF_OS_WINDOWS
@@ -42,11 +49,12 @@ void SetThreadName(DWORD dwThreadID, const char* threadName) {
 
 namespace sf {
 
+#if SF_OS_WINDOWS
+
 void setDebugThreadName(sf::String name)
 {
     sf::StringBuf nameBuf(name);
 
-#if SF_OS_WINDOWS
     typedef HRESULT (*pfn_SetThreadDescription)(HANDLE, PCWSTR);
     static pfn_SetThreadDescription setThreadDescription = (pfn_SetThreadDescription)GetProcAddress(LoadLibraryA("Kernel32.dll"), "SetThreadDescription");
 
@@ -56,7 +64,115 @@ void setDebugThreadName(sf::String name)
         win32Utf8To16(wideName, name);
 		setThreadDescription(GetCurrentThread(), wideName.data);
     }
+}
+
+struct ThreadImp : Thread
+{
+    ThreadEntry entry;
+    void *user;
+    sf::StringBuf debugName;
+    HANDLE handle;
+    DWORD id;
+};
+
+DWORD WINAPI threadEntry(LPVOID arg)
+{
+    ThreadImp *imp = (ThreadImp*)arg;
+    if (imp->debugName.size > 0) {
+        setDebugThreadName(imp->debugName);
+    }
+
+    imp->entry(imp->user);
+    return 0;
+}
+
+Thread *Thread::start(const ThreadDesc &desc)
+{
+    ThreadImp *imp = new ThreadImp();
+    if (!imp) return nullptr;
+
+    imp->debugName = desc.name; 
+    imp->entry = desc.entry;
+    imp->user = desc.user;
+    imp->handle = CreateThread(NULL, 0, &threadEntry, imp, 0, &imp->id);
+
+    return imp;
+}
+
+void Thread::join(Thread *thread)
+{
+    if (!thread) return;
+    ThreadImp *imp = (ThreadImp*)thread;
+    WaitForSingleObject(imp->handle, INFINITE);
+    CloseHandle(imp->handle);
+    delete imp;
+}
+
+#elif SF_USE_PTHREADS
+
+void setDebugThreadName(sf::String name)
+{
+    sf::StringBuf nameBuf(name);
+
+#if SF_OS_EMSCRIPTEN
+    emscripten_set_thread_name(pthread_self(), nameBuf.data);
 #endif
 }
+
+struct ThreadImp : Thread
+{
+    ThreadEntry entry;
+    void *user;
+    sf::StringBuf debugName;
+    pthread_t thread;
+};
+
+void *threadEntry(void *arg)
+{
+    ThreadImp *imp = (ThreadImp*)arg;
+    if (imp->debugName.size > 0) {
+        setDebugThreadName(imp->debugName);
+    }
+    imp->entry(imp->user);
+    return 0;
+}
+
+Thread *Thread::start(const ThreadDesc &desc)
+{
+    ThreadImp *imp = new ThreadImp();
+    if (!imp) return nullptr;
+
+    imp->debugName = desc.name; 
+    imp->entry = desc.entry;
+    imp->user = desc.user;
+    pthread_create(&imp->thread, NULL, &threadEntry, imp);
+
+    return imp;
+}
+
+void Thread::join(Thread *thread)
+{
+    if (!thread) return;
+    ThreadImp *imp = (ThreadImp*)thread;
+    pthread_join(imp->thread, nullptr);
+    delete imp;
+}
+
+#else
+
+void setDebugThreadName(sf::String name)
+{
+}
+
+Thread *Thread::start(const ThreadDesc &desc)
+{
+    return nullptr;
+}
+
+void Thread::join(Thread *thread)
+{
+}
+
+#endif
 
 }

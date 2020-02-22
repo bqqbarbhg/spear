@@ -215,6 +215,18 @@ struct SmallStringBuf : StringBuf
 		rhs.capacity = N;
 		return *this;
 	}
+
+	explicit SmallStringBuf(String s)
+	{
+		append(s);
+	}
+
+	StringBuf& operator=(String s)
+	{
+		clear();
+		append(s);
+		return *this;
+	}
 };
 
 sf_inline bool operator==(const String &lhs, const StringBuf &rhs) {

@@ -2145,6 +2145,9 @@ _SOKOL_PRIVATE void* _sfetch_channel_thread_func(void* arg) {
 #endif /* _SFETCH_HAS_THREADS */
 
 #if _SFETCH_PLATFORM_EMSCRIPTEN
+
+#if !defined(__EMSCRIPTEN_PTHREADS__)
+
 /*=== embedded Javascript helper functions ===================================*/
 EM_JS(void, sfetch_js_send_head_request, (uint32_t slot_id, const char* path_cstr), {
     var path_str = UTF8ToString(path_cstr);
@@ -2194,6 +2197,66 @@ EM_JS(void, sfetch_js_send_get_request, (uint32_t slot_id, const char* path_cstr
     };
     req.send();
 });
+
+#else
+
+EM_JS(void, sfetch_js_send_head_request, (uint32_t slot_id, const char* path_cstr), {
+    var path_str = UTF8ToString(path_cstr);
+
+    var opts = {
+        method: "GET",
+    };
+
+    fetch(path_str, opts).then(function(response) {
+		if (response.status == 200) {
+			var content_length = parseInt(response.headers.get("Content-Length"));
+			__sfetch_emsc_head_response(slot_id, content_length);
+        } else {
+			__sfetch_emsc_failed_http_status(slot_id, this.status);
+        }
+    }).catch(function() {
+		__sfetch_emsc_failed_http_status(slot_id, 400);
+    });
+});
+
+
+/* if bytes_to_read != 0, a range-request will be sent, otherwise a normal request */
+EM_JS(void, sfetch_js_send_get_request, (uint32_t slot_id, const char* path_cstr, int offset, int bytes_to_read, void* buf_ptr, int buf_size), {
+    var path_str = UTF8ToString(path_cstr);
+
+    var opts = {
+        method: "GET",
+    };
+
+    var need_range_request = (bytes_to_read > 0);
+    if (need_range_request) {
+        opts.headers = {
+            "Range": 'bytes='+offset+'-'+(offset+bytes_to_read),
+        };
+    }
+
+    fetch(path_str, opts).then(function(response) {
+		if ((response.status == 206) || ((response.status == 200) && !need_range_request)) {
+			response.arrayBuffer().then(function(buffer) {
+				var u8_array = new Uint8Array(buffer);
+				var content_fetched_size = u8_array.length;
+				if (content_fetched_size <= buf_size) {
+					HEAPU8.set(u8_array, buf_ptr);
+					__sfetch_emsc_get_response(slot_id, bytes_to_read, content_fetched_size);
+				}
+				else {
+					__sfetch_emsc_failed_buffer_too_small(slot_id);
+				}
+            });
+        } else {
+			__sfetch_emsc_failed_http_status(slot_id, response.status);
+        }
+    }).catch(function() {
+		__sfetch_emsc_failed_http_status(slot_id, 400);
+    });
+});
+
+#endif
 
 /*=== emscripten specific C helper functions =================================*/
 #ifdef __cplusplus

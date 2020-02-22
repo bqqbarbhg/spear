@@ -46,17 +46,26 @@
 
 // -- OS detection
 
-#define SF_OS_WINDOWS 0 // < Win32 desktop application
-#define SF_OS_WASM 0    // < WebAssembly (but not Emscripten)
-#define SF_OS_GENERIC 0 // < Modern C++11-17 OS wrappers
+#define SF_OS_WINDOWS 0    // < Win32 desktop application
+#define SF_OS_WASM 0       // < WebAssembly (but maybe not Emscripten)
+#define SF_OS_EMSCRIPTEN 0 // < Emscripten (with SF_OS_WASM)
+#define SF_OS_GENERIC 0    // < Modern C++11-17 OS wrappers
 
-#if defined(SF_DEF_OS_WIDOWS) || defined(SF_DEF_OS_WASM) || defined(SF_DEF_OS_GENERIC) || defined(SF_DEF_GENERIC)
+#if defined(SF_DEF_OS_WIDOWS) || defined(SF_DEF_OS_WASM) || defined(SF_DEF_OS_EMSCRIPTEN) || defined(SF_DEF_OS_GENERIC) || defined(SF_DEF_GENERIC)
 	#define SF_FOUND_OS 1
 #endif
 
 #if !defined(SF_FOUND_OS) && defined(_WIN32) || defined(SF_DEF_OS_WINDOWS)
 	#undef SF_OS_WINDOWS
 	#define SF_OS_WINDOWS 1
+	#define SF_FOUND_OS 1
+#endif
+
+#if !defined(SF_FOUND_OS) && defined(__EMSCRIPTEN__) || defined(SF_DEF_OS_EMSCRIPTEN)
+	#undef SF_OS_WASM
+	#undef SF_OS_EMSCRIPTEN
+	#define SF_OS_WASM 1
+	#define SF_OS_EMSCRIPTEN 1
 	#define SF_FOUND_OS 1
 #endif
 
@@ -162,6 +171,12 @@
 	#endif
 #elif SF_ARCH_X86 || SF_ARCH_ARM || SF_ARCH_GENERIC
 	#define SF_FAST_64BIT 0
+#endif
+
+#if SF_ARCH_WASM && defined(__EMSCRIPTEN_PTHREADS__)
+	#define SF_USE_PTHREADS 1
+#else
+	#define SF_USE_PTHREADS 0
 #endif
 
 // -- Debugging

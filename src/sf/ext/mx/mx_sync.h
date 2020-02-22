@@ -46,7 +46,7 @@ void mx_mutex_lock(mx_mutex *m);
 void mx_mutex_lock_spin(mx_mutex *m, uint32_t spin);
 int mx_mutex_try_lock(mx_mutex *m);
 void mx_mutex_unlock(mx_mutex *m);
-int mx_mutex_is_locked(mx_mutex *m);
+int mx_mutex_is_locked(const mx_mutex *m);
 
 // -- Recursive mutex
 
@@ -61,7 +61,7 @@ uint32_t mx_recursive_mutex_lock(mx_recursive_mutex *m);
 uint32_t mx_recursive_mutex_try_lock(mx_recursive_mutex *m);
 uint32_t mx_recursive_mutex_lock_spin(mx_recursive_mutex *m, uint32_t spin);
 uint32_t mx_recursive_mutex_unlock(mx_recursive_mutex *m);
-uint32_t mx_recursive_mutex_get_depth(mx_recursive_mutex *m);
+uint32_t mx_recursive_mutex_get_depth(const mx_recursive_mutex *m);
 
 // -- Semaphore
 
@@ -79,7 +79,7 @@ void mx_semaphore_wait_n(mx_semaphore *s, uint32_t num);
 void mx_semaphore_wait_n_spin(mx_semaphore *s, uint32_t num, uint32_t spin);
 int mx_semaphore_try_wait_n(mx_semaphore *s, uint32_t num);
 void mx_semaphore_signal_n(mx_semaphore *s, uint32_t num);
-int32_t mx_semaphore_get_count(mx_semaphore *s);
+int32_t mx_semaphore_get_count(const mx_semaphore *s);
 
 // -- Read/write mutex
 

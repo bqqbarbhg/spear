@@ -185,7 +185,7 @@ static void loadImp(void *user, const ContentFile &file)
 
 void FontImp::assetStartLoading()
 {
-	ContentFile::load(name, &loadImp, this);
+	ContentFile::loadAsync(name, &loadImp, this);
 }
 
 void FontImp::assetUnload()

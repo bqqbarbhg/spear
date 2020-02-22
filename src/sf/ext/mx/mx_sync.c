@@ -365,7 +365,7 @@ void mx_mutex_unlock(mx_mutex *m)
 	}
 }
 
-int mx_mutex_is_locked(mx_mutex *m)
+int mx_mutex_is_locked(const mx_mutex *m)
 {
 	return mxa_load32_acq(&m->state) != 0 ? 1 : 0;
 	// m->state: ^^^ ^^^
@@ -426,7 +426,7 @@ uint32_t mx_recursive_mutex_unlock(mx_recursive_mutex *m)
 	}
 }
 
-uint32_t mx_recursive_mutex_get_depth(mx_recursive_mutex *m)
+uint32_t mx_recursive_mutex_get_depth(const mx_recursive_mutex *m)
 {
 	if (mxa_load32_acq(&m->mutex.state) == 0) return 0;
 	// m->state: ^^^ ^^^
@@ -531,7 +531,7 @@ void mx_semaphore_signal_n(mx_semaphore *s, uint32_t num)
 	}
 }
 
-int32_t mx_semaphore_get_count(mx_semaphore *s)
+int32_t mx_semaphore_get_count(const mx_semaphore *s)
 {
 	return (int32_t)mxa_load32_acq((uint32_t*)&s->count);
 	// s->count: ^^^ ^^^
