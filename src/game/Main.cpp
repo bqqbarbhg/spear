@@ -2,6 +2,7 @@
 
 #include "sf/Sort.h"
 #include "sf/String.h"
+#include "sf/File.h"
 
 #include "sp/Canvas.h"
 #include "sp/Sprite.h"
@@ -128,7 +129,7 @@ struct Game
 
 		canvas3.clear();
 
-		float time = stm_sec(stm_now()) * 100.0f;
+		float time = (float)stm_sec(stm_now()) * 100.0f;
 		uint32_t begin = (uint32_t)(time / 400);
 		for (uint32_t y = 0; y < 2; y++)
 		for (uint32_t x = begin; x < begin + 12; x++) {
@@ -180,6 +181,16 @@ void spConfig(sp::MainConfig &config)
 {
 	config.sappDesc->window_title = "Spear";
 	config.sappDesc->sample_count = 4;
+
+	sf::Array<char> data;
+	if (sf::readFile(data, "data/ghost.png")) {
+		sf::writeFile("data/ghost-copy.png", data);
+		sf::writeFile("data/ghost-copy2.png", data);
+	}
+
+	if (sf::readFile(data, "data/dot_bottom.png") && sf::writeFile("data/temp.png", data)) {
+		sf::replaceFile("data/ghost-copy2.png", "data/temp.png");
+	}
 }
 
 void spInit()
