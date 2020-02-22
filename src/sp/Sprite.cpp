@@ -93,7 +93,7 @@ static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
 	return rect;
 }
 
-static const uint32_t AtlasDeleteQueueFrames = 4;
+static const uint32_t AtlasDeleteQueueFrames = 3;
 static const uint32_t MinAtlasExtent = 32;
 static const uint32_t AtlasLevels = 3;
 static const uint32_t AtlasPadding = 1 << (AtlasLevels - 1);
@@ -682,6 +682,16 @@ void Sprite::globalUpdate()
 
 	ctx.frameIndex++;
 
+	for (auto it = ctx.atlasesToDelete.begin(); it != ctx.atlasesToDelete.end();) {
+		if (ctx.frameIndex - it->frameIndex > AtlasDeleteQueueFrames) {
+			sg_destroy_image(it->atlas->image);
+			delete it->atlas;
+			ctx.atlasesToDelete.removeSwapPtr(it);
+		} else {
+			++it;
+		}
+	}
+	
 	if (ctx.frameIndex % FramesBetweenReassign == 0 || ctx.atlases.size >= MinAtlasesToForceReassign) {
 		reassignAtlases(ctx);
 	}

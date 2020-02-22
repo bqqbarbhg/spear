@@ -15,7 +15,7 @@
 namespace sp {
 
 static const uint32_t CellSize = 64;
-static const uint32_t AtlasSize = 1024;
+static const uint32_t AtlasSize = 2048;
 static const uint32_t AtlasCellStride = AtlasSize / CellSize;
 static const uint32_t MaxAtlasSlots = (AtlasSize * AtlasSize) / (CellSize * CellSize);
 static const uint32_t SdfPadding = 8;
