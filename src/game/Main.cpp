@@ -81,8 +81,8 @@ struct Game
 			}
 		}
 
-		float xs = 0.2f * (float)sapp_height() / (float)sapp_width();
-		float ys = -0.2f;
+		float xs = 0.4f * (float)sapp_height() / (float)sapp_width();
+		float ys = -0.4f;
 		float y = -1.0f - ys;
 		float x = -1.0f;
 		int n = 0;
@@ -102,7 +102,8 @@ struct Game
 			} else {
 				y -= ys;
 			}
-		}	}
+		}
+	}
 
 	void update(float dt)
 	{
@@ -115,7 +116,7 @@ struct Game
 		canvas2.clear();
 		sf::StringBuf str;
 		for (uint32_t n = 0; n < 32; n++) {
-			appendUtf8(str, 0x4e00 + (jpFrame + n) % 100);
+			appendUtf8(str, 0x4e00 + (jpFrame + n) % 2000);
 		}
 		sp::TextDraw td;
 		td.font = jpFont;

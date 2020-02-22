@@ -15,7 +15,7 @@
 namespace sp {
 
 static const uint32_t CellSize = 64;
-static const uint32_t AtlasSize = 2048;
+static const uint32_t AtlasSize = 1024;
 static const uint32_t AtlasCellStride = AtlasSize / CellSize;
 static const uint32_t MaxAtlasSlots = (AtlasSize * AtlasSize) / (CellSize * CellSize);
 static const uint32_t SdfPadding = 8;
@@ -235,19 +235,24 @@ static void rasterizeGlyph(FontImp *font, Glyph &glyph, uint32_t code)
 	unsigned char *sdf;
 	int width, height, xoff, yoff;
 	for (;;) {
-		sdf = stbtt_GetGlyphSDF(&font->info, scale, glyph.ttfGlyph, SdfPadding, 127, SdfStepsPerPixel, &width, &height, &xoff, &yoff);
-		if (!sdf) {
-			// Empty character
-			glyph.width = -1;
-			glyph.height = -1;
-			return;
-		}
-
+		int ix0,iy0,ix1,iy1;
+		stbtt_GetGlyphBitmapBoxSubpixel(&font->info, glyph.ttfGlyph, scale, scale, 0.0f,0.0f, &ix0,&iy0,&ix1,&iy1);
+		width = (ix1 - ix0) + 2*SdfPadding;
+		height = (iy1 - iy0) + 2*SdfPadding;
 		if (width <= CellSize && height <= CellSize) break;
-
-		scale *= 0.8f;
-		stbtt_FreeSDF(sdf, nullptr);
+		scale *= 0.9f;
 	}
+
+	int sdfWidth, sdfHeight;
+	sdf = stbtt_GetGlyphSDF(&font->info, scale, glyph.ttfGlyph, SdfPadding, 127, SdfStepsPerPixel, &sdfWidth, &sdfHeight, &xoff, &yoff);
+	if (!sdf) {
+		// Empty character
+		glyph.width = -1;
+		glyph.height = -1;
+		return;
+	}
+	sf_assert(sdfWidth == width);
+	sf_assert(sdfHeight == height);
 
 	glyph.width = (int16_t)width;
 	glyph.height = (int16_t)height;
