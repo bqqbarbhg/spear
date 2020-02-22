@@ -9,11 +9,13 @@
 #include "ext/sokol/sokol_gfx.h"
 #include "ext/sokol/sokol_app.h"
 #include "shader/Sprite.h"
+#include "shader/Font.h"
 
 namespace sp {
 
 static const uint32_t MaxQuadsPerDraw = 1024;
 static const uint32_t MaxQuadsPerFrame = 16*1024;
+static const uint32_t MaxTextQuadsPerFrame = 16*1024;
 
 struct SpriteDrawImp
 {
@@ -25,6 +27,7 @@ struct TextDrawImp
 {
 	TextDraw draw;
 	uint64_t sortKey;
+	uint32_t textOffset;
 };
 
 struct CanvasDrawImp
@@ -51,11 +54,19 @@ struct CanvasContext
 	sg_pipeline spritePipeline;
 	sg_bindings spriteBindings = { };
 
+	sg_shader fontShader;
+	sg_pipeline fontPipeline;
+	sg_bindings fontBindings = { };
+
 	sg_buffer quadIndexBuffer;
 	sg_buffer quadVertexBuffer;
+	sg_buffer textQuadVertexBuffer;
 
 	sf::Array<Quad> quads;
-	size_t quadsLeftThisFrame = MaxQuadsPerDraw;
+	size_t quadsLeftThisFrame = MaxQuadsPerFrame;
+
+	sf::Array<FontQuad> fontQuads;
+	size_t textQuadsLeftThisFrame = MaxTextQuadsPerFrame;
 };
 
 CanvasContext g_canvasContext;
@@ -66,7 +77,8 @@ struct CanvasImp
 	CanvasImp(CanvasImp&&) = default;
 	CanvasImp(const CanvasImp &) = delete;
 
-	sf::Array<sf::StringBuf> textData;
+	sf::Array<char> textData;
+
 	sf::Array<SpriteDrawImp> spriteDraws;
 	sf::Array<TextDrawImp> textDraws;
 	sf::Array<CanvasDrawImp> canvasDraws;
@@ -122,8 +134,7 @@ void Canvas::clear()
 		draw.draw.sprite->release();
 	}
 	for (TextDrawImp &draw : imp->textDraws) {
-		// TODO draw.draw.font->release();
-		sf_failf("TODO");
+		draw.draw.font->release();
 	}
 
 	imp->spriteDraws.clear();
@@ -168,7 +179,6 @@ void Canvas::draw(const SpriteDraw &draw)
 	SpriteDrawImp &drawImp = imp->spriteDraws.pushUninit();
 	drawImp.draw = draw;
 	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
-
 }
 
 void Canvas::drawText(const TextDraw &draw)
@@ -183,9 +193,15 @@ void Canvas::drawText(const TextDraw &draw)
 	if (!draw.font->isLoaded()) {
 		imp->loaded = false;
 	}
+
 	TextDrawImp &drawImp = imp->textDraws.pushUninit();
 	drawImp.draw = draw;
 	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
+
+	// Copy string data
+	drawImp.textOffset = imp->textData.size;
+	imp->textData.push(drawImp.draw.string.slice());
+	drawImp.draw.string.data = nullptr;
 }
 
 void Canvas::drawCanvas(const CanvasDraw &draw)
@@ -318,14 +334,47 @@ static void drawSprites(CanvasContext &ctx, sf::Slice<SpriteDrawImp> draws, Atla
 	sg_draw(0, 6 * (int)draws.size, 1);
 }
 
-static void drawTexts(CanvasContext &ctx, sf::Slice<TextDrawImp> draws)
+static void drawTexts(CanvasContext &ctx, sf::Slice<TextDrawImp> draws, const char *textData, const CanvasRenderOpts &opts)
 {
 	sf_assert(draws.size > 0);
 	sf_assert(draws.size <= MaxQuadsPerDraw);
+
+	ctx.fontQuads.clear();
+	for (const TextDrawImp &drawImp : draws) {
+		const TextDraw &draw = drawImp.draw;
+
+		Font *font = draw.font;
+		if (!font->isLoaded()) continue;
+
+		uint32_t color = packColor(draw.color * opts.color);
+
+		sf::String text(textData + drawImp.textOffset, draw.string.size);
+		uint32_t prevQuads = ctx.fontQuads.size;
+		font->getQuads(ctx.fontQuads, draw, color, text, ctx.textQuadsLeftThisFrame);
+		ctx.textQuadsLeftThisFrame -= ctx.fontQuads.size - prevQuads;
+	}
+
+	if (ctx.fontQuads.size == 0) return;
+
+	sp::Font::updateAtlasesForRendering();
+
+	uint32_t offset = sg_append_buffer(ctx.textQuadVertexBuffer, ctx.fontQuads.data, (int)ctx.fontQuads.byteSize());
+
+	sg_apply_pipeline(ctx.fontPipeline);
+	Font_Transform_t transform;
+	opts.transform.writeColMajor(transform.transform);
+	sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Font_Transform, &transform, sizeof(transform));
+
+	ctx.fontBindings.vertex_buffer_offsets[0] = offset;
+	ctx.fontBindings.fs_images[SLOT_Font_atlasTexture] = sp::Font::getFontAtlasImage();
+
+	sg_apply_bindings(&ctx.fontBindings);
+	sg_draw(0, 6 * ctx.fontQuads.size, 1);
 }
 
 static void drawCanvases(CanvasContext &ctx, sf::Slice<CanvasDrawImp> draws)
 {
+
 }
 
 void Canvas::render(const CanvasRenderOpts &opts)
@@ -413,11 +462,14 @@ void Canvas::render(const CanvasRenderOpts &opts)
 			TextDrawImp *draws = imp->textDraws.data;
 			uint32_t numDraws = imp->textDraws.size;
 
-			do {
-				sf_failf("TODO");
+			uint32_t begin = textI;
 
+			do {
+				textI++;
 				nextText = textI < numDraws ? draws[textI].sortKey : UINT64_MAX;
 			} while (nextText < next);
+
+			drawTexts(ctx, sf::slice(draws + begin, textI - begin), imp->textData.data, opts);
 
 		} else if (next == nextCanvas) {
 			next = sf::min(nextSprite, nextText);
@@ -473,8 +525,9 @@ void Canvas::globalInit()
 	CanvasContext &ctx = g_canvasContext;
 
 	ctx.spriteShader = sg_make_shader(Sprite_Sprite_shader_desc());
+	ctx.fontShader = sg_make_shader(Font_Font_shader_desc());
 
-	// Pipeline
+	// Sprite Pipeline
 	{
 		sg_pipeline_desc desc = { };
 		desc.shader = ctx.spriteShader;
@@ -489,6 +542,24 @@ void Canvas::globalInit()
 		desc.blend.dst_factor_rgb = desc.blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
 
 		ctx.spritePipeline = sg_make_pipeline(&desc);
+	}
+
+	// Font Pipeline
+	{
+		sg_pipeline_desc desc = { };
+		desc.shader = ctx.fontShader;
+
+		desc.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT2;
+		desc.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT2;
+		desc.layout.attrs[2].format = SG_VERTEXFORMAT_UBYTE4N;
+		desc.layout.attrs[3].format = SG_VERTEXFORMAT_UBYTE4N;
+
+		desc.index_type = SG_INDEXTYPE_UINT16;
+		desc.blend.enabled = true;
+		desc.blend.src_factor_rgb = desc.blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
+		desc.blend.dst_factor_rgb = desc.blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+
+		ctx.fontPipeline = sg_make_pipeline(&desc);
 	}
 
 	// Index buffer
@@ -514,29 +585,46 @@ void Canvas::globalInit()
 	{
 		sg_buffer_desc desc = { };
 		desc.type = SG_BUFFERTYPE_VERTEXBUFFER;
-		desc.size = MaxQuadsPerDraw * sizeof(Quad);
+		desc.size = MaxQuadsPerFrame * sizeof(Quad);
 		desc.usage = SG_USAGE_STREAM;
 		desc.label = "quadVertexBuffer";
 		ctx.quadVertexBuffer = sg_make_buffer(&desc);
 	}
 
+	// Text quad vertex buffer
+	{
+		sg_buffer_desc desc = { };
+		desc.type = SG_BUFFERTYPE_VERTEXBUFFER;
+		desc.size = MaxQuadsPerFrame * sizeof(Quad);
+		desc.usage = SG_USAGE_STREAM;
+		desc.label = "textQuadVertexBuffer";
+		ctx.textQuadVertexBuffer = sg_make_buffer(&desc);
+	}
+
 	ctx.spriteBindings.vertex_buffers[0] = ctx.quadVertexBuffer;
 	ctx.spriteBindings.index_buffer = ctx.quadIndexBuffer;
+
+	ctx.fontBindings.vertex_buffers[0] = ctx.textQuadVertexBuffer;
+	ctx.fontBindings.index_buffer = ctx.quadIndexBuffer;
 }
 
 void Canvas::globalCleanup()
 {
 	CanvasContext &ctx = g_canvasContext;
 	sg_destroy_buffer(ctx.quadVertexBuffer);
+	sg_destroy_buffer(ctx.textQuadVertexBuffer);
 	sg_destroy_buffer(ctx.quadIndexBuffer);
 	sg_destroy_pipeline(ctx.spritePipeline);
 	sg_destroy_shader(ctx.spriteShader);
+	sg_destroy_pipeline(ctx.fontPipeline);
+	sg_destroy_shader(ctx.fontShader);
 }
 
 void Canvas::globalUpdate()
 {
 	CanvasContext &ctx = g_canvasContext;
 	ctx.quadsLeftThisFrame = MaxQuadsPerFrame;
+	ctx.textQuadsLeftThisFrame = MaxQuadsPerFrame;
 }
 
 

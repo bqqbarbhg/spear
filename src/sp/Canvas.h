@@ -34,6 +34,7 @@ struct TextDraw
 	Font *font = nullptr;
 	sf::String string;
 	sf::Mat23 transform;
+	float height = 1.0f;
 	sf::Vec4 color = sf::Vec4(1.0f);
 	float depth = 0.0f;
 };

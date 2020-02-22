@@ -24,6 +24,8 @@ struct String
 	const char *begin() const { return data; }
 	const char *end() const { return data + size; }
 
+	sf::Slice<const char> slice() const { return sf::Slice<const char>(data, size); }
+
 	bool operator<(const String &rhs) const;
 };
 

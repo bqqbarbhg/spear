@@ -66,6 +66,8 @@ sf_inline uint64_t alignUp(uint64_t v, uint64_t align) {
 	return (v + align - 1) & ~(align - 1);
 }
 
+uint32_t roundToPow2(uint32_t v);
+
 template <typename T>
 sf_inline T min(const T &a, const T &b) { return a < b ? a : b; }
 template <typename T>
@@ -147,6 +149,7 @@ sf_inline uint32_t hashCombine(uint32_t a, uint32_t b) {
 sf_inline uint32_t hash(bool val) { return (uint32_t)val; }
 uint32_t hash(uint32_t val);
 uint32_t hashReverse32(uint32_t hash);
+uint32_t hash(const void *val) = delete;
 
 template <typename T>
 sf_inline void impSwap(T &a, T &b)

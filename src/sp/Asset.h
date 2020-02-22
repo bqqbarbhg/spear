@@ -34,7 +34,7 @@ struct NoAssetProps : AssetProps
 {
 	virtual uint32_t hash() const final;
 	virtual bool equal(const AssetProps &rhs) const final;
-	virtual void copyTo(AssetProps *uninitDst) const = 0;
+	virtual void copyTo(AssetProps *uninitDst) const;
 };
 
 

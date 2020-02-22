@@ -11,7 +11,7 @@ namespace sp {
 #define sp_file_log(...) sf::debugPrintLine(__VA_ARGS__)
 
 static constexpr uint32_t NumLanes = 4;
-static constexpr uint32_t BufferSize = 4 * 1024 * 1024;
+static constexpr uint32_t BufferSize = 16 * 1024 * 1024;
 
 // From EmbeddedFiles.cpp
 ContentPackage *getEmbeddedContentPackage();

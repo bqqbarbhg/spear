@@ -25,6 +25,7 @@
 
 #include "Asset.h"
 #include "Sprite.h"
+#include "Font.h"
 #include "ContentFile.h"
 #include "Canvas.h"
 
@@ -77,6 +78,7 @@ void impInit()
 	sp::Asset::globalInit();
 	sp::Sprite::globalInit();
 	sp::Canvas::globalInit();
+	sp::Font::globalInit();
 
 	spInit();
 }
@@ -87,6 +89,7 @@ void impCleanup()
 
 	sp::Canvas::globalCleanup();
 	sp::Sprite::globalCleanup();
+	sp::Font::globalCleanup();
 	sp::Asset::globalCleanup();
 	sp::ContentFile::globalCleanup();
 }
@@ -101,6 +104,7 @@ void impFrame()
 	sp::ContentFile::globalUpdate();
 	sp::Asset::globalUpdate();
 	sp::Sprite::globalUpdate();
+	sp::Font::globalUpdate();
 	sp::Canvas::globalUpdate();
 
 	float dt = (float)stm_sec(stm_laptime(&impLastTime));

@@ -110,6 +110,19 @@ void debugPrintLine(const char *fmt, ...)
 	va_end(args);
 }
 
+// https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+uint32_t roundToPow2(uint32_t v)
+{
+	v--;
+	v |= v >> 1;
+	v |= v >> 2;
+	v |= v >> 4;
+	v |= v >> 8;
+	v |= v >> 16;
+	v++;
+	return v;
+}
+
 uint32_t hashBuffer(const void *data, size_t size)
 {
 	uint32_t hash = 0;

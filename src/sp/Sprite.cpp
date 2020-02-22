@@ -18,19 +18,6 @@ namespace sp {
 
 // -- Misc utility
 
-// https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
-static uint32_t roundToPow2(uint32_t v)
-{
-	v--;
-	v |= v >> 1;
-	v |= v >> 2;
-	v |= v >> 4;
-	v |= v >> 8;
-	v |= v >> 16;
-	v++;
-	return v;
-}
-
 struct CropRect
 {
 	uint32_t minX, minY;
@@ -259,8 +246,8 @@ static void loadImp(void *user, const ContentFile &file)
 	uint32_t padBottom = paddedHeight - (height + AtlasPadding);
 
 	// TODO: Skip this for non-WebGL1 backends?
-	uint32_t atlasWidth = roundToPow2(paddedWidth);
-	uint32_t atlasHeight = roundToPow2(paddedHeight);
+	uint32_t atlasWidth = sf::roundToPow2(paddedWidth);
+	uint32_t atlasHeight = sf::roundToPow2(paddedHeight);
 	if (atlasWidth < MinAtlasExtent) atlasWidth = MinAtlasExtent;
 	if (atlasHeight < MinAtlasExtent) atlasHeight = MinAtlasExtent;
 
@@ -304,7 +291,7 @@ static void loadImp(void *user, const ContentFile &file)
 				if (smearMaxX & (sx >= width)) sx = width - 1;
 				if (smearMinY & (sy < 0)) sy = 0;
 				if (smearMaxY & (sy >= height)) sy = height - 1;
-				if (((uint32_t)sx < width) & ((uint32_t)sy < height)) {
+				if (((uint32_t)sx < (uint32_t)width) & ((uint32_t)sy < (uint32_t)height)) {
 					dst[y*atlasWidth + x] = src[sy*originalWidth + sx];
 				}
 			}
@@ -599,7 +586,6 @@ static void reassignAtlases(SpriteContext &ctx)
 		desc.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
 		desc.mag_filter = SG_FILTER_LINEAR;
 		desc.max_lod = (float)(AtlasLevels - 1);
-		desc.max_anisotropy = 0;
 		desc.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
 		desc.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
 		desc.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
