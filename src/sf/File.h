@@ -17,4 +17,6 @@ sf_inline bool writeFile(sf::String name, sf::Slice<const char> slice) {
 	return writeFile(name, slice.data, slice.size);
 }
 
+bool createDirectory(sf::String name);
+
 }

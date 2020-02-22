@@ -1,9 +1,13 @@
 #include "File.h"
 
-#define _WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-
 #include "sf/Array.h"
+
+#if SF_OS_WINDOWS
+	#define _WIN32_LEAN_AND_MEAN
+	#include <Windows.h>
+#else
+	#include <sys/stat.h>
+#endif
 
 namespace sf {
 
@@ -73,7 +77,8 @@ bool deleteFile(sf::String name)
 	if (!win32Utf8To16(nameBuf, name)) return false;
 	return DeleteFileW(nameBuf.data) != 0;
 #else
-	return remove(name.data) == 0;
+	sf::SmallStringBuf<512> nameBuf = name;
+	return remove(nameBuf.data) == 0;
 #endif
 }
 
@@ -87,7 +92,9 @@ bool replaceFile(sf::String dst, sf::String src)
 	if (!win32Utf8To16(srcBuf, src)) return false;
 	return MoveFileExW(srcBuf.data, dstBuf.data, MOVEFILE_REPLACE_EXISTING) != 0;
 #else
-	return rename(src.data, dst.data) != 0;
+	sf::SmallStringBuf<512> srcBuf = src;
+	sf::SmallStringBuf<512> dstBuf = dst;
+	return rename(srcBuf.data, dstBuf.data) != 0;
 #endif
 }
 
@@ -154,6 +161,18 @@ bool writeFile(sf::String name, const void *data, size_t size)
 	}
 
 	return true;
+}
+
+bool createDirectory(sf::String name)
+{
+#if SF_OS_WINDOWS
+	sf::SmallArray<wchar_t, 256> nameBuf;
+	if (!win32Utf8To16(nameBuf, name)) return false;
+	return CreateDirectoryW(nameBuf.data, NULL) != 0;
+#else
+	sf::SmallStringBuf<512> nameBuf = name;
+	mkdir(nameBuf.data, 0777);
+#endif
 }
 
 }
