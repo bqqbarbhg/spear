@@ -30,6 +30,7 @@ struct Game
 {
 	sp::Canvas canvas;
 	sp::Canvas canvas2;
+	sp::Canvas canvas3;
 	sp::FontRef font{"sp://OpenSans-Ascii.ttf"};
 	sp::FontRef jpFont{"data/kochi-mincho-subst.ttf"};
 	uint32_t jpFrame = 0;
@@ -124,6 +125,18 @@ struct Game
 		td.height = 200.0f;
 		canvas2.drawText(td);
 
+		canvas3.clear();
+
+		float time = stm_sec(stm_now()) * 100.0f;
+		uint32_t begin = (uint32_t)(time / 400);
+		for (uint32_t y = 0; y < 2; y++)
+		for (uint32_t x = begin; x < begin + 12; x++) {
+			sf::StringBuf url;
+			url.format("https://placekitten.com/%d/%d", 200+x, 200+y);
+			sp::SpriteRef sprite{url};
+			canvas3.draw(sprite, sf::Vec2(x * 400.0f - time, y * 400.0f), sf::Vec2(400.0f, 400.0f));
+		}
+
 	}
 
 	void render()
@@ -144,6 +157,7 @@ struct Game
 
 		sg_begin_default_pass(&pass_action, sapp_width(), sapp_height());
 
+		canvas3.render(sp::CanvasRenderOpts::windowPixels());
 		canvas.render(sp::CanvasRenderOpts::windowPixels());
 		canvas2.render(sp::CanvasRenderOpts::windowPixels());
 
