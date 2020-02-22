@@ -148,6 +148,7 @@ sf_inline uint32_t hashCombine(uint32_t a, uint32_t b) {
 }
 sf_inline uint32_t hash(bool val) { return (uint32_t)val; }
 uint32_t hash(uint32_t val);
+uint32_t hash(uint64_t val);
 uint32_t hashReverse32(uint32_t hash);
 uint32_t hash(const void *val) = delete;
 

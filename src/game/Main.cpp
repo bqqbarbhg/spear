@@ -32,7 +32,7 @@ struct Game
 	sp::Canvas canvas2;
 	sp::FontRef font{"sp://OpenSans-Ascii.ttf"};
 	sp::FontRef jpFont{"data/kochi-mincho-subst.ttf"};
-	uint32_t jpFrame = 0x4e00;
+	uint32_t jpFrame = 0;
 
 	Game()
 	{
@@ -55,7 +55,7 @@ struct Game
 
 		sp::TextDraw td;
 		td.font = font;
-		td.string = "Hello, world!";
+		td.string = "Typo, WOrld!";
 		td.transform.m02 = 100.0f;
 		td.transform.m12 = 500.0f;
 		td.height = 60.0f;
@@ -101,8 +101,7 @@ struct Game
 			} else {
 				y -= ys;
 			}
-		}
-	}
+		}	}
 
 	void update(float dt)
 	{
@@ -115,7 +114,7 @@ struct Game
 		canvas2.clear();
 		sf::StringBuf str;
 		for (uint32_t n = 0; n < 32; n++) {
-			appendUtf8(str, (jpFrame + n) % 0x10ffff);
+			appendUtf8(str, 0x4e00 + (jpFrame + n) % 100);
 		}
 		sp::TextDraw td;
 		td.font = jpFont;

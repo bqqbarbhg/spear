@@ -10,6 +10,7 @@
 
 #include "ext/stb/stb_truetype.h"
 #include "ext/sokol/sokol_gfx.h"
+#include "ext/sokol/sokol_config.h"
 
 namespace sp {
 
@@ -98,6 +99,21 @@ struct Glyph
 	unsigned char *sdf = nullptr;
 };
 
+struct GlyphPair
+{
+	int a, b;
+
+	bool operator==(const GlyphPair &rhs) const
+	{
+		return a == rhs.a && b == rhs.b;
+	}
+};
+
+uint32_t hash(const GlyphPair &pair)
+{
+	return sf::hashCombine(sf::hash((uint32_t)pair.a), sf::hash((uint32_t)pair.b));
+}
+
 struct FontImp : Font
 {
 	sf::Mutex mutex;
@@ -105,6 +121,9 @@ struct FontImp : Font
 
 	sf::Array<char> dataCopy;
 	stbtt_fontinfo info;
+
+	sf::HashMap<GlyphPair, int> kerningPairs;
+	uint32_t kerningPairRemoveIndex = 0;
 
 	sf::HashMap<uint32_t, Glyph> glyphs;
 	sf::Array<uint32_t> codepointsToAlloc;
@@ -150,6 +169,15 @@ static void loadImp(void *user, const ContentFile &file)
 		}
 		ctx.fonts[index] = imp;
 		imp->index = index;
+	}
+
+	sf::Array<stbtt_kerningentry> kern;
+	kern.resizeUninit(stbtt_GetKerningTableLength(&imp->info));
+	stbtt_GetKerningTable(&imp->info, kern.data, kern.size);
+	imp->kerningPairs.reserve(kern.size);
+	for (stbtt_kerningentry &entry : kern) {
+		GlyphPair pair = { entry.glyph1, entry.glyph2 };
+		imp->kerningPairs[pair] = entry.advance;
 	}
 
 	imp->assetFinishLoading();
@@ -245,6 +273,8 @@ void Font::getQuads(sf::Array<FontQuad> &quads, const sp::TextDraw &draw, uint32
 
 	sf::Vec2 nextOrigin;
 
+	int prevTttfGlyph = -1;
+
 	size_t pos = 0;
 	while (pos < text.size && quadsLeft > 0) {
 		uint32_t code = (unsigned char)text.data[pos++];
@@ -265,20 +295,32 @@ void Font::getQuads(sf::Array<FontQuad> &quads, const sp::TextDraw &draw, uint32
 		if (glyph.width >= 0) {
 			if (glyph.slot == 0 || ctx.atlasSlots[glyph.slot].globalGlyphIndex != glyph.globalGlyphIndex) {
 				rasterizeGlyph(imp, glyph, code);
-				if (glyph.width < 0) continue;
+				if (glyph.width >= 0) {
+					glyph.slot = allocateSlot(ctx);
+					ctx.atlasSlots[glyph.slot].globalGlyphIndex = glyph.globalGlyphIndex;
 
-				glyph.slot = allocateSlot(ctx);
-				ctx.atlasSlots[glyph.slot].globalGlyphIndex = glyph.globalGlyphIndex;
-
-				imp->codepointsToAlloc.push(code);
-				if (!imp->inUpdateList) {
-					imp->inUpdateList = true;
-					ctx.updateList.push(imp);
+					imp->codepointsToAlloc.push(code);
+					if (!imp->inUpdateList) {
+						imp->inUpdateList = true;
+						ctx.updateList.push(imp);
+					}
 				}
 			} else {
 				retainSlot(ctx, glyph.slot);
 			}
 		}
+
+		if (prevTttfGlyph >= 0) {
+			int kern = 0;
+			GlyphPair pair = { prevTttfGlyph, glyph.ttfGlyph };
+			auto it = imp->kerningPairs.find(pair);
+			if (it != nullptr) {
+				kern = it->val;
+			}
+			nextOrigin.x += (float)kern * scale;
+		}
+
+		prevTttfGlyph = glyph.ttfGlyph;
 
 		if (glyph.width > 0) {
 			FontQuad &quad = quads.push();

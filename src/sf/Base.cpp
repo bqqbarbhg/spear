@@ -159,6 +159,11 @@ uint32_t hash(uint32_t val)
     return x;
 }
 
+uint32_t hash(uint64_t val)
+{
+	return hashCombine((uint32_t)val, (uint32_t)(val >> 32u));
+}
+
 uint32_t hashReverse32(uint32_t hash)
 {
 	uint32_t x = hash;
