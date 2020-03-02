@@ -2,16 +2,23 @@ import os
 import subprocess
 import sys
 import shutil
+import time
+import re
 
 src_dir = os.path.dirname(os.path.abspath(__file__))
 src_dir = os.path.join(src_dir, "..", "src")
 src_dir = os.path.abspath(src_dir)
 
 objects = []
+processes = []
 
 optimize = "-o" in sys.argv
 webgl2 = "--webgl2" in sys.argv
 threads = "--threads" in sys.argv
+clean = "--clean" in sys.argv
+jobs = "-j" in sys.argv
+
+begin_time = time.time()
 
 def compile_file(path, cpp):
     args = ["emcc", path, "-c", "-I" + src_dir]
@@ -38,14 +45,21 @@ def compile_file(path, cpp):
     try:
         o_time = os.path.getmtime(outname)
         c_time = os.path.getmtime(path)
-        if o_time > c_time:
-            print("Up to date: " + path)
+        if o_time > c_time and not clean:
+            if not jobs:
+                print("Up to date: " + path)
             return
     except:
         pass
 
-    print("$ " + " ".join(args))
-    subprocess.check_call(args, shell=True)
+    if jobs:
+        print(".",end='')
+        sys.stdout.flush()
+        p = subprocess.Popen(args, shell=True, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
+        processes.append((path, p))
+    else:
+        print("$ " + " ".join(args))
+        subprocess.check_call(args, shell=True)
 
 def link_files():
     args = ["emcc"] + objects
@@ -60,7 +74,11 @@ def link_files():
     if threads:
         args += ["-s", "USE_PTHREADS=1"]
 
-    print("$ " + " ".join(args))
+    if not jobs:
+        print("$ " + " ".join(args))
+    else:
+        print("  Linking\r", end="")
+
     subprocess.check_call(args, shell=True)
 
 for root,dirs,files in os.walk(src_dir):
@@ -71,5 +89,49 @@ for root,dirs,files in os.walk(src_dir):
         elif f.endswith(".c"):
             compile_file(f, False)
 
-link_files()
+all_ok = True
+
+RE_ERR_END = re.compile(r"\d+ errors generated")
+
+if jobs:
+    print()
+
+    done_processes = set()
+    print("  {}/{}\r".format(0, len(processes)), end="")
+
+    while len(done_processes) < len(processes):
+        for f, p in processes:
+            code = p.poll()
+            if code == None:
+                continue
+            if p in done_processes:
+                continue
+            done_processes.add(p)
+
+            print("  {}/{}\r".format(len(done_processes), len(processes)), end="")
+
+            if code != 0:
+                err_str = str(p.stderr.read(), encoding="utf-8")
+                m = RE_ERR_END.search(err_str)
+                if m:
+                    err_str = err_str[:m.start()]
+                print("FAIL: " + f)
+                print()
+                print(err_str)
+                all_ok = False
+
+        time.sleep(0.1)
+
+    if not processes:
+        print("All files up to date")
+        all_ok = False
+
+if all_ok:
+    build_end_time = time.time()
+
+    link_files()
+
+    link_end_time = time.time()
+    print("Built in {:.1f} seconds, link took {:.1f} seocnds".format(
+        link_end_time - begin_time, link_end_time - build_end_time))
 
