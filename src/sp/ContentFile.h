@@ -20,6 +20,8 @@ struct ContentPackage
 	virtual bool startLoadingFile(ContentLoadHandle handle, const sf::CString &name) = 0;
 };
 
+typedef bool ContentCacheResolveFunc(const sf::CString &name, sf::StringBuf &url, sf::StringBuf &path, void *user);
+
 struct ContentFile
 {
 	typedef void (*Callback)(void *user, const ContentFile &file);
@@ -35,6 +37,7 @@ struct ContentFile
 
 	// Add a file path to load from
 	static void addRelativeFileRoot(const sf::String &root);
+	static void addCacheDownloadRoot(sf::String name, ContentCacheResolveFunc *resolveFunc, void *user);
 
 	// Add a custom package type
 	static void addContentPackage(ContentPackage *package);

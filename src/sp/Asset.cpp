@@ -10,7 +10,8 @@ namespace sp {
 // How many frames to wait before actually deleting assets
 const uint32_t FreeQueueFrames = 16;
 
-#define sp_asset_log(...) sf::debugPrintLine(__VA_ARGS__)
+// #define sp_asset_log(...) sf::debugPrintLine(__VA_ARGS__)
+#define sp_asset_log(...) (void)0
 
 enum class LoadState
 {

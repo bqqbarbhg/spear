@@ -8,6 +8,8 @@ namespace sf {
 
 FILE *stdioFileOpen(sf::String name, const char *mode);
 
+bool fileExists(sf::String name);
+
 bool deleteFile(sf::String name);
 bool replaceFile(sf::String dst, sf::String src);
 

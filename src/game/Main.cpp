@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #include "sp/GameMain.h"
 
 #include "sf/Sort.h"
@@ -38,6 +40,17 @@ struct Game
 
 	Game()
 	{
+		sp::ContentFile::addCacheDownloadRoot("KittenCache",
+		[](const sf::CString &name, sf::StringBuf &url, sf::StringBuf &path, void *user) -> bool {
+			int w, h;
+			if (!sscanf(name.data, "kitten_%d_%d.png", &w, &h)) return false;
+
+			url.format("https://placekitten.com/%d/%d", w, h);
+			path.format("cache/kitten_%d_%d.png", w, h);
+
+			return true;
+		}, nullptr);
+
 		sp::ContentFile::addRelativeFileRoot("");
 
 		canvas.clear();
@@ -134,7 +147,7 @@ struct Game
 		for (uint32_t y = 0; y < 2; y++)
 		for (uint32_t x = begin; x < begin + 12; x++) {
 			sf::StringBuf url;
-			url.format("https://placekitten.com/%d/%d", 200+x, 200+y);
+			url.format("kitten_%d_%d.png", 200+x, 200+y);
 			sp::SpriteRef sprite{url};
 			canvas3.draw(sprite, sf::Vec2(x * 400.0f - time, y * 400.0f), sf::Vec2(400.0f, 400.0f));
 		}

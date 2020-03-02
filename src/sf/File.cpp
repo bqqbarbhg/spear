@@ -34,6 +34,17 @@ FILE *stdioFileOpen(sf::String name, const char *mode)
 #endif
 }
 
+bool fileExists(sf::String name)
+{
+	FILE* f = stdioFileOpen(name, "rb");
+	if (f) {
+		fclose(f);
+		return true;
+	} else {
+		return false;
+	}
+}
+
 bool deleteFile(sf::String name)
 {
 #if SF_OS_WINDOWS

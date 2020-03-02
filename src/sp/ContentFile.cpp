@@ -5,6 +5,7 @@
 #include "sf/HashMap.h"
 #include "sf/Thread.h"
 #include "sf/Semaphore.h"
+#include "sf/File.h"
 
 #include "ext/sokol/sokol_fetch.h"
 
@@ -40,15 +41,13 @@ struct PendingFile
 	ContentFile file;
 };
 
-struct FetchFilePackage;
-
 struct ContentFileContext
 {
 	sf::Mutex mutex;
 	sf::HashMap<uint32_t, PendingFile> files;
 	uint32_t nextId = 0;
 
-	sf::Array<FetchFilePackage*> fetchPackages;
+	sf::Array<ContentPackage*> packagesToDelete;
 	sf::Array<ContentPackage*> packages;
 
 	sf::Array<char> fetchBuffers[NumLanes];
@@ -60,6 +59,10 @@ struct ContentFileContext
 };
 
 ContentFileContext g_contentFileContext;
+
+ContentPackage::~ContentPackage()
+{
+}
 
 static void fetchCallback(const sfetch_response_t *response)
 {
@@ -78,10 +81,6 @@ static void fetchCallback(const sfetch_response_t *response)
 		void *ptr = ctx.fetchBuffers[response->lane].data;
 		sfetch_bind_buffer(response->handle, ptr, BufferSize);
 	}
-}
-
-ContentPackage::~ContentPackage()
-{
 }
 
 struct FetchFilePackage : ContentPackage
@@ -122,6 +121,111 @@ struct FetchFilePackage : ContentPackage
 	}
 };
 
+struct CacheDownloadPackage;
+
+struct FetchCacheData
+{
+	char *destinationFile;
+	ContentLoadHandle handle;
+	CacheDownloadPackage *package;
+};
+
+static void fetchCacheCallback(const sfetch_response_t *response);
+
+struct CacheDownloadPackage : ContentPackage
+{
+	sf::Mutex cacheMutex;
+	sf::StringBuf root;
+	ContentCacheResolveFunc *resolveFunc;
+	void *user;
+
+	CacheDownloadPackage(sf::String name_, ContentCacheResolveFunc *resolveFunc, void *user)
+		: resolveFunc(resolveFunc), user(user)
+	{
+		name = name_;
+	}
+
+	virtual bool shouldTryToLoad(const sf::CString &name) final
+	{
+		sf::SmallStringBuf<256> url, path;
+		return resolveFunc(name, url, path, user);
+	}
+
+	virtual bool startLoadingFile(ContentLoadHandle handle, const sf::CString &name) final
+	{
+		sf::SmallStringBuf<256> url, path;
+		bool ret = resolveFunc(name, url, path, user);
+		sf_assert(ret == true);
+
+		sfetch_request_t req = { };
+
+		bool exists = false;
+
+		// Check if the cache file exists behind a mutex
+		#if !SF_OS_WASM
+		{
+			sf::MutexGuard mg(cacheMutex);
+			exists = sf::fileExists(path);
+		}
+		#endif
+
+		FetchCacheData data;
+
+		if (exists) {
+			// Load from local file
+			req.callback = &fetchCallback;
+			req.path = path.data;
+			req.user_data_ptr = &handle;
+			req.user_data_size = sizeof(ContentLoadHandle);
+		} else {
+			data.destinationFile = (char*)sf::memAlloc(path.size + 1);
+			memcpy(data.destinationFile, path.data, path.size);
+			data.destinationFile[path.size] = '\0';
+			data.handle = handle;
+			data.package = this;
+
+			req.callback = &fetchCacheCallback;
+			req.path = url.data;
+			req.user_data_ptr = &data;
+			req.user_data_size = sizeof(FetchCacheData);
+		}
+
+		sfetch_handle_t fetchHandle = sfetch_send(&req);
+		return sfetch_handle_valid(fetchHandle);
+
+	}
+};
+
+static void fetchCacheCallback(const sfetch_response_t *response)
+{
+	FetchCacheData *data = (FetchCacheData *)response->user_data;
+
+	if (response->failed) {
+		// Failed: Return with empty file
+		ContentFile::packageFileFailed(data->handle);
+	} else if (response->finished) {
+		// Finished: Copy to cache and call callback with actual data
+
+		{
+			sf::MutexGuard mg(data->package->cacheMutex);
+			sf::writeFile(sf::String(data->destinationFile), response->buffer_ptr, response->fetched_size);
+		}
+
+		ContentFile::packageFileLoaded(data->handle, response->buffer_ptr, response->fetched_size);
+	} else if (response->dispatched) {
+		// Dispatched: Allocate a buffer, no need for mutex
+		// since all the callbacks are from the same thread
+		ContentFileContext &ctx = g_contentFileContext;
+		void *ptr = ctx.fetchBuffers[response->lane].data;
+		sfetch_bind_buffer(response->handle, ptr, BufferSize);
+	}
+
+	// Free the pointer if this is the last callback
+	if (response->finished) {
+		sf::memFree(data->destinationFile);
+	}
+}
+
 void ContentFile::addRelativeFileRoot(const sf::String &root)
 {
 	ContentFileContext &ctx = g_contentFileContext;
@@ -129,7 +233,17 @@ void ContentFile::addRelativeFileRoot(const sf::String &root)
 
 	FetchFilePackage *package = new FetchFilePackage(root);
 	ctx.packages.push(package);
-	ctx.fetchPackages.push(package);
+	ctx.packagesToDelete.push(package);
+}
+
+void ContentFile::addCacheDownloadRoot(sf::String name, ContentCacheResolveFunc *resolveFunc, void *user)
+{
+	ContentFileContext &ctx = g_contentFileContext;
+	sf::MutexGuard mg(ctx.mutex);
+
+	CacheDownloadPackage *package = new CacheDownloadPackage(name, resolveFunc, user);
+	ctx.packages.push(package);
+	ctx.packagesToDelete.push(package);
 }
 
 static ContentLoadHandle loadImp(const sf::String &name, ContentFile::Callback callback, void *user, bool mainThread)
@@ -318,7 +432,7 @@ void ContentFile::globalCleanup()
 
 	sf::MutexGuard mg(ctx.mutex);
 
-	for (FetchFilePackage *package : ctx.fetchPackages) {
+	for (ContentPackage *package : ctx.packagesToDelete) {
 		delete package;
 	}
 }
