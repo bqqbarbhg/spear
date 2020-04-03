@@ -9,6 +9,11 @@
 #include "sp/Canvas.h"
 #include "sp/Sprite.h"
 #include "sp/Font.h"
+#include "sp/Model.h"
+
+#include "game/shader/TestMesh.h"
+
+#include <time.h>
 
 static void appendUtf8(sf::StringBuf &buf, uint32_t code)
 {
@@ -36,10 +41,21 @@ struct Game
 	sp::Canvas canvas3;
 	sp::FontRef font{"sp://OpenSans-Ascii.ttf"};
 	sp::FontRef jpFont{"data/kochi-mincho-subst.ttf"};
+	sp::ModelRef model{"data/human.fbx"};
+	sp::SpriteRef shirt;
+	sp::SpriteRef skin;
+	sp::SpriteRef nextSkin{"data/skin1.png"};
+	sp::SpriteRef nextShirt{"data/shirt1.png"};
 	uint32_t jpFrame = 0;
+	float skinTimer = 0.0f;
+	sf::Vec3 shirtTint;
+
+	sg_pipeline testPipeline[2];
 
 	Game()
 	{
+		srand(time(NULL));
+
 		sp::ContentFile::addCacheDownloadRoot("KittenCache",
 		[](const sf::CString &name, sf::StringBuf &url, sf::StringBuf &path, void *user) -> bool {
 			int w, h;
@@ -75,6 +91,28 @@ struct Game
 		td.transform.m12 = 500.0f;
 		td.height = 60.0f;
 		canvas.drawText(td);
+
+		{
+			sg_pipeline_desc desc = { };
+			desc.shader = sg_make_shader(TestMesh_TestMesh_shader_desc());
+
+			desc.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+			desc.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+			desc.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
+
+			desc.depth_stencil.depth_write_enabled = true;
+			desc.depth_stencil.depth_compare_func = SG_COMPAREFUNC_LESS_EQUAL;
+
+			desc.rasterizer.cull_mode = SG_CULLMODE_BACK;
+
+			desc.index_type = SG_INDEXTYPE_UINT16;
+
+			testPipeline[0] = sg_make_pipeline(&desc);
+
+			desc.rasterizer.depth_bias = -6.0f;
+			desc.rasterizer.depth_bias_slope_scale = -1.0f;
+			testPipeline[1] = sg_make_pipeline(&desc);
+		}
 	}
 
 	void debugRenderAtlases()
@@ -126,6 +164,23 @@ struct Game
 		if (jpFont->isLoaded()) {
 			jpFrame++;
 		}
+
+		skinTimer -= dt;
+		if (skinTimer <= 0.0f && nextShirt->isLoaded() && nextSkin->isLoaded()) {
+			skinTimer = 2.0f;
+			skin = nextSkin;
+			shirt = nextShirt;
+
+			sf::StringBuf skinName, shirtName;
+			skinName.format("data/skin%u.png", (uint32_t)rand() % 5 + 1);
+			shirtName.format("data/shirt%u.png", (uint32_t)rand() % 5 + 1);
+			nextSkin = sp::SpriteRef(skinName);
+			nextShirt = sp::SpriteRef(shirtName);
+			shirtTint.x = ((float)rand() / (float)RAND_MAX) * 0.5f + 0.5f;
+			shirtTint.y = ((float)rand() / (float)RAND_MAX) * 0.5f + 0.5f;
+			shirtTint.z = ((float)rand() / (float)RAND_MAX) * 0.5f + 0.5f;
+		}
+
 
 		canvas2.clear();
 		sf::StringBuf str;
@@ -180,6 +235,79 @@ struct Game
 		opts.transform = sf::mat::scale(0.2f) * opts.transform;
 
 		canvas2.render(opts);
+
+		if (model->isLoaded()) {
+
+			for (sp::Mesh &mesh : model->meshes) {
+				int pipeIx = mesh.materialName == "Shirt" ? 1 : 0;
+				sg_apply_pipeline(testPipeline[pipeIx]);
+
+				sf::Mat34 world = sf::mat::rotateY(sinf((float)stm_sec(stm_now()*0.5f))*0.3f + 2.7f) * sf::mat::scale(1.0f) * sf::mat::translateY(-2.0f);
+				sf::Mat44 proj;
+				if (sg_query_backend() == SG_BACKEND_D3D11) {
+					proj = sf::mat::perspectiveD3D(1.2f, (float)sapp_width()/(float)sapp_height(), 0.01f, 100.0f);
+				} else {
+					proj = sf::mat::perspectiveGL(1.2f, (float)sapp_width()/(float)sapp_height(), 0.01f, 100.0f);
+				}
+
+				sf::Mat44 wvp = proj * sf::mat::translateZ(10.0f) * world;
+
+				sp::Sprite *sprite;
+
+				TestMesh_Transform_t transform;
+				wvp.writeColMajor(transform.transform);
+				world.writeColMajor(transform.normalTrasnform);
+				if (pipeIx == 0) {
+					transform.color[0] = 1.0f;
+					transform.color[1] = 1.0f;
+					transform.color[2] = 1.0f;
+					sprite = skin;
+				} else {
+					transform.color[0] = shirtTint.x;
+					transform.color[1] = shirtTint.y;
+					transform.color[2] = shirtTint.z;
+					sprite = shirt;
+				}
+
+				if (!sprite || !sprite->isLoaded()) continue;
+
+				sp::Atlas *atlas = sprite->atlas;
+				sf::Vec2 atlasSize = sf::Vec2((float)atlas->width, (float)atlas->height);
+				sf::Vec2 uvSize = sprite->maxVert - sprite->minVert;
+				sf::Vec2 size = sf::Vec2((float)sprite->width, (float)sprite->height);
+				sf::Vec2 pos = sf::Vec2((float)sprite->x, (float)sprite->y) / atlasSize;
+
+				sf::Vec2 scale = size / atlasSize / uvSize;
+				sf::Vec2 offset = pos - sprite->minVert * scale;
+
+				sf::Vec2 minUv = pos;
+				sf::Vec2 maxUv = pos + size;
+
+				transform.texScaleOffset[0] = scale.x;
+				transform.texScaleOffset[1] = scale.y;
+				transform.texScaleOffset[2] = offset.x;
+				transform.texScaleOffset[3] = offset.y;
+
+				TestMesh_FragUniform_t fragUniform;
+				fragUniform.texMin[0] = minUv.x;
+				fragUniform.texMin[1] = minUv.y;
+				fragUniform.texMin[2] = maxUv.x;
+				fragUniform.texMin[3] = maxUv.y;
+
+				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestMesh_Transform, &transform, sizeof(transform));
+				sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestMesh_FragUniform, &fragUniform, sizeof(fragUniform));
+
+				sg_bindings binds = { };
+				binds.vertex_buffers[0] = model->vertexBuffer;
+				binds.index_buffer = model->indexBuffer;
+				binds.index_buffer_offset = mesh.indexBufferOffset * sizeof(uint16_t);
+				binds.vertex_buffer_offsets[0] = mesh.vertexBufferOffset * sizeof(sp::Vertex);
+				binds.fs_images[0] = atlas->image;
+				sg_apply_bindings(&binds);
+
+				sg_draw(0, mesh.numIndices, 1);
+			}
+		}
 
 		sgl_draw();
 

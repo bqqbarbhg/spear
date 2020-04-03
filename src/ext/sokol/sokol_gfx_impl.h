@@ -4721,6 +4721,10 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_buffer(_sg_buffer_t* buf, const sg_b
         HRESULT hr = ID3D11Device_CreateBuffer(_sg.d3d11.dev, &d3d11_desc, init_data_ptr, &buf->d3d11_buf);
         _SOKOL_UNUSED(hr);
         SOKOL_ASSERT(SUCCEEDED(hr) && buf->d3d11_buf);
+
+        if (desc->label) {
+			ID3D11Buffer_SetPrivateData(buf->d3d11_buf, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
+        }
     }
     return SG_RESOURCESTATE_VALID;
 }
@@ -4810,6 +4814,10 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
         d3d11_desc.SampleDesc.Quality = msaa ? D3D11_STANDARD_MULTISAMPLE_PATTERN : 0;
         hr = ID3D11Device_CreateTexture2D(_sg.d3d11.dev, &d3d11_desc, NULL, &img->d3d11_texds);
         SOKOL_ASSERT(SUCCEEDED(hr) && img->d3d11_texds);
+
+		if (desc->label) {
+			ID3D11Texture2D_SetPrivateData(img->d3d11_tex2d, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
+		}
     }
     else {
         /* create (or inject) color texture */
@@ -4866,6 +4874,10 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
             else {
                 hr = ID3D11Device_CreateTexture2D(_sg.d3d11.dev, &d3d11_tex_desc, init_data, &img->d3d11_tex2d);
                 SOKOL_ASSERT(SUCCEEDED(hr) && img->d3d11_tex2d);
+
+				if (desc->label) {
+					ID3D11Texture2D_SetPrivateData(img->d3d11_tex2d, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
+				}
             }
 
             /* shader-resource-view */
@@ -4928,6 +4940,9 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
             else {
                 hr = ID3D11Device_CreateTexture3D(_sg.d3d11.dev, &d3d11_tex_desc, init_data, &img->d3d11_tex3d);
                 SOKOL_ASSERT(SUCCEEDED(hr) && img->d3d11_tex3d);
+				if (desc->label) {
+					ID3D11Texture3D_SetPrivateData(img->d3d11_tex3d, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
+				}
             }
 
             /* shader resource view for 3d texture */
@@ -4956,6 +4971,10 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
             d3d11_tex_desc.SampleDesc.Quality = (UINT)D3D11_STANDARD_MULTISAMPLE_PATTERN;
             hr = ID3D11Device_CreateTexture2D(_sg.d3d11.dev, &d3d11_tex_desc, NULL, &img->d3d11_texmsaa);
             SOKOL_ASSERT(SUCCEEDED(hr) && img->d3d11_texmsaa);
+
+			if (desc->label) {
+				ID3D11Texture2D_SetPrivateData(img->d3d11_texmsaa, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
+			}
         }
 
         /* sampler state object, note D3D11 implements an internal shared-pool for sampler objects */

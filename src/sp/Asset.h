@@ -137,17 +137,18 @@ struct Ref
 	explicit Ref(T *t) : ptr(t) { }
 
 	Ref &operator=(const Ref &r) {
-		if (&r == this) return;
+		if (&r == this) return *this;
 		if (ptr) ptr->release();
-		ptr = r->ptr;
+		ptr = r.ptr;
 		ptr->retain();
 		return *this;
 	}
 
 	Ref &operator=(Ref &&r) {
-		if (&r == this) return;
-		ptr = r->ptr;
-		r->ptr = nullptr;
+		if (&r == this) return *this;
+		if (ptr) ptr->release();
+		ptr = r.ptr;
+		r.ptr = nullptr;
 		return *this;
 	}
 

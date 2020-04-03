@@ -106,6 +106,13 @@ struct Mat34
 		, m10(m10), m11(m11), m12(m12), m13(m13)
 		, m20(m20), m21(m21), m22(m22), m23(m23)
 	{ }
+
+	void writeColMajor(float *dst) const {
+		memcpy(dst +  0, &cols[0], sizeof(Vec3)); dst[ 3] = 0.0f;
+		memcpy(dst +  4, &cols[1], sizeof(Vec3)); dst[ 7] = 0.0f;
+		memcpy(dst +  8, &cols[2], sizeof(Vec3)); dst[11] = 0.0f;
+		memcpy(dst + 12, &cols[3], sizeof(Vec3)); dst[15] = 1.0f;
+	}
 };
 
 struct Mat44
@@ -270,7 +277,6 @@ namespace mat {
 
 	Mat44 perspectiveD3D(float fov, float aspect, float near, float far);
 	Mat44 perspectiveGL(float fov, float aspect, float near, float far);
-
 }
 
 namespace mat2D {
