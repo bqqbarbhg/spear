@@ -15,7 +15,7 @@ struct Vertex
 };
 
 bool operator==(const Vertex &a, const Vertex &b);
-sf_forceinline bool operator!=(const Vertex &a, const Vertex &b) { return !(a == b); }
+sf_forceinline static bool operator!=(const Vertex &a, const Vertex &b) { return !(a == b); }
 uint32_t hash(const Vertex &v);
 
 struct Mesh

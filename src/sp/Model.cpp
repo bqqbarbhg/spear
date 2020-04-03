@@ -190,7 +190,8 @@ static void loadImp(void *user, const ContentFile &file)
 
 void ModelImp::assetStartLoading()
 {
-	ContentFile::loadAsync(name, &loadImp, this);
+	// TODO: Create buffers on main thread
+	ContentFile::loadMainThread(name, &loadImp, this);
 }
 
 void ModelImp::assetUnload()
