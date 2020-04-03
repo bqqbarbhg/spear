@@ -49,8 +49,11 @@ void main()
 	float v = dot(normalize(v_normal), normalize(vec3(1.0,1.0,-1.0)));
 	if (v_uv.x < texMin.x || v_uv.y < texMin.y || v_uv.x > texMax.x || v_uv.y > texMax.y) discard;
 	vec4 tex = texture(albedo, v_uv);
-	if (tex.w < 0.5) discard;
-    frag_color = vec4(tex.xyz * v_color * sqrt(v*0.5+0.5), 1.0);
+	tex.xyz *= v_color * sqrt(v*0.5+0.5);
+
+	tex.a = (tex.a - 0.3) / 0.4;
+
+    frag_color = tex;
 }
 
 @end

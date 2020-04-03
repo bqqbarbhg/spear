@@ -41,7 +41,8 @@ struct Game
 	sp::Canvas canvas3;
 	sp::FontRef font{"sp://OpenSans-Ascii.ttf"};
 	sp::FontRef jpFont{"data/kochi-mincho-subst.ttf"};
-	sp::ModelRef model{"data/human.fbx"};
+	sp::ModelRef model1{"data/human.fbx"};
+	sp::ModelRef model2{"data/dwarf.fbx"};
 	sp::SpriteRef shirt;
 	sp::SpriteRef skin;
 	sp::SpriteRef nextSkin{"data/skin1.png"};
@@ -104,6 +105,7 @@ struct Game
 			desc.depth_stencil.depth_compare_func = SG_COMPAREFUNC_LESS_EQUAL;
 
 			desc.rasterizer.cull_mode = SG_CULLMODE_BACK;
+			desc.rasterizer.alpha_to_coverage_enabled = true;
 
 			desc.index_type = SG_INDEXTYPE_UINT16;
 
@@ -167,7 +169,7 @@ struct Game
 
 		skinTimer -= dt;
 		if (skinTimer <= 0.0f && nextShirt->isLoaded() && nextSkin->isLoaded()) {
-			skinTimer = 2.0f;
+			skinTimer = 1.6f;
 			skin = nextSkin;
 			shirt = nextShirt;
 
@@ -236,77 +238,81 @@ struct Game
 
 		canvas2.render(opts);
 
-		if (model->isLoaded()) {
+		int modelIx = 0;
+		for (sp::ModelRef model : { model1, model2 } ) {
+			if (model->isLoaded()) {
 
-			for (sp::Mesh &mesh : model->meshes) {
-				int pipeIx = mesh.materialName == "Shirt" ? 1 : 0;
-				sg_apply_pipeline(testPipeline[pipeIx]);
+				for (sp::Mesh &mesh : model->meshes) {
+					int pipeIx = mesh.materialName == "Shirt" ? 1 : 0;
+					sg_apply_pipeline(testPipeline[pipeIx]);
 
-				sf::Mat34 world = sf::mat::rotateY(sinf((float)stm_sec(stm_now()*0.5f))*0.3f + 2.7f) * sf::mat::scale(1.0f) * sf::mat::translateY(-2.0f);
-				sf::Mat44 proj;
-				if (sg_query_backend() == SG_BACKEND_D3D11) {
-					proj = sf::mat::perspectiveD3D(1.2f, (float)sapp_width()/(float)sapp_height(), 0.01f, 100.0f);
-				} else {
-					proj = sf::mat::perspectiveGL(1.2f, (float)sapp_width()/(float)sapp_height(), 0.01f, 100.0f);
+					sf::Mat34 world = sf::mat::rotateY(sinf((float)stm_sec(stm_now()*0.5f))*0.3f + 2.7f) * sf::mat::scale(1.0f) * sf::mat::translateY(-2.0f);
+					sf::Mat44 proj;
+					if (sg_query_backend() == SG_BACKEND_D3D11) {
+						proj = sf::mat::perspectiveD3D(1.2f, (float)sapp_width()/(float)sapp_height(), 0.01f, 100.0f);
+					} else {
+						proj = sf::mat::perspectiveGL(1.2f, (float)sapp_width()/(float)sapp_height(), 0.01f, 100.0f);
+					}
+
+					sf::Mat44 wvp = proj * (sf::mat::translateZ(10.0f) * sf::mat::translateX((modelIx * 2 - 1) * 2.5f)) * world;
+
+					sp::Sprite *sprite;
+
+					TestMesh_Transform_t transform;
+					wvp.writeColMajor(transform.transform);
+					world.writeColMajor(transform.normalTrasnform);
+					if (pipeIx == 0) {
+						transform.color[0] = 1.0f;
+						transform.color[1] = 1.0f;
+						transform.color[2] = 1.0f;
+						sprite = skin;
+					} else {
+						transform.color[0] = shirtTint.x;
+						transform.color[1] = shirtTint.y;
+						transform.color[2] = shirtTint.z;
+						sprite = shirt;
+					}
+
+					if (!sprite || !sprite->isLoaded()) continue;
+
+					sp::Atlas *atlas = sprite->atlas;
+					sf::Vec2 atlasSize = sf::Vec2((float)atlas->width, (float)atlas->height);
+					sf::Vec2 uvSize = sprite->maxVert - sprite->minVert;
+					sf::Vec2 size = sf::Vec2((float)sprite->width, (float)sprite->height);
+					sf::Vec2 pos = sf::Vec2((float)sprite->x, (float)sprite->y) / atlasSize;
+
+					sf::Vec2 scale = size / atlasSize / uvSize;
+					sf::Vec2 offset = pos - sprite->minVert * scale;
+
+					sf::Vec2 minUv = pos;
+					sf::Vec2 maxUv = pos + size;
+
+					transform.texScaleOffset[0] = scale.x;
+					transform.texScaleOffset[1] = scale.y;
+					transform.texScaleOffset[2] = offset.x;
+					transform.texScaleOffset[3] = offset.y;
+
+					TestMesh_FragUniform_t fragUniform;
+					fragUniform.texMin[0] = minUv.x;
+					fragUniform.texMin[1] = minUv.y;
+					fragUniform.texMin[2] = maxUv.x;
+					fragUniform.texMin[3] = maxUv.y;
+
+					sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestMesh_Transform, &transform, sizeof(transform));
+					sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestMesh_FragUniform, &fragUniform, sizeof(fragUniform));
+
+					sg_bindings binds = { };
+					binds.vertex_buffers[0] = model->vertexBuffer;
+					binds.index_buffer = model->indexBuffer;
+					binds.index_buffer_offset = mesh.indexBufferOffset * sizeof(uint16_t);
+					binds.vertex_buffer_offsets[0] = mesh.vertexBufferOffset * sizeof(sp::Vertex);
+					binds.fs_images[0] = atlas->image;
+					sg_apply_bindings(&binds);
+
+					sg_draw(0, mesh.numIndices, 1);
 				}
-
-				sf::Mat44 wvp = proj * sf::mat::translateZ(10.0f) * world;
-
-				sp::Sprite *sprite;
-
-				TestMesh_Transform_t transform;
-				wvp.writeColMajor(transform.transform);
-				world.writeColMajor(transform.normalTrasnform);
-				if (pipeIx == 0) {
-					transform.color[0] = 1.0f;
-					transform.color[1] = 1.0f;
-					transform.color[2] = 1.0f;
-					sprite = skin;
-				} else {
-					transform.color[0] = shirtTint.x;
-					transform.color[1] = shirtTint.y;
-					transform.color[2] = shirtTint.z;
-					sprite = shirt;
-				}
-
-				if (!sprite || !sprite->isLoaded()) continue;
-
-				sp::Atlas *atlas = sprite->atlas;
-				sf::Vec2 atlasSize = sf::Vec2((float)atlas->width, (float)atlas->height);
-				sf::Vec2 uvSize = sprite->maxVert - sprite->minVert;
-				sf::Vec2 size = sf::Vec2((float)sprite->width, (float)sprite->height);
-				sf::Vec2 pos = sf::Vec2((float)sprite->x, (float)sprite->y) / atlasSize;
-
-				sf::Vec2 scale = size / atlasSize / uvSize;
-				sf::Vec2 offset = pos - sprite->minVert * scale;
-
-				sf::Vec2 minUv = pos;
-				sf::Vec2 maxUv = pos + size;
-
-				transform.texScaleOffset[0] = scale.x;
-				transform.texScaleOffset[1] = scale.y;
-				transform.texScaleOffset[2] = offset.x;
-				transform.texScaleOffset[3] = offset.y;
-
-				TestMesh_FragUniform_t fragUniform;
-				fragUniform.texMin[0] = minUv.x;
-				fragUniform.texMin[1] = minUv.y;
-				fragUniform.texMin[2] = maxUv.x;
-				fragUniform.texMin[3] = maxUv.y;
-
-				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestMesh_Transform, &transform, sizeof(transform));
-				sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestMesh_FragUniform, &fragUniform, sizeof(fragUniform));
-
-				sg_bindings binds = { };
-				binds.vertex_buffers[0] = model->vertexBuffer;
-				binds.index_buffer = model->indexBuffer;
-				binds.index_buffer_offset = mesh.indexBufferOffset * sizeof(uint16_t);
-				binds.vertex_buffer_offsets[0] = mesh.vertexBufferOffset * sizeof(sp::Vertex);
-				binds.fs_images[0] = atlas->image;
-				sg_apply_bindings(&binds);
-
-				sg_draw(0, mesh.numIndices, 1);
 			}
+			modelIx++;
 		}
 
 		sgl_draw();
@@ -322,6 +328,9 @@ void spConfig(sp::MainConfig &config)
 {
 	config.sappDesc->window_title = "Spear";
 	config.sappDesc->sample_count = 4;
+
+	config.sappDesc->width = 1200;
+	config.sappDesc->height = 1080;
 }
 
 void spInit()
