@@ -295,8 +295,8 @@ struct Game
 					TestMesh_FragUniform_t fragUniform;
 					fragUniform.texMin[0] = minUv.x;
 					fragUniform.texMin[1] = minUv.y;
-					fragUniform.texMin[2] = maxUv.x;
-					fragUniform.texMin[3] = maxUv.y;
+					fragUniform.texMax[0] = maxUv.x;
+					fragUniform.texMax[1] = maxUv.y;
 
 					sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestMesh_Transform, &transform, sizeof(transform));
 					sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestMesh_FragUniform, &fragUniform, sizeof(fragUniform));
