@@ -285,6 +285,19 @@ struct Slice
 template <typename T>
 sf_inline Slice<T> slice(T *data, size_t size) { return Slice<T>(data, size); }
 
+template <typename T, typename U>
+static T *find(Slice<T> arr, const U &t)
+{
+	for (T &other : arr) {
+		if (t == other) {
+			return &other;
+		}
+	}
+	return nullptr;
+}
+
+enum UninitType { Uninit };
+
 }
 
 #if SF_CC_MSC

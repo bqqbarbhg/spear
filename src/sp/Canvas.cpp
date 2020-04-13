@@ -362,7 +362,7 @@ static void drawTexts(CanvasContext &ctx, sf::Slice<TextDrawImp> draws, const ch
 
 	sg_apply_pipeline(ctx.fontPipeline);
 	Font_Transform_t transform;
-	opts.transform.writeColMajor(transform.transform);
+	opts.transform.writeColMajor44(transform.transform);
 	sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Font_Transform, &transform, sizeof(transform));
 
 	ctx.fontBindings.vertex_buffer_offsets[0] = offset;
@@ -426,7 +426,7 @@ void Canvas::render(const CanvasRenderOpts &opts)
 			// Setup sprite rendering
 			sg_apply_pipeline(ctx.spritePipeline);
 			Sprite_Transform_t transform;
-			opts.transform.writeColMajor(transform.transform);
+			opts.transform.writeColMajor44(transform.transform);
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Sprite_Transform, &transform, sizeof(transform));
 
 			do {

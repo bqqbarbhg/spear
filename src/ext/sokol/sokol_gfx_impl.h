@@ -3941,18 +3941,20 @@ _SOKOL_PRIVATE void _sg_apply_pipeline(_sg_pipeline_t* pip) {
             GLenum gl_winding = (SG_FACEWINDING_CW == new_r->face_winding) ? GL_CW : GL_CCW;
             glFrontFace(gl_winding);
         }
+        #ifdef SOKOL_GLCORE33
+        if (new_r->sample_count != cache_r->sample_count || new_r->alpha_to_coverage_enabled != cache_r->alpha_to_coverage_enabled) {
+            if (new_r->sample_count > 1 || new_r->alpha_to_coverage_enabled) glEnable(GL_MULTISAMPLE);
+            else glDisable(GL_MULTISAMPLE);
+        }
+        #endif
         if (new_r->alpha_to_coverage_enabled != cache_r->alpha_to_coverage_enabled) {
             cache_r->alpha_to_coverage_enabled = new_r->alpha_to_coverage_enabled;
             if (new_r->alpha_to_coverage_enabled) glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
             else glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
         }
-        #ifdef SOKOL_GLCORE33
         if (new_r->sample_count != cache_r->sample_count) {
             cache_r->sample_count = new_r->sample_count;
-            if (new_r->sample_count > 1) glEnable(GL_MULTISAMPLE);
-            else glDisable(GL_MULTISAMPLE);
         }
-        #endif
         if (!_sg_fequal(new_r->depth_bias, cache_r->depth_bias, 0.000001f) ||
             !_sg_fequal(new_r->depth_bias_slope_scale, cache_r->depth_bias_slope_scale, 0.000001f))
         {

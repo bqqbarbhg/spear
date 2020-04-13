@@ -37,7 +37,7 @@ struct CString : String
 	}
 	sf_forceinline explicit CString(const char *data) : String(data) { }
 	template <size_t N>
-	CString(const char (&arr)[N]) : String(arr, N) {
+	CString(const char (&arr)[N]) : String(arr, N - 1) {
 		sf_assert(N > 0 && arr[N - 1] == '\0');
 	}
 };
@@ -136,6 +136,16 @@ struct StringBuf
 		return (sf::String)*this != rhs;
 	}
 	bool operator<(const String &rhs) const {
+		return (sf::String)*this < rhs;
+	}
+
+	bool operator==(const sf::StringBuf &rhs) const {
+		return (sf::String)*this == rhs;
+	}
+	bool operator!=(const sf::StringBuf &rhs) const {
+		return (sf::String)*this != rhs;
+	}
+	bool operator<(const StringBuf &rhs) const {
 		return (sf::String)*this < rhs;
 	}
 

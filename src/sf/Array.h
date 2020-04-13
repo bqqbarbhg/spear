@@ -323,8 +323,30 @@ struct SmallArray : Array<T>
 
 template <typename T> struct IsZeroInitializable<Array<T>> { enum { value = 1 }; };
 
-template <typename T>
-static bool findRemoveSwap(Array<T> &arr, const T &t)
+template <typename T, typename U>
+static T *find(Array<T> &arr, const U &t)
+{
+	for (T &other : arr) {
+		if (t == other) {
+			return &other;
+		}
+	}
+	return nullptr;
+}
+
+template <typename T, typename U>
+static const T *find(const Array<T> &arr, const U &t)
+{
+	for (T &other : arr) {
+		if (t == other) {
+			return &other;
+		}
+	}
+	return nullptr;
+}
+
+template <typename T, typename U>
+static bool findRemoveSwap(Array<T> &arr, const U &t)
 {
 	for (T &other : arr) {
 		if (t == other) {

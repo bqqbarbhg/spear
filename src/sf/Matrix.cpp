@@ -1,4 +1,5 @@
 #include "Matrix.h"
+#include "Quaternion.h"
 
 namespace sf {
 
@@ -638,6 +639,55 @@ Mat33 rotateZ(float angle) {
 		s,  c, 0,
 		0,  0, 1,
 	};
+}
+
+Mat34 inverseBasis(const sf::Vec3 &x, const sf::Vec3 &y, const sf::Vec3 &z, const sf::Vec3 &origin)
+{
+    Mat34 r = sf::Uninit;
+    r.m00 = x.x;
+    r.m01 = x.y;
+    r.m02 = x.z;
+    r.m03 = -dot(origin, x);
+    r.m10 = y.x;
+    r.m11 = y.y;
+    r.m12 = y.z;
+    r.m13 = -dot(origin, y);
+    r.m20 = z.x;
+    r.m21 = z.y;
+    r.m22 = z.z;
+    r.m23 = -dot(origin, z);
+	return r;
+}
+
+Mat34 look(const sf::Vec3 &eye, const sf::Vec3 &dir, const sf::Vec3 &up)
+{
+    Vec3 dir2 = normalize(dir);
+    Vec3 right = normalize(cross(dir2, up));
+    Vec3 up2 = cross(right, dir2);
+    return inverseBasis(right, up2, dir2, eye);
+}
+
+Mat34 world(const sf::Vec3 &translation, const sf::Quat &rotation, const sf::Vec3 &scale)
+{
+	sf::Quat q = rotation;
+	float sx = 2.0 * scale.x, sy = 2.0 * scale.y, sz = 2.0 * scale.z;
+	float xx = q.x*q.x, xy = q.x*q.y, xz = q.x*q.z, xw = q.x*q.w;
+	float yy = q.y*q.y, yz = q.y*q.z, yw = q.y*q.w;
+	float zz = q.z*q.z, zw = q.z*q.w;
+	Mat34 m = sf::Uninit;
+	m.m00 = sx * (- yy - zz + 0.5f);
+	m.m10 = sx * (+ xy + zw);
+	m.m20 = sx * (- yw + xz);
+	m.m01 = sy * (- zw + xy);
+	m.m11 = sy * (- xx - zz + 0.5f);
+	m.m21 = sy * (+ xw + yz);
+	m.m02 = sz * (+ xz + yw);
+	m.m12 = sz * (- xw + yz);
+	m.m22 = sz * (- xx - yy + 0.5f);
+	m.m03 = translation.x;
+	m.m13 = translation.y;
+	m.m23 = translation.z;
+	return m;
 }
 
 Mat44 perspectiveD3D(float fov, float aspect, float near, float far)

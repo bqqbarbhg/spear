@@ -4,3 +4,4 @@
 #define SOKOL_SHDC_IMPL
 
 #include "TestMesh.h"
+#include "TestSkin.h"

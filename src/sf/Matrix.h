@@ -9,6 +9,7 @@ struct Mat34_3;
 struct Mat33;
 struct Mat34;
 struct Mat44;
+struct Quat;
 
 struct Mat34_3
 {
@@ -20,6 +21,8 @@ struct Mat34_3
 		};
 		float v[3];
 	};
+
+	Mat34_3(UninitType) { }
 
 	Mat34_3()
 		: m03(0.0f), m13(0.0f), m23(0.0f)
@@ -41,6 +44,8 @@ struct Mat33_D
 		float v[3];
 	};
 
+	Mat33_D(UninitType) { }
+
 	Mat33_D()
 		: m00(0.0f), m11(0.0f), m22(0.0f)
 	{ }
@@ -61,6 +66,8 @@ struct Mat33
 		Vec3 cols[3];
 		float v[9];
 	};
+
+	Mat33(UninitType) { }
 
 	Mat33()
 		: m00(1.0f), m01(0.0f), m02(0.0f)
@@ -89,6 +96,8 @@ struct Mat34
 		float v[12];
 	};
 
+	Mat34(UninitType) { }
+
 	Mat34()
 		: m00(1.0f), m01(0.0f), m02(0.0f), m03(0.0f)
 		, m10(0.0f), m11(1.0f), m12(0.0f), m13(0.0f)
@@ -107,7 +116,9 @@ struct Mat34
 		, m20(m20), m21(m21), m22(m22), m23(m23)
 	{ }
 
-	void writeColMajor(float *dst) const {
+	sf_forceinline Vec4 getRow(int index) { return Vec4(cols[0].v[index], cols[1].v[index], cols[2].v[index], cols[3].v[index]); }
+
+	void writeColMajor44(float *dst) const {
 		memcpy(dst +  0, &cols[0], sizeof(Vec3)); dst[ 3] = 0.0f;
 		memcpy(dst +  4, &cols[1], sizeof(Vec3)); dst[ 7] = 0.0f;
 		memcpy(dst +  8, &cols[2], sizeof(Vec3)); dst[11] = 0.0f;
@@ -127,6 +138,8 @@ struct Mat44
 		Vec4 cols[4];
 		float v[16];
 	};
+
+	Mat44(UninitType) { }
 
 	Mat44()
 		: m00(1.0f), m01(0.0f), m02(0.0f), m03(0.0f)
@@ -156,7 +169,9 @@ struct Mat44
 		, m30(m30), m31(m31), m32(m32), m33(m33)
 	{ }
 
-	void writeColMajor(float *dst) const {
+	sf_forceinline Vec4 getRow(int index) { return Vec4(cols[0].v[index], cols[1].v[index], cols[2].v[index], cols[3].v[index]); }
+
+	void writeColMajor44(float *dst) const {
 		memcpy(dst, v, sizeof(v));
 	}
 };
@@ -172,6 +187,8 @@ struct Mat23
 		Vec2 cols[3];
 		float v[6];
 	};
+
+	Mat23(UninitType) { }
 
 	Mat23()
 		: m00(1.0f), m01(0.0f), m02(0.0f)
@@ -274,6 +291,11 @@ namespace mat {
 	Mat33 rotateX(float angle);
 	Mat33 rotateY(float angle);
 	Mat33 rotateZ(float angle);
+
+	Mat34 inverseBasis(const sf::Vec3 &x, const sf::Vec3 &y, const sf::Vec3 &z, const sf::Vec3 &origin=sf::Vec3());
+
+	Mat34 look(const sf::Vec3 &eye, const sf::Vec3 &dir, const sf::Vec3 &up=sf::Vec3(0.0f,1.0f,0.0f));
+	Mat34 world(const sf::Vec3 &translation, const sf::Quat &rotation, const sf::Vec3 &scale);
 
 	Mat44 perspectiveD3D(float fov, float aspect, float near, float far);
 	Mat44 perspectiveGL(float fov, float aspect, float near, float far);
