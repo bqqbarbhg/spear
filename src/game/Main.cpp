@@ -44,8 +44,7 @@ struct Game
 	sp::Canvas canvas3;
 	sp::FontRef font{"sp://OpenSans-Ascii.ttf"};
 	sp::FontRef jpFont{"data/kochi-mincho-subst.ttf"};
-	sp::ModelRef model1;
-	sp::ModelRef model2;
+	sp::ModelRef models[2];
 	sp::SpriteRef shirt;
 	sp::SpriteRef skin;
 	sp::SpriteRef nextSkin{"data/skin1.png"};
@@ -67,8 +66,8 @@ struct Game
 		charProps.retainBones.push("Item.L");
 		charProps.retainBones.push("Item.R");
 
-		model1.load("data/human.fbx", charProps);
-		model2.load("data/dwarf.fbx", charProps);
+		models[0].load("data/human.fbx", charProps);
+		models[1].load("data/dwarf.fbx", charProps);
 
 		sp::ContentFile::addCacheDownloadRoot("KittenCache",
 		[](const sf::CString &name, sf::StringBuf &url, sf::StringBuf &path, void *user) -> bool {
@@ -125,7 +124,7 @@ struct Game
 
 			testPipeline[0] = sg_make_pipeline(&desc);
 
-			desc.rasterizer.depth_bias = 24.0f;
+			desc.rasterizer.depth_bias = 200.0f;
 			desc.rasterizer.depth_bias_slope_scale = 2.0f;
 			testPipeline[1] = sg_make_pipeline(&desc);
 		}
@@ -151,7 +150,7 @@ struct Game
 
 			skinPipeline[0] = sg_make_pipeline(&desc);
 
-			desc.rasterizer.depth_bias = 24.0f;
+			desc.rasterizer.depth_bias = 200.0f;
 			desc.rasterizer.depth_bias_slope_scale = 2.0f;
 			skinPipeline[1] = sg_make_pipeline(&desc);
 		}
@@ -290,12 +289,12 @@ struct Game
 			proj = sf::mat::perspectiveGL(1.2f, (float)sapp_width()/(float)sapp_height(), 0.01f, 100.0f);
 		}
 
-		sf::SmallArray<sf::Mat34, sp::MaxBones> boneWorld1;
+		sf::SmallArray<sf::Mat34, sp::MaxBones> modelBoneWorld[2];
 
 		bool useStaff = fmodf(stm_sec(stm_now()) / 8.0f, 1.0f) > 0.5f;
 
 		int modelIx = 0;
-		for (sp::ModelRef model : { model1, model2 } ) {
+		for (sp::ModelRef model : models) {
 			if (!model->isLoaded()) {
 				modelIx++;
 				continue;
@@ -316,9 +315,7 @@ struct Game
 				}
 			}
 
-			if (model == model1) {
-				boneWorld1.push(boneWorld);
-			}
+			modelBoneWorld[modelIx].push(boneWorld);
 
 			for (sp::Mesh &mesh : model->meshes) {
 				if (mesh.materialName == "Prop") continue;
@@ -469,75 +466,77 @@ struct Game
 			items.push(sword);
 		}
 
-		for (sp::Model *model : items) {
-			if (!model->isLoaded()) {
-				continue;
-			}
-
-			sf::Mat34 world;
-			if (model1->isLoaded()) {
-				const char *bone = model == shield ? "Item.L" : "Item.R";
-				auto pair = model1->boneNames.find(sf::CString(bone));
-				if (pair) {
-					world = boneWorld1[pair->val];
+		for (uint32_t modelI = 0; modelI < 2; modelI++) {
+			for (sp::Model *model : items) {
+				if (!model->isLoaded()) {
+					continue;
 				}
-			}
 
-			for (sp::Mesh &mesh : model->meshes) {
-				if (mesh.materialName == "Prop") continue;
+				sf::Mat34 world;
+				if (models[modelI]->isLoaded()) {
+					const char *bone = model == shield ? "Item.L" : "Item.R";
+					auto pair = models[modelI]->boneNames.find(sf::CString(bone));
+					if (pair) {
+						world = modelBoneWorld[modelI][pair->val];
+					}
+				}
 
-				int pipeIx = mesh.materialName == "Shirt" ? 1 : 0;
-				sg_apply_pipeline(testPipeline[pipeIx]);
+				for (sp::Mesh &mesh : model->meshes) {
+					if (mesh.materialName == "Prop") continue;
 
-				sf::Mat44 wvp = proj * look * world * sf::mat::rotateX(sf::F_PI*-0.5f);
+					int pipeIx = mesh.materialName == "Shirt" ? 1 : 0;
+					sg_apply_pipeline(testPipeline[pipeIx]);
 
-				sp::Sprite *sprite;
+					sf::Mat44 wvp = proj * look * world * sf::mat::rotateX(sf::F_PI*-0.5f);
 
-				TestMesh_Transform_t transform;
-				wvp.writeColMajor44(transform.transform);
-				world.writeColMajor44(transform.normalTrasnform);
-				transform.color[0] = 1.0f;
-				transform.color[1] = 1.0f;
-				transform.color[2] = 1.0f;
-				sprite = skin;
+					sp::Sprite *sprite;
 
-				if (!sprite || !sprite->isLoaded()) continue;
+					TestMesh_Transform_t transform;
+					wvp.writeColMajor44(transform.transform);
+					world.writeColMajor44(transform.normalTrasnform);
+					transform.color[0] = 1.0f;
+					transform.color[1] = 1.0f;
+					transform.color[2] = 1.0f;
+					sprite = skin;
 
-				sp::Atlas *atlas = sprite->atlas;
-				sf::Vec2 atlasSize = sf::Vec2((float)atlas->width, (float)atlas->height);
-				sf::Vec2 uvSize = sprite->maxVert - sprite->minVert;
-				sf::Vec2 size = sf::Vec2((float)sprite->width, (float)sprite->height);
-				sf::Vec2 pos = sf::Vec2((float)sprite->x, (float)sprite->y) / atlasSize;
+					if (!sprite || !sprite->isLoaded()) continue;
 
-				sf::Vec2 scale = size / atlasSize / uvSize;
-				sf::Vec2 offset = pos - sprite->minVert * scale;
+					sp::Atlas *atlas = sprite->atlas;
+					sf::Vec2 atlasSize = sf::Vec2((float)atlas->width, (float)atlas->height);
+					sf::Vec2 uvSize = sprite->maxVert - sprite->minVert;
+					sf::Vec2 size = sf::Vec2((float)sprite->width, (float)sprite->height);
+					sf::Vec2 pos = sf::Vec2((float)sprite->x, (float)sprite->y) / atlasSize;
 
-				sf::Vec2 minUv = pos;
-				sf::Vec2 maxUv = pos + size;
+					sf::Vec2 scale = size / atlasSize / uvSize;
+					sf::Vec2 offset = pos - sprite->minVert * scale;
 
-				transform.texScaleOffset[0] = scale.x;
-				transform.texScaleOffset[1] = scale.y;
-				transform.texScaleOffset[2] = offset.x;
-				transform.texScaleOffset[3] = offset.y;
+					sf::Vec2 minUv = pos;
+					sf::Vec2 maxUv = pos + size;
 
-				TestMesh_FragUniform_t fragUniform;
-				fragUniform.texMin[0] = minUv.x;
-				fragUniform.texMin[1] = minUv.y;
-				fragUniform.texMax[0] = maxUv.x;
-				fragUniform.texMax[1] = maxUv.y;
+					transform.texScaleOffset[0] = scale.x;
+					transform.texScaleOffset[1] = scale.y;
+					transform.texScaleOffset[2] = offset.x;
+					transform.texScaleOffset[3] = offset.y;
 
-				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestMesh_Transform, &transform, sizeof(transform));
-				sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestMesh_FragUniform, &fragUniform, sizeof(fragUniform));
+					TestMesh_FragUniform_t fragUniform;
+					fragUniform.texMin[0] = minUv.x;
+					fragUniform.texMin[1] = minUv.y;
+					fragUniform.texMax[0] = maxUv.x;
+					fragUniform.texMax[1] = maxUv.y;
 
-				sg_bindings binds = { };
-				binds.vertex_buffers[0] = model->vertexBuffer;
-				binds.index_buffer = model->indexBuffer;
-				binds.index_buffer_offset = mesh.indexBufferOffset * sizeof(uint16_t);
-				binds.vertex_buffer_offsets[0] = mesh.vertexBufferOffset * sizeof(sp::Vertex);
-				binds.fs_images[0] = atlas->image;
-				sg_apply_bindings(&binds);
+					sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestMesh_Transform, &transform, sizeof(transform));
+					sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestMesh_FragUniform, &fragUniform, sizeof(fragUniform));
 
-				sg_draw(0, mesh.numIndices, 1);
+					sg_bindings binds = { };
+					binds.vertex_buffers[0] = model->vertexBuffer;
+					binds.index_buffer = model->indexBuffer;
+					binds.index_buffer_offset = mesh.indexBufferOffset * sizeof(uint16_t);
+					binds.vertex_buffer_offsets[0] = mesh.vertexBufferOffset * sizeof(sp::Vertex);
+					binds.fs_images[0] = atlas->image;
+					sg_apply_bindings(&binds);
+
+					sg_draw(0, mesh.numIndices, 1);
+				}
 			}
 		}
 
