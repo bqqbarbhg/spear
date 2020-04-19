@@ -55,7 +55,7 @@ void setDebugThreadName(sf::String name)
 {
     sf::StringBuf nameBuf(name);
 
-    typedef HRESULT (*pfn_SetThreadDescription)(HANDLE, PCWSTR);
+    typedef HRESULT (WINAPI *pfn_SetThreadDescription)(HANDLE, PCWSTR);
     static pfn_SetThreadDescription setThreadDescription = (pfn_SetThreadDescription)GetProcAddress(LoadLibraryA("Kernel32.dll"), "SetThreadDescription");
 
     SetThreadName(GetCurrentThreadId(), nameBuf.data);
