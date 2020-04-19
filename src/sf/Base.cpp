@@ -1,6 +1,7 @@
 #include "Base.h"
 
 #include "Array.h"
+#include "Reflection.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -10,11 +11,6 @@
 	#define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
 #endif
-
-// TODO: Custom lightweight mutex
-#include <mutex>
-#include <condition_variable>
-#include <atomic>
 
 namespace sf {
 
@@ -173,6 +169,32 @@ uint32_t hashReverse32(uint32_t hash)
     x *= UINT32_C(0x1d69e2a5);
     x ^= x >> 16;
     return x;
+}
+
+struct PointerType : Type
+{
+	PointerType(Type *type)
+		: Type("pointer", sizeof(void*), HasArray)
+	{
+		elementType = type;
+	}
+
+	virtual void getName(sf::StringBuf &buf)
+	{
+		elementType->getName(buf);
+		buf.append("*");
+	}
+
+	virtual VoidSlice instGetArray(void *inst)
+	{
+		void **ptr = (void**)inst;
+		return { *ptr, (size_t)(*ptr != 0 ? 1 : 0) };
+	}
+};
+
+Type *initPointerType(Type *type)
+{
+	return new PointerType(type);
 }
 
 }

@@ -11,7 +11,7 @@ struct String
 	size_t size;
 
 	String() : data(nullptr), size(0) { }
-	String(const char *data, size_t size) : data(data), size(size) { }
+	constexpr String(const char *data, size_t size) : data(data), size(size) { }
 	sf_forceinline explicit String(const char *data) : data(data), size(strlen(data)) { }
 	template <size_t N>
 	String(const char (&arr)[N]) : data(arr), size(N - 1) {
@@ -40,6 +40,7 @@ struct CString : String
 	CString(const char (&arr)[N]) : String(arr, N - 1) {
 		sf_assert(N > 0 && arr[N - 1] == '\0');
 	}
+	constexpr CString(ConstType, const char *data, size_t size) : String(data, size) { }
 };
 
 struct StringBuf

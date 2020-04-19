@@ -59,5 +59,6 @@ workspace "spear"
 project "spear"
 	kind "WindowedApp"
 	language "C++"
-	files { "src/**.h", "src/**.cpp", "src/**.c" }
+    files { "src/**.h", "src/**.cpp", "src/**.c" }
+    files { "misc/*.natvis" }
 

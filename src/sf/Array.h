@@ -4,6 +4,13 @@
 
 namespace sf {
 
+struct ArrayBase
+{
+	void *data;
+	uint32_t size;
+	uint32_t capacity;
+};
+
 template <typename T>
 struct Array
 {
@@ -356,5 +363,14 @@ static bool findRemoveSwap(Array<T> &arr, const U &t)
 	}
 	return false;
 }
+
+struct StringBuf;
+
+Type *initArrayType(Type *elemType);
+
+template <typename T>
+struct InitType<Array<T>> {
+	static Type *init() { return initArrayType(typeOf<T>()); }
+};
 
 }

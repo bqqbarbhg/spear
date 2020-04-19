@@ -32,15 +32,15 @@
   </Type>
 
   <Type Name="sf::String">
-    <DisplayString>{data,[size]}</DisplayString>
+    <DisplayString>{data,[size],s}</DisplayString>
   </Type>
 
   <Type Name="sf::CString">
-    <DisplayString>{data}</DisplayString>
+    <DisplayString>{data,s}</DisplayString>
   </Type>
 
   <Type Name="sf::StringBuf">
-    <DisplayString>{data}</DisplayString>
+    <DisplayString>{data,s}</DisplayString>
   </Type>
 
   <Type Name="sf::HashMap&lt;*,*&gt;">
@@ -53,5 +53,17 @@
     </Expand>
   </Type>
 
+  <Type Name="sf::Type">
+    <DisplayString>{{ name={name} }}</DisplayString>
+  </Type>
+
+  <Type Name="sf::TypeStruct">
+    <DisplayString>{{ name={name} }}</DisplayString>
+    <Expand>
+      <Item Name="name">name</Item>
+      <Item Name="size">size</Item>
+      <ExpandedItem>fields</ExpandedItem>
+    </Expand>
+  </Type>
 
 </AutoVisualizer>

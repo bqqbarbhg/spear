@@ -282,6 +282,15 @@ struct Slice
 	}
 };
 
+struct VoidSlice
+{
+	void *data;
+	size_t size;
+
+	VoidSlice() : data(nullptr), size(0) { }
+	VoidSlice(void *data, size_t size) : data(data), size(size) { }
+};
+
 template <typename T>
 sf_inline Slice<T> slice(T *data, size_t size) { return Slice<T>(data, size); }
 
@@ -297,6 +306,30 @@ static T *find(Slice<T> arr, const U &t)
 }
 
 enum UninitType { Uninit };
+enum ConstType { Const };
+
+struct Type;
+
+template <typename T>
+Type *initType();
+
+Type *initPointerType(Type *type);
+
+template <typename T>
+struct InitType {
+	static Type *init() { return initType<T>(); }
+};
+
+template <typename T>
+inline Type *typeOf() {
+	static Type *t = InitType<T>::init();
+	return t;
+}
+
+template <typename T>
+struct InitType<T*> {
+	static Type *init() { return initPointerType(typeOf<T>()); }
+};
 
 }
 

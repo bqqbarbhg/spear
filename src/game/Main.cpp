@@ -14,6 +14,8 @@
 #include "game/shader/TestMesh.h"
 #include "game/shader/TestSkin.h"
 
+#include "sf/Reflection.h"
+
 #include <time.h>
 
 static void appendUtf8(sf::StringBuf &buf, uint32_t code)
@@ -549,6 +551,26 @@ struct Game
 
 Game *game;
 
+struct TestStruct
+{
+	sf::Array<sf::Vec2> arr;
+	int *ptr;
+};
+
+namespace sf {
+
+template<>
+sf::Type *initType<TestStruct>()
+{
+	static Field fields[] = {
+		sf_field(TestStruct, arr),
+		sf_field(TestStruct, ptr),
+	};
+	return sf_struct(TestStruct, fields);
+}
+
+}
+
 void spConfig(sp::MainConfig &config)
 {
 	config.sappDesc->window_title = "Spear";
@@ -556,6 +578,12 @@ void spConfig(sp::MainConfig &config)
 
 	config.sappDesc->width = 1200;
 	config.sappDesc->height = 1080;
+
+	sf::Type *ts = sf::typeOf<TestStruct>();
+	sf::Type *type = sf::typeOf<sf::Array<sf::Vec2i>>();
+	sf::Type *vec2 = sf::typeOf<sf::Vec2>();
+	sf::Type *vec3 = sf::typeOf<sf::Vec3>();
+	sf::Type *other = sf::typeOf<sf::Vec2>();
 }
 
 void spInit()
