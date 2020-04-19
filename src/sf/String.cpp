@@ -1,9 +1,43 @@
 #include "String.h"
 
+#include "Reflection.h"
+
 #include <stdarg.h>
 #include <stdio.h>
 
 namespace sf {
+
+struct StringBufType : Type
+{
+	StringBufType()
+		: Type("StringBuf", sizeof(StringBuf), HasArray|HasArrayResize|IsString)
+	{
+		elementType = typeOf<char>();
+	}
+
+	virtual VoidSlice instGetArray(void *inst)
+	{
+		StringBuf *buf = (StringBuf*)inst;
+		return { buf->data, buf->size };
+	}
+
+	virtual VoidSlice instArrayReserve(void *inst, size_t size)
+	{
+		StringBuf *buf = (StringBuf*)inst;
+		buf->reserve(size);
+		return { buf->data, buf->capacity };
+	}
+
+	virtual void instArrayResize(void *inst, size_t size)
+	{
+		StringBuf *buf = (StringBuf*)inst;
+		buf->resize(size);
+	}
+
+};
+
+template<> Type *initType<StringBuf>() { static StringBufType t; return &t; }
+
 
 bool String::operator<(const String &rhs) const
 {

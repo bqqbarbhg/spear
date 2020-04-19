@@ -19,6 +19,12 @@ struct InsertResult
 	bool inserted;
 };
 
+struct HashMapBase
+{
+	rhmap map;
+	void *data;
+};
+
 template <typename K, typename V>
 struct HashMap
 {
@@ -206,5 +212,23 @@ protected:
 };
 
 template <typename K, typename V> struct IsZeroInitializable<HashMap<K, V>> { enum { value = 1 }; };
+
+Type *initKeyValType(Type *keyType, Type *valType, size_t valOffset, size_t kvSize, ConstructRangeFn ctor, MoveRangeFn move, DestructRangeFn dtor);
+Type *initHashMapType(Type *kvType, uint32_t (*hashFn)(void *inst));
+
+template <typename K, typename V>
+struct InitType<KeyVal<K, V>> {
+	static Type *init() { using KV = KeyVal<K, V>; return initKeyValType(typeOf<K>(), typeOf<V>(), offsetof(KV, val), sizeof(KV),
+		&constructRangeImp<KV>, &moveRangeImp<KV>, &destructRangeImp<KV>); }
+};
+
+template <typename K, typename V>
+struct InitType<HashMap<K, V>> {
+	static Type *init() {
+		return initHashMapType(typeOf<KeyVal<K, V>>(),
+		[](void *inst) { return hash(*(K*)inst); });
+	}
+};
+
 
 }

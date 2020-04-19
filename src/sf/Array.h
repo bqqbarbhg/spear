@@ -364,8 +364,6 @@ static bool findRemoveSwap(Array<T> &arr, const U &t)
 	return false;
 }
 
-struct StringBuf;
-
 Type *initArrayType(Type *elemType);
 
 template <typename T>

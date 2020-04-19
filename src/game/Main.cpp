@@ -553,8 +553,9 @@ Game *game;
 
 struct TestStruct
 {
-	sf::Array<sf::Vec2> arr;
-	int *ptr;
+	sf::Array<sf::Vec2i> arr;
+	sf::StringBuf str;
+	sf::HashMap<sf::StringBuf, uint32_t> nameMap;
 };
 
 namespace sf {
@@ -564,7 +565,8 @@ sf::Type *initType<TestStruct>()
 {
 	static Field fields[] = {
 		sf_field(TestStruct, arr),
-		sf_field(TestStruct, ptr),
+		sf_field(TestStruct, str),
+		sf_field(TestStruct, nameMap),
 	};
 	return sf_struct(TestStruct, fields);
 }
@@ -579,11 +581,25 @@ void spConfig(sp::MainConfig &config)
 	config.sappDesc->width = 1200;
 	config.sappDesc->height = 1080;
 
-	sf::Type *ts = sf::typeOf<TestStruct>();
-	sf::Type *type = sf::typeOf<sf::Array<sf::Vec2i>>();
-	sf::Type *vec2 = sf::typeOf<sf::Vec2>();
-	sf::Type *vec3 = sf::typeOf<sf::Vec3>();
-	sf::Type *other = sf::typeOf<sf::Vec2>();
+	TestStruct ts1;
+	ts1.arr.push(sf::Vec2i(1, 2));
+	ts1.arr.push(sf::Vec2i(3, 4));
+	ts1.str = "Hello world!";
+	ts1.nameMap[sf::String("First")] = 1;
+	ts1.nameMap[sf::String("Second")] = 2;
+
+	sf::Array<char> data;
+	sf::writeBinary(data, ts1);
+
+	sf::Slice<char> src = data;
+	TestStruct ts2;
+	bool ret = sf::readBinary(src, ts2);
+	sf_assert(src.size == 0);
+	sf_assert(ts2.arr[0] == sf::Vec2i(1, 2));
+	sf_assert(ts2.arr[1] == sf::Vec2i(3, 4));
+	sf_assert(ts2.str == "Hello world!");
+	sf_assert(ts2.nameMap.find(sf::String("First"))->val == 1);
+	sf_assert(ts2.nameMap.find(sf::String("Second"))->val == 2);
 }
 
 void spInit()

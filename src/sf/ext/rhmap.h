@@ -34,6 +34,7 @@ void rhmap_insert(rhmap_iter *iter, uint32_t value);
 void rhmap_remove(rhmap_iter *iter);
 void rhmap_set(rhmap_iter *iter, uint32_t value);
 int rhmap_next(rhmap_iter *iter, uint32_t *hash, uint32_t *value);
+void rhmap_find_value(rhmap_iter *iter, uint32_t value);
 
 void rhmap_update(rhmap *map, uint32_t hash, uint32_t old_value, uint32_t new_value);
 
@@ -263,6 +264,26 @@ int rhmap_next(rhmap_iter *iter, uint32_t *hash, uint32_t *value)
 	}
 	return 0;
 }
+
+#ifdef RHMAP_INLINE
+RHMAP_INLINE int rhmap_find_value_inline(rhmap_iter *iter, uint32_t value)
+#else
+void rhmap_find_value(rhmap_iter *iter, uint32_t value)
+{
+	rhmap *map = iter->map;
+	uint64_t *entries = map->entries;
+	uint32_t mask = map->mask, hash = iter->hash, scan = 0;
+	uint64_t entry = (uint64_t)value << 32u | (hash & ~mask);
+	for (;;) {
+		uint32_t slot = (hash + scan) & mask;
+		scan += 1;
+		if (entries[slot] == entry + scan) {
+			iter->scan = scan;
+			return;
+		}
+	}
+}
+#endif
 
 #ifdef RHMAP_INLINE
 RHMAP_INLINE void rhmap_set_inline(rhmap_iter *iter, uint32_t value)

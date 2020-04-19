@@ -32,7 +32,7 @@
   </Type>
 
   <Type Name="sf::String">
-    <DisplayString>{data,[size],s}</DisplayString>
+    <DisplayString>{data,[size]s}</DisplayString>
   </Type>
 
   <Type Name="sf::CString">
@@ -55,14 +55,12 @@
 
   <Type Name="sf::Type">
     <DisplayString>{{ name={name} }}</DisplayString>
-  </Type>
-
-  <Type Name="sf::TypeStruct">
-    <DisplayString>{{ name={name} }}</DisplayString>
     <Expand>
       <Item Name="name">name</Item>
       <Item Name="size">size</Item>
-      <ExpandedItem>fields</ExpandedItem>
+      <Item Name="flags">(sf::Type::Flag)flags</Item>
+      <Item Name="elementType" Condition="flags &amp; sf::Type::HasArray">elementType</Item>
+      <ExpandedItem Condition="flags &amp; sf::Type::HasFields">fields</ExpandedItem>
     </Expand>
   </Type>
 

@@ -271,9 +271,14 @@ struct Slice
 	T *begin() const { return data; }
 	T *end() const { return data + size; }
 
-	Slice<T> takeRight(size_t num) const {
-		if (num > size) num = size;
-		return { data + size - num, num };
+	Slice<T> take(size_t num) const {
+		sf_assert(num <= size);
+		return { data, num };
+	}
+
+	Slice<T> drop(size_t num) const {
+		sf_assert(num <= size);
+		return { data + num, size - num };
 	}
 
 	T &operator[](size_t index) const {

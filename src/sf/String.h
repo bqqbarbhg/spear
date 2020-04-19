@@ -150,6 +150,22 @@ struct StringBuf
 		return (sf::String)*this < rhs;
 	}
 
+	void reserve(size_t size) {
+		if (size > capacity) {
+			impGrowTo(size);
+		}
+	}
+
+	void resize(size_t size) {
+		if (size > capacity) {
+			impGrowTo(size);
+		}
+		if (data[size] != '\0') {
+			data[size] = '\0';
+		}
+		this->size = (uint32_t)size;
+	}
+
 protected:
 	StringBuf(char *data, uint32_t capacity) : data(data), size(0), capacity(capacity) { }
 
