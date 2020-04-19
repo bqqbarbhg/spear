@@ -56,9 +56,9 @@ struct ArrayType final : Type
 
 };
 
-Type *initArrayType(Type *elemType)
+void initArrayType(Type *t, Type *elemType)
 {
-	return new ArrayType(elemType);
+	new (t) ArrayType(elemType);
 }
 
 }

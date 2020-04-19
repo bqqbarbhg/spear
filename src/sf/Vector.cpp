@@ -4,28 +4,28 @@
 namespace sf {
 
 template<>
-Type *initType<Vec2>()
+void initType<Vec2>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(Vec2, x),
 		sf_field(Vec2, y),
 	};
-	return sf_struct(Vec2, fields);
+	sf_struct(t, Vec2, fields, Type::CompactString);
 }
 
 template<>
-Type *initType<Vec3>()
+void initType<Vec3>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(Vec3, x),
 		sf_field(Vec3, y),
 		sf_field(Vec3, z),
 	};
-	return sf_struct(Vec3, fields);
+	sf_struct(t, Vec3, fields, Type::CompactString);
 }
 
 template<>
-Type *initType<Vec4>()
+void initType<Vec4>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(Vec4, x),
@@ -33,32 +33,32 @@ Type *initType<Vec4>()
 		sf_field(Vec4, z),
 		sf_field(Vec4, w),
 	};
-	return sf_struct(Vec4, fields);
+	sf_struct(t, Vec4, fields, Type::CompactString);
 }
 
 template<>
-Type *initType<Vec2i>()
+void initType<Vec2i>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(Vec2i, x),
 		sf_field(Vec2i, y),
 	};
-	return sf_struct(Vec2i, fields);
+	sf_struct(t, Vec2i, fields, Type::CompactString);
 }
 
 template<>
-Type *initType<Vec3i>()
+void initType<Vec3i>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(Vec3i, x),
 		sf_field(Vec3i, y),
 		sf_field(Vec3i, z),
 	};
-	return sf_struct(Vec3i, fields);
+	sf_struct(t, Vec3i, fields, Type::CompactString);
 }
 
 template<>
-Type *initType<Vec4i>()
+void initType<Vec4i>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(Vec4i, x),
@@ -66,7 +66,7 @@ Type *initType<Vec4i>()
 		sf_field(Vec4i, z),
 		sf_field(Vec4i, w),
 	};
-	return sf_struct(Vec4i, fields);
+	sf_struct(t, Vec4i, fields, Type::CompactString);
 }
 
 }

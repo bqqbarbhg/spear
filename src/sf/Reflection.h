@@ -17,25 +17,38 @@ struct Field {
 };
 
 struct Type {
-	sf::CString name;
-	uint32_t size;
-	uint32_t flags;
 
-	Slice<const Field> fields;
-	Type *elementType = nullptr;
+	enum Primitive {
+		Bool, Char,
+		I8, I16, I32, I64,
+		U8, U16, U32, U64,
+		F32, F64,
+	};
 
 	enum Flag {
 		HasArray = 0x1,
 		HasFields = 0x2,
 		IsPod = 0x4,
 		HasArrayResize = 0x8,
-		IsString = 0x10,
+		HasString = 0x10,
+		IsPrimitive = 0x20,
+		CompactString = 0x40,
 	};
+
+	sf::CString name;
+	uint32_t size;
+	uint32_t flags;
+	Primitive primitive;
+
+	Slice<const Field> fields;
+	Type *elementType = nullptr;
 
 	Type(const char *name, size_t size, uint32_t flags)
 		: name(name), size((uint32_t)size), flags(flags)
 	{
 	}
+
+	Primitive getPrimitive() const;
 
 	virtual void getName(sf::StringBuf &buf);
 
@@ -46,23 +59,14 @@ struct Type {
 	virtual VoidSlice instGetArray(void *inst);
 	virtual VoidSlice instArrayReserve(void *inst, size_t size);
 	virtual void instArrayResize(void *inst, size_t size);
-};
-
-struct TypePrimitive : Type {
-	bool isSigned;
-	bool isFloat;
-
-	TypePrimitive(const char *name, size_t size, uint32_t flags, bool isSigned, bool isFloat)
-		: Type(name, size, flags), isSigned(isSigned), isFloat(isFloat)
-	{
-	}
+	virtual sf::String instGetString(void *inst);
 };
 
 template <typename T>
 struct TypeStruct : Type {
 
-	TypeStruct(const char *name, sf::Slice<const Field> fields)
-		: Type(name, sizeof(T), HasFields)
+	TypeStruct(const char *name, sf::Slice<const Field> fields, uint32_t userFlags=0)
+		: Type(name, sizeof(T), HasFields|userFlags)
 	{
 		if (IsCopyable<T>::value) flags |= IsPod;
 		this->fields = fields;
@@ -84,16 +88,13 @@ struct TypeStruct : Type {
 	}
 };
 
-#define sf_field(type, name) Field{ sf::CString(::sf::Const, #name, sizeof(#name) - 1), offsetof(type, name), sizeof(type::name), ::sf::typeOf<decltype(type::name)>() }
-#define sf_struct(type, fields) new ::sf::TypeStruct<type>(#type, fields)
+#define sf_field(type, name) Field{ sf::CString(::sf::Const, #name, sizeof(#name) - 1), offsetof(type, name), sizeof(type::name), ::sf::typeOfRecursive<decltype(type::name)>() }
+#define sf_struct(t, type, ...) new (t) ::sf::TypeStruct<type>(#type, __VA_ARGS__)
 
 void writeInstBinary(sf::Array<char> &dst, void *inst, Type *type);
 bool readInstBinary(sf::Slice<char> &src, void *inst, Type *type);
 
-template <typename T>
-sf_inline void writeBinary(sf::Array<char> &dst, T &t) { writeInstBinary(dst, &t, typeOf<T>()); }
-
-template <typename T>
-sf_inline bool readBinary(sf::Slice<char> &src, T &t) { return readInstBinary(src, &t, typeOf<T>()); }
+template <typename T> sf_inline void writeBinary(sf::Array<char> &dst, T &t) { writeInstBinary(dst, &t, typeOf<T>()); }
+template <typename T> sf_inline bool readBinary(sf::Slice<char> &src, T &t) { return readInstBinary(src, &t, typeOf<T>()); }
 
 }

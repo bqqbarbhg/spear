@@ -6,6 +6,9 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#include "ext/mx/mx_platform.h"
+#include "ext/mx/mx_sync.h"
+
 #if SF_OS_WINDOWS
 	#define NOMINMAX
 	#define WIN32_LEAN_AND_MEAN
@@ -192,9 +195,35 @@ struct PointerType : Type
 	}
 };
 
-Type *initPointerType(Type *type)
+void initPointerType(Type *t, Type *type)
 {
-	return new PointerType(type);
+	new (t) PointerType(type);
+}
+
+static uint32_t g_numTypeInits;
+
+bool beginTypeInit(uint32_t *flag)
+{
+	if (mxa_load32_acq(flag) != 0) return false;
+	if (mxa_cas32(flag, 0, 1)) {
+		mxa_inc32_nf(&g_numTypeInits);
+		return true;
+	} else {
+		return false;
+	}
+}
+
+void endTypeInit()
+{
+	mxa_dec32_rel(&g_numTypeInits);
+}
+
+void waitForTypeInit()
+{
+	// TODO: Something better
+	while (mxa_load32_acq(&g_numTypeInits) > 0) {
+		Sleep(1);
+	}
 }
 
 }

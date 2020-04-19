@@ -40,9 +40,10 @@ struct KeyValType final : Type
 	}
 };
 
-Type *initKeyValType(Type *keyType, Type *valType, size_t valOffset, size_t kvSize, ConstructRangeFn ctor, MoveRangeFn move, DestructRangeFn dtor)
+void initKeyValType(Type *tt, Type *keyType, Type *valType, size_t valOffset, size_t kvSize, ConstructRangeFn ctor, MoveRangeFn move, DestructRangeFn dtor)
 {
-	KeyValType *t = new KeyValType(kvSize);
+	KeyValType *t = (KeyValType*)tt;
+	new (t) KeyValType(kvSize);
 	t->pair[0].name = "key";
 	t->pair[0].offset = 0;
 	t->pair[0].size = keyType->size;
@@ -55,11 +56,7 @@ Type *initKeyValType(Type *keyType, Type *valType, size_t valOffset, size_t kvSi
 	t->ctor = ctor;
 	t->move = move;
 	t->dtor = dtor;
-	if (keyType->flags & valType->flags & Type::IsPod) {
-		t->flags |= Type::IsPod;
-	}
-
-	return t;
+	t->flags |= keyType->flags & valType->flags & (Type::IsPod|Type::CompactString);
 }
 
 struct HashMapType final : Type
@@ -143,9 +140,9 @@ struct HashMapType final : Type
 	}
 };
 
-Type *initHashMapType(Type *kvType, uint32_t (*hashFn)(void *inst))
+void initHashMapType(Type *t, Type *kvType, uint32_t (*hashFn)(void *inst))
 {
-	return new HashMapType(kvType, hashFn);
+	new (t) HashMapType(kvType, hashFn);
 }
 
 }

@@ -16,6 +16,8 @@
 
 #include "sf/Reflection.h"
 
+#include "sp/Json.h"
+
 #include <time.h>
 
 static void appendUtf8(sf::StringBuf &buf, uint32_t code)
@@ -556,22 +558,26 @@ struct TestStruct
 	sf::Array<sf::Vec2i> arr;
 	sf::StringBuf str;
 	sf::HashMap<sf::StringBuf, uint32_t> nameMap;
+	sf::HashMap<sf::StringBuf, TestStruct> structMap;
 };
 
 namespace sf {
 
 template<>
-sf::Type *initType<TestStruct>()
+void initType<TestStruct>(sf::Type *t)
 {
 	static Field fields[] = {
 		sf_field(TestStruct, arr),
 		sf_field(TestStruct, str),
 		sf_field(TestStruct, nameMap),
+		sf_field(TestStruct, structMap),
 	};
-	return sf_struct(TestStruct, fields);
+	sf_struct(t, TestStruct, fields);
 }
 
 }
+
+#include <utility>
 
 void spConfig(sp::MainConfig &config)
 {
@@ -581,12 +587,15 @@ void spConfig(sp::MainConfig &config)
 	config.sappDesc->width = 1200;
 	config.sappDesc->height = 1080;
 
+	sf::Type *type = sf::typeOf<TestStruct>();
+
 	TestStruct ts1;
 	ts1.arr.push(sf::Vec2i(1, 2));
 	ts1.arr.push(sf::Vec2i(3, 4));
 	ts1.str = "Hello world!";
 	ts1.nameMap[sf::String("First")] = 1;
 	ts1.nameMap[sf::String("Second")] = 2;
+	ts1.structMap[sf::String("Yeet")].str = "Yote";
 
 	sf::Array<char> data;
 	sf::writeBinary(data, ts1);
@@ -600,6 +609,16 @@ void spConfig(sp::MainConfig &config)
 	sf_assert(ts2.str == "Hello world!");
 	sf_assert(ts2.nameMap.find(sf::String("First"))->val == 1);
 	sf_assert(ts2.nameMap.find(sf::String("Second"))->val == 2);
+
+	jso_stream s;
+	jso_init_growable(&s);
+	s.pretty = true;
+
+	sp::writeJson(s, ts1);
+
+	sf::debugPrint("%.*s\n", (int)s.pos, s.data);
+
+	jso_close(&s);
 }
 
 void spInit()

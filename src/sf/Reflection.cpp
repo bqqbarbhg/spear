@@ -38,25 +38,24 @@ void Type::instArrayResize(void *inst, size_t size)
 {
 }
 
-template <typename T>
-struct PrimitiveImp : TypePrimitive {
-	PrimitiveImp(const char *name, bool isSigned, bool isFloat)
-		: TypePrimitive(name, sizeof(T), IsPod, isSigned, isFloat)
-	{
-	}
-};
+sf::String Type::instGetString(void *inst)
+{
+	return { };
+}
 
-template<> Type *initType<char>() { static PrimitiveImp<char> t { "char", false, false }; return &t; }
-template<> Type *initType<int8_t>() { static PrimitiveImp<int8_t> t { "int8_t", true, false }; return &t; }
-template<> Type *initType<int16_t>() { static PrimitiveImp<int16_t> t { "int16_t", true, false }; return &t; }
-template<> Type *initType<int32_t>() { static PrimitiveImp<int32_t> t { "int32_t", true, false }; return &t; }
-template<> Type *initType<int64_t>() { static PrimitiveImp<int64_t> t { "int64_t", true, false }; return &t; }
-template<> Type *initType<uint8_t>() { static PrimitiveImp<uint8_t> t { "uint8_t", false, false }; return &t; }
-template<> Type *initType<uint16_t>() { static PrimitiveImp<uint16_t> t { "uint16_t", false, false }; return &t; }
-template<> Type *initType<uint32_t>() { static PrimitiveImp<uint32_t> t { "uint32_t", false, false }; return &t; }
-template<> Type *initType<uint64_t>() { static PrimitiveImp<uint64_t> t { "uint64_t", false, false }; return &t; }
-template<> Type *initType<float>() { static PrimitiveImp<float> t { "float", true, true }; return &t; }
-template<> Type *initType<double>() { static PrimitiveImp<double> t { "double", true, true }; return &t; }
+static constexpr const uint32_t PrimitiveFlags = Type::IsPrimitive|Type::IsPod|Type::CompactString;
+template<> void initType<bool>(Type *t) { new (t) Type("bool", sizeof(bool), PrimitiveFlags); t->primitive = Type::Bool; }
+template<> void initType<char>(Type *t) { new (t) Type("char", sizeof(char), PrimitiveFlags); t->primitive = Type::Char; }
+template<> void initType<int8_t>(Type *t) { new (t) Type("int8_t", sizeof(int8_t), PrimitiveFlags); t->primitive = Type::I8; }
+template<> void initType<int16_t>(Type *t) { new (t) Type("int16_t", sizeof(int16_t), PrimitiveFlags); t->primitive = Type::I16; }
+template<> void initType<int32_t>(Type *t) { new (t) Type("int32_t", sizeof(int32_t), PrimitiveFlags); t->primitive = Type::I32; }
+template<> void initType<int64_t>(Type *t) { new (t) Type("int64_t", sizeof(int64_t), PrimitiveFlags); t->primitive = Type::I64; }
+template<> void initType<uint8_t>(Type *t) { new (t) Type("uint8_t", sizeof(uint8_t), PrimitiveFlags); t->primitive = Type::U8; }
+template<> void initType<uint16_t>(Type *t) { new (t) Type("uint16_t", sizeof(uint16_t), PrimitiveFlags); t->primitive = Type::U16; }
+template<> void initType<uint32_t>(Type *t) { new (t) Type("uint32_t", sizeof(uint32_t), PrimitiveFlags); t->primitive = Type::U32; }
+template<> void initType<uint64_t>(Type *t) { new (t) Type("uint64_t", sizeof(uint64_t), PrimitiveFlags); t->primitive = Type::U64; }
+template<> void initType<float>(Type *t) { new (t) Type("float", sizeof(float), PrimitiveFlags); t->primitive = Type::F32; }
+template<> void initType<double>(Type *t) { new (t) Type("double", sizeof(double), PrimitiveFlags); t->primitive = Type::F64; }
 
 void writeInstBinary(sf::Array<char> &dst, void *inst, Type *type)
 {
@@ -83,6 +82,9 @@ void writeInstBinary(sf::Array<char> &dst, void *inst, Type *type)
 				ptr += elemSize;
 			}
 		}
+	} else {
+		// TODO: Serialization callback
+		sf_assert(0 && "Cannot serialize type");
 	}
 }
 
@@ -121,6 +123,9 @@ bool readInstBinary(sf::Slice<char> &src, void *inst, Type *type)
 		}
 
 		type->instArrayResize(inst, size);
+	} else {
+		// TODO: Serialization callback
+		sf_assert(0 && "Cannot serialize type");
 	}
 
 	return true;

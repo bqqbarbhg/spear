@@ -10,9 +10,9 @@ namespace sf {
 struct StringBufType : Type
 {
 	StringBufType()
-		: Type("StringBuf", sizeof(StringBuf), HasArray|HasArrayResize|IsString)
+		: Type("StringBuf", sizeof(StringBuf), HasArray|HasArrayResize|HasString)
 	{
-		elementType = typeOf<char>();
+		elementType = typeOfRecursive<char>();
 	}
 
 	virtual VoidSlice instGetArray(void *inst)
@@ -34,9 +34,15 @@ struct StringBufType : Type
 		buf->resize(size);
 	}
 
+	virtual sf::String instGetString(void *inst)
+	{
+		StringBuf *buf = (StringBuf*)inst;
+		return *buf;
+	}
+
 };
 
-template<> Type *initType<StringBuf>() { static StringBufType t; return &t; }
+template<> void initType<StringBuf>(Type *t) { new (t) StringBufType(); }
 
 
 bool String::operator<(const String &rhs) const

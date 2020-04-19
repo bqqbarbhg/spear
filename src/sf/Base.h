@@ -315,25 +315,43 @@ enum ConstType { Const };
 
 struct Type;
 
-template <typename T>
-Type *initType();
+static const constexpr uint32_t MaxTypeStructSize = 256;
 
-Type *initPointerType(Type *type);
+template <typename T>
+void initType(Type *t);
+
+void initPointerType(Type *dst, Type *type);
+
+bool beginTypeInit(uint32_t *flag);
+void endTypeInit();
+void waitForTypeInit();
 
 template <typename T>
 struct InitType {
-	static Type *init() { return initType<T>(); }
+	static void init(Type *t) { initType<T>(t); }
 };
 
 template <typename T>
+inline Type *typeOfRecursive() {
+	static uint32_t initFlag;
+	alignas(16) static char storage[MaxTypeStructSize];
+	if (beginTypeInit(&initFlag)) {
+		InitType<T>::init((Type*)storage);
+		endTypeInit();
+	}
+	return (Type*)storage;
+}
+
+template <typename T>
 inline Type *typeOf() {
-	static Type *t = InitType<T>::init();
+	Type *t = typeOfRecursive<T>();
+	waitForTypeInit();
 	return t;
 }
 
 template <typename T>
 struct InitType<T*> {
-	static Type *init() { return initPointerType(typeOf<T>()); }
+	static void init(Type *t) { initPointerType(t, typeOf<T>()); }
 };
 
 }
