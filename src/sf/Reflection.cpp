@@ -122,6 +122,8 @@ bool readInstBinary(sf::Slice<char> &src, void *inst, Type *type)
 
 		type->instArrayResize(inst, size);
 	}
+
+	return true;
 }
 
 }
