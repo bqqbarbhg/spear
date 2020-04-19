@@ -553,12 +553,20 @@ struct Game
 
 Game *game;
 
+struct OtherStruct;
+
 struct TestStruct
 {
 	sf::Array<sf::Vec2i> arr;
 	sf::StringBuf str;
 	sf::HashMap<sf::StringBuf, uint32_t> nameMap;
-	sf::HashMap<sf::StringBuf, TestStruct> structMap;
+	sf::HashMap<sf::StringBuf, OtherStruct> structMap;
+};
+
+struct OtherStruct
+{
+	TestStruct a;
+	TestStruct b;
 };
 
 namespace sf {
@@ -573,6 +581,16 @@ void initType<TestStruct>(sf::Type *t)
 		sf_field(TestStruct, structMap),
 	};
 	sf_struct(t, TestStruct, fields);
+}
+
+template<>
+void initType<OtherStruct>(sf::Type *t)
+{
+	static Field fields[] = {
+		sf_field(OtherStruct, a),
+		sf_field(OtherStruct, b),
+	};
+	sf_struct(t, OtherStruct, fields);
 }
 
 }
@@ -595,7 +613,8 @@ void spConfig(sp::MainConfig &config)
 	ts1.str = "Hello world!";
 	ts1.nameMap[sf::String("First")] = 1;
 	ts1.nameMap[sf::String("Second")] = 2;
-	ts1.structMap[sf::String("Yeet")].str = "Yote";
+	ts1.structMap[sf::String("Pair")].a.str = "Pair A";
+	ts1.structMap[sf::String("Pair")].b.str = "Pair B";
 
 	sf::Array<char> data;
 	sf::writeBinary(data, ts1);

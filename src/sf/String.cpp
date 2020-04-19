@@ -153,6 +153,27 @@ void StringBuf::format(const char *fmt, ...)
 	va_end(args2);
 }
 
+void StringBuf::vformat(const char *fmt, va_list args1)
+{
+	va_list args2;
+
+	va_copy(args2, args1);
+
+	// First pass: Try to format to a the current buffer
+	int appendSize = vsnprintf(data + size, capacity - size, fmt, args1);
+
+	if (appendSize < 0) return;
+
+	// Second pass: Potentially re-allocate and re-format
+	if (size + appendSize + 1 > capacity) {
+		impGrowToGeometric(size + appendSize + 1);
+		vsnprintf(data + size, capacity - size, fmt, args2);
+	}
+	size += appendSize;
+
+	va_end(args2);
+}
+
 sf_noinline void StringBuf::impGrowTo(size_t sz) {
 	sf_assert(sz <= UINT32_MAX);
 	if (capacity > 0 && data != (char*)(this + 1)) {

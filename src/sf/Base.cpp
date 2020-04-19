@@ -74,9 +74,9 @@ void debugPrint(const char *fmt, ...)
 
 #if SF_OS_WINDOWS
 	{
-		char line[512];
-		vsnprintf(line, sizeof(line), fmt, args);
-		OutputDebugStringA(line);
+		SmallStringBuf<1024> line;
+		line.vformat(fmt, args);
+		OutputDebugStringA(line.data);
 	}
 #else
 	{
@@ -94,10 +94,10 @@ void debugPrintLine(const char *fmt, ...)
 
 #if SF_OS_WINDOWS
 	{
-		char line[512];
-		vsnprintf(line, sizeof(line), fmt, args);
-		OutputDebugStringA(line);
-		OutputDebugStringA("\n");
+		SmallStringBuf<1024> line;
+		line.vformat(fmt, args);
+		line.append('\n');
+		OutputDebugStringA(line.data);
 	}
 #else
 	{

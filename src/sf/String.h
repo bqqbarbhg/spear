@@ -129,6 +129,7 @@ struct StringBuf
 	void append(String a, String b, String c, String d);
 
 	void format(const char *fmt, ...);
+	void vformat(const char *fmt, va_list args);
 
 	bool operator==(const sf::String &rhs) const {
 		return (sf::String)*this == rhs;
