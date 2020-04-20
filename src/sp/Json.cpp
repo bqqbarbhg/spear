@@ -56,7 +56,45 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 {
 	uint32_t flags = type->flags;
 	char *base = (char*)inst;
-	if (flags & sf::Type::HasString) {
+	if (flags & sf::Type::HasSetString && src->type == jsi_type_string) {
+		if (src->flags & jsi_flag_multiline) {
+			sf::SmallStringBuf<1024> buf;
+			const char *ptr = src->string;
+			if (*ptr == '\r') ptr++;
+			if (*ptr == '\n') ptr++;
+			uint32_t target_spaces = 0, target_tabs = 0;
+			for (;; ptr++) {
+				if (*ptr == ' ') target_spaces++;
+				else if (*ptr == '\t') target_tabs++;
+				else break;
+			}
+
+			for (; *ptr != '\r' && *ptr != '\n' && *ptr != '\0'; ptr++) {
+				buf.append(*ptr);
+			}
+
+			while (*ptr != '\0') {
+				if (*ptr == '\r') ptr++;
+				if (*ptr == '\n') ptr++;
+				uint32_t spaces = 0, tabs = 0;
+				for (; spaces < target_spaces || tabs < target_tabs; ptr++) {
+					if (*ptr == ' ') spaces++;
+					else if (*ptr == '\t') tabs++;
+					else break;
+				}
+				if (*ptr == '\0') break;
+				buf.append('\n');
+				for (; *ptr != '\r' && *ptr != '\n' && *ptr != '\0'; ptr++) {
+					buf.append(*ptr);
+				}
+			}
+
+			type->instSetString(inst, buf);
+		} else {
+			size_t len = jsi_length(src->string);
+			type->instSetString(inst, sf::String(src->string, len));
+		}
+	} else if (flags & sf::Type::HasString) {
 		if (src->type == jsi_type_string) {
 			size_t len = jsi_length(src->string);
 			sf::VoidSlice slice = type->instArrayReserve(inst, len);

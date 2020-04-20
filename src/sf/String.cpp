@@ -10,7 +10,7 @@ namespace sf {
 struct StringBufType : Type
 {
 	StringBufType()
-		: Type("StringBuf", sizeof(StringBuf), HasArray|HasArrayResize|HasString)
+		: Type("StringBuf", sizeof(StringBuf), HasArray|HasArrayResize|HasString|HasSetString)
 	{
 		elementType = typeOfRecursive<char>();
 	}
@@ -34,10 +34,10 @@ struct StringBufType : Type
 		buf->resize(size);
 	}
 
-	virtual sf::String instGetString(void *inst)
+	virtual void instSetString(void *inst, sf::String str)
 	{
 		StringBuf *buf = (StringBuf*)inst;
-		return *buf;
+		*buf = str;
 	}
 
 };

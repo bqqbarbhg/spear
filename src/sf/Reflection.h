@@ -33,6 +33,7 @@ struct Type {
 		HasString = 0x10,
 		IsPrimitive = 0x20,
 		CompactString = 0x40,
+		HasSetString = 0x80,
 	};
 
 	sf::CString name;
@@ -57,6 +58,8 @@ struct Type {
 	virtual VoidSlice instGetArray(void *inst);
 	virtual VoidSlice instArrayReserve(void *inst, size_t size);
 	virtual void instArrayResize(void *inst, size_t size);
+
+	virtual void instSetString(void *inst, sf::String str);
 };
 
 template <typename T>

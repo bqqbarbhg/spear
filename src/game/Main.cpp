@@ -569,10 +569,22 @@ struct OtherStruct
 	TestStruct b;
 };
 
+struct Card
+{
+	sf::StringBuf name;
+	sf::StringBuf image;
+	sf::StringBuf description;
+};
+
+struct AttachItem
+{
+	sf::StringBuf bone;
+	sf::StringBuf model;
+};
+
 namespace sf {
 
-template<>
-void initType<TestStruct>(sf::Type *t)
+template<> void initType<TestStruct>(sf::Type *t)
 {
 	static Field fields[] = {
 		sf_field(TestStruct, arr),
@@ -583,14 +595,32 @@ void initType<TestStruct>(sf::Type *t)
 	sf_struct(t, TestStruct, fields);
 }
 
-template<>
-void initType<OtherStruct>(sf::Type *t)
+template<> void initType<OtherStruct>(sf::Type *t)
 {
 	static Field fields[] = {
 		sf_field(OtherStruct, a),
 		sf_field(OtherStruct, b),
 	};
 	sf_struct(t, OtherStruct, fields);
+}
+
+template<> void initType<Card>(sf::Type *t)
+{
+	static Field fields[] = {
+		sf_field(Card, name),
+		sf_field(Card, image),
+		sf_field(Card, description),
+	};
+	sf_struct(t, Card, fields);
+}
+
+template<> void initType<AttachItem>(sf::Type *t)
+{
+	static Field fields[] = {
+		sf_field(AttachItem, bone),
+		sf_field(AttachItem, model),
+	};
+	sf_struct(t, AttachItem, fields);
 }
 
 }
@@ -654,8 +684,19 @@ void spConfig(sp::MainConfig &config)
 	args.dialect.allow_comments = true;
 	args.dialect.allow_trailing_comma = true;
 	args.dialect.allow_missing_comma = true;
+	args.dialect.allow_control_in_string = true;
 	args.implicit_root_object = true;
 	jsi_value *val = jsi_parse_file("data/card/Sword.js", &args);
+
+	for (jsi_prop &c : val->object) {
+		if (jsi_equal(c.key, "Card")) {
+			Card card;
+			sp::readJson(&c.value, card);
+		} else if (jsi_equal(c.key, "AttachItem")) {
+			AttachItem attach;
+			sp::readJson(&c.value, attach);
+		}
+	}
 
 	return;
 }

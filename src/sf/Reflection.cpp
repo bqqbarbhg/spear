@@ -40,6 +40,11 @@ void Type::instArrayResize(void *inst, size_t size)
 {
 }
 
+void Type::instSetString(void *inst, sf::String str)
+{
+	sf_assert(0 && "Set string not supported");
+}
+
 static constexpr const uint32_t PrimitiveFlags = Type::IsPrimitive|Type::IsPod|Type::CompactString;
 template<> void initType<bool>(Type *t) { new (t) Type("bool", sizeof(bool), PrimitiveFlags); t->primitive = Type::Bool; }
 template<> void initType<char>(Type *t) { new (t) Type("char", sizeof(char), PrimitiveFlags); t->primitive = Type::Char; }

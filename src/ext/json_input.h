@@ -76,6 +76,11 @@ typedef enum jsi_type {
 	jsi_type_array,
 } jsi_type;
 
+typedef enum jsi_flag {
+	jsi_flag_integer = 0x0001,
+	jsi_flag_multiline = 0x0002,
+} jsi_flag;
+
 typedef struct jsi_obj jsi_obj;
 typedef struct jsi_arr jsi_arr;
 typedef struct jsi_obj_map jsi_obj_map;
@@ -83,6 +88,7 @@ typedef struct jsi_obj_map jsi_obj_map;
 typedef struct jsi_value {
 	jsi_type type;
 	uint16_t key_hash;
+	uint16_t flags;
 	union {
 		int boolean;
 		double number;
@@ -136,10 +142,10 @@ static size_t jsi_equal(const char *jsi_str, const char *str) {
 }
 
 #ifdef __cplusplus
-	static jsi_prop *begin(jsi_obj &obj) { return obj.props; }
-	static jsi_prop *end(jsi_obj &obj) { return obj.props + obj.num_props; }
-	static jsi_value *begin(jsi_arr &arr) { return arr.values; }
-	static jsi_value *end(jsi_arr &arr) { return arr.values + arr.num_values; }
+	static jsi_prop *begin(jsi_obj *obj) { return obj->props; }
+	static jsi_prop *end(jsi_obj *obj) { return obj->props + obj->num_props; }
+	static jsi_value *begin(jsi_arr *arr) { return arr->values; }
+	static jsi_value *end(jsi_arr *arr) { return arr->values + arr->num_values; }
 #endif
 
 #if defined(_MSC_VER)

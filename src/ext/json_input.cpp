@@ -563,7 +563,7 @@ jsi_copy_utf16(jsi_parser *p, const char *ptr, const char *end, char *buf)
 }
 
 jsi_noinline static const char *
-jsi_copy_string(jsi_parser *p, const char *ptr, const char *end)
+jsi_copy_string(jsi_parser *p, const char *ptr, const char *end, jsi_value *value)
 {
 	size_t begin_offset = p->data_offset + (ptr - p->data) - 1;
 	char *dst_begin = p->result_page + p->result_pos;
@@ -670,6 +670,9 @@ jsi_copy_string(jsi_parser *p, const char *ptr, const char *end)
 				return NULL;
 			} else if (c == '\n') {
 				if (p->dialect.allow_control_in_string) {
+					if (dst_ptr == dst_begin || (dst_ptr == dst_begin + 1 && *dst_begin == '\r')) {
+						value->flags |= jsi_flag_multiline;
+					}
 					p->newline_offset = p->data_offset + (ptr - p->data) - 1;
 					p->line_index++;
 				} else {
@@ -887,7 +890,7 @@ jsi_parse_object(jsi_parser *p, const char *ptr, const char *end, jsi_value *val
 		}
 		if (*ptr == '"') {
 			jsi_advance(p, ptr, end);
-			key = jsi_copy_string(p, ptr, end);
+			key = jsi_copy_string(p, ptr, end, NULL);
 		} else if (*ptr == '}') {
 			if (p->dialect.allow_trailing_comma) {
 				break;
@@ -923,6 +926,8 @@ jsi_parse_object(jsi_parser *p, const char *ptr, const char *end, jsi_value *val
 
 		jsi_value item;
 		if (!jsi_parse_value(p, ptr, end, &item)) return 0;
+		item.key_hash = (uint16_t)((unsigned)key[0] + (jsi_length(key) << 7));
+
 		ptr = p->ptr; end = p->end;
 
 		if (p->temp_top + sizeof(jsi_prop) > p->temp_size) {
@@ -932,7 +937,6 @@ jsi_parse_object(jsi_parser *p, const char *ptr, const char *end, jsi_value *val
 		p->temp_top += sizeof(jsi_prop);
 		prop->key = key;
 		prop->value = item;
-		prop->value.key_hash = (uint16_t)((unsigned)key[0] + (jsi_length(key) << 7));
 
 		if (jsi_likely(end - ptr > 2 && *ptr == ',')) {
 			ptr += ptr[1] == ' ' ? 2 : 1;
@@ -1012,7 +1016,6 @@ jsi_parse_array(jsi_parser *p, const char *ptr, const char *end, jsi_value *valu
 		if (p->temp_top + sizeof(jsi_value) > p->temp_size) {
 			if (!jsi_temp_grow(p)) return 0;
 		}
-		item.key_hash = '\0';
 		*(jsi_value*)(p->temp_stack + p->temp_top) = item;
 		p->temp_top += sizeof(jsi_value);
 
@@ -1069,7 +1072,7 @@ jsi_parse_string_value(jsi_parser *p, const char *ptr, const char *end, jsi_valu
 {
 	value->type = jsi_type_string;
 	jsi_advance(p, ptr, end);
-	value->string = jsi_copy_string(p, ptr, end);
+	value->string = jsi_copy_string(p, ptr, end, value);
 	return value->string != 0;
 }
 
@@ -1100,6 +1103,7 @@ jsi_parse_number(jsi_parser *p, const char *ptr, const char *end, jsi_value *val
 		}
 		if (jsi_char_tab[*ptr] != jsi_char_number) {
 			value->number = (double)(int_val * sign);
+			value->flags |= jsi_flag_integer;
 			p->ptr = ptr;
 			return 1;
 		}
@@ -1196,6 +1200,8 @@ jsi_parse_value(jsi_parser *p, const char *ptr, const char *end, jsi_value *valu
 	for (;;) {
 		char char_type = jsi_char_tab[*ptr];
 		if (char_type != 0) {
+			value->key_hash = 0;
+			value->flags = 0;
 			jsi_parse_fn func = jsi_parse_funcs[char_type];
 			return func(p, ptr, end, value);
 		} else {
@@ -1265,15 +1271,18 @@ jsi_parse(jsi_parser *p, jsi_args *args)
 	int success;
 	if (p->args->implicit_root_object) {
 		p->depth_left = JSI_DEPTH_IMPLICIT_ROOT;
+		result->value.key_hash = 0;
+		result->value.flags = 0;
 		success = jsi_parse_object(p, p->ptr, p->end, &result->value);
 	} else if (p->args->implicit_root_array) {
 		p->depth_left = JSI_DEPTH_IMPLICIT_ROOT;
+		result->value.key_hash = 0;
+		result->value.flags = 0;
 		success = jsi_parse_array(p, p->ptr, p->end, &result->value);
 	} else {
 		success = jsi_parse_value(p, p->ptr, p->end, &result->value);
 	}
 
-	result->value.key_hash = 0;
 	result->memory = p->result_allocated ? p->result_page : NULL;
 	if (args && args->result_allocator.alloc_fn) {
 		result->free_fn = args->result_allocator.free_fn;
