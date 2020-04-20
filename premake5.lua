@@ -42,7 +42,7 @@ workspace "spear"
 		optimize "On"
 		symbols_on()
 
-	filter "configurations:relase"
+	filter "configurations:release"
 		defines { "NDEBUG" }
 		optimize "On"
         flags { "LinkTimeOptimization" }

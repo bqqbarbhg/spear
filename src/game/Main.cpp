@@ -18,6 +18,8 @@
 
 #include "sp/Json.h"
 
+#include "State.h"
+
 #include <time.h>
 
 static void appendUtf8(sf::StringBuf &buf, uint32_t code)
@@ -625,8 +627,6 @@ template<> void initType<AttachItem>(sf::Type *t)
 
 }
 
-#include <utility>
-
 void spConfig(sp::MainConfig &config)
 {
 	config.sappDesc->window_title = "Spear";
@@ -635,6 +635,25 @@ void spConfig(sp::MainConfig &config)
 	config.sappDesc->width = 1200;
 	config.sappDesc->height = 1080;
 
+
+	jsi_args args = { };
+	args.dialect.allow_bare_keys = true;
+	args.dialect.allow_comments = true;
+	args.dialect.allow_trailing_comma = true;
+	args.dialect.allow_missing_comma = true;
+	args.dialect.allow_control_in_string = true;
+	args.implicit_root_object = true;
+	jsi_value *val = jsi_parse_file("data/testdata.js", &args);
+
+
+	for (jsi_prop &c : val->object) {
+		if (jsi_equal(c.key, "Character")) {
+			Character ch;
+			sp::readJson(&c.value, ch);
+		}
+	}
+
+#if 0
 	sf::Type *type = sf::typeOf<TestStruct>();
 
 	TestStruct ts1;
@@ -699,6 +718,7 @@ void spConfig(sp::MainConfig &config)
 	}
 
 	return;
+#endif
 }
 
 void spInit()

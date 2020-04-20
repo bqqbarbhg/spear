@@ -43,6 +43,15 @@
     <DisplayString>{data,s}</DisplayString>
   </Type>
 
+  <Type Name="sf::Symbol">
+    <DisplayString>{data,s}</DisplayString>
+    <Expand>
+      <Item Name="data">data</Item>
+      <Item Name="size">((const uint32_t*)data)[-1]</Item>
+      <Item Name="refcount">((const uint32_t*)data)[-2]</Item>
+    </Expand>
+  </Type>
+
   <Type Name="sf::HashMap&lt;*,*&gt;">
     <DisplayString>{{ size={map.size} capacity={map.capacity} }}</DisplayString>
     <Expand>

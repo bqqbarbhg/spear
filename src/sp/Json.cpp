@@ -107,6 +107,7 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 		if (src->type == jsi_type_object) {
 			for (const sf::Field &field : type->fields) {
 				jsi_value *child = jsi_get_len(src->object, field.name.data, field.name.size);
+				if (!child) continue;
 				if (!readInstJson(child, base + field.offset, field.type)) return false;
 			}
 		} else {
