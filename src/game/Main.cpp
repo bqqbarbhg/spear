@@ -648,6 +648,16 @@ void spConfig(sp::MainConfig &config)
 	sf_assert(ts3.str == "Hello world!");
 	sf_assert(ts3.nameMap.find(sf::String("First"))->val == 1);
 	sf_assert(ts3.nameMap.find(sf::String("Second"))->val == 2);
+
+	jsi_args args = { };
+	args.dialect.allow_bare_keys = true;
+	args.dialect.allow_comments = true;
+	args.dialect.allow_trailing_comma = true;
+	args.dialect.allow_missing_comma = true;
+	args.implicit_root_object = true;
+	jsi_value *val = jsi_parse_file("data/card/Sword.js", &args);
+
+	return;
 }
 
 void spInit()

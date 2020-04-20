@@ -8,11 +8,11 @@
 
 // Input
 
-typedef struct jso_stream_s jso_stream;
+typedef struct jso_stream jso_stream;
 typedef void jso_flush_fn(jso_stream *s);
 typedef void jso_close_fn(jso_stream *s);
 
-struct jso_stream_s {
+struct jso_stream {
 	char *data;
 	size_t capacity;
 	size_t pos;

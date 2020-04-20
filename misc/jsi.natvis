@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="jsi_value">
+    <DisplayString Condition="type == jsi_type_null">null</DisplayString>
+    <DisplayString Condition="type == jsi_type_boolean">{ (bool)boolean }</DisplayString>
+    <DisplayString Condition="type == jsi_type_number &amp;&amp; number == (int)number">{ (int)number }</DisplayString>
+    <DisplayString Condition="type == jsi_type_number">{ number }</DisplayString>
+    <DisplayString Condition="type == jsi_type_string">{ string,s }</DisplayString>
+    <DisplayString Condition="type == jsi_type_object">{{ num_props={object->num_props} }}</DisplayString>
+    <DisplayString Condition="type == jsi_type_array">[ num_props={array->num_values} ]</DisplayString>
+    <Expand>
+      <ArrayItems Condition="type == jsi_type_object">
+        <Size>object->num_props</Size>
+        <ValuePointer>object->props</ValuePointer>
+      </ArrayItems>
+      <ArrayItems Condition="type == jsi_type_array">
+        <Size>array->num_values</Size>
+        <ValuePointer>array->values</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  <Type Name="jsi_prop">
+    <DisplayString>{ key,s }: { value }</DisplayString>
+  </Type>
+</AutoVisualizer>

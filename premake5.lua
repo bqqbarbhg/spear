@@ -22,7 +22,7 @@ workspace "spear"
 	includedirs { "src" }
 	targetdir "build/%{cfg.buildcfg}_%{cfg.platform}"
     startproject "test"
-    flags { "MultiProcessorCompile" }
+	flags { "MultiProcessorCompile" }
 
 	if cppdialect ~= nil then
 		cppdialect "C++11"
@@ -61,4 +61,6 @@ project "spear"
 	language "C++"
     files { "src/**.h", "src/**.cpp", "src/**.c" }
     files { "misc/*.natvis" }
+	debugdir "."
 
+	debugdir "."

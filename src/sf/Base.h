@@ -315,7 +315,7 @@ enum ConstType { Const };
 
 struct Type;
 
-static const constexpr uint32_t MaxTypeStructSize = 48;
+static const constexpr uint32_t MaxTypeStructSize = 96;
 
 template <typename T>
 void initType(Type *t);
