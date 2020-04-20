@@ -48,6 +48,8 @@ SymbolPool g_symbolPool;
 
 static const char *findSymbolData(const char *data, size_t length)
 {
+	if (length == 0) return Symbol::emptyData;
+
 	uint32_t hash = sf::hashBuffer(data, length);
 	SymbolPool &pool = g_symbolPool;
 
