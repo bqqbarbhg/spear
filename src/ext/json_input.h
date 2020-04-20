@@ -12,6 +12,7 @@
 
 typedef struct jsi_dialect_s {
 	unsigned allow_trailing_comma : 1;
+	unsigned allow_missing_comma : 1;
 	unsigned allow_bare_keys : 1;
 	unsigned allow_comments : 1;
 	unsigned allow_unknown_escape : 1;

@@ -932,6 +932,8 @@ jsi_parse_object(jsi_parser *p, const char *ptr, const char *end, jsi_value *val
 				break;
 			} else if (*ptr == ',') {
 				jsi_advance(p, ptr, end);
+			} else if (p->dialect.allow_missing_comma) {
+				continue;
 			} else {
 				return jsi_err(p, ptr, "Expected ',' or '}'");
 			}
@@ -1005,8 +1007,10 @@ jsi_parse_array(jsi_parser *p, const char *ptr, const char *end, jsi_value *valu
 				break;
 			} else if (*ptr == ',') {
 				jsi_advance(p, ptr, end);
+			} else if (p->dialect.allow_missing_comma) {
+				continue;
 			} else {
-				return jsi_err(p, ptr, "Expected ',' or '}'");
+				return jsi_err(p, ptr, "Expected ',' or ']'");
 			}
 		}
 
