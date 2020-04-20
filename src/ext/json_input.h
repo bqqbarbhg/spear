@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <string.h>
 
-typedef struct jsi_dialect_s {
+typedef struct jsi_dialect {
 	unsigned allow_trailing_comma : 1;
 	unsigned allow_missing_comma : 1;
 	unsigned allow_bare_keys : 1;
@@ -19,7 +19,7 @@ typedef struct jsi_dialect_s {
 	unsigned allow_control_in_string : 1;
 } jsi_dialect;
 
-typedef struct jsi_error_s {
+typedef struct jsi_error {
 	const char *description;
 	size_t line, column;
 	size_t byte_offset;
@@ -29,7 +29,7 @@ typedef void *(*jsi_alloc_fn)(void *user, size_t size);
 typedef void *(*jsi_realloc_fn)(void *user, void *ptr, size_t new_size, size_t old_size);
 typedef void (*jsi_free_fn)(void *user, void *ptr, size_t size);
 
-typedef struct jsi_allocator_s {
+typedef struct jsi_allocator {
 	jsi_alloc_fn alloc_fn;
 	jsi_realloc_fn realloc_fn;
 	jsi_free_fn free_fn;
@@ -39,7 +39,7 @@ typedef struct jsi_allocator_s {
 	size_t memory_limit;
 } jsi_allocator;
 
-typedef struct jsi_args_s {
+typedef struct jsi_args {
 
 	// Output
 	jsi_error error;
@@ -56,15 +56,17 @@ typedef struct jsi_args_s {
 	jsi_allocator result_allocator;
 	jsi_allocator temp_allocator;
 
-	unsigned nesting_limit;
+	int nesting_limit;
 
 	unsigned allow_trailing_data : 1;
 	unsigned no_allocation : 1;
+	unsigned implicit_root_object : 1;
+	unsigned implicit_root_array : 1;
 	jsi_dialect dialect;
 
 } jsi_args;
 
-typedef enum jsi_type_s {
+typedef enum jsi_type {
 	jsi_type_undefined,
 	jsi_type_null,
 	jsi_type_boolean,
@@ -74,11 +76,11 @@ typedef enum jsi_type_s {
 	jsi_type_array,
 } jsi_type;
 
-typedef struct jsi_obj_s jsi_obj;
-typedef struct jsi_arr_s jsi_arr;
-typedef struct jsi_obj_map_s jsi_obj_map;
+typedef struct jsi_obj jsi_obj;
+typedef struct jsi_arr jsi_arr;
+typedef struct jsi_obj_map jsi_obj_map;
 
-typedef struct jsi_value_s {
+typedef struct jsi_value {
 	jsi_type type;
 	uint16_t key_hash;
 	union {
@@ -90,19 +92,19 @@ typedef struct jsi_value_s {
 	};
 } jsi_value;
 
-typedef struct jsi_prop_s {
+typedef struct jsi_prop {
 	const char *key;
 	jsi_value value;
 } jsi_prop;
 
-struct jsi_obj_s {
+struct jsi_obj {
 	jsi_obj_map *map;
 
 	size_t num_props;
 	jsi_prop props[];
 };
 
-struct jsi_arr_s {
+struct jsi_arr {
 	size_t num_values;
 	jsi_value values[];
 };

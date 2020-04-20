@@ -32,6 +32,8 @@
 #define JSI_USE_SSE 0
 #endif
 
+#define JSI_DEPTH_IMPLICIT_ROOT (-1)
+
 typedef struct {
 
 	const char *data, *ptr, *end;
@@ -42,7 +44,8 @@ typedef struct {
 
 	jsi_args *args;
 	jsi_dialect dialect;
-	unsigned depth_left;
+	int depth_left;
+	int max_depth;
 
 	char *temp_stack;
 	size_t temp_top, temp_size;
@@ -67,7 +70,7 @@ typedef struct {
 	void *free_user;
 } jsi_result_value;
 
-struct jsi_obj_map_s {
+struct jsi_obj_map {
 	uint32_t mask;
 	uint32_t entries[];
 };
@@ -847,11 +850,18 @@ jsi_parse_error(jsi_parser *p, const char *ptr, const char *end, jsi_value *valu
 static int
 jsi_parse_object(jsi_parser *p, const char *ptr, const char *end, jsi_value *value)
 {
-	if (--p->depth_left == 0) {
-		return jsi_err(p, ptr, "Too many nested values");
+	int depth = p->depth_left--;
+	if (depth <= 0) {
+		if (depth == JSI_DEPTH_IMPLICIT_ROOT) {
+			// Skip `jsi_advance()` when parsing an implicit root object
+			p->depth_left = p->max_depth - 1;
+		} else {
+			return jsi_err(p, ptr, "Too many nested values");
+		}
+	} else {
+		jsi_advance(p, ptr, end);
 	}
 
-	jsi_advance(p, ptr, end);
 	value->type = jsi_type_object;
 	if (*ptr != '"') {
 		if (*ptr != '}') {
@@ -885,9 +895,12 @@ jsi_parse_object(jsi_parser *p, const char *ptr, const char *end, jsi_value *val
 				while (ptr != p->data && *ptr != ',') --ptr;
 				return jsi_err(p, ptr, "Trailing comma");
 			}
-		} else if (p->dialect.allow_bare_keys) {
+		} else if (p->dialect.allow_bare_keys && *ptr) {
 			key = jsi_copy_bare_key(p, ptr, end);
 		} else {
+			if (p->args->implicit_root_object && p->depth_left == p->max_depth - 1) {
+				break;
+			}
 			return jsi_err(p, ptr, "Expected a key or '}'");
 		}
 
@@ -964,11 +977,18 @@ jsi_parse_object(jsi_parser *p, const char *ptr, const char *end, jsi_value *val
 static int
 jsi_parse_array(jsi_parser *p, const char *ptr, const char *end, jsi_value *value)
 {
-	if (--p->depth_left == 0) {
-		return jsi_err(p, ptr, "Too many nested values");
+	int depth = p->depth_left--;
+	if (depth <= 0) {
+		if (depth == JSI_DEPTH_IMPLICIT_ROOT) {
+			// Skip `jsi_advance()` when parsing an implicit root array
+			p->depth_left = p->max_depth - 1;
+		} else {
+			return jsi_err(p, ptr, "Too many nested values");
+		}
+	} else {
+		jsi_advance(p, ptr, end);
 	}
 
-	jsi_advance(p, ptr, end);
 	value->type = jsi_type_array;
 
 	if (jsi_char_tab[*ptr] == jsi_char_whitespace) {
@@ -1007,6 +1027,8 @@ jsi_parse_array(jsi_parser *p, const char *ptr, const char *end, jsi_value *valu
 				break;
 			} else if (*ptr == ',') {
 				jsi_advance(p, ptr, end);
+			} else if (*ptr == '\0' && p->args->implicit_root_array && p->depth_left == p->max_depth - 1) {
+				break;
 			} else if (p->dialect.allow_missing_comma) {
 				continue;
 			} else {
@@ -1222,7 +1244,9 @@ jsi_parse(jsi_parser *p, jsi_args *args)
 	p->result_min_alloc_size = 128;
 	p->temp_allocated = 0;
 	p->result_allocated = 0;
-	p->depth_left = p->args->nesting_limit ? p->args->nesting_limit : ~0u;
+	p->max_depth = p->args->nesting_limit ? p->args->nesting_limit : INT_MAX;
+	if (p->max_depth < 1) p->max_depth = 1;
+	p->depth_left = p->max_depth;
 
 	if (args) {
 		if (args->temp_size > sizeof(null_temp_buffer)) {
@@ -1237,7 +1261,18 @@ jsi_parse(jsi_parser *p, jsi_args *args)
 
 	jsi_result_value *result = (jsi_result_value*)jsi_push_result(p, sizeof(jsi_result_value), 8);
 	if (!result) return NULL;
-	int success = jsi_parse_value(p, p->ptr, p->end, &result->value);
+
+	int success;
+	if (p->args->implicit_root_object) {
+		p->depth_left = JSI_DEPTH_IMPLICIT_ROOT;
+		success = jsi_parse_object(p, p->ptr, p->end, &result->value);
+	} else if (p->args->implicit_root_array) {
+		p->depth_left = JSI_DEPTH_IMPLICIT_ROOT;
+		success = jsi_parse_array(p, p->ptr, p->end, &result->value);
+	} else {
+		success = jsi_parse_value(p, p->ptr, p->end, &result->value);
+	}
+
 	result->value.key_hash = 0;
 	result->memory = p->result_allocated ? p->result_page : NULL;
 	if (args && args->result_allocator.alloc_fn) {
