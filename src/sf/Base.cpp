@@ -200,13 +200,16 @@ void initPointerType(Type *t, Type *type)
 	new (t) PointerType(type);
 }
 
-static uint32_t g_numTypeInits;
+static uint32_t g_typeNumInits;
+static mx_mutex g_typeInitMutex;
+static uint32_t g_typeNumWaiters;
+static mx_semaphore g_typeWaiterSema;
 
 bool beginTypeInit(uint32_t *flag)
 {
 	if (mxa_load32_acq(flag) != 0) return false;
 	if (mxa_cas32(flag, 0, 1)) {
-		mxa_inc32_nf(&g_numTypeInits);
+		mxa_inc32_nf(&g_typeNumInits);
 		return true;
 	} else {
 		return false;
@@ -215,14 +218,28 @@ bool beginTypeInit(uint32_t *flag)
 
 void endTypeInit()
 {
-	mxa_dec32_rel(&g_numTypeInits);
+	uint32_t numLeft = mxa_dec32_rel(&g_typeNumInits) - 1;
+	if (numLeft == 0) {
+		mx_mutex_lock(&g_typeInitMutex);
+		if (g_typeNumWaiters > 0) {
+			mx_semaphore_signal_n(&g_typeWaiterSema, g_typeNumWaiters);
+		}
+		mx_mutex_unlock(&g_typeInitMutex);
+	}
 }
 
 void waitForTypeInit()
 {
-	// TODO: Something better
-	while (mxa_load32_acq(&g_numTypeInits) > 0) {
-		Sleep(1);
+	if (mxa_load32_acq(&g_typeNumInits) > 0) {
+		mx_mutex_lock(&g_typeInitMutex);
+		if (mxa_load32_acq(&g_typeNumInits) > 0) {
+			mx_mutex_unlock(&g_typeInitMutex);
+			return;
+		}
+		g_typeNumWaiters++;
+		mx_mutex_unlock(&g_typeInitMutex);
+
+		mx_semaphore_wait(&g_typeWaiterSema);
 	}
 }
 

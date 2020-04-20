@@ -38,7 +38,7 @@ struct Type {
 	sf::CString name;
 	uint32_t size;
 	uint32_t flags;
-	Primitive primitive;
+	Primitive primitive = Bool;
 
 	Slice<const Field> fields;
 	Type *elementType = nullptr;
@@ -47,8 +47,6 @@ struct Type {
 		: name(name), size((uint32_t)size), flags(flags)
 	{
 	}
-
-	Primitive getPrimitive() const;
 
 	virtual void getName(sf::StringBuf &buf);
 
@@ -59,7 +57,6 @@ struct Type {
 	virtual VoidSlice instGetArray(void *inst);
 	virtual VoidSlice instArrayReserve(void *inst, size_t size);
 	virtual void instArrayResize(void *inst, size_t size);
-	virtual sf::String instGetString(void *inst);
 };
 
 template <typename T>

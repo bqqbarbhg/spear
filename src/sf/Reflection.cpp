@@ -4,6 +4,8 @@
 
 namespace sf {
 
+static_assert(sizeof(Type) + 2*sizeof(void*) <= MaxTypeStructSize, "Type size plus user data is too large");
+
 void Type::getName(sf::StringBuf &buf)
 {
 	buf.append(name);
@@ -36,11 +38,6 @@ VoidSlice Type::instArrayReserve(void *inst, size_t size)
 
 void Type::instArrayResize(void *inst, size_t size)
 {
-}
-
-sf::String Type::instGetString(void *inst)
-{
-	return { };
 }
 
 static constexpr const uint32_t PrimitiveFlags = Type::IsPrimitive|Type::IsPod|Type::CompactString;

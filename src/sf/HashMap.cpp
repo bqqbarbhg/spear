@@ -5,57 +5,62 @@ namespace sf {
 
 struct KeyValType final : Type
 {
-	Field pair[2];
-	ConstructRangeFn ctor;
-	MoveRangeFn move;
-	DestructRangeFn dtor;
-
-	KeyValType(size_t kvSize)
-		: Type("KeyVal", kvSize, HasFields)
+	struct Data
 	{
+		Field fields[2];
+		ConstructRangeFn ctor;
+		MoveRangeFn move;
+		DestructRangeFn dtor;
+	};
+	Data *data;
+
+	KeyValType(size_t kvSize, Data *data)
+		: Type("KeyVal", kvSize, HasFields)
+		, data(data)
+	{
+		fields = data->fields;
 	}
 
 	virtual void getName(sf::StringBuf &buf)
 	{
 		buf.append("KeyVal<");
-		pair[0].type->getName(buf);
+		data->fields[0].type->getName(buf);
 		buf.append(", ");
-		pair[1].type->getName(buf);
+		data->fields[1].type->getName(buf);
 		buf.append(">");
 	}
 
 	virtual void instConstruct(void *inst, size_t num)
 	{
-		ctor(inst, num);
+		data->ctor(inst, num);
 	}
 
 	virtual void instMove(void *dst, void *src, size_t num)
 	{
-		move(dst, src, num);
+		data->move(dst, src, num);
 	}
 
 	virtual void instDestruct(void *inst, size_t num)
 	{
-		dtor(inst, num);
+		data->dtor(inst, num);
 	}
 };
 
-void initKeyValType(Type *tt, Type *keyType, Type *valType, size_t valOffset, size_t kvSize, ConstructRangeFn ctor, MoveRangeFn move, DestructRangeFn dtor)
+void initKeyValType(Type *t, Type *keyType, Type *valType, size_t valOffset, size_t kvSize, ConstructRangeFn ctor, MoveRangeFn move, DestructRangeFn dtor)
 {
-	KeyValType *t = (KeyValType*)tt;
-	new (t) KeyValType(kvSize);
-	t->pair[0].name = "key";
-	t->pair[0].offset = 0;
-	t->pair[0].size = keyType->size;
-	t->pair[0].type = keyType;
-	t->pair[1].name = "val";
-	t->pair[1].offset = (uint32_t)valOffset;
-	t->pair[1].size = valType->size;
-	t->pair[1].type = valType;
-	t->fields = t->pair;
-	t->ctor = ctor;
-	t->move = move;
-	t->dtor = dtor;
+	KeyValType::Data *data = new KeyValType::Data();
+	data->fields[0].name = "key";
+	data->fields[0].offset = 0;
+	data->fields[0].size = keyType->size;
+	data->fields[0].type = keyType;
+	data->fields[1].name = "val";
+	data->fields[1].offset = (uint32_t)valOffset;
+	data->fields[1].size = valType->size;
+	data->fields[1].type = valType;
+	data->ctor = ctor;
+	data->move = move;
+	data->dtor = dtor;
+	new (t) KeyValType(kvSize, data);
 	t->flags |= keyType->flags & valType->flags & (Type::IsPod|Type::CompactString);
 }
 
@@ -98,7 +103,7 @@ struct HashMapType final : Type
 			void *newAlloc = memAlloc(allocSize + count * kvSize);
 			void *newData = (char*)newAlloc + allocSize;
 			if (map->map.size) {
-				kvType->move(newData, map->data, map->map.size);
+				kvType->data->move(newData, map->data, map->map.size);
 			}
 			map->data = newData;
 
@@ -108,7 +113,7 @@ struct HashMapType final : Type
 
 		if (size > map->map.size) {
 			char *base = (char*)map->data + map->map.size * kvSize;
-			kvType->ctor(base, size - map->map.size);
+			kvType->data->ctor(base, size - map->map.size);
 		}
 
 		return { map->data, map->map.capacity };

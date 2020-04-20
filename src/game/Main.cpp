@@ -637,7 +637,17 @@ void spConfig(sp::MainConfig &config)
 
 	sf::debugPrint("%.*s\n", (int)s.pos, s.data);
 
+	jsi_value *json = jsi_parse_memory(s.data, s.pos, NULL);
+
 	jso_close(&s);
+
+	TestStruct ts3;
+	sp::readJson(json, ts3);
+	sf_assert(ts3.arr[0] == sf::Vec2i(1, 2));
+	sf_assert(ts3.arr[1] == sf::Vec2i(3, 4));
+	sf_assert(ts3.str == "Hello world!");
+	sf_assert(ts3.nameMap.find(sf::String("First"))->val == 1);
+	sf_assert(ts3.nameMap.find(sf::String("Second"))->val == 2);
 }
 
 void spInit()
