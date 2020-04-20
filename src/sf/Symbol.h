@@ -37,4 +37,6 @@ struct Symbol
 	sf_forceinline bool operator>=(const Symbol &rhs) const { return data >= rhs.data; }
 };
 
+sf_inline uint32_t hash(const Symbol &s) { return hashPointer(s.data); }
+
 }

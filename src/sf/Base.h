@@ -151,6 +151,7 @@ uint32_t hash(uint32_t val);
 uint32_t hash(uint64_t val);
 uint32_t hashReverse32(uint32_t hash);
 uint32_t hash(const void *val) = delete;
+sf_inline uint32_t hashPointer(const void *val) { return hash((uintptr_t)val); }
 
 template <typename T>
 sf_inline void impSwap(T &a, T &b)
