@@ -293,4 +293,11 @@ template <> struct IsZeroInitializable<Vec2i> { enum { value = 1 }; };
 template <> struct IsZeroInitializable<Vec3i> { enum { value = 1 }; };
 template <> struct IsZeroInitializable<Vec4i> { enum { value = 1 }; };
 
+sf_inline uint32_t hash(const Vec2 &v) { return hashBuffer(&v, sizeof(v)); }
+sf_inline uint32_t hash(const Vec3 &v) { return hashBuffer(&v, sizeof(v)); }
+sf_inline uint32_t hash(const Vec4 &v) { return hashBuffer(&v, sizeof(v)); }
+sf_inline uint32_t hash(const Vec2i &v) { return hashBuffer(&v, sizeof(v)); }
+sf_inline uint32_t hash(const Vec3i &v) { return hashBuffer(&v, sizeof(v)); }
+sf_inline uint32_t hash(const Vec4i &v) { return hashBuffer(&v, sizeof(v)); }
+
 }

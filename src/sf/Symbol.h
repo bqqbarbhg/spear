@@ -26,6 +26,8 @@ struct Symbol
 	}
 	~Symbol();
 
+	operator String() const { return String(data, size()); }
+
 	Symbol &operator=(const Symbol &rhs);
 	Symbol &operator=(Symbol &&rhs) noexcept;
 

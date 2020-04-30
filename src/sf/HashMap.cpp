@@ -129,17 +129,17 @@ struct HashMapType final : Type
 			char *base = (char*)map->data + map->map.size * kvSize;
 			char *ptr = base;
 			for (uint32_t i = map->map.size; i < size; i++) {
-				rhmap_iter iter = { &map->map, hashFn(ptr) };
-				rhmap_find_value(&iter, i);
-				rhmap_remove(&iter);
+				uint32_t h = hashFn(ptr), scan = 0;
+				rhmap_find_value(&map->map, h, &scan, i);
+				rhmap_remove(&map->map, h, scan);
 				ptr += kvSize;
 			}
 			elementType->instDestruct(base, map->map.size - size);
 		}
 		char *ptr = (char*)map->data + map->map.size * kvSize;
 		for (uint32_t i = map->map.size; i < size; i++) {
-			rhmap_iter iter = { &map->map, hashFn(ptr) };
-			rhmap_insert(&iter, i);
+			uint32_t h = hashFn(ptr), scan = 0;
+			rhmap_insert(&map->map, h, scan, i);
 			ptr += kvSize;
 		}
 	}

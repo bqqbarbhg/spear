@@ -471,6 +471,24 @@ Vec3 operator*(const Mat23 &l, const Vec3 &r)
 
 // Transform point
 
+Vec3 transformPoint(const Mat33 &l, const Vec3 &r)
+{
+	return {
+		l.m00*r.x + l.m01*r.y + l.m02*r.z,
+		l.m10*r.x + l.m11*r.y + l.m12*r.z,
+		l.m20*r.x + l.m21*r.y + l.m22*r.z,
+	};
+}
+
+Vec3 transformPoint(const Mat34 &l, const Vec3 &r)
+{
+	return {
+		l.m00*r.x + l.m01*r.y + l.m02*r.z + l.m03,
+		l.m10*r.x + l.m11*r.y + l.m12*r.z + l.m13,
+		l.m20*r.x + l.m21*r.y + l.m22*r.z + l.m23,
+	};
+}
+
 Vec2 transformPoint(const Mat23 &l, const Vec2 &r)
 {
 	return {
@@ -510,6 +528,81 @@ float determinant(const Mat44 &m) {
 float determinant(const Mat23 &m) {
 	return
 		- m.m01*m.m10* + m.m00*m.m11;
+}
+
+// Transpose
+
+Mat44 transpose(const Mat34_3 &m)
+{
+	Mat44 r;
+	r.m30 = m.m03;
+	r.m31 = m.m13;
+	r.m32 = m.m23;
+	return r;
+}
+
+Mat33_D transpose(const Mat33_D &m)
+{
+	return m;
+}
+
+Mat33 transpose(const Mat33 &m)
+{
+	Mat33 r = Uninit;
+	r.m00 = m.m00;
+	r.m01 = m.m10;
+	r.m02 = m.m20;
+	r.m10 = m.m01;
+	r.m11 = m.m11;
+	r.m12 = m.m21;
+	r.m20 = m.m02;
+	r.m21 = m.m12;
+	r.m22 = m.m22;
+	return r;
+}
+
+Mat44 transpose(const Mat34 &m)
+{
+	Mat44 r = Uninit;
+	r.m00 = m.m00;
+	r.m01 = m.m10;
+	r.m02 = m.m20;
+	r.m03 = 0.0f;
+	r.m10 = m.m01;
+	r.m11 = m.m11;
+	r.m12 = m.m21;
+	r.m13 = 0.0f;
+	r.m20 = m.m02;
+	r.m21 = m.m12;
+	r.m22 = m.m22;
+	r.m23 = 0.0f;
+	r.m30 = m.m03;
+	r.m31 = m.m13;
+	r.m32 = m.m23;
+	r.m33 = 1.0f;
+	return r;
+}
+
+Mat44 transpose(const Mat44 &m)
+{
+	Mat44 r = Uninit;
+	r.m00 = m.m00;
+	r.m01 = m.m10;
+	r.m02 = m.m20;
+	r.m03 = m.m30;
+	r.m10 = m.m01;
+	r.m11 = m.m11;
+	r.m12 = m.m21;
+	r.m13 = m.m31;
+	r.m20 = m.m02;
+	r.m21 = m.m12;
+	r.m22 = m.m22;
+	r.m23 = m.m32;
+	r.m30 = m.m03;
+	r.m31 = m.m13;
+	r.m32 = m.m23;
+	r.m33 = m.m33;
+	return r;
 }
 
 // Inverse

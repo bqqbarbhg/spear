@@ -179,6 +179,8 @@ struct Ref
 		if (ptr) ptr->release();
 		ptr = Asset::load<T>(name, prop);
 	}
+
+	bool isLoaded() const { return ptr && ptr->isLoaded(); }
 };
 
 }

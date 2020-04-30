@@ -94,8 +94,8 @@ struct HashMap
 	Entry *find(const KT &key)
 	{
 		uint32_t index;
-		rhmap_iter iter = { &map, hash(key) };
-		while (rhmap_find(&iter, &index)) {
+		uint32_t h = hash(key), scan = 0;
+		while (rhmap_find(&map, h, &scan, &index)) {
 			if (key == data[index].key) {
 				return &data[index];
 			}
@@ -150,13 +150,13 @@ struct HashMap
 	bool remove(const KT &key)
 	{
 		uint32_t index;
-		rhmap_iter iter = { &map, hash(key) };
-		while (rhmap_find(&iter, &index)) {
+		uint32_t h = hash(key), scan = 0;
+		while (rhmap_find(&map, h, &scan, &index)) {
 			if (key == data[index].key) {
-				rhmap_remove(&iter);
+				rhmap_remove(&map, h, scan);
 				if (index < map.size) {
 					Entry &swap = data[map.size];
-					rhmap_update(&map, hash(swap.key), map.size, index);
+					rhmap_update_value(&map, hash(swap.key), map.size, index);
 					data[index].~Entry();
 					new (&data[index]) Entry(std::move(swap));
 				}
@@ -183,8 +183,8 @@ protected:
 			growImp(128 / sizeof(Entry));
 		}
 
-		rhmap_iter iter = { &map, hash(key) };
-		while (rhmap_find(&iter, &index)) {
+		uint32_t h = hash(key), scan = 0;
+		while (rhmap_find(&map, h, &scan, &index)) {
 			if (key == data[index].key) {
 				return false;
 			}
@@ -192,7 +192,7 @@ protected:
 
 		index = map.size;
 		new (&data[index].key) K(key);
-		rhmap_insert(&iter, index);
+		rhmap_insert(&map, h, scan, index);
 		return true;
 	}
 

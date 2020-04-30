@@ -333,10 +333,10 @@ static void loadImp(void *user, const ContentFile &file)
 
 			Mesh &dst = imp->meshes.push();
 			dst.materialName = mb.materialName;
-			dst.vertexData = std::move(mb.vertices);
-			dst.indexData = std::move(mb.indices);
 			dst.numVertices = mb.vertices.size;
 			dst.numIndices = mb.indices.size;
+			dst.vertexData = std::move(mb.vertices);
+			dst.indexData = std::move(mb.indices);
 		}
 	} else {
 		sf::Array<Vertex> vertices;

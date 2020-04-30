@@ -80,7 +80,6 @@ struct Mat33
 		, m10(m10), m11(m11), m12(m12)
 		, m20(m20), m21(m21), m22(m22)
 	{ }
-
 };
 
 struct Mat34
@@ -104,6 +103,12 @@ struct Mat34
 		, m20(0.0f), m21(0.0f), m22(1.0f), m23(0.0f)
 	{ }
 
+	Mat34(const Mat33_D &rhs)
+		: m00(rhs.m00), m01(0.0f), m02(0.0f), m03(0.0f)
+		, m10(0.0f), m11(rhs.m11), m12(0.0f), m13(0.0f)
+		, m20(0.0f), m21(0.0f), m22(rhs.m22), m23(0.0f)
+	{ } 
+
 	Mat34(const Mat33 &rhs)
 		: m00(rhs.m00), m01(rhs.m01), m02(rhs.m02), m03(0.0f)
 		, m10(rhs.m10), m11(rhs.m11), m12(rhs.m12), m13(0.0f)
@@ -123,6 +128,14 @@ struct Mat34
 		memcpy(dst +  4, &cols[1], sizeof(Vec3)); dst[ 7] = 0.0f;
 		memcpy(dst +  8, &cols[2], sizeof(Vec3)); dst[11] = 0.0f;
 		memcpy(dst + 12, &cols[3], sizeof(Vec3)); dst[15] = 1.0f;
+	}
+
+	Mat33 get33() const {
+		Mat33 r = Uninit;
+		r.cols[0] = cols[0];
+		r.cols[1] = cols[1];
+		r.cols[2] = cols[2];
+		return r;
 	}
 };
 
@@ -245,6 +258,9 @@ Vec3 operator*(const Mat23 &l, const Vec3 &r);
 
 // Transform point
 
+Vec3 transformPoint(const Mat33 &l, const Vec3 &r);
+Vec3 transformPoint(const Mat34 &l, const Vec3 &r);
+
 Vec2 transformPoint(const Mat23 &l, const Vec2 &r);
 
 // Determinant
@@ -256,6 +272,14 @@ float determinant(const Mat34 &m);
 float determinant(const Mat44 &m);
 
 float determinant(const Mat23 &m);
+
+// Transpose
+
+Mat44 transpose(const Mat34_3 &m);
+Mat33_D transpose(const Mat33_D &m);
+Mat33 transpose(const Mat33 &m);
+Mat44 transpose(const Mat34 &m);
+Mat44 transpose(const Mat44 &m);
 
 // Inverse
 

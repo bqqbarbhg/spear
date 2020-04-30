@@ -22,6 +22,10 @@
 
 #include <time.h>
 
+#include "game/Game.h"
+
+#if 0
+
 static void appendUtf8(sf::StringBuf &buf, uint32_t code)
 {
 	if (code < 0x7f) {
@@ -721,14 +725,59 @@ void spConfig(sp::MainConfig &config)
 #endif
 }
 
+#endif
+
+thread_local Game *t_game;
+
+void spConfig(sp::MainConfig &config)
+{
+	config.sappDesc->window_title = "Spear";
+	config.sappDesc->sample_count = 8;
+
+	config.sappDesc->width = 1200;
+	config.sappDesc->height = 1080;
+}
+
 void spInit()
 {
-	game = new Game();
+	srand(time(NULL));
+
+	sp::ContentFile::addRelativeFileRoot("");
+
+	t_game = new Game();
+	Game &game = *t_game;
+
+	sf::Symbol tileNames[] = {
+		sf::Symbol("data/tile.fbx"),
+		sf::Symbol("data/tile.fbx"),
+		sf::Symbol("data/tile.fbx"),
+		sf::Symbol("data/tile.fbx"),
+		sf::Symbol("data/tile.fbx"),
+		sf::Symbol("data/tile.fbx"),
+		sf::Symbol("data/tile_slanted.fbx"),
+		sf::Symbol("data/tile_slanted.fbx"),
+		sf::Symbol("data/tile_slanted.fbx"),
+		sf::Symbol("data/tile_broken.fbx"),
+	};
+
+	for (int32_t x = -30; x < 30; x++)
+	for (int32_t y = -30; y < 30; y++) {
+		if (rand() % 50 == 0) continue;
+
+		sf::Vec2i tile { x, y };
+		Entity e = { (uint32_t)(x + 100) * 1000 + y };
+		game.map.setTile(e, tile);
+
+		MapModel model;
+		model.modelName = tileNames[rand() % sf_arraysize(tileNames)];
+		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY((rand() % 4) * sf::F_PI * 0.5f);
+		game.mapRenderer.addMapModel(e, model);
+	}
 }
 
 void spCleanup()
 {
-	delete game;
+	delete t_game;
 }
 
 void spEvent(const sapp_event *e)
@@ -737,6 +786,37 @@ void spEvent(const sapp_event *e)
 
 void spFrame(float dt)
 {
-	game->update(dt);
-	game->render();
+	Game &game = *t_game;
+
+	game.mapRenderer.update();
+
+	float anim = (float)sin(stm_sec(stm_now()) * 0.5f);
+
+	float fov = 1.2f;
+	float aspect = (float)sapp_width()/(float)sapp_height();
+	float near = 0.1f, far = 1000.0f;
+	game.camera.worldToView = sf::mat::look(sf::Vec3(0.0f, 20.0f + anim * 10.0f, 4.0f), sf::Vec3(0.0f, -10.0f - anim * 5.0f, -4.0f));
+	if (sg_query_backend() == SG_BACKEND_D3D11) {
+		game.camera.viewToClip = sf::mat::perspectiveD3D(fov, aspect, near, far);
+	} else {
+		game.camera.viewToClip = sf::mat::perspectiveGL(fov, (float)sapp_width()/(float)sapp_height(), near, far);
+	}
+
+	game.camera.worldToClip = game.camera.viewToClip * game.camera.worldToView;
+
+	sg_pass_action pass_action = { };
+	pass_action.colors[0].action = SG_ACTION_CLEAR;
+	pass_action.colors[0].val[0] = 0.3f;
+	pass_action.colors[0].val[1] = 0.3f;
+	pass_action.colors[0].val[2] = 0.3f;
+	pass_action.colors[0].val[3] = 1.0f;
+
+	sg_begin_default_pass(&pass_action, sapp_width(), sapp_height());
+
+	game.mapRenderer.render();
+
+	sgl_draw();
+
+	sg_end_pass();
+	sg_commit();
 }

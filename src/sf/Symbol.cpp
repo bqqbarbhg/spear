@@ -66,9 +66,8 @@ static const char *findSymbolData(const char *data, size_t length)
 		pool.data = newData;
 	}
 
-	rhmap_iter iter = { &pool.map, hash };
-	uint32_t index;
-	while (rhmap_find(&iter, &index)) {
+	uint32_t scan = 0, index;
+	while (rhmap_find(&pool.map, hash, &scan, &index)) {
 		if (pool.data[index] == data) {
 			uint32_t refs = mxa_inc32_nf(&dataRefs(pool.data[index]));
 			if (refs > 0) return pool.data[index];
@@ -85,7 +84,7 @@ static const char *findSymbolData(const char *data, size_t length)
 	newData[length] = '\0';
 
 	pool.data[pool.map.size] = newData;
-	rhmap_insert(&iter, pool.map.size);
+	rhmap_insert(&pool.map, hash, scan, pool.map.size);
 
 	mx_mutex_unlock(&pool.mutex);
 
@@ -99,19 +98,18 @@ static void removeSymbolData(const char *data)
 
 	mx_mutex_lock(&pool.mutex);
 
-	rhmap_iter iter = { &pool.map, hash };
-	uint32_t index;
-	while (rhmap_find(&iter, &index)) {
+	uint32_t scan = 0, index;
+	while (rhmap_find(&pool.map, hash, &scan, &index)) {
 		if (pool.data[index] == data) {
 			break;
 		}
 	}
 
-	rhmap_remove(&iter);
+	rhmap_remove(&pool.map, hash, scan);
 	if (index < pool.map.size) {
 		char *swap = pool.data[pool.map.size];
 		uint32_t hash = sf::hashBuffer(swap, dataSize(swap));
-		rhmap_update(&pool.map, hash, pool.map.size, index);
+		rhmap_update_value(&pool.map, hash, pool.map.size, index);
 		pool.data[index] = swap;
 	}
 
@@ -160,7 +158,7 @@ Symbol &Symbol::operator=(const Symbol &rhs)
 		if (refs == 0) removeSymbolData(data);
 	}
 	if (rhs.data != emptyData) {
-		uint32_t refs = mxa_inc32_nf(rhs.data);
+		uint32_t refs = mxa_inc32_nf(&dataRefs(rhs.data));
 		// We can't have revived a string since `rhs` may not
 		// be freed concurrently!
 		sf_assert(refs > 0);
