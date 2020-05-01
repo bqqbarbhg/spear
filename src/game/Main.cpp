@@ -763,9 +763,10 @@ void spInit()
 		sf::Symbol("data/tile_broken.fbx"),
 	};
 
-	for (int32_t x = -30; x < 30; x++)
-	for (int32_t y = -30; y < 30; y++) {
-		if (rand() % 50 == 0) continue;
+	srand(1);
+
+	for (int32_t x = -20; x < 20; x++)
+	for (int32_t y = -20; y < 20; y++) {
 
 		sf::Vec2i tile { x, y };
 		Entity e = { (uint32_t)(x + 100) * 1000 + y };
@@ -774,11 +775,75 @@ void spInit()
 		MapModel model;
 		model.modelName = tileNames[rand() % sf_arraysize(tileNames)];
 		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY((rand() % 4) * sf::F_PI * 0.5f);
-		if (rand() % 5 == 0) {
-			model.transform = sf::mat::translateY(((float)rand()/(float)RAND_MAX)*6.0f-3.0f) * model.transform;
+		if (rand() % 3 == 0) {
+			// model.transform = sf::mat::translateY(((float)rand()/(float)RAND_MAX)*6.0f-3.0f) * model.transform;
+			model.transform = sf::mat::translateY(((float)rand()/(float)RAND_MAX)*0.1f-0.05f) * model.transform;
 		}
 		game.mapRenderer.addMapModel(e, model);
 	}
+
+	int32_t radius = 4;
+
+	for (int32_t x = -radius; x <= radius; x++) {
+		if (rand() % 3 == 0) continue;
+
+		int32_t y = -radius;
+		sf::Vec2i tile { x, y };
+		Entity e = { (uint32_t)(x + 100) * 1000 + y + 1000000 };
+		game.map.setTile(e, tile);
+
+		MapModel model;
+		model.modelName = sf::Symbol("data/wall.fbx");
+		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.5f);
+		model.castShadows = true;
+		game.mapRenderer.addMapModel(e, model);
+	}
+
+	for (int32_t x = -radius; x <= radius; x++) {
+		if (rand() % 2 == 0) continue;
+
+		int32_t y = radius;
+		sf::Vec2i tile { x, y };
+		Entity e = { (uint32_t)(x + 100) * 1000 + y + 2000000 };
+		game.map.setTile(e, tile);
+
+		MapModel model;
+		model.modelName = sf::Symbol("data/wall.fbx");
+		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.0f);
+		model.castShadows = true;
+		game.mapRenderer.addMapModel(e, model);
+	}
+
+	for (int32_t y = -radius; y <= radius; y++) {
+		if (rand() % 3 == 0) continue;
+
+		int32_t x = -radius;
+		sf::Vec2i tile { x, y };
+		Entity e = { (uint32_t)(x + 100) * 1000 + y + 3000000 };
+		game.map.setTile(e, tile);
+
+		MapModel model;
+		model.modelName = sf::Symbol("data/wall.fbx");
+		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.75f);
+		model.castShadows = true;
+		game.mapRenderer.addMapModel(e, model);
+	}
+
+	for (int32_t y = -radius; y <= radius; y++) {
+		if (rand() % 5 == 0) continue;
+
+		int32_t x = radius;
+		sf::Vec2i tile { x, y };
+		Entity e = { (uint32_t)(x + 100) * 1000 + y + 4000000 };
+		game.map.setTile(e, tile);
+
+		MapModel model;
+		model.modelName = sf::Symbol("data/wall.fbx");
+		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.25f);
+		model.castShadows = true;
+		game.mapRenderer.addMapModel(e, model);
+	}
+
 }
 
 void spCleanup()
