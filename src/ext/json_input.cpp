@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdlib.h>
 
 #if defined(_MSC_VER)
 	#pragma warning(push)

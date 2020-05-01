@@ -2,6 +2,7 @@
 
 #include "Base.h"
 #include <string.h>
+#include <stdarg.h>
 
 namespace sf {
 

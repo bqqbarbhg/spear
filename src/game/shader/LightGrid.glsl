@@ -5,6 +5,10 @@
 
 @vs vs
 
+@glsl_options flip_vert_y
+
+in vec2 pos;
+
 out vec2 v_uv;
 
 uniform Vertex
@@ -14,11 +18,6 @@ uniform Vertex
 
 void main()
 {
-	int vertexId = int(gl_VertexID);
-	vec2 pos;
-	if (vertexId == 0) pos = vec2(0.0, 0.0);
-	if (vertexId == 1) pos = vec2(2.0, 0.0);
-	if (vertexId == 2) pos = vec2(0.0, 2.0);
 	v_uv = pos * vec2(lightGridYSlices, 7.0);
 	gl_Position = vec4(pos.x * 2.0 - 1.0, pos.y * -2.0 + 1.0, 0.5, 1.0);
 }
@@ -58,7 +57,7 @@ void main()
 	dir *= 2.0;
 	n.x = (1.0 - s0) * (1.0 - dir);
 	n.y = (s0 - s1) * (5.0 - dir);
-	n.z = (s2 - s1) * (9.0 - dir);
+	n.z = (s1 - s2) * (9.0 - dir);
 	float n0 = clamp(dir - 6.0, 0.0, 1.0);
 
 	vec3 p = vec3(x, y, z) * lightGridScale + lightGridOrigin;

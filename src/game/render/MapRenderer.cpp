@@ -67,6 +67,8 @@ struct MapRenderer::Data
 	sg_pipeline testLightPipe;
 	LightGrid_Vertex_t testLightVertex;
 	LightGrid_Pixel_t testLightPixel;
+
+	sg_buffer testPostVertexBuffer;
 };
 
 struct TestLight
@@ -96,7 +98,21 @@ MapRenderer::MapRenderer()
 	}
 
 	{
-		const uint32_t Extent = 8;
+		sf::Vec2 postVerts[] = {
+			{ 0.0f, 0.0f },
+			{ 2.0f, 0.0f },
+			{ 0.0f, 2.0f },
+		};
+
+		sg_buffer_desc d = { };
+		d.type = SG_BUFFERTYPE_VERTEXBUFFER;
+		d.content = postVerts;
+		d.size = sizeof(postVerts);
+		data->testPostVertexBuffer = sg_make_buffer(&d);
+	}
+
+	{
+		const uint32_t Extent = 64;
 		const uint32_t Slices = 8;
 		const uint32_t TexWidth = Extent*Slices;
 		const uint32_t TexHeight = Extent*7;
@@ -119,7 +135,7 @@ MapRenderer::MapRenderer()
 			d.width = (int)TexWidth;
 			d.height = (int)TexHeight;
 			d.render_target = true;
-			d.pixel_format = SG_PIXELFORMAT_RGBA16F;
+			d.pixel_format = SG_PIXELFORMAT_RGBA32F;
 			d.mag_filter = SG_FILTER_LINEAR;
 			d.min_filter = SG_FILTER_LINEAR;
 			d.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
@@ -139,8 +155,9 @@ MapRenderer::MapRenderer()
 	{
 		data->testLightShader = sg_make_shader(LightGrid_LightGrid_shader_desc());
 		sg_pipeline_desc d = { };
+		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT2;
 		d.shader = data->testLightShader;
-		d.blend.color_format = SG_PIXELFORMAT_RGBA16F;
+		d.blend.color_format = SG_PIXELFORMAT_RGBA32F;
 		d.blend.depth_format = SG_PIXELFORMAT_NONE;
 		d.blend.enabled = true;
 		d.blend.src_factor_rgb = d.blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
@@ -406,6 +423,7 @@ void MapRenderer::testRenderLight()
 		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_LightGrid_Pixel, &data->testLightPixel, sizeof(data->testLightPixel));
 
 		sg_bindings bindings = { };
+		bindings.vertex_buffers[0] = data->testPostVertexBuffer;
 		sg_apply_bindings(&bindings);
 
 		sg_draw(0, 3, 1);
