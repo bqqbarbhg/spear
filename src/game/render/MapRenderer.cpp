@@ -54,6 +54,15 @@ struct MapRenderer::Data
 		if (res.inserted) res.entry.val.chunkI = chunkI;
 		return res.entry.val;
 	}
+
+	MapTile_Pixel_t testPixel;
+	sg_image testLightGridImage;
+};
+
+struct TestLight
+{
+	sf::Vec3 position;
+	sf::Vec3 color;
 };
 
 MapRenderer::MapRenderer()
@@ -74,6 +83,77 @@ MapRenderer::MapRenderer()
 		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
 		d.label = "mapTile";
 		data->pipeMapTile[largeIndices] = sg_make_pipeline(&d);
+	}
+
+	{
+		const uint32_t Extent = 128;
+		const uint32_t Slices = 8;
+		const uint32_t TexWidth = Extent*Slices;
+		const uint32_t TexHeight = Extent*6;
+		sf::Array<uint16_t> dataArr;
+		dataArr.resizeUninit(TexWidth*TexHeight*4);
+		uint16_t *dataPtr = dataArr.data;
+
+		float scale = 32.0f;
+		sf::Vec3 origin = sf::Vec3(-scale, -4.0f, -scale);
+		sf::Vec3 size = sf::Vec3(scale*2.0f, 12.0f, scale*2.0f);
+
+		sf::Vec3 normals[6] = {
+			{ 1,0,0 }, { -1,0,0 }, { 0,1,0 }, { 0,-1,0 }, { 0,0,1 }, { 0,0,-1 },
+		};
+
+		TestLight testLights[] = {
+			{ { 8.0f, 5.0f, 2.0f }, { 10.0f, 1.0f, 1.0f } },
+			{ { -7.0f, 4.0f, 1.0f }, { 1.0f, 8.0f, 1.0f } },
+			{ { 0.0f, 2.0f, -8.0f }, { 1.0f, 1.0f, 15.0f } },
+		};
+
+		for (uint32_t d = 0; d < 6; d++)
+		for (uint32_t z = 0; z < Extent; z++)
+		for (uint32_t y = 0; y < Slices; y++)
+		for (uint32_t x = 0; x < Extent; x++)
+		{
+			sf::Vec3 p = sf::Vec3((float)x, (float)y, (float)z) / sf::Vec3(Extent, Slices, Extent) * size + origin;
+			sf::Vec3 n = normals[d];
+
+			sf::Vec3 sum;
+			for (TestLight &light : testLights) {
+				sf::Vec3 delta = light.position - p;
+				sf::Vec3 l = sf::normalize(delta);
+				float attenuation = 1.0f / (1.0f + sf::lengthSq(delta));
+				float r = sf::dot(l, n) * attenuation;
+				sum += light.color * r;
+			}
+
+			sf::Vec4 color = sf::Vec4(sum.x, sum.y, sum.z, 1.0f);
+
+			uint32_t u = x + y * Extent;
+			uint32_t v = z + d * Extent;
+			uint32_t base = (v * TexWidth + u) * 4;
+			dataPtr[base + 0] = (uint16_t)sf::clamp(color.x * 65535.9f, 0.0f, 65535.0f);
+			dataPtr[base + 1] = (uint16_t)sf::clamp(color.y * 65535.9f, 0.0f, 65535.0f);
+			dataPtr[base + 2] = (uint16_t)sf::clamp(color.z * 65535.9f, 0.0f, 65535.0f);
+			dataPtr[base + 3] = (uint16_t)sf::clamp(color.w * 65535.9f, 0.0f, 65535.0f);
+		}
+
+		sg_image_desc d = { };
+		d.width = (int)TexWidth;
+		d.height = (int)TexHeight;
+		d.pixel_format = SG_PIXELFORMAT_RGBA16;
+		d.mag_filter = SG_FILTER_LINEAR;
+		d.min_filter = SG_FILTER_LINEAR;
+		d.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
+		d.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
+		d.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
+		d.content.subimage[0][0].ptr = dataArr.data;
+		d.content.subimage[0][0].size = (int)dataArr.byteSize();
+		d.label = "testLightGrid";
+		data->testLightGridImage = sg_make_image(&d);
+
+		data->testPixel.lightGridOrigin = origin;
+		data->testPixel.lightGridRcpScale = sf::Vec3(1.0f) / size;
+		data->testPixel.lightGridYSlices = (float)Slices;
+		data->testPixel.lightGridRcpYSlices = 1.0f / (float)Slices;
 	}
 }
 
@@ -244,6 +324,9 @@ void MapRenderer::render()
 		game.camera.worldToClip.writeColMajor44(vertexUbo.worldToClip);
 		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_MapTile_Vertex, &vertexUbo, sizeof(vertexUbo));
 
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_MapTile_Pixel, &data->testPixel, sizeof(data->testPixel));
+
+		bindings.fs_images[0] = data->testLightGridImage;
 		bindings.index_buffer = chunk.indexBuffer;
 		bindings.vertex_buffers[0] = chunk.vertexBuffer;
 		sg_apply_bindings(&bindings);

@@ -732,7 +732,7 @@ thread_local Game *t_game;
 void spConfig(sp::MainConfig &config)
 {
 	config.sappDesc->window_title = "Spear";
-	config.sappDesc->sample_count = 8;
+	config.sappDesc->sample_count = 1;
 
 	config.sappDesc->width = 1200;
 	config.sappDesc->height = 1080;
@@ -771,6 +771,9 @@ void spInit()
 		MapModel model;
 		model.modelName = tileNames[rand() % sf_arraysize(tileNames)];
 		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY((rand() % 4) * sf::F_PI * 0.5f);
+		if (rand() % 5 == 0) {
+			model.transform = sf::mat::translateY(((float)rand()/(float)RAND_MAX)*6.0f-3.0f) * model.transform;
+		}
 		game.mapRenderer.addMapModel(e, model);
 	}
 }
@@ -790,7 +793,7 @@ void spFrame(float dt)
 
 	game.mapRenderer.update();
 
-	float anim = (float)sin(stm_sec(stm_now()) * 0.5f);
+	float anim = (float)sin(stm_sec(stm_now()) * 0.1f)*0.0f;
 
 	float fov = 1.2f;
 	float aspect = (float)sapp_width()/(float)sapp_height();
@@ -806,9 +809,9 @@ void spFrame(float dt)
 
 	sg_pass_action pass_action = { };
 	pass_action.colors[0].action = SG_ACTION_CLEAR;
-	pass_action.colors[0].val[0] = 0.3f;
-	pass_action.colors[0].val[1] = 0.3f;
-	pass_action.colors[0].val[2] = 0.3f;
+	pass_action.colors[0].val[0] = 0.1f;
+	pass_action.colors[0].val[1] = 0.1f;
+	pass_action.colors[0].val[2] = 0.1f;
 	pass_action.colors[0].val[3] = 1.0f;
 
 	sg_begin_default_pass(&pass_action, sapp_width(), sapp_height());
