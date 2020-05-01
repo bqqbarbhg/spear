@@ -7,3 +7,4 @@
 #include "TestMesh.h"
 #include "TestSkin.h"
 #include "MapTile.h"
+#include "LightGrid.h"

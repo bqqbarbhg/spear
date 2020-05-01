@@ -731,11 +731,14 @@ thread_local Game *t_game;
 
 void spConfig(sp::MainConfig &config)
 {
-	config.sappDesc->window_title = "Spear";
-	config.sappDesc->sample_count = 1;
+	config.sappDesc.window_title = "Spear";
+	config.sappDesc.sample_count = 1;
 
-	config.sappDesc->width = 1200;
-	config.sappDesc->height = 1080;
+	config.sappDesc.width = 1200;
+	config.sappDesc.height = 1080;
+
+	config.sgDesc.buffer_pool_size = 1024;
+	config.sgDesc.image_pool_size = 1024;
 }
 
 void spInit()
@@ -798,7 +801,9 @@ void spFrame(float dt)
 	float fov = 1.2f;
 	float aspect = (float)sapp_width()/(float)sapp_height();
 	float near = 0.1f, far = 1000.0f;
-	game.camera.worldToView = sf::mat::look(sf::Vec3(0.0f, 20.0f + anim * 10.0f, 4.0f), sf::Vec3(0.0f, -10.0f - anim * 5.0f, -4.0f));
+	sf::Vec3 cameraPos = sf::Vec3(0.0f, 20.0f + anim * 10.0f, 8.0f);
+	game.camera.position = cameraPos;
+	game.camera.worldToView = sf::mat::look(cameraPos, sf::Vec3(0.0f, -10.0f - anim * 5.0f, -4.0f));
 	if (sg_query_backend() == SG_BACKEND_D3D11) {
 		game.camera.viewToClip = sf::mat::perspectiveD3D(fov, aspect, near, far);
 	} else {
@@ -806,6 +811,8 @@ void spFrame(float dt)
 	}
 
 	game.camera.worldToClip = game.camera.viewToClip * game.camera.worldToView;
+
+	game.mapRenderer.testRenderLight();
 
 	sg_pass_action pass_action = { };
 	pass_action.colors[0].action = SG_ACTION_CLEAR;

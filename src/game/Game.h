@@ -6,6 +6,7 @@
 
 struct GameCamera
 {
+	sf::Vec3 position;
 	sf::Mat34 worldToView;
 	sf::Mat44 viewToClip;
 	sf::Mat44 worldToClip;

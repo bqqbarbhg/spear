@@ -6,6 +6,10 @@
 #include "game/Game.h"
 #include "ext/sokol/sokol_gfx.h"
 #include "game/shader/MapTile.h"
+#include "game/shader/LightGrid.h"
+
+// TEMP TEMP
+#include "ext/sokol/sokol_time.h"
 
 struct ChunkModel
 {
@@ -57,6 +61,12 @@ struct MapRenderer::Data
 
 	MapTile_Pixel_t testPixel;
 	sg_image testLightGridImage;
+	sg_pass testLightPass;
+
+	sg_shader testLightShader;
+	sg_pipeline testLightPipe;
+	LightGrid_Vertex_t testLightVertex;
+	LightGrid_Pixel_t testLightPixel;
 };
 
 struct TestLight
@@ -86,7 +96,63 @@ MapRenderer::MapRenderer()
 	}
 
 	{
-		const uint32_t Extent = 128;
+		const uint32_t Extent = 8;
+		const uint32_t Slices = 8;
+		const uint32_t TexWidth = Extent*Slices;
+		const uint32_t TexHeight = Extent*7;
+
+		float scale = 32.0f;
+		sf::Vec3 origin = sf::Vec3(-scale, -4.0f, -scale);
+		sf::Vec3 size = sf::Vec3(scale*2.0f, 12.0f, scale*2.0f);
+
+		data->testLightVertex.lightGridYSlices = (float)Slices;
+		data->testLightPixel.lightGridOrigin = origin;
+		data->testLightPixel.lightGridScale = size / sf::Vec3(1.0f, (float)Slices, 1.0f);
+
+		data->testPixel.lightGridOrigin = origin;
+		data->testPixel.lightGridRcpScale = sf::Vec3(1.0f) / size;
+		data->testPixel.lightGridYSlices = (float)Slices;
+		data->testPixel.lightGridRcpYSlices = 1.0f / (float)Slices;
+
+		{
+			sg_image_desc d = { };
+			d.width = (int)TexWidth;
+			d.height = (int)TexHeight;
+			d.render_target = true;
+			d.pixel_format = SG_PIXELFORMAT_RGBA16F;
+			d.mag_filter = SG_FILTER_LINEAR;
+			d.min_filter = SG_FILTER_LINEAR;
+			d.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
+			d.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
+			d.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
+			d.label = "testLightGrid";
+			data->testLightGridImage = sg_make_image(&d);
+		}
+
+		{
+			sg_pass_desc d = { };
+			d.color_attachments[0].image = data->testLightGridImage;
+			data->testLightPass = sg_make_pass(&d);
+		}
+	}
+
+	{
+		data->testLightShader = sg_make_shader(LightGrid_LightGrid_shader_desc());
+		sg_pipeline_desc d = { };
+		d.shader = data->testLightShader;
+		d.blend.color_format = SG_PIXELFORMAT_RGBA16F;
+		d.blend.depth_format = SG_PIXELFORMAT_NONE;
+		d.blend.enabled = true;
+		d.blend.src_factor_rgb = d.blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
+		d.blend.dst_factor_rgb = d.blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
+		d.label = "testLight";
+		data->testLightPipe = sg_make_pipeline(&d);
+	}
+
+#if 0
+	if (false)
+	{
+		const uint32_t Extent = 32;
 		const uint32_t Slices = 8;
 		const uint32_t TexWidth = Extent*Slices;
 		const uint32_t TexHeight = Extent*6;
@@ -100,12 +166,6 @@ MapRenderer::MapRenderer()
 
 		sf::Vec3 normals[6] = {
 			{ 1,0,0 }, { -1,0,0 }, { 0,1,0 }, { 0,-1,0 }, { 0,0,1 }, { 0,0,-1 },
-		};
-
-		TestLight testLights[] = {
-			{ { 8.0f, 5.0f, 2.0f }, { 10.0f, 1.0f, 1.0f } },
-			{ { -7.0f, 4.0f, 1.0f }, { 1.0f, 8.0f, 1.0f } },
-			{ { 0.0f, 2.0f, -8.0f }, { 1.0f, 1.0f, 15.0f } },
 		};
 
 		for (uint32_t d = 0; d < 6; d++)
@@ -155,6 +215,7 @@ MapRenderer::MapRenderer()
 		data->testPixel.lightGridYSlices = (float)Slices;
 		data->testPixel.lightGridRcpYSlices = 1.0f / (float)Slices;
 	}
+#endif
 }
 
 MapRenderer::~MapRenderer()
@@ -305,9 +366,60 @@ void MapRenderer::update()
 	}
 }
 
+void MapRenderer::testRenderLight()
+{
+	float time = (float)stm_sec(stm_now());
+	float radius = 10.0f;
+
+	sf::SmallArray<TestLight, 16> testLights;
+	testLights.push({ { cosf(time)*radius, 6.0f, sinf(time)*radius }, { 10.0f, 1.0f, 1.0f } });
+	time += sf::F_2PI / 3.0f;
+	testLights.push({ { cosf(time)*radius, 6.0f, sinf(time)*radius }, { 1.0f, 8.0f, 1.0f } });
+	time += sf::F_2PI / 3.0f;
+	testLights.push({ { cosf(time)*radius, 6.0f, sinf(time)*radius }, { 1.0f, 1.0f, 15.0f } });
+
+	srand(0);
+	for (size_t i = 0; i < 250; i++) {
+		TestLight &light = testLights.push();
+		float y = ((float)rand() / (float)RAND_MAX * 2.0f - 1.0f) * 16.0f;
+		float x = fmodf(time*0.03f + (float)rand()/(float)RAND_MAX, 1.0f) * 128.0f - 64.0f;
+		light.position = sf::Vec3(x, (float)rand()/(float)RAND_MAX*1.0f+1.0f, y);
+		light.color = sf::Vec3(0.2f, 0.2f, 0.2f) * powf(sinf((float)rand()/(float)RAND_MAX * sf::F_2PI + time * 5.0f) * 0.5f + 0.5f, 2.0f);
+	}
+
+	sg_pass_action action = { };
+	action.colors[0].action = SG_ACTION_CLEAR;
+	sg_begin_pass(data->testLightPass, &action);
+
+	const uint32_t BatchSize = 64;
+	for (uint32_t base = 0; base < testLights.size; base += BatchSize) {
+		uint32_t num = sf::min(testLights.size - base, BatchSize);
+		for (uint32_t i = 0; i < num; i++) {
+			TestLight &light = testLights[base + i];
+			data->testLightPixel.lightData[i*2 + 0] = sf::Vec4(light.position, 0.0f);
+			data->testLightPixel.lightData[i*2 + 1] = sf::Vec4(light.color, 0.0f);
+		}
+		data->testLightPixel.numLightsF = (float)num;
+
+		sg_apply_pipeline(data->testLightPipe);
+		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_LightGrid_Vertex, &data->testLightVertex, sizeof(data->testLightVertex));
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_LightGrid_Pixel, &data->testLightPixel, sizeof(data->testLightPixel));
+
+		sg_bindings bindings = { };
+		sg_apply_bindings(&bindings);
+
+		sg_draw(0, 3, 1);
+	}
+
+	sg_end_pass();
+}
+
 void MapRenderer::render()
 {
 	Game &game = *t_game;
+
+	data->testPixel.cameraPosition = game.camera.position;
+
 	sg_pipeline prevPipeline = { };
 	sg_bindings bindings = { };
 	for (auto &pair : data->chunks) {

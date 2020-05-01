@@ -33,7 +33,8 @@ namespace sp {
 
 struct MainConfig
 {
-	sapp_desc *sappDesc;
+	sg_desc sgDesc = { };
+	sapp_desc sappDesc = { };
 	bool useContentThread = true;
 };
 
@@ -56,8 +57,7 @@ void impInit()
 	sp::MainConfig &config = sp::impConfig;
 
 	{
-		sg_desc desc = { };
-
+		sg_desc &desc = config.sgDesc;
 		desc.gl_force_gles2 = sapp_gles2();
 		desc.mtl_device = sapp_metal_get_device();
 		desc.mtl_renderpass_descriptor_cb = sapp_metal_get_renderpass_descriptor;
@@ -119,23 +119,21 @@ void impFrame()
 
 sapp_desc sokol_main(int argc, char **argv)
 {
-	sapp_desc desc = { };
-
-	desc.init_cb = &sp::impInit;
-	desc.event_cb = &sp::impEvent;
-	desc.frame_cb = &sp::impFrame;
-	desc.cleanup_cb = &sp::impCleanup;
-
-	desc.width = SP_WINDOW_WIDTH;
-	desc.height = SP_WINDOW_HEIGHT;
-	desc.window_title = SP_WINDOW_TITLE;
-	desc.sample_count = 1;
-
 	sp::MainConfig &config = sp::impConfig;
-	config.sappDesc = &desc;
+
+	config.sappDesc.init_cb = &sp::impInit;
+	config.sappDesc.event_cb = &sp::impEvent;
+	config.sappDesc.frame_cb = &sp::impFrame;
+	config.sappDesc.cleanup_cb = &sp::impCleanup;
+
+	config.sappDesc.width = SP_WINDOW_WIDTH;
+	config.sappDesc.height = SP_WINDOW_HEIGHT;
+	config.sappDesc.window_title = SP_WINDOW_TITLE;
+	config.sappDesc.sample_count = 1;
+
 	spConfig(config);
 
-	sp::impSampleCount = config.sappDesc->sample_count;
+	sp::impSampleCount = config.sappDesc.sample_count;
 
-	return desc;
+	return config.sappDesc;
 }

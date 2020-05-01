@@ -19,6 +19,7 @@ struct MapRenderer
 	void removeMapModel(Entity e);
 
 	void update();
+	void testRenderLight();
 	void render();
 
 	struct Data;
