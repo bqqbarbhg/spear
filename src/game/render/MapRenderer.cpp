@@ -571,12 +571,13 @@ void MapRenderer::testRenderLight()
 
 #if 0
 	srand(0);
-	for (size_t i = 0; i < 250; i++) {
+	for (size_t i = 0; i < 50; i++) {
 		TestLight &light = testLights.push();
 		float y = ((float)rand() / (float)RAND_MAX * 2.0f - 1.0f) * 16.0f;
 		float x = fmodf(time*0.03f + (float)rand()/(float)RAND_MAX, 1.0f) * 128.0f - 64.0f;
-		light.position = sf::Vec3(x, (float)rand()/(float)RAND_MAX*1.0f+1.0f, y);
-		light.color = sf::Vec3(0.2f, 0.2f, 0.2f) * powf(sinf((float)rand()/(float)RAND_MAX * sf::F_2PI + time * 5.0f) * 0.5f + 0.5f, 2.0f);
+		light.position = sf::Vec3(x, (float)rand()/(float)RAND_MAX*1.5f+1.0f, y);
+		light.color = sf::Vec3(0.5f, 0.5f, 0.5f) * powf(sinf((float)rand()/(float)RAND_MAX * sf::F_2PI + time * 5.0f) * 0.5f + 0.5f, 2.0f);
+		light.radius = 15.0f;
 	}
 #endif
 
@@ -657,7 +658,11 @@ void MapRenderer::testRenderLight()
 
 			}
 
-			offsetY++;
+			offsetX += 6;
+			if (offsetX >= data->testShadowAtlasWidth) {
+				offsetX = 0;
+				offsetY++;
+			}
 		}
 
 		sg_end_pass();
