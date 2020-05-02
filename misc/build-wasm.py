@@ -12,11 +12,12 @@ src_dir = os.path.abspath(src_dir)
 objects = []
 processes = []
 
-optimize = "-o" in sys.argv
+optimize = "-o" in sys.argv or "-O" in sys.argv
 webgl2 = "--webgl2" in sys.argv
 threads = "--threads" in sys.argv
 clean = "--clean" in sys.argv
 jobs = "-j" in sys.argv
+profiling = "--profiling" in sys.argv
 
 begin_time = time.time()
 
@@ -33,6 +34,8 @@ def compile_file(path, cpp):
         args += ["-DSP_USE_WEBGL2=1"]
     if threads:
         args += ["-s", "USE_PTHREADS=1"]
+    if profiling:
+        args += ["--profiling"]
 
     outname = os.path.basename(path)
     outname = os.path.splitext(outname)[0] + ".o"
@@ -73,6 +76,8 @@ def link_files():
     args += ["-s", "TOTAL_MEMORY=268435456"]
     if threads:
         args += ["-s", "USE_PTHREADS=1"]
+    if profiling:
+        args += ["--profiling"]
 
     if not jobs:
         print("$ " + " ".join(args))

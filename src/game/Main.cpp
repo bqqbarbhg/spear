@@ -794,13 +794,13 @@ void spInit()
 
 		MapModel model;
 		model.modelName = sf::Symbol("data/wall.fbx");
+		model.shadowModelName = sf::Symbol("data/wall_shadow.fbx");
 		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.5f);
-		model.castShadows = true;
 		game.mapRenderer.addMapModel(e, model);
 	}
 
 	for (int32_t x = -radius; x <= radius; x++) {
-		if (rand() % 2 == 0) continue;
+		if (rand() % 4 < 3) continue;
 
 		int32_t y = radius;
 		sf::Vec2i tile { x, y };
@@ -809,8 +809,8 @@ void spInit()
 
 		MapModel model;
 		model.modelName = sf::Symbol("data/wall.fbx");
+		model.shadowModelName = sf::Symbol("data/wall_shadow.fbx");
 		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.0f);
-		model.castShadows = true;
 		game.mapRenderer.addMapModel(e, model);
 	}
 
@@ -824,8 +824,8 @@ void spInit()
 
 		MapModel model;
 		model.modelName = sf::Symbol("data/wall.fbx");
+		model.shadowModelName = sf::Symbol("data/wall_shadow.fbx");
 		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.75f);
-		model.castShadows = true;
 		game.mapRenderer.addMapModel(e, model);
 	}
 
@@ -839,8 +839,8 @@ void spInit()
 
 		MapModel model;
 		model.modelName = sf::Symbol("data/wall.fbx");
+		model.shadowModelName = sf::Symbol("data/wall_shadow.fbx");
 		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.25f);
-		model.castShadows = true;
 		game.mapRenderer.addMapModel(e, model);
 	}
 
@@ -858,6 +858,8 @@ void spEvent(const sapp_event *e)
 void spFrame(float dt)
 {
 	Game &game = *t_game;
+
+	uint64_t begin = stm_now();
 
 	game.mapRenderer.update();
 
@@ -894,4 +896,7 @@ void spFrame(float dt)
 
 	sg_end_pass();
 	sg_commit();
+
+	double ms = stm_ms(stm_since(begin));
+	printf("CPU time: %.2f\n", ms);
 }

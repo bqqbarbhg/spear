@@ -67,6 +67,7 @@ void impInit()
 		desc.d3d11_render_target_view_cb = sapp_d3d11_get_render_target_view;
 		desc.d3d11_depth_stencil_view_cb = sapp_d3d11_get_depth_stencil_view;
 
+
 		sg_setup(&desc);
 	}
 
@@ -130,6 +131,8 @@ sapp_desc sokol_main(int argc, char **argv)
 	config.sappDesc.height = SP_WINDOW_HEIGHT;
 	config.sappDesc.window_title = SP_WINDOW_TITLE;
 	config.sappDesc.sample_count = 1;
+
+	config.sappDesc.high_dpi = true;
 
 	spConfig(config);
 

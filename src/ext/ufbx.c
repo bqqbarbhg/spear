@@ -7781,7 +7781,7 @@ ufbx_transform ufbx_evaluate_transform(const ufbx_scene *scene, const ufbx_node 
 	ufbx_props eval_props;
 	eval_props.props = props;
 	eval_props.num_props = ufbxi_arraycount(props);
-	eval_props.defaults = &node->props;
+	eval_props.defaults = (ufbx_props*)&node->props;
 	return ufbxi_get_transform(&eval_props);
 }
 

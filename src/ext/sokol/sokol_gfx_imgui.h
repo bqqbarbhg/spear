@@ -892,6 +892,7 @@ _SOKOL_PRIVATE const char* _sg_imgui_pixelformat_string(sg_pixel_format fmt) {
         case SG_PIXELFORMAT_BGRA8: return "SG_PIXELFORMAT_BGRA8";
         case SG_PIXELFORMAT_RGB10A2: return "SG_PIXELFORMAT_RGB10A2";
         case SG_PIXELFORMAT_RG11B10F: return "SG_PIXELFORMAT_RG11B10F";
+        case SG_PIXELFORMAT_BQQ_SRGB8: return "SG_PIXELFORMAT_BQQ_SRGB8";
         case SG_PIXELFORMAT_RG32UI: return "SG_PIXELFORMAT_RG32UI";
         case SG_PIXELFORMAT_RG32SI: return "SG_PIXELFORMAT_RG32SI";
         case SG_PIXELFORMAT_RG32F: return "SG_PIXELFORMAT_RG32F";

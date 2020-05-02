@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #if defined(_MSC_VER)
 	#pragma warning(push)

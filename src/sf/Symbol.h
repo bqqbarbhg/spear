@@ -31,6 +31,9 @@ struct Symbol
 	Symbol &operator=(const Symbol &rhs);
 	Symbol &operator=(Symbol &&rhs) noexcept;
 
+	explicit operator bool() const { return data != emptyData; }
+	bool operator!() const { return data == emptyData; }
+
 	sf_forceinline bool operator==(const Symbol &rhs) const { return data == rhs.data; }
 	sf_forceinline bool operator!=(const Symbol &rhs) const { return data != rhs.data; }
 	sf_forceinline bool operator<(const Symbol &rhs) const { return data < rhs.data; }

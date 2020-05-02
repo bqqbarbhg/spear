@@ -214,7 +214,7 @@ static void jso_raw_string(jso_stream *s, const char *value)
 	char c;
 	if (s->pos - s->capacity < 4) s->flush_fn(s);
 	s->data[s->pos++] = '"';
-	while (c = *ptr++) {
+	while ((c = *ptr++) != '\0') {
 		if (s->capacity - s->pos < 4) s->flush_fn(s);
 		if (c == '\\' || c == '"' || c == '\n' || c == '\r' || c == '\t' || c == '\f') {
 			char escape = c;

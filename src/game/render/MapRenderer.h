@@ -7,8 +7,8 @@
 struct MapModel
 {
 	sf::Symbol modelName;
+	sf::Symbol shadowModelName;
 	sf::Mat34 transform;
-	bool castShadows = false;
 };
 
 struct MapRenderer

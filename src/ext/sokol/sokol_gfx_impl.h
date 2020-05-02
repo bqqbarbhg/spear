@@ -1229,6 +1229,7 @@ _SOKOL_PRIVATE int _sg_pixelformat_bytesize(sg_pixel_format fmt) {
         case SG_PIXELFORMAT_BGRA8:
         case SG_PIXELFORMAT_RGB10A2:
         case SG_PIXELFORMAT_RG11B10F:
+        case SG_PIXELFORMAT_BQQ_SRGBA8:
             return 4;
 
         case SG_PIXELFORMAT_RG32UI:
@@ -1978,6 +1979,8 @@ _SOKOL_PRIVATE GLenum _sg_gl_teximage_type(sg_pixel_format fmt) {
             return GL_UNSIGNED_INT_2_10_10_10_REV;
         case SG_PIXELFORMAT_RG11B10F:
             return GL_UNSIGNED_INT_10F_11F_11F_REV;
+        case SG_PIXELFORMAT_BQQ_SRGBA8:
+            return GL_SRGB8_ALPHA8;
         #endif
         case SG_PIXELFORMAT_DEPTH:
             return GL_UNSIGNED_SHORT;
@@ -2048,6 +2051,10 @@ _SOKOL_PRIVATE GLenum _sg_gl_teximage_format(sg_pixel_format fmt) {
         #endif
         case SG_PIXELFORMAT_RG11B10F:
             return GL_RGB;
+        #if !defined(SOKOL_GLES2)
+        case SG_PIXELFORMAT_BQQ_SRGBA8:
+            return GL_SRGB8_ALPHA8;
+        #endif
         case SG_PIXELFORMAT_DEPTH:
             return GL_DEPTH_COMPONENT;
         case SG_PIXELFORMAT_DEPTH_STENCIL:
@@ -2129,6 +2136,7 @@ _SOKOL_PRIVATE GLenum _sg_gl_teximage_internal_format(sg_pixel_format fmt) {
             case SG_PIXELFORMAT_RGBA8SI:    return GL_RGBA8I;
             case SG_PIXELFORMAT_RGB10A2:    return GL_RGB10_A2;
             case SG_PIXELFORMAT_RG11B10F:   return GL_R11F_G11F_B10F;
+			case SG_PIXELFORMAT_BQQ_SRGBA8: return GL_SRGB8_ALPHA8;
             case SG_PIXELFORMAT_RG32UI:     return GL_RG32UI;
             case SG_PIXELFORMAT_RG32SI:     return GL_RG32I;
             case SG_PIXELFORMAT_RG32F:      return GL_RG32F;
@@ -4379,6 +4387,7 @@ _SOKOL_PRIVATE DXGI_FORMAT _sg_d3d11_pixel_format(sg_pixel_format fmt) {
         case SG_PIXELFORMAT_BGRA8:          return DXGI_FORMAT_B8G8R8A8_UNORM;
         case SG_PIXELFORMAT_RGB10A2:        return DXGI_FORMAT_R10G10B10A2_UNORM;
         case SG_PIXELFORMAT_RG11B10F:       return DXGI_FORMAT_R11G11B10_FLOAT;
+        case SG_PIXELFORMAT_BQQ_SRGBA8:     return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         case SG_PIXELFORMAT_RG32UI:         return DXGI_FORMAT_R32G32_UINT;
         case SG_PIXELFORMAT_RG32SI:         return DXGI_FORMAT_R32G32_SINT;
         case SG_PIXELFORMAT_RG32F:          return DXGI_FORMAT_R32G32_FLOAT;
@@ -4818,7 +4827,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
         SOKOL_ASSERT(SUCCEEDED(hr) && img->d3d11_texds);
 
 		if (desc->label) {
-			ID3D11Texture2D_SetPrivateData(img->d3d11_tex2d, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
+			ID3D11Texture2D_SetPrivateData(img->d3d11_texds, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
 		}
     }
     else {
@@ -5342,7 +5351,7 @@ _SOKOL_PRIVATE void _sg_destroy_pipeline(_sg_pipeline_t* pip) {
 
 _SOKOL_PRIVATE sg_resource_state _sg_create_pass(_sg_pass_t* pass, _sg_image_t** att_images, const sg_pass_desc* desc) {
     SOKOL_ASSERT(pass && desc);
-    SOKOL_ASSERT(att_images && att_images[0]);
+    SOKOL_ASSERT(att_images);
     SOKOL_ASSERT(_sg.d3d11.dev);
 
     const sg_attachment_desc* att_desc;
@@ -5913,6 +5922,7 @@ _SOKOL_PRIVATE MTLPixelFormat _sg_mtl_pixel_format(sg_pixel_format fmt) {
         case SG_PIXELFORMAT_BGRA8:                  return MTLPixelFormatBGRA8Unorm;
         case SG_PIXELFORMAT_RGB10A2:                return MTLPixelFormatRGB10A2Unorm;
         case SG_PIXELFORMAT_RG11B10F:               return MTLPixelFormatRG11B10Float;
+        case SG_PIXELFORMAT_BQQ_SRGBA8:             return MTLPixelFormatRGBA8Unorm_sRGB;
         case SG_PIXELFORMAT_RG32UI:                 return MTLPixelFormatRG32Uint;
         case SG_PIXELFORMAT_RG32SI:                 return MTLPixelFormatRG32Sint;
         case SG_PIXELFORMAT_RG32F:                  return MTLPixelFormatRG32Float;
@@ -6435,6 +6445,7 @@ _SOKOL_PRIVATE void _sg_mtl_init_caps(void) {
     _sg_pixelformat_all(&_sg.formats[SG_PIXELFORMAT_BGRA8]);
     _sg_pixelformat_all(&_sg.formats[SG_PIXELFORMAT_RGB10A2]);
     _sg_pixelformat_all(&_sg.formats[SG_PIXELFORMAT_RG11B10F]);
+    _sg_pixelformat_all(&_sg.formats[SG_PIXELFORMAT_BQQ_SRGBA8]);
     #if defined(_SG_TARGET_MACOS)
         _sg_pixelformat_srm(&_sg.formats[SG_PIXELFORMAT_RG32UI]);
         _sg_pixelformat_srm(&_sg.formats[SG_PIXELFORMAT_RG32SI]);
@@ -8252,7 +8263,7 @@ _SOKOL_PRIVATE bool _sg_validate_pass_desc(const sg_pass_desc* desc) {
         for (int att_index = 0; att_index < SG_MAX_COLOR_ATTACHMENTS; att_index++) {
             const sg_attachment_desc* att = &desc->color_attachments[att_index];
             if (att->image.id == SG_INVALID_ID) {
-                SOKOL_VALIDATE(att_index > 0, _SG_VALIDATE_PASSDESC_NO_COLOR_ATTS);
+                // SOKOL_VALIDATE(att_index > 0, _SG_VALIDATE_PASSDESC_NO_COLOR_ATTS);
                 atts_cont = false;
                 continue;
             }
@@ -8287,6 +8298,11 @@ _SOKOL_PRIVATE bool _sg_validate_pass_desc(const sg_pass_desc* desc) {
         if (desc->depth_stencil_attachment.image.id != SG_INVALID_ID) {
             const sg_attachment_desc* att = &desc->depth_stencil_attachment;
             const _sg_image_t* img = _sg_lookup_image(&_sg.pools, att->image.id);
+			if (width < 0 && height < 0) {
+				width = img->width >> att->mip_level;
+				height = img->height >> att->mip_level;
+                sample_count = img->sample_count;
+			}
             SOKOL_VALIDATE(img && img->slot.state == SG_RESOURCESTATE_VALID, _SG_VALIDATE_PASSDESC_IMAGE);
             SOKOL_VALIDATE(att->mip_level < img->num_mipmaps, _SG_VALIDATE_PASSDESC_MIPLEVEL);
             if (img->type == SG_IMAGETYPE_CUBE) {
@@ -8353,9 +8369,11 @@ _SOKOL_PRIVATE bool _sg_validate_apply_pipeline(sg_pipeline pip_id) {
         const _sg_pass_t* pass = _sg_lookup_pass(&_sg.pools, _sg.cur_pass.id);
         if (pass) {
             /* an offscreen pass */
-            SOKOL_VALIDATE(pip->color_attachment_count == pass->num_color_atts, _SG_VALIDATE_APIP_ATT_COUNT);
-            SOKOL_VALIDATE(pip->color_format == pass->color_atts[0].image->pixel_format, _SG_VALIDATE_APIP_COLOR_FORMAT);
-            SOKOL_VALIDATE(pip->sample_count == pass->color_atts[0].image->sample_count, _SG_VALIDATE_APIP_SAMPLE_COUNT);
+            if (pass->color_atts[0].image) {
+				SOKOL_VALIDATE(pip->color_attachment_count == pass->num_color_atts, _SG_VALIDATE_APIP_ATT_COUNT);
+				SOKOL_VALIDATE(pip->color_format == pass->color_atts[0].image->pixel_format, _SG_VALIDATE_APIP_COLOR_FORMAT);
+				SOKOL_VALIDATE(pip->sample_count == pass->color_atts[0].image->sample_count, _SG_VALIDATE_APIP_SAMPLE_COUNT);
+            }
             if (pass->ds_att.image) {
                 SOKOL_VALIDATE(pip->depth_format == pass->ds_att.image->pixel_format, _SG_VALIDATE_APIP_DEPTH_FORMAT);
             }
@@ -9323,8 +9341,14 @@ SOKOL_API_IMPL void sg_begin_pass(sg_pass pass_id, const sg_pass_action* pass_ac
         _sg.pass_valid = true;
         sg_pass_action pa;
         _sg_resolve_default_pass_action(pass_action, &pa);
-        const int w = pass->color_atts[0].image->width;
-        const int h = pass->color_atts[0].image->height;
+        int w, h;
+        if (pass->color_atts[0].image) {
+			w = pass->color_atts[0].image->width;
+			h = pass->color_atts[0].image->height;
+        } else {
+			w = pass->ds_att.image->width;
+			h = pass->ds_att.image->height;
+        }
         _sg_begin_pass(pass, &pa, w, h);
         _SG_TRACE_ARGS(begin_pass, pass_id, pass_action);
     }
