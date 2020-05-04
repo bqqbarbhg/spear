@@ -28,7 +28,7 @@ def compile_file(path, cpp):
     else:
         args += ["-g"]
     if cpp:
-        args += ["-std=c++11"]
+        args += ["-std=c++14"]
     if webgl2:
         args += ["-s", "MAX_WEBGL_VERSION=2"]
         args += ["-DSP_USE_WEBGL2=1"]

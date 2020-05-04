@@ -201,6 +201,7 @@
     #endif
     #include <windows.h>
     #include <d3d11.h>
+    #include <d3d11_1.h>
     #include <d3dcompiler.h>
     #if (defined(WINAPI_FAMILY_PARTITION) && !WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP))
     #pragma comment (lib, "WindowsApp.lib")
@@ -651,6 +652,7 @@ typedef struct {
     _sg_attachment_t ds_att;
     ID3D11RenderTargetView* d3d11_rtvs[SG_MAX_COLOR_ATTACHMENTS];
     ID3D11DepthStencilView* d3d11_dsv;
+    WCHAR label[64];
 } _sg_pass_t;
 
 typedef struct {
@@ -688,6 +690,8 @@ typedef struct {
     ID3D11SamplerState* zero_smps[SG_MAX_SHADERSTAGE_IMAGES];
     /* global subresourcedata array for texture updates */
     D3D11_SUBRESOURCE_DATA subres_data[SG_MAX_MIPMAPS * SG_MAX_TEXTUREARRAY_LAYERS];
+    /* debug context */
+    ID3DUserDefinedAnnotation *annotation;
 } _sg_d3d11_backend_t;
 
 /*=== METAL BACKEND DECLARATIONS =============================================*/
@@ -1980,7 +1984,7 @@ _SOKOL_PRIVATE GLenum _sg_gl_teximage_type(sg_pixel_format fmt) {
         case SG_PIXELFORMAT_RG11B10F:
             return GL_UNSIGNED_INT_10F_11F_11F_REV;
         case SG_PIXELFORMAT_BQQ_SRGBA8:
-            return GL_SRGB8_ALPHA8;
+            return GL_UNSIGNED_BYTE;
         #endif
         case SG_PIXELFORMAT_DEPTH:
             return GL_UNSIGNED_SHORT;
@@ -2053,7 +2057,7 @@ _SOKOL_PRIVATE GLenum _sg_gl_teximage_format(sg_pixel_format fmt) {
             return GL_RGB;
         #if !defined(SOKOL_GLES2)
         case SG_PIXELFORMAT_BQQ_SRGBA8:
-            return GL_SRGB8_ALPHA8;
+            return GL_RGBA;
         #endif
         case SG_PIXELFORMAT_DEPTH:
             return GL_DEPTH_COMPONENT;
@@ -2284,6 +2288,7 @@ _SOKOL_PRIVATE void _sg_gl_init_pixelformats(bool has_bgra) {
     if (!_sg.gl.gles2) {
         _sg_pixelformat_all(&_sg.formats[SG_PIXELFORMAT_RGB10A2]);
         _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_RG11B10F]);
+        _sg_pixelformat_all(&_sg.formats[SG_PIXELFORMAT_BQQ_SRGBA8]);
         _sg_pixelformat_srm(&_sg.formats[SG_PIXELFORMAT_RG32UI]);
         _sg_pixelformat_srm(&_sg.formats[SG_PIXELFORMAT_RG32SI]);
         #if !defined(SOKOL_GLES3)
@@ -2617,6 +2622,7 @@ _SOKOL_PRIVATE void _sg_gl_init_caps_gles3(void) {
             }
             else if (strstr(ext, "_color_buffer_float")) {
                 has_colorbuffer_float = true;
+                has_colorbuffer_half_float = true;
             }
             else if (strstr(ext, "_color_buffer_half_float")) {
                 has_colorbuffer_half_float = true;
@@ -4651,6 +4657,9 @@ _SOKOL_PRIVATE void _sg_setup_backend(const sg_desc* desc) {
     _sg.d3d11.rtv_cb = desc->d3d11_render_target_view_cb;
     _sg.d3d11.dsv_cb = desc->d3d11_depth_stencil_view_cb;
     _sg_d3d11_init_caps();
+
+    HRESULT hr = ID3D11DeviceContext_QueryInterface(_sg.d3d11.ctx, &IID_ID3DUserDefinedAnnotation, (void**)&_sg.d3d11.annotation);
+    if (FAILED(hr)) _sg.d3d11.annotation = NULL;
 }
 
 _SOKOL_PRIVATE void _sg_discard_backend(void) {
@@ -5442,6 +5451,14 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_pass(_sg_pass_t* pass, _sg_image_t**
         _SOKOL_UNUSED(hr);
         SOKOL_ASSERT(SUCCEEDED(hr) && pass->d3d11_dsv);
     }
+
+    if (desc->label) {
+        MultiByteToWideChar(CP_UTF8, 0, desc->label, -1, pass->label, sizeof(pass->label) / sizeof(WCHAR));
+    } else {
+        const WCHAR label[] = L"Unnamed pass";
+        memcpy(pass->label, label, sizeof(label));
+    }
+
     return SG_RESOURCESTATE_VALID;
 }
 
@@ -5460,6 +5477,15 @@ _SOKOL_PRIVATE void _sg_destroy_pass(_sg_pass_t* pass) {
 _SOKOL_PRIVATE void _sg_begin_pass(_sg_pass_t* pass, const sg_pass_action* action, int w, int h) {
     SOKOL_ASSERT(action);
     SOKOL_ASSERT(!_sg.d3d11.in_pass);
+
+    if (_sg.d3d11.annotation) {
+		if (pass) {
+			ID3DUserDefinedAnnotation_BeginEvent(_sg.d3d11.annotation, pass->label);
+		} else {
+			ID3DUserDefinedAnnotation_BeginEvent(_sg.d3d11.annotation, L"Default pass");
+		}
+    }
+
     _sg.d3d11.in_pass = true;
     _sg.d3d11.cur_width = w;
     _sg.d3d11.cur_height = h;
@@ -5561,6 +5587,10 @@ _SOKOL_PRIVATE void _sg_end_pass(void) {
     }
     _sg.d3d11.cur_dsv = 0;
     _sg_d3d11_clear_state();
+
+    if (_sg.d3d11.annotation) {
+		ID3DUserDefinedAnnotation_EndEvent(_sg.d3d11.annotation);
+    }
 }
 
 _SOKOL_PRIVATE void _sg_apply_viewport(int x, int y, int w, int h, bool origin_top_left) {

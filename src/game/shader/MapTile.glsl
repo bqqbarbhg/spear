@@ -38,7 +38,7 @@ out vec4 frag_color;
 
 uniform sampler2D lightGrid;
 
-uniform Pixel
+uniform LightGrid
 {
 	vec3 lightGridOrigin;
 	vec3 lightGridRcpScale;
@@ -109,7 +109,7 @@ void main()
 	}
 #endif
 
-	frag_color = vec4(sqrt(result), 1.0);
+	frag_color = vec4(result, 1.0);
 }
 
 @end

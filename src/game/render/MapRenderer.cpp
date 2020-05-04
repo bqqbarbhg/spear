@@ -8,6 +8,8 @@
 #include "game/shader/MapTile.h"
 #include "game/shader/LightGrid.h"
 #include "game/shader/MapShadow.h"
+#include "game/shader/GameShaders.h"
+#include "sp/Renderer.h"
 
 // TEMP TEMP
 #include "ext/sokol/sokol_time.h"
@@ -50,8 +52,7 @@ struct MapRenderer::Data
 	sf::HashMap<sf::Vec2i, MapChunk> chunks;
 	sf::Array<sf::Vec2i> dirtyChunks;
 
-	sg_shader shaderMapTile;
-	sg_pipeline pipeMapTile[2 /* largeIndices */];
+	sp::Pipeline pipeMapTile[2 /* largeIndices */];
 
 	void setChunkDirty(MapChunk &chunk)
 	{
@@ -68,23 +69,20 @@ struct MapRenderer::Data
 		return res.entry.val;
 	}
 
-	MapTile_Pixel_t testPixel;
-	sg_image testLightGridImage;
-	sg_pass testShadowPass;
-	sg_pass testLightPass;
+	MapTile_LightGrid_t testPixel;
+	sp::RenderTarget testLightGridImage;
+	sp::RenderPass testShadowPass;
+	sp::RenderPass testLightPass;
 
-	sg_shader testLightShader;
-	sg_pipeline testLightPipe;
+	sp::Pipeline testLightPipe;
 	LightGrid_Vertex_t testLightVertex;
 	LightGrid_Pixel_t testLightPixel;
 
 	uint32_t testShadowExtent;
 	uint32_t testShadowAtlasWidth, testShadowAtlasHeight;
-	sg_image testShadowAtlas = { 0 };
-	sg_image testShadowDepth = { 0 };
-	sg_shader testShadowShader;
-	sg_pipeline testShadowPipe[2];
-	sg_pipeline testShadowResetPipe;
+	sp::RenderTarget testShadowAtlas;
+	sp::RenderTarget testShadowDepth;
+	sp::Pipeline testShadowPipe[2];
 	sf::Vec3 testShadowOrigin;
 	sf::Vec3 testShadowRcpScale;
 	float testShadowYSlices;
@@ -92,7 +90,11 @@ struct MapRenderer::Data
 	sg_buffer shadowResetIndexBuffer;
 
 	sg_buffer testPostVertexBuffer;
+
+	sp::Pipeline testShadowResetPipe;
 };
+
+sg_buffer g_hackPostVertexBuffer;
 
 struct TestLight
 {
@@ -105,21 +107,15 @@ struct TestLight
 MapRenderer::MapRenderer()
 	: data(new Data())
 {
-	data->shaderMapTile = sg_make_shader(MapTile_MapTile_shader_desc());
-
-	for (int largeIndices = 0; largeIndices < 2; largeIndices++) {
-		sg_pipeline_desc d = { };
-		d.shader = data->shaderMapTile;
-		d.depth_stencil.depth_write_enabled = true;
-		d.depth_stencil.depth_compare_func = SG_COMPAREFUNC_LESS_EQUAL;
-		d.rasterizer.cull_mode = SG_CULLMODE_BACK;
-		d.rasterizer.face_winding = SG_FACEWINDING_CCW;
+	for (int largeIndices = 0; largeIndices < 2; largeIndices++)
+	{
+		uint32_t flags = sp::PipeDepthWrite | sp::PipeCullCCW;
+		sg_pipeline_desc &d = data->pipeMapTile[largeIndices].init(gameShaders.mapTile, flags);
 		d.index_type = largeIndices ? SG_INDEXTYPE_UINT32 : SG_INDEXTYPE_UINT16;
 		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
 		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
 		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
 		d.label = "mapTile";
-		data->pipeMapTile[largeIndices] = sg_make_pipeline(&d);
 	}
 
 	{
@@ -134,6 +130,7 @@ MapRenderer::MapRenderer()
 		d.content = postVerts;
 		d.size = sizeof(postVerts);
 		data->testPostVertexBuffer = sg_make_buffer(&d);
+		g_hackPostVertexBuffer = data->testPostVertexBuffer;
 	}
 
 	{
@@ -155,40 +152,10 @@ MapRenderer::MapRenderer()
 		data->testPixel.lightGridYSlices = (float)Slices;
 		data->testPixel.lightGridRcpYSlices = 1.0f / (float)Slices;
 
-		{
-			sg_image_desc d = { };
-			d.width = (int)TexWidth;
-			d.height = (int)TexHeight;
-			d.render_target = true;
-			d.pixel_format = SG_PIXELFORMAT_RGBA32F;
-			d.mag_filter = SG_FILTER_LINEAR;
-			d.min_filter = SG_FILTER_LINEAR;
-			d.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
-			d.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
-			d.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
-			d.label = "testLightGrid";
-			data->testLightGridImage = sg_make_image(&d);
-		}
+		sf::Vec2i res { (int)TexWidth, (int)TexHeight };
 
-		{
-			sg_pass_desc d = { };
-			d.color_attachments[0].image = data->testLightGridImage;
-			data->testLightPass = sg_make_pass(&d);
-		}
-	}
-
-	{
-		data->testLightShader = sg_make_shader(LightGrid_LightGrid_shader_desc());
-		sg_pipeline_desc d = { };
-		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT2;
-		d.shader = data->testLightShader;
-		d.blend.color_format = SG_PIXELFORMAT_RGBA32F;
-		d.blend.depth_format = SG_PIXELFORMAT_NONE;
-		d.blend.enabled = true;
-		d.blend.src_factor_rgb = d.blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
-		d.blend.dst_factor_rgb = d.blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
-		d.label = "testLight";
-		data->testLightPipe = sg_make_pipeline(&d);
+		data->testLightGridImage.init("lightTestGrid", res, SG_PIXELFORMAT_RG11B10F);
+		data->testLightPass.init("lightGrid", data->testLightGridImage);
 	}
 
 	{
@@ -203,80 +170,36 @@ MapRenderer::MapRenderer()
 		data->testShadowAtlasWidth = 6*ShadowNumX;
 		data->testShadowAtlasHeight = ShadowNumY;
 
-		data->testShadowShader = sg_make_shader(MapShadow_MapShadow_shader_desc());
+		sf::Vec2i res { (int)TexWidth, (int)TexHeight };
 
 		{
 			sg_image_desc d = { };
-			d.width = (int)TexWidth;
-			d.height = (int)TexHeight;
-			d.render_target = true;
-			d.pixel_format = SG_PIXELFORMAT_R32F;
-			d.mag_filter = SG_FILTER_NEAREST;
-			d.min_filter = SG_FILTER_NEAREST;
-			d.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
-			d.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
-			d.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
-			d.label = "testShadowAtlas";
-			data->testShadowAtlas = sg_make_image(&d);
+			d.min_filter = d.mag_filter = SG_FILTER_NEAREST;
+			data->testShadowAtlas.init("shadowAtlas", res, SG_PIXELFORMAT_R32F, 1u, d);
 		}
 
 		{
-			sg_image_desc d = { };
-			d.width = (int)TexWidth;
-			d.height = (int)TexHeight;
-			d.render_target = true;
-			d.pixel_format = SG_PIXELFORMAT_DEPTH_STENCIL;
-			d.label = "testShadowDepth";
-			data->testShadowDepth = sg_make_image(&d);
+			data->testShadowDepth.init("shadowDepth", res, SG_PIXELFORMAT_DEPTH_STENCIL);
 		}
 
-		{
-			sg_pass_desc d = { };
-			d.color_attachments[0].image = data->testShadowAtlas;
-			d.depth_stencil_attachment.image = data->testShadowDepth;
-			data->testShadowPass = sg_make_pass(&d);
-		}
+		data->testShadowPass.init("shadow", data->testShadowAtlas, data->testShadowDepth);
 
 		for (int largeIndices = 0; largeIndices < 2; largeIndices++) {
-			sg_pipeline_desc d = { };
-			d.shader = data->testShadowShader;
+			uint32_t flags = sp::PipeDepthWrite | sp::PipeCullAuto;
+			sg_pipeline_desc &d = data->testShadowPipe[largeIndices].init(gameShaders.mapShadow, flags);
 			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-			d.blend.color_format = SG_PIXELFORMAT_R32F;
-			d.depth_stencil.depth_write_enabled = true;
-			d.depth_stencil.depth_compare_func = SG_COMPAREFUNC_LESS_EQUAL;
-			d.rasterizer.cull_mode = SG_CULLMODE_BACK;
-			d.rasterizer.face_winding = sg_query_features().origin_top_left ? SG_FACEWINDING_CCW : SG_FACEWINDING_CW;
 			d.index_type = largeIndices ? SG_INDEXTYPE_UINT32 : SG_INDEXTYPE_UINT16;
-			data->testShadowPipe[largeIndices] = sg_make_pipeline(&d);
 		}
 
 		{
-			sg_pipeline_desc d = { };
-			d.shader = data->testShadowShader;
+			sg_pipeline_desc &d = data->testShadowResetPipe.init(gameShaders.mapShadow, sp::PipeCullAuto|sp::PipeIndex16);
 			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-			d.blend.color_format = SG_PIXELFORMAT_R32F;
 			d.depth_stencil.depth_write_enabled = true;
 			d.depth_stencil.depth_compare_func = SG_COMPAREFUNC_ALWAYS;
-			d.rasterizer.cull_mode = SG_CULLMODE_BACK;
-			d.rasterizer.face_winding = sg_query_features().origin_top_left ? SG_FACEWINDING_CCW : SG_FACEWINDING_CW;
-			d.index_type = SG_INDEXTYPE_UINT16;
-			data->testShadowResetPipe = sg_make_pipeline(&d);
 		}
 	}
 
-	{
-		data->testLightShader = sg_make_shader(LightGrid_LightGrid_shader_desc());
-		sg_pipeline_desc d = { };
-		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT2;
-		d.shader = data->testLightShader;
-		d.blend.color_format = SG_PIXELFORMAT_RGBA32F;
-		d.blend.depth_format = SG_PIXELFORMAT_NONE;
-		d.blend.enabled = true;
-		d.blend.src_factor_rgb = d.blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
-		d.blend.dst_factor_rgb = d.blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
-		d.label = "testLight";
-		data->testLightPipe = sg_make_pipeline(&d);
-	}
+	data->testLightPipe.init(gameShaders.lightGrid, sp::PipeVertexFloat2 | sp::PipeBlendAdd);
 
 	{
 		sf::Vec3 shadowResetVerts[] = {
@@ -557,7 +480,7 @@ void MapRenderer::update()
 
 void MapRenderer::testRenderLight()
 {
-	float time = (float)stm_sec(stm_now());
+	float time = (float)stm_sec(stm_now()) * 0.7f;
 	float radius = 10.0f;
 
 	float lightRadius = 20.0f;
@@ -586,14 +509,13 @@ void MapRenderer::testRenderLight()
 		action.colors[0].action = SG_ACTION_LOAD;
 		action.depth.action = SG_ACTION_LOAD;
 		action.stencil.action = SG_ACTION_LOAD;
-		sg_begin_pass(data->testShadowPass, &action);
+		sp::beginPass(data->testShadowPass, &action);
 		bool topLeft = sg_query_features().origin_top_left;
 
 		uint32_t offsetX = 0;
 		uint32_t offsetY = 0;
 		for (TestLight &light : testLights) {
-			sg_pipeline prevPipeline = data->testShadowResetPipe;
-			sg_apply_pipeline(data->testShadowResetPipe);
+			data->testShadowResetPipe.bind();
 
 			sg_bindings bindings = { };
 			bindings.index_buffer = data->shadowResetIndexBuffer;
@@ -642,11 +564,8 @@ void MapRenderer::testRenderLight()
 					if (!chunk.shadowMesh.vertexBuffer.id) continue;
 					// TODO: Frustum culling
 
-					sg_pipeline pipe = data->testShadowPipe[chunk.mesh.largeIndices];
-					if (pipe.id != prevPipeline.id) {
-						sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_MapShadow_Vertex, &vertexUbo, sizeof(vertexUbo));
-						sg_apply_pipeline(pipe);
-					}
+					data->testShadowPipe[chunk.mesh.largeIndices].bind();
+					sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_MapShadow_Vertex, &vertexUbo, sizeof(vertexUbo));
 
 					bindings.vertex_buffers[0] = data->shadowResetVertexBuffer;
 					bindings.index_buffer = chunk.shadowMesh.indexBuffer;
@@ -665,13 +584,13 @@ void MapRenderer::testRenderLight()
 			}
 		}
 
-		sg_end_pass();
+		sp::endPass();
 	}
 
 	{
 		sg_pass_action action = { };
 		action.colors[0].action = SG_ACTION_CLEAR;
-		sg_begin_pass(data->testLightPass, &action);
+		sp::beginPass(data->testLightPass, &action);
 
 		const uint32_t BatchSize = 64;
 		for (uint32_t base = 0; base < testLights.size; base += BatchSize) {
@@ -684,19 +603,19 @@ void MapRenderer::testRenderLight()
 			}
 			data->testLightPixel.numLightsF = (float)num;
 
-			sg_apply_pipeline(data->testLightPipe);
+			data->testLightPipe.bind();
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_LightGrid_Vertex, &data->testLightVertex, sizeof(data->testLightVertex));
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_LightGrid_Pixel, &data->testLightPixel, sizeof(data->testLightPixel));
 
 			sg_bindings bindings = { };
-			bindings.fs_images[SLOT_LightGrid_shadowAtlas] = data->testShadowAtlas;
+			bindings.fs_images[SLOT_LightGrid_shadowAtlas] = data->testShadowAtlas.image;
 			bindings.vertex_buffers[0] = data->testPostVertexBuffer;
 			sg_apply_bindings(&bindings);
 
 			sg_draw(0, 3, 1);
 		}
 
-		sg_end_pass();
+		sp::endPass();
 	}
 }
 
@@ -713,18 +632,14 @@ void MapRenderer::render()
 		if (!chunk.mesh.vertexBuffer.id) continue;
 		// TODO: Frustum culling
 
-		sg_pipeline pipe = data->pipeMapTile[chunk.mesh.largeIndices];
-		if (pipe.id != prevPipeline.id) {
-			sg_apply_pipeline(pipe);
-		}
+		data->pipeMapTile[chunk.mesh.largeIndices].bind();
 
 		MapTile_Vertex_t vertexUbo;
 		game.camera.worldToClip.writeColMajor44(vertexUbo.worldToClip);
 		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_MapTile_Vertex, &vertexUbo, sizeof(vertexUbo));
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_MapTile_LightGrid, &data->testPixel, sizeof(data->testPixel));
+		bindings.fs_images[SLOT_MapTile_lightGrid] = data->testLightGridImage.image;
 
-		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_MapTile_Pixel, &data->testPixel, sizeof(data->testPixel));
-
-		bindings.fs_images[SLOT_MapTile_lightGrid] = data->testLightGridImage;
 		bindings.index_buffer = chunk.mesh.indexBuffer;
 		bindings.vertex_buffers[0] = chunk.mesh.vertexBuffer;
 		sg_apply_bindings(&bindings);

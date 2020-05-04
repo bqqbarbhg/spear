@@ -102,6 +102,8 @@ sf_inline int64_t max(int64_t a, int64_t b) { return a < b ? b : a; }
 template <typename T>
 sf_inline T clamp(const T &v, const T &min, const T &max) { return ::sf::min(::sf::max(v, min), max); }
 
+sf_inline float lerp(float a, float b, float t) { return a * (1.0f - t) + b * t; }
+
 // -- Float intrinsics
 
 #if SF_ARCH_X86

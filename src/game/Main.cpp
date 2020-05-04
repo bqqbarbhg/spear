@@ -10,13 +10,21 @@
 #include "sp/Sprite.h"
 #include "sp/Font.h"
 #include "sp/Model.h"
+#include "sp/Renderer.h"
+
+#include "ext/sokol/sokol_gfx.h"
 
 #include "game/shader/TestMesh.h"
 #include "game/shader/TestSkin.h"
+#include "game/shader/Postprocess.h"
+#include "game/shader/Fxaa.h"
+#include "game/shader/Upscale.h"
 
 #include "sf/Reflection.h"
 
 #include "sp/Json.h"
+
+#include "game/shader/GameShaders.h"
 
 #include "State.h"
 
@@ -741,11 +749,65 @@ void spConfig(sp::MainConfig &config)
 	config.sgDesc.image_pool_size = 1024;
 }
 
+sp::RenderTarget mainTarget;
+sp::RenderTarget mainDepthTarget;
+sp::RenderPass mainPass;
+
+sp::RenderTarget tonemapTarget;
+sp::RenderPass tonemapPass;
+
+sp::RenderTarget fxaaTarget;
+sp::RenderPass fxaaPass;
+
+sp::Pipeline postPipe;
+sp::Pipeline fxaaPipe;
+sp::Pipeline upscalePipe;
+sp::Pipeline upscaleFastPipe;
+
+int renderRes = 20;
+int mainSamples = 1;
+
+void recreateTargets()
+{
+	int systemWidth = sapp_width();
+	int systemHeight = sapp_height();
+
+	float time = (float)stm_sec(stm_now());
+	float res = sf::clamp(sqrtf((float)renderRes / 20.0f), 0.1f, 1.0f);
+	sf::Vec2i mainRes = sf::Vec2i(sf::Vec2(sf::Vec2i(systemWidth, systemHeight)) * res);
+
+	sg_pixel_format mainFormat = SG_PIXELFORMAT_RGBA16F;
+	sg_pixel_format mainDepthFormat = SG_PIXELFORMAT_DEPTH_STENCIL;
+
+	mainTarget.init("mainTarget", mainRes, mainFormat, mainSamples);
+	mainDepthTarget.init("mainDepth", mainRes, mainDepthFormat, mainSamples);
+	tonemapTarget.init("tonemapTarget", mainRes, SG_PIXELFORMAT_RGBA8);
+	fxaaTarget.init("fxaaTarget", mainRes, SG_PIXELFORMAT_RGBA8);
+
+	mainPass.init("main", mainTarget, mainDepthTarget);
+	tonemapPass.init("tonemap", tonemapTarget);
+	fxaaPass.init("fxaa", fxaaTarget);
+}
+
+sp::FontRef font;
+sp::Canvas canvas;
+
 void spInit()
 {
-	srand(time(NULL));
+	srand((unsigned)time(NULL));
+
+	gameShaders.load();
 
 	sp::ContentFile::addRelativeFileRoot("");
+
+	font.load("sp://OpenSans-Ascii.ttf");
+
+	recreateTargets();
+
+	postPipe.init(gameShaders.postprocess, sp::PipeVertexFloat2);
+	fxaaPipe.init(gameShaders.fxaa, sp::PipeVertexFloat2);
+	upscalePipe.init(gameShaders.upscale, sp::PipeVertexFloat2);
+	upscaleFastPipe.init(gameShaders.upscaleFast, sp::PipeVertexFloat2);
 
 	t_game = new Game();
 	Game &game = *t_game;
@@ -851,17 +913,40 @@ void spCleanup()
 	delete t_game;
 }
 
+bool fxaa = true;
+bool catmullRom = false;
+
 void spEvent(const sapp_event *e)
 {
+	if (e->type == SAPP_EVENTTYPE_KEY_DOWN) {
+		if (e->key_code == SAPP_KEYCODE_UP) {
+			if (renderRes < 20) renderRes++;
+			recreateTargets();
+		} else if (e->key_code == SAPP_KEYCODE_DOWN) {
+			if (renderRes > 0) renderRes--;
+			recreateTargets();
+		} else if (e->key_code == SAPP_KEYCODE_RIGHT) {
+			if (mainSamples < 8) mainSamples *= 2;
+			recreateTargets();
+		} else if (e->key_code == SAPP_KEYCODE_LEFT) {
+			if (mainSamples > 1) mainSamples /= 2;
+			recreateTargets();
+		} else if (e->key_code == SAPP_KEYCODE_F) {
+			fxaa = !fxaa;
+		} else if (e->key_code == SAPP_KEYCODE_C) {
+			catmullRom = !catmullRom;
+		}
+	}
 }
+
+extern sg_buffer g_hackPostVertexBuffer;
+double cpuMs;
 
 void spFrame(float dt)
 {
 	Game &game = *t_game;
 
 	uint64_t begin = stm_now();
-
-	game.mapRenderer.update();
 
 	float anim = (float)sin(stm_sec(stm_now()) * 0.1f)*0.0f;
 
@@ -879,24 +964,169 @@ void spFrame(float dt)
 
 	game.camera.worldToClip = game.camera.viewToClip * game.camera.worldToView;
 
+	game.mapRenderer.update();
+
 	game.mapRenderer.testRenderLight();
 
-	sg_pass_action pass_action = { };
-	pass_action.colors[0].action = SG_ACTION_CLEAR;
-	pass_action.colors[0].val[0] = 0.1f;
-	pass_action.colors[0].val[1] = 0.1f;
-	pass_action.colors[0].val[2] = 0.1f;
-	pass_action.colors[0].val[3] = 1.0f;
-
-	sg_begin_default_pass(&pass_action, sapp_width(), sapp_height());
+	{
+		sg_pass_action action = { };
+		action.colors[0].action = SG_ACTION_CLEAR;
+		action.colors[0].val[0] = 0.0f;
+		action.colors[0].val[1] = 0.0f;
+		action.colors[0].val[2] = 0.0f;
+		action.colors[0].val[3] = 1.0f;
+		sp::beginPass(mainPass, &action);
+	}
 
 	game.mapRenderer.render();
 
-	sgl_draw();
+	sp::endPass();
 
-	sg_end_pass();
+	sp::beginPass(tonemapPass, nullptr);
+
+	{
+		postPipe.bind();
+
+		sg_bindings bindings = { };
+		bindings.fs_images[SLOT_Postprocess_mainImage] = mainTarget.image;
+		bindings.vertex_buffers[0] = g_hackPostVertexBuffer;
+		sg_apply_bindings(&bindings);
+
+		sg_draw(0, 3, 1);
+	}
+
+	sp::endPass();
+
+	if (fxaa) {
+		sp::beginPass(fxaaPass, nullptr);
+
+		{
+			fxaaPipe.bind();
+
+			sg_bindings bindings = { };
+			bindings.fs_images[SLOT_Fxaa_tonemapImage] = tonemapTarget.image;
+			bindings.vertex_buffers[0] = g_hackPostVertexBuffer;
+			sg_apply_bindings(&bindings);
+
+			Fxaa_Pixel_t pixel;
+			pixel.rcpTexSize = sf::Vec2(1.0f) / sf::Vec2(tonemapPass.resolution);
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_Fxaa_Pixel, &pixel, sizeof(pixel));
+
+			sg_draw(0, 3, 1);
+		}
+
+		sp::endPass();
+	}
+
+	sp::beginDefaultPass(sapp_width(), sapp_height(), nullptr);
+
+	if (catmullRom) {
+		upscalePipe.bind();
+
+		sg_bindings bindings = { };
+		bindings.fs_images[SLOT_Upscale_tonemapImage] = fxaa ? fxaaTarget.image : tonemapTarget.image;
+		bindings.vertex_buffers[0] = g_hackPostVertexBuffer;
+		sg_apply_bindings(&bindings);
+
+		Upscale_Pixel_t pixel;
+		pixel.texSize = sf::Vec2(tonemapPass.resolution);
+		pixel.rcpTexSize = sf::Vec2(1.0f) / pixel.texSize;
+		sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_Upscale_Pixel, &pixel, sizeof(pixel));
+
+		sg_draw(0, 3, 1);
+	} else {
+		upscaleFastPipe.bind();
+
+		sg_bindings bindings = { };
+		bindings.fs_images[SLOT_Upscale_tonemapImage] = fxaa ? fxaaTarget.image : tonemapTarget.image;
+		bindings.vertex_buffers[0] = g_hackPostVertexBuffer;
+		sg_apply_bindings(&bindings);
+
+		sg_draw(0, 3, 1);
+	}
+
+	canvas.clear();
+
+	float y = 100.0f;
+	{
+		static float smoothFps;
+		if (dt > 1.0f / 1000.0f) smoothFps = sf::lerp(smoothFps, 1.0f / dt, 0.1f);
+		sf::SmallStringBuf<128> text;
+		text.format("FPS: %.1f", smoothFps);
+		sp::TextDraw td;
+		td.font = font;
+		td.string = text;
+		td.transform.m02 = 100.0f;
+		td.transform.m12 = y; y += 60.0f;
+		td.height = 60.0f;
+		canvas.drawText(td);
+	}
+
+	{
+		sf::SmallStringBuf<128> text;
+		text.format("CPU time: %.2fms", cpuMs);
+		sp::TextDraw td;
+		td.font = font;
+		td.string = text;
+		td.transform.m02 = 100.0f;
+		td.transform.m12 = y; y += 60.0f;
+		td.height = 60.0f;
+		canvas.drawText(td);
+	}
+
+	{
+		sf::SmallStringBuf<128> text;
+		text.format("Resolution: %d%% (up/down)", renderRes * 100 / 20);
+		sp::TextDraw td;
+		td.font = font;
+		td.string = text;
+		td.transform.m02 = 100.0f;
+		td.transform.m12 = y; y += 60.0f;
+		td.height = 60.0f;
+		canvas.drawText(td);
+	}
+
+	{
+		sf::SmallStringBuf<128> text;
+		text.format("MSAA: %d (left/right)", mainSamples);
+		sp::TextDraw td;
+		td.font = font;
+		td.string = text;
+		td.transform.m02 = 100.0f;
+		td.transform.m12 = y; y += 60.0f;
+		td.height = 60.0f;
+		canvas.drawText(td);
+	}
+
+	{
+		sf::SmallStringBuf<128> text;
+		text.format("FXAA: %s (F)", fxaa ? "true" : "false");
+		sp::TextDraw td;
+		td.font = font;
+		td.string = text;
+		td.transform.m02 = 100.0f;
+		td.transform.m12 = y; y += 60.0f;
+		td.height = 60.0f;
+		canvas.drawText(td);
+	}
+
+	{
+		sf::SmallStringBuf<128> text;
+		text.format("Catmull-Rom: %s (C)", catmullRom ? "true" : "false");
+		sp::TextDraw td;
+		td.font = font;
+		td.string = text;
+		td.transform.m02 = 100.0f;
+		td.transform.m12 = y; y += 60.0f;
+		td.height = 60.0f;
+		canvas.drawText(td);
+	}
+
+	canvas.render(sp::CanvasRenderOpts::windowPixels());
+
+	sp::endPass();
+
 	sg_commit();
 
-	double ms = stm_ms(stm_since(begin));
-	printf("CPU time: %.2f\n", ms);
+	cpuMs = stm_ms(stm_since(begin));
 }

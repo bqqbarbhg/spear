@@ -1424,6 +1424,8 @@ typedef struct sg_pipeline_info {
 
 typedef struct sg_pass_info {
     sg_slot_info slot;              /* resource pool slot info */
+    sg_pixelformat_info color_format;
+    sg_pixelformat_info depth_format;
 } sg_pass_info;
 
 /*
