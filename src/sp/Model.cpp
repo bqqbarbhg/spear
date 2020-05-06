@@ -63,7 +63,7 @@ struct ModelImp : Model
 	virtual void assetUnload() final;
 };
 
-AssetType Model::AssetType = { "Model", sizeof(ModelImp), sizeof(Model::PropType),
+AssetType Model::SelfType = { "Model", sizeof(ModelImp), sizeof(Model::PropType),
 	[](Asset *a) { new ((ModelImp*)a) ModelImp(); }
 };
 

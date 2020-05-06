@@ -69,18 +69,24 @@ workspace "spear"
 	filter "platforms:x64"
 		architecture "x86_64"
 
-	filter "system:windows"
+	filter { "platforms:not wasm",  "system:windows" }
 		libdirs { "dep/lib/windows_%{cfg.platform}" }
 		includedirs { "dep/include/windows" }
 		links {
 			"ws2_32.lib",
 			"crypt32.lib",
-		}
-
-	filter "platforms:not wasm"
-		links {
 			"libcurl",
 			"zlib",
+		}
+
+	filter { "platforms:not wasm",  "system:linux" }
+		linkoptions "-pthread"
+		links {
+			"curl",
+			"z",
+			"dl",
+			"GL",
+			"X11",
 		}
 
 	filter "options:opengl"

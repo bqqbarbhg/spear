@@ -15,7 +15,7 @@
 	#define jsi_noinline __declspec(noinline)
 	#define jsi_likely(x) (x)
 #else
-	#define jsi_forceinline __attribute__((always_inline))
+	#define jsi_forceinline __attribute__((always_inline)) inline
 	#define jsi_noinline __attribute__((noinline))
 	#define jsi_likely(x) __builtin_expect((x), 1)
 #endif

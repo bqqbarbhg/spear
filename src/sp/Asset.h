@@ -40,7 +40,7 @@ struct NoAssetProps : AssetProps
 
 // Asset that can be loaded/derived from from a name and an optional property blob.
 // To implement a new asset type you need to override `assetStartLoading() and `assetUnload()`,
-// you must also provide `AssetType MyAsset::AssetType` and `typename MyAsset::PropType`.
+// you must also provide `AssetType MyAsset::SelfType` and `typename MyAsset::PropType`.
 struct Asset
 {
 	Asset();
@@ -87,23 +87,23 @@ struct Asset
 	// Find asset by name/props but don't create one if it doesn't exist
 	template <typename T>
 	static T *find(const sf::String &name) {
-		return (T*)impFind(&T::AssetType, name, typename T::PropType{});
+		return (T*)impFind(&T::SelfType, name, typename T::PropType{});
 	}
 	template <typename T>
 	static T *find(const sf::String &name, const typename T::PropType &props) {
-		sf_assert(sizeof(props) == T::AssetType.propertySize);
-		return (T*)impFind(&T::AssetType, name, props);
+		sf_assert(sizeof(props) == T::SelfType.propertySize);
+		return (T*)impFind(&T::SelfType, name, props);
 	}
 
 	// Load an asset by name/props, prefer using Ref<> constructor
 	template <typename T>
 	static T *load(const sf::String &name) {
-		return (T*)impCreate(&T::AssetType, name, typename T::PropType{});
+		return (T*)impCreate(&T::SelfType, name, typename T::PropType{});
 	}
 	template <typename T>
 	static T *load(const sf::String &name, const typename T::PropType &props) {
-		sf_assert(sizeof(props) == T::AssetType.propertySize);
-		return (T*)impCreate(&T::AssetType, name, props);
+		sf_assert(sizeof(props) == T::SelfType.propertySize);
+		return (T*)impCreate(&T::SelfType, name, props);
 	}
 
 	// Lifecycle

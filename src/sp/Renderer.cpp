@@ -17,9 +17,15 @@
 
 #elif defined(SOKOL_GLCORE33)
 
-#if SF_OS_WINDOWS
-	#define _WIN32_LEAN_AND_MEAN
-	#include <Windows.h>
+#if SF_OS_WINDOWS || SF_OS_LINUX
+
+	#if SF_OS_WINDOWS
+		#define _WIN32_LEAN_AND_MEAN
+		#include <Windows.h>
+	#elif SF_OS_LINUX
+		#include <dlfcn.h>
+
+	#endif
 
 	typedef int GLsizei;
 	typedef unsigned int GLuint;
@@ -40,20 +46,54 @@
 	#define GL_QUERY_RESULT 0x8866
 	#define GL_TIME_ELAPSED_EXT 0x88BF
 
-	static bool loadWindowsGlImp()
-	{
-		typedef PROC (WINAPI * PFN_wglGetProcAddress)(LPCSTR);
-		HMODULE dll = LoadLibraryA("opengl32.dll");
-		if (dll == NULL) return false;
-		bool ok = true;
-		PFN_wglGetProcAddress wglGetProcAddress = (PFN_wglGetProcAddress) GetProcAddress(dll, "wglGetProcAddress");
-		ok = ok && (sp_glGenQueries = (PFNGLGENQUERIESPROC)(uintptr_t)wglGetProcAddress("glGenQueries")) != NULL;
-		ok = ok && (sp_glBeginQuery = (PFNGLBEGINQUERYPROC)(uintptr_t)wglGetProcAddress("glBeginQuery")) != NULL;
-		ok = ok && (sp_glEndQuery = (PFNGLENDQUERYPROC)(uintptr_t)wglGetProcAddress("glEndQuery")) != NULL;
-		ok = ok && (sp_glGetQueryObjectuiv = (PFNGLGETQUERYOBJECTUIVPROC)(uintptr_t)wglGetProcAddress("glGetQueryObjectuiv")) != NULL;
-		FreeLibrary(dll);
-		return ok;
 
+
+	static bool loadQueryGlImp()
+	{
+		#if SF_OS_WINDOWS
+		{
+			typedef PROC (WINAPI * PFN_wglGetProcAddress)(LPCSTR);
+			HMODULE dll = LoadLibraryA("opengl32.dll");
+			if (dll == NULL) return false;
+			bool ok = true;
+			PFN_wglGetProcAddress wglGetProcAddress = (PFN_wglGetProcAddress) GetProcAddress(dll, "wglGetProcAddress");
+			ok = ok && (sp_glGenQueries = (PFNGLGENQUERIESPROC)(uintptr_t)wglGetProcAddress("glGenQueries")) != NULL;
+			ok = ok && (sp_glBeginQuery = (PFNGLBEGINQUERYPROC)(uintptr_t)wglGetProcAddress("glBeginQuery")) != NULL;
+			ok = ok && (sp_glEndQuery = (PFNGLENDQUERYPROC)(uintptr_t)wglGetProcAddress("glEndQuery")) != NULL;
+			ok = ok && (sp_glGetQueryObjectuiv = (PFNGLGETQUERYOBJECTUIVPROC)(uintptr_t)wglGetProcAddress("glGetQueryObjectuiv")) != NULL;
+			FreeLibrary(dll);
+			return ok;
+		}
+		#elif SF_OS_LINUX
+		{
+			void *dl = nullptr;
+			for (const char *name : { "libGL.so.1", "libGL.so" }) {
+				dl = dlopen(name, RTLD_LAZY|RTLD_GLOBAL);
+				if (dl) break;
+			}
+			if (!dl) return false;
+
+			typedef void (*__GLXextproc)(void);
+			typedef __GLXextproc (* PFNGLXGETPROCADDRESSPROC)(const unsigned char *procName);
+			PFNGLXGETPROCADDRESSPROC glxGetProcAddress = (PFNGLXGETPROCADDRESSPROC)dlsym(dl, "glXGetProcAddress");
+			PFNGLXGETPROCADDRESSPROC glxGetProcAddressARB = (PFNGLXGETPROCADDRESSPROC)dlsym(dl, "glXGetProcAddressARB");
+			auto load = [&](const char *name) -> __GLXextproc {
+				__GLXextproc addr = nullptr;
+				if (glxGetProcAddress && (addr = glxGetProcAddress((const unsigned char*)name)) != nullptr) return addr;
+				if (glxGetProcAddressARB && (addr = glxGetProcAddressARB((const unsigned char*)name)) != nullptr) return addr;
+				return addr;
+			};
+
+			bool ok = true;
+			ok = ok && (sp_glGenQueries = (PFNGLGENQUERIESPROC)(uintptr_t)load("glGenQueries")) != NULL;
+			ok = ok && (sp_glBeginQuery = (PFNGLBEGINQUERYPROC)(uintptr_t)load("glBeginQuery")) != NULL;
+			ok = ok && (sp_glEndQuery = (PFNGLENDQUERYPROC)(uintptr_t)load("glEndQuery")) != NULL;
+			ok = ok && (sp_glGetQueryObjectuiv = (PFNGLGETQUERYOBJECTUIVPROC)(uintptr_t)load("glGetQueryObjectuiv")) != NULL;
+
+			dlclose(dl);
+			return ok;
+		}
+		#endif
 	}
 
 #else
@@ -193,12 +233,10 @@ static void beginQueryFrame()
 				if (emscripten_webgl_enable_extension(ctx, "EXT_disjoint_timer_query_webgl2")) hasQuerySupport = true;
 			}
 		}
-		#elif SF_OS_WINDOWS
-		{
-			hasQuerySupport = loadWindowsGlImp();
-		}
 		#else
-			#error "TODO"
+		{
+			hasQuerySupport = loadQueryGlImp();
+		}
 		#endif
 	}
 

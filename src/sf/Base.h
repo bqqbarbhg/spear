@@ -208,7 +208,7 @@ constructRangeImp(void *data, size_t size) {
 	}
 }
 
-template <typename T> sf_forceinline inline typename std::enable_if<IsZeroInitializable<T>::value>::type
+template <typename T> sf_forceinline typename std::enable_if<IsZeroInitializable<T>::value>::type
 constructRangeImp(void *data, size_t size) {
 	memset(data, 0, sizeof(T) * size);
 }
@@ -222,7 +222,7 @@ moveRangeImp(void *dst, void *src, size_t size) {
 	}
 }
 
-template <typename T> sf_forceinline inline typename std::enable_if<IsRelocatable<T>::value>::type
+template <typename T> sf_forceinline typename std::enable_if<IsRelocatable<T>::value>::type
 moveRangeImp(void *dst, void *src, size_t size) {
 	memcpy(dst, src, size * sizeof(T));
 }
@@ -235,7 +235,7 @@ copyRangeImp(void *dst, const void *src, size_t size) {
 	}
 }
 
-template <typename T> sf_forceinline inline typename std::enable_if<IsCopyable<T>::value>::type
+template <typename T> sf_forceinline typename std::enable_if<IsCopyable<T>::value>::type
 copyRangeImp(void *dst, const void *src, size_t size) {
 	memcpy(dst, src, size * sizeof(T));
 }
@@ -247,7 +247,7 @@ destructRangeImp(void *data, size_t size) {
 	}
 }
 
-template <typename T> sf_forceinline inline typename std::enable_if<!HasDestructor<T>::value>::type
+template <typename T> sf_forceinline typename std::enable_if<!HasDestructor<T>::value>::type
 destructRangeImp(void *, size_t) {
 	// Nop
 }

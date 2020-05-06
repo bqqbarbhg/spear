@@ -47,17 +47,24 @@
 // -- OS detection
 
 #define SF_OS_WINDOWS 0    // < Win32 desktop application
+#define SF_OS_LINUX 0      // < Linux desktop application
 #define SF_OS_WASM 0       // < WebAssembly (but maybe not Emscripten)
 #define SF_OS_EMSCRIPTEN 0 // < Emscripten (with SF_OS_WASM)
 #define SF_OS_GENERIC 0    // < Modern C++11-17 OS wrappers
 
-#if defined(SF_DEF_OS_WIDOWS) || defined(SF_DEF_OS_WASM) || defined(SF_DEF_OS_EMSCRIPTEN) || defined(SF_DEF_OS_GENERIC) || defined(SF_DEF_GENERIC)
+#if defined(SF_DEF_OS_WIDOWS) || defined(SF_DEF_OS_LINUX) || defined(SF_DEF_OS_WASM) || defined(SF_DEF_OS_EMSCRIPTEN) || defined(SF_DEF_OS_GENERIC) || defined(SF_DEF_GENERIC)
 	#define SF_FOUND_OS 1
 #endif
 
 #if !defined(SF_FOUND_OS) && defined(_WIN32) || defined(SF_DEF_OS_WINDOWS)
 	#undef SF_OS_WINDOWS
 	#define SF_OS_WINDOWS 1
+	#define SF_FOUND_OS 1
+#endif
+
+#if !defined(SF_FOUND_OS) && defined(__linux__) || defined(SF_DEF_OS_LINUX)
+	#undef SF_OS_LINUX
+	#define SF_OS_LINUX 1
 	#define SF_FOUND_OS 1
 #endif
 
@@ -145,10 +152,10 @@
 // -- Language extensions
 
 #if SF_CC_MSC
-	#define sf_forceinline __forceinline
+	#define sf_forceinline __forceinline inline
 	#define sf_noinline __declspec(noinline)
 #elif SF_CC_GNU
-	#define sf_forceinline __attribute__((always_inline))
+	#define sf_forceinline __attribute__((always_inline)) inline
 	#define sf_noinline __attribute__((noinline))
 #else
 	#define sf_forceinline

@@ -26,7 +26,7 @@ struct FontQuad
 
 struct Font : Asset
 {
-	static AssetType AssetType;
+	static AssetType SelfType;
 	using PropType = NoAssetProps;
 
 	// Font must be loaded:

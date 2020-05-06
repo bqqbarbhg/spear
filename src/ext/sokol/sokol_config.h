@@ -19,5 +19,5 @@
 		#define SOKOL_GLES2
 	#endif
 #else
-	#error "TODO"
+	#define SOKOL_GLCORE33
 #endif

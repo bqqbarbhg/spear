@@ -37,7 +37,7 @@ struct SpriteProps : AssetProps
 
 struct Sprite : Asset
 {
-	static AssetType AssetType;
+	static AssetType SelfType;
 	using PropType = SpriteProps;
 
 	// -- Only valid for loaded sprites

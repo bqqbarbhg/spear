@@ -133,7 +133,7 @@ struct FontImp : Font
 	virtual void assetUnload() final;
 };
 
-AssetType Font::AssetType = { "Font", sizeof(FontImp), sizeof(Font::PropType),
+AssetType Font::SelfType = { "Font", sizeof(FontImp), sizeof(Font::PropType),
 	[](Asset *a) { new ((FontImp*)a) FontImp(); }
 };
 

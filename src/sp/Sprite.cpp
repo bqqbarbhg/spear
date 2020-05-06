@@ -183,7 +183,7 @@ void SpriteProps::copyTo(AssetProps *uninitDst) const
 }
 
 
-AssetType Sprite::AssetType = { "Sprite", sizeof(SpriteImp), sizeof(Sprite::PropType),
+AssetType Sprite::SelfType = { "Sprite", sizeof(SpriteImp), sizeof(Sprite::PropType),
 	[](Asset *a) { new ((SpriteImp*)a) SpriteImp(); }
 };
 

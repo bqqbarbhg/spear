@@ -8,7 +8,7 @@
 
 // -- Language
 
-#define mx_forceinline __attribute__((always_inline))
+#define mx_forceinline inline __attribute__((always_inline))
 #define mx_noinline __attribute__((noinline))
 #define mx_unreachable() __builtin_trap()
 #define mx_assert(cond) do { if (!(cond)) __builtin_trap(); } while (0)

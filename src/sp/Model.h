@@ -119,7 +119,7 @@ struct Animation
 
 struct Model : Asset
 {
-	static AssetType AssetType;
+	static AssetType SelfType;
 	using PropType = ModelProps;
 
 	sf::Array<Mesh> meshes;

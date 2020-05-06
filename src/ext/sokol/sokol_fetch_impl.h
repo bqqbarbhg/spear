@@ -1424,6 +1424,19 @@ _SOKOL_PRIVATE void _sfetch_thread_enqueue_incoming(_sfetch_thread_t* thread, _s
     }
 }
 
+_SOKOL_PRIVATE uint32_t _sfetch_thread_try_dequeue_incoming(_sfetch_thread_t* thread, _sfetch_ring_t* incoming) {
+    /* called from thread function */
+    SOKOL_ASSERT(thread && thread->valid);
+    SOKOL_ASSERT(incoming && incoming->buf);
+    uint32_t item = 0;
+    pthread_mutex_lock(&thread->incoming_mutex);
+    if (!_sfetch_ring_empty(incoming) && !thread->stop_requested) {
+        item = _sfetch_ring_dequeue(incoming);
+    }
+    pthread_mutex_unlock(&thread->incoming_mutex);
+    return item;
+}
+
 _SOKOL_PRIVATE uint32_t _sfetch_thread_dequeue_incoming(_sfetch_thread_t* thread, _sfetch_ring_t* incoming) {
     /* called from thread function */
     SOKOL_ASSERT(thread && thread->valid);
