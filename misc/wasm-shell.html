@@ -97,6 +97,13 @@ body {
 
 	var script = document.createElement("script");
 	script.src = "spear" + suffix + ".js";
+	script.onerror = function() {
+		console.error("Failed to load " + script.src + ", falling back to spear.js");
+		document.body.removeChild(script);
+		var fallback = document.createElement("script");
+		fallback.src = "spear.js";
+		document.body.appendChild(fallback);
+	};
 	document.body.appendChild(script);
 
   </script>

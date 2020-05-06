@@ -763,7 +763,7 @@ Mat34 look(const sf::Vec3 &eye, const sf::Vec3 &dir, const sf::Vec3 &up)
 Mat34 world(const sf::Vec3 &translation, const sf::Quat &rotation, const sf::Vec3 &scale)
 {
 	sf::Quat q = rotation;
-	float sx = 2.0 * scale.x, sy = 2.0 * scale.y, sz = 2.0 * scale.z;
+	float sx = 2.0f * scale.x, sy = 2.0f * scale.y, sz = 2.0f * scale.z;
 	float xx = q.x*q.x, xy = q.x*q.y, xz = q.x*q.z, xw = q.x*q.w;
 	float yy = q.y*q.y, yz = q.y*q.z, yw = q.y*q.w;
 	float zz = q.z*q.z, zw = q.z*q.w;

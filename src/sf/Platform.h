@@ -211,6 +211,10 @@
 	#define sf_fail() (void)0
 #endif
 
+#if SF_CC_MSC
+	#pragma warning(disable: 4141) // warning C4141: 'inline': used more than once
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

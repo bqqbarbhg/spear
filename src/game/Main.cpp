@@ -32,6 +32,9 @@
 
 #include "game/Game.h"
 
+#include "ext/bq_websocket.h"
+#include "ext/bq_websocket_platform.h"
+
 #if 0
 
 static void appendUtf8(sf::StringBuf &buf, uint32_t code)
@@ -792,9 +795,12 @@ void recreateTargets()
 sp::FontRef font;
 sp::Canvas canvas;
 
+bqws_socket *ws;
+
 void spInit()
 {
 	srand((unsigned)time(NULL));
+
 
 	gameShaders.load();
 
@@ -814,6 +820,8 @@ void spInit()
 		return true;
 	}, nullptr);
 
+	ws = bqws_pt_connect("ws://51.158.185.160:4004", NULL, NULL, NULL);
+	bqws_send_text(ws, "Hello world!");
 
 	font.load("sp://OpenSans-Ascii.ttf");
 
@@ -962,6 +970,8 @@ double cpuMs;
 void spFrame(float dt)
 {
 	Game &game = *t_game;
+
+	bqws_update(ws);
 
 	sp::beginFrame();
 

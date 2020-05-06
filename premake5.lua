@@ -77,6 +77,8 @@ workspace "spear"
 			"crypt32.lib",
 			"libcurl",
 			"zlib",
+			"ssleay32",
+			"libeay32",
 		}
 
 	filter { "platforms:not wasm",  "system:linux" }
@@ -101,11 +103,13 @@ workspace "spear"
 		linkoptions { "-s WASM=1" }
 		linkoptions { "-s INITIAL_MEMORY=268435456" }
 		defines { "SP_USE_WEBGL2=1" }
+		objdir "proj/obj/wasm/%{cfg.buildcfg}"
 
 	filter { "platforms:wasm", "options:wasm-simd" }
 		buildoptions { "-msimd128" }
 		targetsuffix "-simd"
 		defines { "SF_USE_WASM_SIMD=1" }
+		objdir "proj/obj/wasm-simd/%{cfg.buildcfg}"
 
 	filter { "platforms:wasm", "options:wasm-threads" }
 		buildoptions { "-s USE_PTHREADS" }
@@ -113,9 +117,11 @@ workspace "spear"
 		buildoptions { "-pthread" }
 		linkoptions { "-pthread" }
 		targetsuffix "-threads"
+		objdir "proj/obj/wasm-threads/%{cfg.buildcfg}"
 
 	filter { "platforms:wasm", "options:wasm-simd", "options:wasm-threads" }
 		targetsuffix "-simd-threads"
+		objdir "proj/obj/wasm-simd-threads/%{cfg.buildcfg}"
 
 project "spear"
 	kind "WindowedApp"
