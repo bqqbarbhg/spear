@@ -208,7 +208,7 @@ static void fetchCacheCallback(const sfetch_response_t *response)
 
 		{
 			sf::MutexGuard mg(data->package->cacheMutex);
-			for  (const char *end = data->destinationFile; end = strpbrk(end, "\\/"); end++) { 
+			for  (const char *end = data->destinationFile; (end = strpbrk(end, "\\/")) != nullptr; end++) { 
 				sf::createDirectory(sf::String(data->destinationFile, end - data->destinationFile));
 			}
 			sf::writeFile(sf::String(data->destinationFile), response->buffer_ptr, response->fetched_size);
