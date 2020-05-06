@@ -67,7 +67,7 @@ float sampleShadowImp(vec3 delta, vec4 uvMad, float dist)
 	uv.x += faceIndex;
 	uv.y += 0.5;
 	float ref = textureLod(shadowAtlas, uv * uvMad.xy + uvMad.zw, 0.0).x;
-	return ref < dist ? 0.0 : 1.0;
+	return clamp((ref - dist) * 10.0, 0.0, 1.0);
 }
 
 float sampleShadow(vec3 delta, float dist, int lightBase)
@@ -95,7 +95,11 @@ float sampleShadow(vec3 delta, float dist, int lightBase)
 	sum += sampleShadowImp(delta + vec3(0.0, -d, 0.0), uvMad, dist - 0.3);
 	sum += sampleShadowImp(delta + vec3(0.0, 0.0, +d), uvMad, dist - 0.3);
 	sum += sampleShadowImp(delta + vec3(0.0, 0.0, -d), uvMad, dist - 0.3);
-	return sum / 7.0;
+	sum += sampleShadowImp(delta + vec3(-d, 0.0, +d), uvMad, dist - 0.3);
+	sum += sampleShadowImp(delta + vec3(-d, 0.0, -d), uvMad, dist - 0.3);
+	sum += sampleShadowImp(delta + vec3(+d, 0.0, +d), uvMad, dist - 0.3);
+	sum += sampleShadowImp(delta + vec3(+d, 0.0, -d), uvMad, dist - 0.3);
+	return sum / 11.0;
 }
 
 void main()

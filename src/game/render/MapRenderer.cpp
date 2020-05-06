@@ -10,6 +10,8 @@
 #include "game/shader/MapShadow.h"
 #include "game/shader/GameShaders.h"
 #include "sp/Renderer.h"
+#include "sf/Geometry.h"
+#include "sf/Frustum.h"
 
 // TEMP TEMP
 #include "ext/sokol/sokol_time.h"
@@ -26,7 +28,7 @@ struct ChunkModel
 
 struct MapMesh
 {
-	sf::Vec3 aabbMin, aabbMax;
+	sf::Bounds3 bounds;
 	uint32_t numVertices = 0;
 	uint32_t numIndices = 0;
 	sg_buffer vertexBuffer = { 0 };
@@ -39,7 +41,6 @@ struct MapChunk
 	bool dirty = false;
 	sf::Vec2i chunkI;
 	sf::Array<ChunkModel> models;
-	sf::Vec3 shadowAabbMin, shadowAabbMax;
 
 	MapMesh mesh;
 	MapMesh shadowMesh;
@@ -134,12 +135,12 @@ MapRenderer::MapRenderer()
 	}
 
 	{
-		const uint32_t Extent = 64;
+		const uint32_t Extent = 128;
 		const uint32_t Slices = 8;
 		const uint32_t TexWidth = Extent*Slices;
 		const uint32_t TexHeight = Extent*7;
 
-		float scale = 16.0f;
+		float scale = 32.0f;
 		sf::Vec3 origin = sf::Vec3(-scale-0.5f, 0.0f, -scale-0.5f);
 		sf::Vec3 size = sf::Vec3(scale*2.0f-1.0f, 4.0f-1.0f, scale*2.0f-1.0f);
 
@@ -154,12 +155,12 @@ MapRenderer::MapRenderer()
 
 		sf::Vec2i res { (int)TexWidth, (int)TexHeight };
 
-		data->testLightGridImage.init("lightTestGrid", res, SG_PIXELFORMAT_RG11B10F);
+		data->testLightGridImage.init("lightTestGrid", res, SG_PIXELFORMAT_RGBA32F);
 		data->testLightPass.init("lightGrid", data->testLightGridImage);
 	}
 
 	{
-		const uint32_t ShadowExtent = 64;
+		const uint32_t ShadowExtent = 128;
 		const uint32_t ShadowNumX = 4;
 		const uint32_t ShadowNumY = 32;
 
@@ -179,7 +180,7 @@ MapRenderer::MapRenderer()
 		}
 
 		{
-			data->testShadowDepth.init("shadowDepth", res, SG_PIXELFORMAT_DEPTH_STENCIL);
+			data->testShadowDepth.init("shadowDepth", res, SG_PIXELFORMAT_DEPTH);
 		}
 
 		data->testShadowPass.init("shadow", data->testShadowAtlas, data->testShadowDepth);
@@ -453,8 +454,11 @@ static bool rebuildChunk(MapRenderer::Data *data, MapChunk &chunk)
 
 	chunk.mesh.numVertices = numVertices;
 	chunk.mesh.numIndices = numIndices;
+	chunk.mesh.bounds = sf::Bounds3::minMax(aabbMin, aabbMax);
+
 	chunk.shadowMesh.numVertices = shadowNumVertices;
 	chunk.shadowMesh.numIndices = shadowNumIndices;
+	chunk.shadowMesh.bounds = sf::Bounds3::minMax(shadowAabbMin, shadowAabbMax);
 	return true;
 }
 
@@ -481,16 +485,20 @@ void MapRenderer::update()
 void MapRenderer::testRenderLight()
 {
 	float time = (float)stm_sec(stm_now()) * 0.7f;
-	float radius = 10.0f;
 
 	float lightRadius = 20.0f;
 
 	sf::SmallArray<TestLight, 16> testLights;
-	testLights.push({ { cosf(time)*radius, 2.0f, sinf(time)*radius }, lightRadius, { 6.0f, 1.0f, 1.0f } });
-	time += sf::F_2PI / 3.0f;
-	testLights.push({ { cosf(time)*radius, 2.0f, sinf(time)*radius }, lightRadius, { 1.0f, 5.0f, 1.0f } });
-	time += sf::F_2PI / 3.0f;
-	testLights.push({ { cosf(time)*radius, 2.0f, sinf(time)*radius }, lightRadius, { 1.0f, 1.0f, 9.0f } });
+
+	{
+		float radius = 10.0f;
+		testLights.push({ { cosf(time)*radius, 2.0f, sinf(time)*radius }, lightRadius, { 6.0f, 1.0f, 1.0f } });
+		time += sf::F_2PI / 3.0f;
+		testLights.push({ { cosf(time)*radius, 2.0f, sinf(time)*radius }, lightRadius, { 1.0f, 5.0f, 1.0f } });
+		time += sf::F_2PI / 3.0f;
+		testLights.push({ { cosf(time)*radius, 2.0f, sinf(time)*radius }, lightRadius, { 1.0f, 1.0f, 9.0f } });
+	}
+
 
 #if 0
 	srand(0);
@@ -556,13 +564,16 @@ void MapRenderer::testRenderLight()
 				sf::Mat44 proj = sf::mat::perspectiveD3D(sf::F_PI/2.0f, 1.0f, 0.1f, light.radius);
 				sf::Mat44 worldToClip = proj * view;
 
+				float clipNearW = sg_query_backend() == SG_BACKEND_D3D11 ? 0.0f : -1.0f;
+				sf::Frustum frustum { worldToClip, clipNearW };
+
 				vertexUbo.cameraPosition = light.position;
 				worldToClip.writeColMajor44(vertexUbo.worldToClip);
 
 				for (auto &pair : data->chunks) {
 					MapChunk &chunk = pair.val;
 					if (!chunk.shadowMesh.vertexBuffer.id) continue;
-					// TODO: Frustum culling
+					if (!frustum.intersects(chunk.shadowMesh.bounds)) continue;
 
 					data->testShadowPipe[chunk.mesh.largeIndices].bind();
 					sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_MapShadow_Vertex, &vertexUbo, sizeof(vertexUbo));
@@ -593,6 +604,7 @@ void MapRenderer::testRenderLight()
 		sp::beginPass(data->testLightPass, &action);
 
 		const uint32_t BatchSize = 64;
+		int pixelUboSize = sizeof(LightGrid_Pixel_t);
 		for (uint32_t base = 0; base < testLights.size; base += BatchSize) {
 			uint32_t num = sf::min(testLights.size - base, BatchSize);
 			for (uint32_t i = 0; i < num; i++) {
@@ -605,7 +617,7 @@ void MapRenderer::testRenderLight()
 
 			data->testLightPipe.bind();
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_LightGrid_Vertex, &data->testLightVertex, sizeof(data->testLightVertex));
-			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_LightGrid_Pixel, &data->testLightPixel, sizeof(data->testLightPixel));
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_LightGrid_Pixel, &data->testLightPixel, pixelUboSize);
 
 			sg_bindings bindings = { };
 			bindings.fs_images[SLOT_LightGrid_shadowAtlas] = data->testShadowAtlas.image;
@@ -625,12 +637,15 @@ void MapRenderer::render()
 
 	data->testPixel.cameraPosition = game.camera.position;
 
+	float clipNearW = sg_query_backend() == SG_BACKEND_D3D11 ? 0.0f : -1.0f;
+	sf::Frustum frustum { game.camera.worldToClip, clipNearW };
+
 	sg_pipeline prevPipeline = { };
 	sg_bindings bindings = { };
 	for (auto &pair : data->chunks) {
 		MapChunk &chunk = pair.val;
 		if (!chunk.mesh.vertexBuffer.id) continue;
-		// TODO: Frustum culling
+		if (!frustum.intersects(chunk.mesh.bounds)) continue;
 
 		data->pipeMapTile[chunk.mesh.largeIndices].bind();
 

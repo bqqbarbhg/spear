@@ -745,8 +745,8 @@ void spConfig(sp::MainConfig &config)
 	config.sappDesc.width = 1200;
 	config.sappDesc.height = 1080;
 
-	config.sgDesc.buffer_pool_size = 1024;
-	config.sgDesc.image_pool_size = 1024;
+	config.sgDesc.buffer_pool_size = 10*1024;
+	config.sgDesc.image_pool_size = 10*1024;
 }
 
 sp::RenderTarget mainTarget;
@@ -827,8 +827,8 @@ void spInit()
 
 	srand(1);
 
-	for (int32_t x = -20; x < 20; x++)
-	for (int32_t y = -20; y < 20; y++) {
+	for (int32_t x = -80; x < 80; x++)
+	for (int32_t y = -80; y < 80; y++) {
 
 		sf::Vec2i tile { x, y };
 		Entity e = { (uint32_t)(x + 100) * 1000 + y };
@@ -844,66 +844,68 @@ void spInit()
 		game.mapRenderer.addMapModel(e, model);
 	}
 
-	int32_t radius = 4;
+	for (int32_t radius = 4; radius < 80; radius *= 3) {
 
-	for (int32_t x = -radius; x <= radius; x++) {
-		if (rand() % 3 == 0) continue;
+		for (int32_t x = -radius; x <= radius; x++) {
+			if (rand() % 3 == 0) continue;
 
-		int32_t y = -radius;
-		sf::Vec2i tile { x, y };
-		Entity e = { (uint32_t)(x + 100) * 1000 + y + 1000000 };
-		game.map.setTile(e, tile);
+			int32_t y = -radius;
+			sf::Vec2i tile { x, y };
+			Entity e = { (uint32_t)(x + 100) * 1000 + y + 1000000 };
+			game.map.setTile(e, tile);
 
-		MapModel model;
-		model.modelName = sf::Symbol("data/wall.fbx");
-		model.shadowModelName = sf::Symbol("data/wall_shadow.fbx");
-		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.5f);
-		game.mapRenderer.addMapModel(e, model);
-	}
+			MapModel model;
+			model.modelName = sf::Symbol("data/wall.fbx");
+			model.shadowModelName = sf::Symbol("data/wall_shadow.fbx");
+			model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.5f);
+			game.mapRenderer.addMapModel(e, model);
+		}
 
-	for (int32_t x = -radius; x <= radius; x++) {
-		if (rand() % 4 < 3) continue;
+		for (int32_t x = -radius; x <= radius; x++) {
+			if (rand() % 4 < 3) continue;
 
-		int32_t y = radius;
-		sf::Vec2i tile { x, y };
-		Entity e = { (uint32_t)(x + 100) * 1000 + y + 2000000 };
-		game.map.setTile(e, tile);
+			int32_t y = radius;
+			sf::Vec2i tile { x, y };
+			Entity e = { (uint32_t)(x + 100) * 1000 + y + 2000000 };
+			game.map.setTile(e, tile);
 
-		MapModel model;
-		model.modelName = sf::Symbol("data/wall.fbx");
-		model.shadowModelName = sf::Symbol("data/wall_shadow.fbx");
-		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.0f);
-		game.mapRenderer.addMapModel(e, model);
-	}
+			MapModel model;
+			model.modelName = sf::Symbol("data/wall.fbx");
+			model.shadowModelName = sf::Symbol("data/wall_shadow.fbx");
+			model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.0f);
+			game.mapRenderer.addMapModel(e, model);
+		}
 
-	for (int32_t y = -radius; y <= radius; y++) {
-		if (rand() % 3 == 0) continue;
+		for (int32_t y = -radius; y <= radius; y++) {
+			if (rand() % 3 == 0) continue;
 
-		int32_t x = -radius;
-		sf::Vec2i tile { x, y };
-		Entity e = { (uint32_t)(x + 100) * 1000 + y + 3000000 };
-		game.map.setTile(e, tile);
+			int32_t x = -radius;
+			sf::Vec2i tile { x, y };
+			Entity e = { (uint32_t)(x + 100) * 1000 + y + 3000000 };
+			game.map.setTile(e, tile);
 
-		MapModel model;
-		model.modelName = sf::Symbol("data/wall.fbx");
-		model.shadowModelName = sf::Symbol("data/wall_shadow.fbx");
-		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.75f);
-		game.mapRenderer.addMapModel(e, model);
-	}
+			MapModel model;
+			model.modelName = sf::Symbol("data/wall.fbx");
+			model.shadowModelName = sf::Symbol("data/wall_shadow.fbx");
+			model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.75f);
+			game.mapRenderer.addMapModel(e, model);
+		}
 
-	for (int32_t y = -radius; y <= radius; y++) {
-		if (rand() % 5 == 0) continue;
+		for (int32_t y = -radius; y <= radius; y++) {
+			if (rand() % 5 == 0) continue;
 
-		int32_t x = radius;
-		sf::Vec2i tile { x, y };
-		Entity e = { (uint32_t)(x + 100) * 1000 + y + 4000000 };
-		game.map.setTile(e, tile);
+			int32_t x = radius;
+			sf::Vec2i tile { x, y };
+			Entity e = { (uint32_t)(x + 100) * 1000 + y + 4000000 };
+			game.map.setTile(e, tile);
 
-		MapModel model;
-		model.modelName = sf::Symbol("data/wall.fbx");
-		model.shadowModelName = sf::Symbol("data/wall_shadow.fbx");
-		model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.25f);
-		game.mapRenderer.addMapModel(e, model);
+			MapModel model;
+			model.modelName = sf::Symbol("data/wall.fbx");
+			model.shadowModelName = sf::Symbol("data/wall_shadow.fbx");
+			model.transform = sf::mat::scale(0.5f) * sf::mat::rotateY(sf::F_2PI * 0.25f);
+			game.mapRenderer.addMapModel(e, model);
+		}
+
 	}
 
 }
@@ -953,7 +955,7 @@ void spFrame(float dt)
 	float fov = 1.2f;
 	float aspect = (float)sapp_width()/(float)sapp_height();
 	float near = 0.1f, far = 1000.0f;
-	sf::Vec3 cameraPos = sf::Vec3(0.0f, 20.0f + anim * 10.0f, 8.0f);
+	sf::Vec3 cameraPos = sf::Vec3(0.0f, 14.0f + anim * 10.0f, 6.0f);
 	game.camera.position = cameraPos;
 	game.camera.worldToView = sf::mat::look(cameraPos, sf::Vec3(0.0f, -10.0f - anim * 5.0f, -4.0f));
 	if (sg_query_backend() == SG_BACKEND_D3D11) {

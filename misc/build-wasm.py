@@ -26,7 +26,7 @@ def compile_file(path, cpp):
     if optimize:
         args += ["-O2", "-DNDEBUG"]
     else:
-        args += ["-g"]
+        args += ["-g4"]
     if cpp:
         args += ["-std=c++14"]
     if webgl2:
@@ -69,7 +69,8 @@ def link_files():
     if optimize:
         args += ["-O2"]
     else:
-        args += ["-g"]
+        args += ["-g4"]
+        args += ["--source-map-base", "/"]
     if webgl2:
         args += ["-s", "MAX_WEBGL_VERSION=2"]
     args += ["-s", "WASM=1", "-o" "spear.js"]
