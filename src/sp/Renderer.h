@@ -2,8 +2,15 @@
 
 #include "ext/sokol/sokol_gfx.h"
 #include "sf/Vector.h"
+#include "sf/Symbol.h"
 
 namespace sp {
+
+struct PassTime
+{
+	sf::Symbol name;
+	double time;
+};
 
 struct FramebufferDesc
 {
@@ -27,6 +34,7 @@ struct RenderTarget
 
 struct RenderPass
 {
+	sf::Symbol name;
 	sf::Vec2i resolution;
 	FramebufferDesc desc;
 	sg_pass pass = { };
@@ -74,5 +82,10 @@ FramebufferDesc getFramebufferTypeDesc(uint32_t typeIndex);
 void beginPass(const RenderPass &pass, const sg_pass_action *action);
 void beginDefaultPass(uint32_t width, uint32_t height, const sg_pass_action *action);
 void endPass();
+
+void beginFrame();
+void endFrame();
+
+sf::Slice<const PassTime> getPassTimes();
 
 }

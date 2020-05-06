@@ -15,6 +15,16 @@ function symbols_on()
 	end
 end
 
+newoption {
+   trigger     = "wasm-simd",
+   description = "Use WASM 128-bit SIMD extension"
+}
+
+newoption {
+   trigger     = "wasm-threads",
+   description = "Use WASM threads extension"
+}
+
 workspace "spear"
 	configurations { "debug", "develop", "release" }
 	platforms { "x86", "x64", "js" }
@@ -25,9 +35,9 @@ workspace "spear"
 	flags { "MultiProcessorCompile" }
 
 	if cppdialect ~= nil then
-		cppdialect "C++11"
+		cppdialect "C++14"
 	else
-		flags { "C++11" }
+		flags { "C++14" }
 	end
 
 	filter "action:vs*"
@@ -55,6 +65,28 @@ workspace "spear"
 
 	filter "platforms:js"
 		architecture "js"
+		buildoptions { "-s MIN_WEBGL_VERSION=2" }
+		buildoptions { "-s MAX_WEBGL_VERSION=2" }
+		linkoptions { "-s MIN_WEBGL_VERSION=2" }
+		linkoptions { "-s MAX_WEBGL_VERSION=2" }
+		linkoptions { "-s WASM=1" }
+		linkoptions { "-s INITIAL_MEMORY=268435456" }
+		defines { "SP_USE_WEBGL2=1" }
+
+	filter { "platforms:js", "options:wasm-simd" }
+		buildoptions { "-msimd128" }
+		targetsuffix "-simd"
+		defines { "SF_USE_WASM_SIMD=1" }
+
+	filter { "platforms:js", "options:wasm-threads" }
+		buildoptions { "-s USE_PTHREADS" }
+		linkoptions { "-s USE_PTHREADS" }
+		buildoptions { "-pthread" }
+		linkoptions { "-pthread" }
+		targetsuffix "-threads"
+
+	filter { "platforms:js", "options:wasm-simd", "options:wasm-threads" }
+		targetsuffix "-simd-threads"
 
 project "spear"
 	kind "WindowedApp"

@@ -155,7 +155,7 @@ MapRenderer::MapRenderer()
 
 		sf::Vec2i res { (int)TexWidth, (int)TexHeight };
 
-		data->testLightGridImage.init("lightTestGrid", res, SG_PIXELFORMAT_RGBA32F);
+		data->testLightGridImage.init("lightTestGrid", res, SG_PIXELFORMAT_RG11B10F);
 		data->testLightPass.init("lightGrid", data->testLightGridImage);
 	}
 
@@ -176,7 +176,7 @@ MapRenderer::MapRenderer()
 		{
 			sg_image_desc d = { };
 			d.min_filter = d.mag_filter = SG_FILTER_NEAREST;
-			data->testShadowAtlas.init("shadowAtlas", res, SG_PIXELFORMAT_R32F, 1u, d);
+			data->testShadowAtlas.init("shadowAtlas", res, SG_PIXELFORMAT_R16F, 1u, d);
 		}
 
 		{

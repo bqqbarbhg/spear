@@ -22,7 +22,7 @@ struct Symbol
 	Symbol(const Symbol &rhs);
 	Symbol(Symbol &&rhs) noexcept
 		: data(rhs.data) {
-		rhs.data = nullptr;
+		rhs.data = emptyData;
 	}
 	~Symbol();
 

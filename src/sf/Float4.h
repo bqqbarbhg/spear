@@ -2,7 +2,7 @@
 
 #include "sf/Base.h"
 
-#if SF_ARCH_WASM
+#if SF_ARCH_WASM && SF_WASM_USE_SIMD
 	#include <wasm_simd128.h>
 #elif SF_ARCH_X86
 	#include <xmmintrin.h>
@@ -13,14 +13,14 @@
 
 namespace sf {
 
-#if SF_ARCH_WASM
+#if SF_ARCH_WASM && SF_WASM_USE_SIMD
 
 struct Float4
 {
 	v128_t imp;
 
-	sf_forceinline static Float4 zero() { return wasm_f32x4_const(0.0f,0.0f,0.0f,0.0f)); }; }
-	sf_forceinline static Float4 loadu(const float *ptr) { return wasm_v128_load(ptr); }
+	static sf_forceinline Float4 zero() { return wasm_f32x4_const(0.0f,0.0f,0.0f,0.0f); }
+	static sf_forceinline Float4 loadu(const float *ptr) { return wasm_v128_load(ptr); }
 	sf_forceinline void storeu(float *ptr) const { wasm_v128_store(ptr, imp); }
 
 	sf_forceinline Float4() { }
@@ -43,10 +43,10 @@ struct Float4
 	sf_forceinline Float4 abs() const { return wasm_f32x4_abs(imp); }
 	sf_forceinline Float4 min(const Float4 &rhs) const { return wasm_f32x4_min(imp, rhs.imp); }
 	sf_forceinline Float4 max(const Float4 &rhs) const { return wasm_f32x4_max(imp, rhs.imp); }
-	sf_forceinline bool anyGreaterThanZero() const { return wasm_i32x4_any_true(wasm_f32x4_gt(imp, wasm_f32x4_const(0.0f,0.0f,0.0f,0.0f)); }
-	sf_forceinline bool allGreaterThanZero() const { return wasm_i32x4_all_true(wasm_f32x4_gt(imp, wasm_f32x4_const(0.0f,0.0f,0.0f,0.0f)); }
+	sf_forceinline bool anyGreaterThanZero() const { return wasm_i32x4_any_true(wasm_f32x4_gt(imp, wasm_f32x4_const(0.0f,0.0f,0.0f,0.0f))); }
+	sf_forceinline bool allGreaterThanZero() const { return wasm_i32x4_all_true(wasm_f32x4_gt(imp, wasm_f32x4_const(0.0f,0.0f,0.0f,0.0f))); }
 
-	sf_forceinline static void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
+	static sf_forceinline void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
 	{
 		v128_t t0 = wasm_v32x4_shuffle(a.imp, b.imp, 0, 4, 1, 5); // XXYY
 		v128_t t1 = wasm_v32x4_shuffle(a.imp, b.imp, 2, 6, 3, 7); // ZZWW
@@ -65,8 +65,8 @@ struct Float4
 {
 	__m128 imp;
 
-	sf_forceinline static Float4 zero() { return _mm_setzero_ps(); }
-	sf_forceinline static Float4 loadu(const float *ptr) { return _mm_loadu_ps(ptr); }
+	static sf_forceinline Float4 zero() { return _mm_setzero_ps(); }
+	static sf_forceinline Float4 loadu(const float *ptr) { return _mm_loadu_ps(ptr); }
 	sf_forceinline void storeu(float *ptr) const { _mm_storeu_ps(ptr, imp); }
 
 	sf_forceinline Float4() { }
@@ -92,7 +92,7 @@ struct Float4
 	sf_forceinline bool anyGreaterThanZero() const { return _mm_movemask_ps(_mm_cmpgt_ps(imp, _mm_setzero_ps())) != 0; }
 	sf_forceinline bool allGreaterThanZero() const { return _mm_movemask_ps(_mm_cmpgt_ps(imp, _mm_setzero_ps())) == 0xf; }
 
-	sf_forceinline static void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
+	static sf_forceinline void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
 	{
 		__m128 t0 = _mm_unpacklo_ps(a.imp, b.imp); // XXYY
 		__m128 t1 = _mm_unpackhi_ps(a.imp, b.imp); // ZZWW
@@ -111,8 +111,8 @@ struct Float4
 {
 	float imp[4];
 
-	sf_forceinline static Float4 zero() { return { 0.0f, 0.0f, 0.0f, 0.0f }; }
-	sf_forceinline static Float4 loadu(const float *ptr) { return { ptr[0], ptr[1], ptr[2], ptr[3] }; }
+	static sf_forceinline Float4 zero() { return { 0.0f, 0.0f, 0.0f, 0.0f }; }
+	static sf_forceinline Float4 loadu(const float *ptr) { return { ptr[0], ptr[1], ptr[2], ptr[3] }; }
 	sf_forceinline void storeu(float *ptr) const { ptr[0] = imp[0]; ptr[1] = imp[1]; ptr[2] = imp[2]; ptr[3] = imp[3]; }
 
 	sf_forceinline Float4() { }
@@ -137,7 +137,7 @@ struct Float4
 	sf_forceinline bool anyGreaterThanZero() const { return imp[0]>0.0f || imp[1]>0.0f || imp[2]>0.0f || imp[3]>0.0f; }
 	sf_forceinline bool allGreaterThanZero() const { return imp[0]>0.0f && imp[1]>0.0f && imp[2]>0.0f && imp[3]>0.0f; }
 
-	sf_forceinline static void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
+	static sf_forceinline void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
 	{
 		float t;
 		t = a.imp[1]; a.imp[1] = b.imp[0]; b.imp[0] = t;

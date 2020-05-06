@@ -18,6 +18,7 @@ threads = "--threads" in sys.argv
 clean = "--clean" in sys.argv
 jobs = "-j" in sys.argv
 profiling = "--profiling" in sys.argv
+simd = "--simd" in sys.argv
 
 begin_time = time.time()
 
@@ -36,6 +37,8 @@ def compile_file(path, cpp):
         args += ["-s", "USE_PTHREADS=1"]
     if profiling:
         args += ["--profiling"]
+    if simd:
+        args += ["-msimd128"]
 
     outname = os.path.basename(path)
     outname = os.path.splitext(outname)[0] + ".o"

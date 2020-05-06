@@ -276,7 +276,7 @@
 --
 
 	emscripten.tools = {
-		cc = "em",
+		cc = "emcc",
 		cxx = "em++",
 		ar = "emar"
 	}

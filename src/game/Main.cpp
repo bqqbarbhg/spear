@@ -776,7 +776,7 @@ void recreateTargets()
 	float res = sf::clamp(sqrtf((float)renderRes / 20.0f), 0.1f, 1.0f);
 	sf::Vec2i mainRes = sf::Vec2i(sf::Vec2(sf::Vec2i(systemWidth, systemHeight)) * res);
 
-	sg_pixel_format mainFormat = SG_PIXELFORMAT_RGBA16F;
+	sg_pixel_format mainFormat = SG_PIXELFORMAT_RG11B10F;
 	sg_pixel_format mainDepthFormat = SG_PIXELFORMAT_DEPTH_STENCIL;
 
 	mainTarget.init("mainTarget", mainRes, mainFormat, mainSamples);
@@ -799,6 +799,10 @@ void spInit()
 	gameShaders.load();
 
 	sp::ContentFile::addRelativeFileRoot("");
+
+#if SF_OS_WASM
+	sp::ContentFile::addRelativeFileRoot("/");
+#endif
 
 	font.load("sp://OpenSans-Ascii.ttf");
 
@@ -947,6 +951,8 @@ double cpuMs;
 void spFrame(float dt)
 {
 	Game &game = *t_game;
+
+	sp::beginFrame();
 
 	uint64_t begin = stm_now();
 
@@ -1124,9 +1130,23 @@ void spFrame(float dt)
 		canvas.drawText(td);
 	}
 
+	for (const sp::PassTime &time : sp::getPassTimes()) {
+		sf::SmallStringBuf<128> text;
+		text.format("%s: %.2fms", time.name.data, time.time * 1000.0);
+		sp::TextDraw td;
+		td.font = font;
+		td.string = text;
+		td.transform.m02 = 100.0f;
+		td.transform.m12 = y; y += 60.0f;
+		td.height = 60.0f;
+		canvas.drawText(td);
+	}
+
 	canvas.render(sp::CanvasRenderOpts::windowPixels());
 
 	sp::endPass();
+
+	sp::endFrame();
 
 	sg_commit();
 

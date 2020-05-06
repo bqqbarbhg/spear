@@ -179,6 +179,10 @@
 	#define SF_USE_PTHREADS 0
 #endif
 
+#if !defined(SF_WASM_USE_SIMD)
+	#define SF_WASM_USE_SIMD 0
+#endif
+
 // -- Debugging
 
 #if SF_CC_MSC
