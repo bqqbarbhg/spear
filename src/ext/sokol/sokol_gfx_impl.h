@@ -2287,7 +2287,7 @@ _SOKOL_PRIVATE void _sg_gl_init_pixelformats(bool has_bgra) {
     #if !defined(SOKOL_GLES2)
     if (!_sg.gl.gles2) {
         _sg_pixelformat_all(&_sg.formats[SG_PIXELFORMAT_RGB10A2]);
-        _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_RG11B10F]);
+        _sg_pixelformat_all(&_sg.formats[SG_PIXELFORMAT_RG11B10F]);
         _sg_pixelformat_all(&_sg.formats[SG_PIXELFORMAT_BQQ_SRGBA8]);
         _sg_pixelformat_srm(&_sg.formats[SG_PIXELFORMAT_RG32UI]);
         _sg_pixelformat_srm(&_sg.formats[SG_PIXELFORMAT_RG32SI]);
