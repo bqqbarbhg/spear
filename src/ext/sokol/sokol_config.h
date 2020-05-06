@@ -7,8 +7,11 @@
 #define SOKOL_FETCH_USE_CURL
 
 #if SF_OS_WINDOWS
-	#define SOKOL_D3D11
-	// #define SOKOL_GLCORE33
+	#if defined(SP_USE_OPENGL)
+		#define SOKOL_GLCORE33
+	#else
+		#define SOKOL_D3D11
+	#endif
 #elif SF_OS_WASM
 	#ifdef SP_USE_WEBGL2
 		#define SOKOL_GLES3

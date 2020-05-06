@@ -1727,11 +1727,32 @@ typedef struct {
 
 } _sfetch_curl_global_t;
 
-static _sfetch_curl_global_t _sfetch_curl_global;
-
 #if defined(SOKOL_CURL_STATIC)
 
+static _sfetch_curl_global_t _sfetch_curl_global = {
+    true,
+
+    #define _SFETCH_CURL_FUNC(ret, name, ...) (_sfetch_curl_##name##_t*)(uintptr_t)&curl_##name,
+	_SFETCH_CURL_FUNCTIONS
+	#undef _SFETCH_CURL_FUNC
+
+};
+
+_SOKOL_PRIVATE void _sfetch_curl_global_setup() {
+    _sfetch_curl_global.global_init(0x3);
+}
+
+_SOKOL_PRIVATE void _sfetch_curl_global_cleanup() {
+    _sfetch_curl_global.global_cleanup();
+}
+
+_SOKOL_PRIVATE _sfetch_curl_global_t *_sfetch_curl_load() {
+    return &_sfetch_curl_global;
+}
+
 #elif _SFETCH_PLATFORM_WINDOWS
+
+static _sfetch_curl_global_t _sfetch_curl_global;
 
 typedef struct {
     CRITICAL_SECTION critsec;

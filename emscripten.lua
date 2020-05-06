@@ -10,7 +10,7 @@
 
 	local api = p.api
 
-	api.addAllowed("architecture", "js")
+	api.addAllowed("architecture", "wasm")
 
 --
 -- Build a list of flags for the C preprocessor corresponding to the
@@ -176,7 +176,7 @@
 
 	emscripten.ldflags = {
 		architecture = {
-			js = "",
+			wasm = "",
 		},
 		flags = {
 			LinkTimeOptimization = "-flto",
@@ -286,13 +286,13 @@
 	end
 
 
-	filter { "architecture:js" }
+	filter { "architecture:wasm" }
 		toolset "emscripten"
 
-	filter { "architecture:js" }
+	filter { "architecture:wasm" }
 		targetextension ".js"
 
-	filter { "architecture:js", "kind:StaticLib" }
+	filter { "architecture:wasm", "kind:StaticLib" }
 		targetextension ".bc"
 
 	filter {}

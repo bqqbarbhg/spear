@@ -16,6 +16,11 @@ function symbols_on()
 end
 
 newoption {
+   trigger     = "opengl",
+   description = "OpenGL 3.3 instead of a native API"
+}
+
+newoption {
    trigger     = "wasm-simd",
    description = "Use WASM 128-bit SIMD extension"
 }
@@ -27,12 +32,13 @@ newoption {
 
 workspace "spear"
 	configurations { "debug", "develop", "release" }
-	platforms { "x86", "x64", "js" }
+	platforms { "x86", "x64", "wasm" }
 	location "proj"
 	includedirs { "src" }
 	targetdir "build/%{cfg.buildcfg}_%{cfg.platform}"
     startproject "test"
 	flags { "MultiProcessorCompile" }
+	staticruntime "on"
 
 	if cppdialect ~= nil then
 		cppdialect "C++14"
@@ -63,8 +69,25 @@ workspace "spear"
 	filter "platforms:x64"
 		architecture "x86_64"
 
-	filter "platforms:js"
-		architecture "js"
+	filter "system:windows"
+		libdirs { "dep/lib/windows_%{cfg.platform}" }
+		includedirs { "dep/include/windows" }
+		links {
+			"ws2_32.lib",
+			"crypt32.lib",
+		}
+
+	filter "platforms:not wasm"
+		links {
+			"libcurl",
+			"zlib",
+		}
+
+	filter "options:opengl"
+		defines { "SP_USE_OPENGL=1" }
+
+	filter "platforms:wasm"
+		architecture "wasm"
 		buildoptions { "-s MIN_WEBGL_VERSION=2" }
 		buildoptions { "-s MAX_WEBGL_VERSION=2" }
 		linkoptions { "-s MIN_WEBGL_VERSION=2" }
@@ -73,19 +96,19 @@ workspace "spear"
 		linkoptions { "-s INITIAL_MEMORY=268435456" }
 		defines { "SP_USE_WEBGL2=1" }
 
-	filter { "platforms:js", "options:wasm-simd" }
+	filter { "platforms:wasm", "options:wasm-simd" }
 		buildoptions { "-msimd128" }
 		targetsuffix "-simd"
 		defines { "SF_USE_WASM_SIMD=1" }
 
-	filter { "platforms:js", "options:wasm-threads" }
+	filter { "platforms:wasm", "options:wasm-threads" }
 		buildoptions { "-s USE_PTHREADS" }
 		linkoptions { "-s USE_PTHREADS" }
 		buildoptions { "-pthread" }
 		linkoptions { "-pthread" }
 		targetsuffix "-threads"
 
-	filter { "platforms:js", "options:wasm-simd", "options:wasm-threads" }
+	filter { "platforms:wasm", "options:wasm-simd", "options:wasm-threads" }
 		targetsuffix "-simd-threads"
 
 project "spear"

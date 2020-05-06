@@ -7,6 +7,11 @@
 
 #define SOKOL_FETCH_THREAD_START() sf_set_debug_thread_name("Fetch Thread")
 
+#include <curl/curl.h>
+#include <curl/easy.h>
+#include <curl/multi.h>
+#define SOKOL_CURL_STATIC
+
 #include "sokol_app.h"
 #include "sokol_gfx.h"
 #include "sokol_gl.h"
