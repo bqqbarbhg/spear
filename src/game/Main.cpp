@@ -804,6 +804,16 @@ void spInit()
 	sp::ContentFile::addRelativeFileRoot("/");
 #endif
 
+	sp::ContentFile::addCacheDownloadRoot("CDN",
+	[](const sf::CString &name, sf::StringBuf &url, sf::StringBuf &path, void *user) -> bool {
+		if (strncmp(name.data, "data/", 5)) return false;
+
+		url.append("http://51.158.185.160/demo/", name);
+		path.append("cache/", name);
+
+		return true;
+	}, nullptr);
+
 
 	font.load("sp://OpenSans-Ascii.ttf");
 
