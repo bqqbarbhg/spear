@@ -18,6 +18,8 @@ struct String
 	String(const char (&arr)[N]) : data(arr), size(N - 1) {
 		sf_assert(N > 0 && arr[N - 1] == '\0');
 	}
+	String(sf::Slice<char> slice) : data(slice.data), size(slice.size) { }
+	String(sf::Slice<const char> slice) : data(slice.data), size(slice.size) { }
 
 	bool operator==(const String &rhs) const { return size == rhs.size && memcmp(data, rhs.data, size) == 0; }
 	bool operator!=(const String &rhs) const { return size != rhs.size || memcmp(data, rhs.data, size) != 0; }
@@ -46,11 +48,13 @@ struct CString : String
 
 struct StringBuf
 {
+	static char zeroCharBuffer[1];
+
 	char *data;
 	uint32_t size;
 	uint32_t capacity;
 
-	StringBuf() : data((char*)""), size(0), capacity(0) { }
+	StringBuf() : data(zeroCharBuffer), size(0), capacity(0) { }
 	StringBuf(const StringBuf &rhs) {
 		uint32_t sz = rhs.size;
 		size = sz;

@@ -3,31 +3,75 @@
 
 namespace sp {
 
-void writeInstJson(jso_stream &dst, void *inst, sf::Type *type)
+void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parentType)
 {
 	uint32_t flags = type->flags;
 	char *base = (char*)inst;
+
+#if 0
+	if (!parentType || !((parentType->flags & sf::Type::HasArray) && (type->flags & sf::Type::IsPrimitive))) {
+		sf::SmallStringBuf<128> name;
+		name.append("/* ");
+		type->getName(name);
+		name.append(" */ ");
+		jso_raw_append_len(&dst, name.data, name.size);
+	}
+#endif
+
 	if (flags & sf::Type::HasString) {
 		sf::VoidSlice slice = type->instGetArray(inst);
 		jso_string_len(&dst, (char*)slice.data, slice.size);
+	} else if (flags & sf::Type::Polymorph) {
+		if (dst.pretty && flags & sf::Type::CompactString) jso_single_line(&dst);
+
+		sf::PolymorphInstance poly = type->instGetPolymorph(inst);
+
+		if (poly.type) {
+			jso_object(&dst);
+			sf::CString tagName = type->getPolymorphTagName();
+			jso_prop_len(&dst, tagName.data, tagName.size);
+			jso_string_len(&dst, poly.type->name.data, poly.type->name.size);
+
+			char *polyBase = (char*)poly.inst;
+			for (const sf::Field &field : poly.type->type->fields) {
+				jso_prop_len(&dst, field.name.data, field.name.size);
+				if (dst.pretty && field.flags & sf::Field::CompactString) jso_single_line(&dst);
+				writeInstJson(dst, polyBase + field.offset, field.type, type);
+			}
+
+			jso_end_object(&dst);
+		} else {
+			jso_null(&dst);
+		}
+
 	} else if (flags & sf::Type::HasFields) {
 		if (dst.pretty && flags & sf::Type::CompactString) jso_single_line(&dst);
 		jso_object(&dst);
 		for (const sf::Field &field : type->fields) {
 			jso_prop_len(&dst, field.name.data, field.name.size);
-			writeInstJson(dst, base + field.offset, field.type);
+			if (dst.pretty && field.flags & sf::Field::CompactString) jso_single_line(&dst);
+			writeInstJson(dst, base + field.offset, field.type, type);
 		}
 		jso_end_object(&dst);
 	} else if (flags & sf::Type::HasArray) {
 		if (dst.pretty && flags & sf::Type::CompactString) jso_single_line(&dst);
-		jso_array(&dst);
 		sf::Type *elem = type->elementType;
 		size_t elemSize = elem->size;
 		sf::VoidSlice slice = type->instGetArray(inst);
 		uint32_t size = (uint32_t)slice.size;
+
+#if 0
+		{
+			sf::SmallStringBuf<128> comment;
+			comment.format("/* size=%u */ ", size);
+			jso_raw_append_len(&dst, comment.data, comment.size);
+		}
+#endif
+
+		jso_array(&dst);
 		char *ptr = (char*)slice.data;
 		for (uint32_t i = 0; i < size; i++) {
-			writeInstJson(dst, ptr, elem);
+			writeInstJson(dst, ptr, elem, type);
 			ptr += elemSize;
 		}
 		jso_end_array(&dst);
@@ -94,13 +138,28 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 			size_t len = jsi_length(src->string);
 			type->instSetString(inst, sf::String(src->string, len));
 		}
-	} else if (flags & sf::Type::HasString) {
+	} else if ((flags & (sf::Type::HasString | sf::Type::HasArrayResize)) == (sf::Type::HasString | sf::Type::HasArrayResize)) {
 		if (src->type == jsi_type_string) {
 			size_t len = jsi_length(src->string);
 			sf::VoidSlice slice = type->instArrayReserve(inst, len);
 			memcpy(slice.data, src->string, len);
 			type->instArrayResize(inst, len);
 		} else {
+			return false;
+		}
+	} else if (flags & sf::Type::Polymorph) {
+		if (src->type == jsi_type_object) {
+			jsi_value *tag = jsi_get_len(src->object, "type", 4);
+			jsi_value *data = jsi_get_len(src->object, "data", 4);
+			if (tag->type != jsi_type_string) return false;
+
+			sf::String name { tag->string, jsi_length(tag->string) };
+			const sf::PolymorphType *poly = type->elementType->getPolymorphTypeByName(name);
+
+			void *ptr = type->instSetPolymorph(inst, poly->type);
+			readInstJson(data, ptr, poly->type);
+
+		} else if (src->type != jsi_type_null) {
 			return false;
 		}
 	} else if (flags & sf::Type::HasFields) {
@@ -113,7 +172,7 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 		} else {
 			return false;
 		}
-	} else if (flags & sf::Type::HasArray) {
+	} else if (flags & sf::Type::HasArrayResize) {
 		if (src->type == jsi_type_array) {
 			sf::Type *elem = type->elementType;
 			size_t elemSize = elem->size;

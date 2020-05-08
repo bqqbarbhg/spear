@@ -15,7 +15,7 @@ struct KeyValType final : Type
 	Data *data;
 
 	KeyValType(size_t kvSize, Data *data)
-		: Type("KeyVal", kvSize, HasFields)
+		: Type("sf::KeyVal", kvSize, HasFields)
 		, data(data)
 	{
 		fields = data->fields;
@@ -23,7 +23,7 @@ struct KeyValType final : Type
 
 	virtual void getName(sf::StringBuf &buf)
 	{
-		buf.append("KeyVal<");
+		buf.append("sf::KeyVal<");
 		data->fields[0].type->getName(buf);
 		buf.append(", ");
 		data->fields[1].type->getName(buf);
@@ -69,7 +69,7 @@ struct HashMapType final : Type
 	uint32_t (*hashFn)(void *inst);
 
 	HashMapType(Type *kvType, uint32_t (*hashFn)(void *inst))
-		: Type("HashMap", sizeof(HashMapBase), HasArray)
+		: Type("sf::HashMap", sizeof(HashMapBase), HasArray | HasArrayResize)
 		, hashFn(hashFn)
 	{
 		elementType = kvType;
@@ -77,7 +77,7 @@ struct HashMapType final : Type
 
 	virtual void getName(sf::StringBuf &buf)
 	{
-		buf.append("HashMap<");
+		buf.append("sf::HashMap<");
 		elementType->fields[0].type->getName(buf);
 		buf.append(", ");
 		elementType->fields[1].type->getName(buf);

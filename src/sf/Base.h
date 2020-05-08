@@ -200,6 +200,7 @@ typedef void (*ConstructRangeFn)(void *data, size_t size);
 typedef void (*MoveRangeFn)(void *dst, void *src, size_t size);
 typedef void (*CopyRangeFn)(void *dst, const void *src, size_t size);
 typedef void (*DestructRangeFn)(void *data, size_t size);
+typedef void (*DestructFn)(void *data);
 
 template <typename T> sf_noinline inline typename std::enable_if<!IsZeroInitializable<T>::value>::type
 constructRangeImp(void *data, size_t size) {
@@ -252,6 +253,14 @@ destructRangeImp(void *, size_t) {
 	// Nop
 }
 
+template <typename T> sf_noinline inline typename std::enable_if<HasDestructor<T>::value>::type
+destructImp(void *t) {
+	((T*)t)->~T();
+}
+
+template <typename T> sf_forceinline typename std::enable_if<!HasDestructor<T>::value>::type
+destructImp(void *) { }
+
 template <typename T> sf_inline void constructRange(T *data, size_t size) { constructRangeImp<T>(data, size); }
 template <typename T> sf_inline void moveRange(T *dst, T *src, size_t size) { moveRangeImp<T>(dst, src, size); }
 template <typename T> sf_inline void copyRange(T *dst, const T *src, size_t size) { copyRangeImp<T>(dst, src, size); }
@@ -297,6 +306,8 @@ struct VoidSlice
 
 	VoidSlice() : data(nullptr), size(0) { }
 	VoidSlice(void *data, size_t size) : data(data), size(size) { }
+	template <typename T>
+	VoidSlice(sf::Slice<T> slice) : data((void*)slice.data), size(slice.size) { }
 };
 
 template <typename T>
@@ -323,10 +334,11 @@ static const constexpr uint32_t MaxTypeStructSize = 96;
 template <typename T>
 void initType(Type *t);
 
-void initPointerType(Type *dst, Type *type);
+void initCPointerType(Type *dst, Type *type);
+void initCArrayType(Type *dst, Type *type, size_t size);
 
 bool beginTypeInit(uint32_t *flag);
-void endTypeInit();
+void endTypeInit(Type *type);
 void waitForTypeInit();
 
 template <typename T>
@@ -340,7 +352,7 @@ inline Type *typeOfRecursive() {
 	alignas(16) static char storage[MaxTypeStructSize];
 	if (beginTypeInit(&initFlag)) {
 		InitType<T>::init((Type*)storage);
-		endTypeInit();
+		endTypeInit((Type*)storage);
 	}
 	return (Type*)storage;
 }
@@ -354,7 +366,12 @@ inline Type *typeOf() {
 
 template <typename T>
 struct InitType<T*> {
-	static void init(Type *t) { initPointerType(t, typeOf<T>()); }
+	static void init(Type *t) { initCPointerType(t, typeOf<T>()); }
+};
+
+template <typename T, size_t N>
+struct InitType<T[N]> {
+	static void init(Type *t) { initCArrayType(t, typeOf<T>(), N); }
 };
 
 }

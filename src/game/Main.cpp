@@ -26,6 +26,8 @@
 
 #include "game/shader/GameShaders.h"
 
+#include "game/server/GameState.h"
+
 #include "State.h"
 
 #include <time.h>
@@ -34,6 +36,9 @@
 
 #include "ext/bq_websocket.h"
 #include "ext/bq_websocket_platform.h"
+
+#include "game/server/Message.h"
+#include "sf/Box.h"
 
 #if 0
 
@@ -799,8 +804,98 @@ bqws_socket *ws;
 
 void spInit()
 {
-	srand((unsigned)time(NULL));
+	srand(0);
 
+	{
+		sf::Array<sf::RcBox<sv::Message>> messages;
+
+		{
+			sf::RcBox<sv::MessageAction> msg = sf::rcBox<sv::MessageAction>();
+			msg->test = 10;
+			messages.push(msg);
+		}
+
+		{
+			sf::RcBox<sv::MessageActionSuccess> msg = sf::rcBox<sv::MessageActionSuccess>();
+			msg->testSuccessFlag = true;
+			messages.push(msg);
+		}
+
+		{
+			sf::RcBox<sv::MessageActionFailure> msg = sf::rcBox<sv::MessageActionFailure>();
+			msg->testDescription = "Path blocked";
+			messages.push(msg);
+		}
+
+		{
+			sf::RcBox<sv::MessageUpdate> msg = sf::rcBox<sv::MessageUpdate>();
+			messages.push(msg);
+		}
+
+		jso_stream s;
+		jso_init_growable(&s);
+		s.pretty = true;
+		s.pretty_wrap = 70;
+
+		sp::writeJson(s, messages);
+
+		sf::debugPrint("%.*s", (int)s.pos, s.data);
+	}
+
+	sv::State state;
+	sv::Map &map = state.map;
+
+	{
+		sv::TileType &t = map.tileTypes.push();
+		t.name = sf::Symbol("None");
+	}
+
+	{
+		sv::TileType &t = map.tileTypes.push();
+		t.name = sf::Symbol("Floor");
+		t.floor = true;
+	}
+
+	{
+		sv::TileType &t = map.tileTypes.push();
+		t.name = sf::Symbol("Wall");
+		t.wall = true;
+	}
+
+	for (uint32_t i = 0; i < 100*100/4; i++) {
+		sf::Vec2i pos = { rand() % 100 - 50, rand() % 100 - 50 };
+		map.setTile(pos, 1);
+	}
+
+	{
+		sv::Entity &entity = state.entities.push();
+		entity.type = sv::Entity::None;
+	}
+
+	{
+		sv::Entity &entity = state.entities.push();
+		entity.position = { 10, 5 };
+		entity.type = sv::Entity::Character;
+		entity.index = 0;
+	}
+
+	{
+		sv::Character &chr = state.characters.push();
+		chr.name = sf::Symbol("Player");
+	}
+
+	jso_stream s;
+	jso_init_growable(&s);
+	s.pretty = true;
+	s.pretty_wrap = 70;
+
+	sp::writeJson(s, state);
+
+	sf::Array<char> binaryData;
+	sf::writeBinary(binaryData, state);
+	sf::writeFile("state.bin", binaryData.slice());
+
+	sf::writeFile("state.json", sf::slice(s.data, s.pos));
 
 	gameShaders.load();
 

@@ -11,7 +11,7 @@ namespace sf {
 struct SymbolType : Type
 {
 	SymbolType()
-		: Type("Symbol", sizeof(StringBuf), HasArray|HasString|HasSetString)
+		: Type("sf::Symbol", sizeof(StringBuf), HasArray|HasString|HasSetString)
 	{
 		elementType = typeOfRecursive<char>();
 	}

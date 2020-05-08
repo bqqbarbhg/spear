@@ -26,6 +26,7 @@ static void jso_fn_memory_flush(jso_stream *s)
 	}
 	s->data = jso_g_shared_fail_memory;
 	s->capacity = sizeof(jso_g_shared_fail_memory);
+	s->total_pos += s->pos;
 	s->pos = 0;
 	s->failed = 1;
 }
@@ -61,7 +62,6 @@ static void jso_fn_growable_flush(jso_stream *s)
 {
 	s->capacity *= 2;
 	s->data = (char*)realloc(s->data, s->capacity);
-	s->pos = 0;
 }
 
 static void jso_fn_growable_close(jso_stream *s)
@@ -81,6 +81,7 @@ void jso_init_growable(jso_stream *s)
 static void jso_fn_file_flush(jso_stream *s)
 {
 	fwrite(s->data, 1, s->pos, (FILE*)s->user);
+	s->total_pos += s->pos;
 	s->pos = 0;
 }
 
@@ -143,6 +144,7 @@ static void jso_indent(jso_stream *s)
 {
 	if (s->pos == s->capacity) s->flush_fn(s);
 	s->data[s->pos++] = '\n';
+	s->indent_pos = s->total_pos + s->pos;
 
 	for (int i = s->level; i > 0; --i) {
 		if (s->capacity - s->pos < 2) s->flush_fn(s);
@@ -155,7 +157,12 @@ static void jso_prettify(jso_stream *s)
 {
 	if (s->add_comma || s->pretty_open) {
 		if (s->single_line_level > 0 && s->level >= s->single_line_level) {
-			if (s->add_comma || !s->pretty_array) {
+			if (s->pretty_wrap && s->pos + s->total_pos - s->indent_pos > s->pretty_wrap) {
+				int temp = s->level;
+				s->level = s->single_line_level;
+				jso_indent(s);
+				s->level = temp;
+			} else if (s->add_comma || !s->pretty_array) {
 				if (s->capacity == s->pos) s->flush_fn(s);
 				s->data[s->pos++] = ' ';
 			}
@@ -297,10 +304,11 @@ void jso_json(jso_stream *s, const char *json)
 	size_t length = strlen(json);
 	size_t pos = 0;
 	size_t space = s->capacity - s->pos;
-	while (space < length) {
+	while (space < length - pos) {
 		memcpy(s->data + s->pos, json + pos, space);
 		s->pos = s->capacity;
 		s->flush_fn(s);
+		space = s->capacity - s->pos;
 	}
 	memcpy(s->data + s->pos, json + pos, length - pos);
 	s->pos += length - pos;
@@ -314,10 +322,11 @@ void jso_json_len(jso_stream *s, const char *json, size_t length)
 	s->add_comma = 1;
 	size_t pos = 0;
 	size_t space = s->capacity - s->pos;
-	while (space < length) {
+	while (space < length - pos) {
 		memcpy(s->data + s->pos, json + pos, space);
 		s->pos = s->capacity;
 		s->flush_fn(s);
+		space = s->capacity - s->pos;
 	}
 	memcpy(s->data + s->pos, json + pos, length - pos);
 	s->pos += length - pos;
@@ -341,8 +350,8 @@ static void jso_prettify_end_array(jso_stream *s)
 {
 	s->pretty_open = false;
 	s->level--;
-	if (s->level + 1 == s->single_line_level) {
-		s->single_line_level = 0;
+	if (s->single_line_level && s->level + 1 >= s->single_line_level) {
+		if (s->level + 1 == s->single_line_level) s->single_line_level = 0;
 	} else {
 		if (s->add_comma) {
 			if (s->trailing_comma) {
@@ -358,8 +367,8 @@ static void jso_prettify_end_object(jso_stream *s)
 {
 	s->pretty_open = false;
 	s->level--;
-	if (s->level + 1 == s->single_line_level) {
-		s->single_line_level = 0;
+	if (s->single_line_level && s->level + 1 >= s->single_line_level) {
+		if (s->level + 1 == s->single_line_level) s->single_line_level = 0;
 		if (s->add_comma) {
 			if (s->pos == s->capacity) s->flush_fn(s);
 			s->data[s->pos++] = ' ';
@@ -443,6 +452,23 @@ void jso_prop_len(jso_stream *s, const char *key, size_t length)
 		if (s->pos == s->capacity) s->flush_fn(s);
 		s->data[s->pos++] = ' ';
 	}
+}
+
+void jso_raw_append_len(jso_stream *s, const char *json, size_t length)
+{
+	if (s->add_comma) s->data[s->pos++] = ',';
+	if (s->pretty) jso_prettify(s);
+	s->add_comma = 0;
+	size_t pos = 0;
+	size_t space = s->capacity - s->pos;
+	while (space < length - pos) {
+		memcpy(s->data + s->pos, json + pos, space);
+		s->pos = s->capacity;
+		s->flush_fn(s);
+		space = s->capacity - s->pos;
+	}
+	memcpy(s->data + s->pos, json + pos, length - pos);
+	s->pos += length - pos;
 }
 
 void jso_single_line(jso_stream *s)

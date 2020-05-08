@@ -174,9 +174,9 @@ uint32_t hashReverse32(uint32_t hash)
     return x;
 }
 
-struct PointerType : Type
+struct CPointerType final : Type
 {
-	PointerType(Type *type)
+	CPointerType(Type *type)
 		: Type("pointer", sizeof(void*), HasArray)
 	{
 		elementType = type;
@@ -195,9 +195,50 @@ struct PointerType : Type
 	}
 };
 
-void initPointerType(Type *t, Type *type)
+void initCPointerType(Type *t, Type *type)
 {
-	new (t) PointerType(type);
+	new (t) CPointerType(type);
+}
+
+struct CArrayType final : Type
+{
+	size_t arraySize;
+
+	CArrayType(Type *type, size_t size)
+		: Type("array", sizeof(void*), HasArray | HasArrayResize)
+		, arraySize(size)
+	{
+		elementType = type;
+		if (type->flags & IsPod) flags |= IsPod;
+	}
+
+	virtual void getName(sf::StringBuf &buf)
+	{
+		elementType->getName(buf);
+		buf.format("[%zu]", arraySize);
+	}
+
+	virtual VoidSlice instArrayReserve(void *inst, size_t size)
+	{
+		sf_assert(size == arraySize);
+		return { inst, arraySize };
+	}
+
+	virtual void instArrayResize(void *inst, size_t size)
+	{
+		sf_assert(size == arraySize);
+	}
+
+	virtual VoidSlice instGetArray(void *inst)
+	{
+		return { inst, arraySize };
+	}
+
+};
+
+void initCArrayType(Type *t, Type *type, size_t size)
+{
+	new (t) CArrayType(type, size);
 }
 
 static uint32_t g_typeNumInits;
@@ -216,11 +257,12 @@ bool beginTypeInit(uint32_t *flag)
 	}
 }
 
-void endTypeInit()
+void endTypeInit(Type *type)
 {
 	uint32_t numLeft = mxa_dec32_rel(&g_typeNumInits) - 1;
 	if (numLeft == 0) {
 		mx_mutex_lock(&g_typeInitMutex);
+		type->init();
 		if (g_typeNumWaiters > 0) {
 			mx_semaphore_signal_n(&g_typeWaiterSema, g_typeNumWaiters);
 		}

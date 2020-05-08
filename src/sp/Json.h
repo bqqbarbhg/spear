@@ -7,7 +7,7 @@
 
 namespace sp {
 
-void writeInstJson(jso_stream &dst, void *inst, sf::Type *type);
+void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parentType=NULL);
 bool readInstJson(jsi_value *src, void *inst, sf::Type *type);
 
 template <typename T> sf_inline void writeJson(jso_stream &dst, T &t) { writeInstJson(dst, &t, sf::typeOf<T>()); }

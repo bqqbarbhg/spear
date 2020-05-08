@@ -16,6 +16,8 @@ struct jso_stream {
 	char *data;
 	size_t capacity;
 	size_t pos;
+	size_t total_pos;
+	size_t indent_pos;
 
 	jso_flush_fn *flush_fn;
 	jso_close_fn *close_fn;
@@ -32,6 +34,7 @@ struct jso_stream {
 	// Configuration
 	bool pretty;
 	bool trailing_comma;
+	size_t pretty_wrap;
 };
 
 void jso_init_custom(jso_stream *s);
@@ -59,6 +62,8 @@ void jso_end_array(jso_stream *s);
 
 void jso_prop(jso_stream *s, const char *key);
 void jso_prop_len(jso_stream *s, const char *key, size_t length);
+
+void jso_raw_append_len(jso_stream *s, const char *json, size_t length);
 
 void jso_single_line(jso_stream *s);
 

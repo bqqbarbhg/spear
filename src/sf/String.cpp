@@ -10,7 +10,7 @@ namespace sf {
 struct StringBufType : Type
 {
 	StringBufType()
-		: Type("StringBuf", sizeof(StringBuf), HasArray|HasArrayResize|HasString|HasSetString)
+		: Type("sf::StringBuf", sizeof(StringBuf), HasArray|HasArrayResize|HasString|HasSetString)
 	{
 		elementType = typeOfRecursive<char>();
 	}
@@ -52,6 +52,8 @@ bool String::operator<(const String &rhs) const
 	if (cmp != 0) return cmp < 0;
 	return size < rhs.size;
 }
+
+char StringBuf::zeroCharBuffer[1] = { };
 
 StringBuf::StringBuf(String s)
 {
@@ -138,15 +140,15 @@ void StringBuf::format(const char *fmt, ...)
 	va_copy(args2, args1);
 
 	// First pass: Try to format to a the current buffer
-	int appendSize = vsnprintf(data + size, capacity - size, fmt, args1);
+	int appendSize = vsnprintf(data + size, capacity + 1 - size, fmt, args1);
 
 	if (appendSize < 0) return;
 	va_end(args1);
 
 	// Second pass: Potentially re-allocate and re-format
 	if (size + appendSize + 1 > capacity) {
-		impGrowToGeometric(size + appendSize + 1);
-		vsnprintf(data + size, capacity - size, fmt, args2);
+		impGrowToGeometric(size + appendSize);
+		vsnprintf(data + size, capacity + 1 - size, fmt, args2);
 	}
 	size += appendSize;
 
@@ -160,14 +162,14 @@ void StringBuf::vformat(const char *fmt, va_list args1)
 	va_copy(args2, args1);
 
 	// First pass: Try to format to a the current buffer
-	int appendSize = vsnprintf(data + size, capacity - size, fmt, args1);
+	int appendSize = vsnprintf(data + size, capacity + 1 - size, fmt, args1);
 
 	if (appendSize < 0) return;
 
 	// Second pass: Potentially re-allocate and re-format
 	if (size + appendSize + 1 > capacity) {
-		impGrowToGeometric(size + appendSize + 1);
-		vsnprintf(data + size, capacity - size, fmt, args2);
+		impGrowToGeometric(size + appendSize);
+		vsnprintf(data + size, capacity + 1 - size, fmt, args2);
 	}
 	size += appendSize;
 
@@ -193,7 +195,7 @@ sf_noinline void StringBuf::impGrowToGeometric(size_t sz) {
 		data = (char*)memRealloc(data, sz + 1);
 	} else {
 		char *newData = (char*)memAlloc(sz + 1);
-		if (sz > 0) memcpy(newData, data, sz + 1);
+		memcpy(newData, data, size + 1);
 		data = newData;
 	}
 	capacity = (uint32_t)sz;
