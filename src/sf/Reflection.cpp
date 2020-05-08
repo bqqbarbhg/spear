@@ -9,17 +9,6 @@ static_assert(sizeof(Type) + 2*sizeof(void*) <= MaxTypeStructSize, "Type size pl
 
 void Type::init()
 {
-	if (flags & Type::Initialized) return;
-	flags |= Type::Initialized;
-	if (elementType) elementType->impInit();
-	for (const Field &field : fields) {
-		field.type->init();
-	}
-	impInit();
-}
-
-void Type::impInit()
-{
 }
 
 void Type::getName(sf::StringBuf &buf)
@@ -191,6 +180,18 @@ void writeInstBinary(sf::Array<char> &dst, void *inst, Type *type)
 	char *base = (char*)inst;
 	if (flags & Type::IsPod) {
 		dst.push(base, type->size);
+	} else if (flags & Type::Polymorph) {
+
+		sf::PolymorphInstance poly = type->instGetPolymorph(inst);
+		if (poly.type) {
+			uint32_t tagValue = (uint32_t)poly.type->value;
+			dst.push((char*)&tagValue, sizeof(uint32_t));
+			writeInstBinary(dst, poly.inst, poly.type->type);
+		} else {
+			uint32_t tagValue = ~0u;
+			dst.push((char*)&tagValue, sizeof(uint32_t));
+		}
+
 	} else if (flags & Type::HasFields) {
 		for (const Field &field : type->fields) {
 			writeInstBinary(dst, base + field.offset, field.type);

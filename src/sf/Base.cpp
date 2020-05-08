@@ -245,6 +245,7 @@ static uint32_t g_typeNumInits;
 static mx_mutex g_typeInitMutex;
 static uint32_t g_typeNumWaiters;
 static mx_semaphore g_typeWaiterSema;
+static Type *g_nextType = nullptr;
 
 bool beginTypeInit(uint32_t *flag)
 {
@@ -259,10 +260,23 @@ bool beginTypeInit(uint32_t *flag)
 
 void endTypeInit(Type *type)
 {
-	uint32_t numLeft = mxa_dec32_rel(&g_typeNumInits) - 1;
+	Type *next;
+	do {
+		next = (Type*)mxa_load_ptr(&g_nextType);
+		type->next = next;
+	} while (!mxa_cas_ptr(&g_nextType, next, type));
+
+	uint32_t numLeft = mxa_dec32(&g_typeNumInits) - 1;
 	if (numLeft == 0) {
 		mx_mutex_lock(&g_typeInitMutex);
-		type->init();
+
+		Type *t = (Type*)mxa_load_ptr(&g_nextType);
+		while (t && (t->flags & Type::Initialized) == 0) {
+			t->init();
+			t->flags |= Type::Initialized;
+			t = t->next;
+		}
+
 		if (g_typeNumWaiters > 0) {
 			mx_semaphore_signal_n(&g_typeWaiterSema, g_typeNumWaiters);
 		}

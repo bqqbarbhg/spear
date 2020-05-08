@@ -155,9 +155,13 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 
 			sf::String name { tag->string, jsi_length(tag->string) };
 			const sf::PolymorphType *poly = type->elementType->getPolymorphTypeByName(name);
+			char *polyBase = (char*)type->instSetPolymorph(inst, poly->type);
 
-			void *ptr = type->instSetPolymorph(inst, poly->type);
-			readInstJson(data, ptr, poly->type);
+			for (const sf::Field &field : poly->type->fields) {
+				jsi_value *child = jsi_get_len(src->object, field.name.data, field.name.size);
+				if (!child) continue;
+				if (!readInstJson(child, polyBase + field.offset, field.type)) return false;
+			}
 
 		} else if (src->type != jsi_type_null) {
 			return false;

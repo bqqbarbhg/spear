@@ -57,6 +57,7 @@ struct Type {
 		Initialized = 0x400,
 	};
 
+	Type *next = nullptr;
 	sf::CString name;
 	uint32_t size;
 	uint32_t flags;
@@ -70,9 +71,7 @@ struct Type {
 	{
 	}
 
-	void init();
-
-	virtual void impInit();
+	virtual void init();
 
 	virtual void getName(sf::StringBuf &buf);
 	virtual sf::CString getPolymorphTagName();

@@ -58,7 +58,7 @@ struct RcBoxType final : Type
 		elementType = elemType;
 	}
 
-	virtual void impInit()
+	virtual void init()
 	{
 		if (elementType->flags & PolymorphBase) {
 			flags |= Polymorph;
@@ -87,6 +87,7 @@ struct RcBoxType final : Type
 		void *ptr = *(void**)inst;
 		if (ptr) impRcBoxDecRef(ptr);
 		ptr = impRcBoxAllocate(type->size, dtor);
+		*(void**)inst = ptr;
 		type->instConstruct(ptr, 1);
 		return ptr;
 	}

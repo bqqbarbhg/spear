@@ -807,6 +807,7 @@ void spInit()
 	srand(0);
 
 	{
+		sf::typeOf<sv::Message>();
 		sf::Array<sf::RcBox<sv::Message>> messages;
 
 		{
@@ -829,6 +830,7 @@ void spInit()
 
 		{
 			sf::RcBox<sv::MessageUpdate> msg = sf::rcBox<sv::MessageUpdate>();
+			msg->testMessages = messages;
 			messages.push(msg);
 		}
 
@@ -837,9 +839,20 @@ void spInit()
 		s.pretty = true;
 		s.pretty_wrap = 70;
 
+		sf::Array<char> binary;
+		sf::writeBinary(binary, messages);
+
 		sp::writeJson(s, messages);
 
 		sf::debugPrint("%.*s", (int)s.pos, s.data);
+
+		jsi_value *val = jsi_parse_memory(s.data, (size_t)s.pos, NULL);
+
+		sf::Array<sf::RcBox<sv::Message>> messages2, messages3;
+		sp::readJson(val, messages2);
+		sf::readBinary(binary.slice(), messages3);
+
+		messages2.clear();
 	}
 
 	sv::State state;
