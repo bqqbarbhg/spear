@@ -25,12 +25,33 @@ struct Box
 
 	Box() : ptr(nullptr) { }
 
+	Box(Box&& rhs) : ptr(rhs.ptr) { rhs.ptr = nullptr; }
+
+	Box &operator=(Box&& rhs) {
+		if ((void*)&rhs == (void*)this) return *this;
+		if (ptr) impBoxDecRef(ptr);
+		ptr = rhs.ptr;
+		rhs.ptr = nullptr;
+		return *this;
+	}
+
+	Box(const Box& rhs) : ptr(rhs.ptr) {
+		if (rhs.ptr) impBoxIncRef(rhs.ptr);
+	}
+
+	Box &operator=(const Box& rhs) {
+		if (rhs.ptr) impBoxIncRef(rhs.ptr);
+		if (ptr) impBoxDecRef(ptr);
+		ptr = rhs.ptr;
+		return *this;
+	}
+
 	template <typename U>
 	Box(Box<U>&& rhs) : ptr(rhs.ptr) { rhs.ptr = nullptr; }
 
 	template <typename U>
 	Box &operator=(Box<U>&& rhs) {
-		if (&rhs == this) return *this;
+		if ((void*)&rhs == (void*)this) return *this;
 		if (ptr) impBoxDecRef(ptr);
 		ptr = rhs.ptr;
 		rhs.ptr = nullptr;
@@ -56,18 +77,20 @@ struct Box
 		if (ptr) { impBoxDecRef(ptr); ptr = nullptr; }
 	}
 
-	T *operator->() { return ptr; }
-	const T *operator->() const { return ptr; }
-	T &operator*() { return *ptr; }
-	const T &operator*() const { return *ptr; }
+	bool operator!() const { return ptr == nullptr; }
+	explicit operator bool() const { return ptr != nullptr; }
+
+	operator T*() const { return ptr; }
+	T *operator->() const { return ptr; }
+	T &operator*() const { return *ptr; }
 };
 
-template <typename T>
-Box<T> box()
+template <typename T, typename... Args>
+Box<T> box(Args&&... args)
 {
 	Box<T> box;
 	box.ptr = (T*)impBoxAllocate(sizeof(T), &destructRangeImp<T>);
-	new (box.ptr) T();
+	new (box.ptr) T(std::forward<Args>(args)...);
 	return box;
 }
 

@@ -3,6 +3,16 @@
 
 namespace sp {
 
+static void writeJsonFieldsImp(jso_stream &dst, char *base, sf::Type *type)
+{
+	if (type->baseType) writeJsonFieldsImp(dst, base, type->baseType);
+	for (const sf::Field &field : type->fields) {
+		jso_prop_len(&dst, field.name.data, field.name.size);
+		if (dst.pretty && field.flags & sf::Field::CompactString) jso_single_line(&dst);
+		writeInstJson(dst, base + field.offset, field.type, type);
+	}
+}
+
 void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parentType)
 {
 	uint32_t flags = type->flags;
@@ -33,11 +43,7 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 			jso_string_len(&dst, poly.type->name.data, poly.type->name.size);
 
 			char *polyBase = (char*)poly.inst;
-			for (const sf::Field &field : poly.type->type->fields) {
-				jso_prop_len(&dst, field.name.data, field.name.size);
-				if (dst.pretty && field.flags & sf::Field::CompactString) jso_single_line(&dst);
-				writeInstJson(dst, polyBase + field.offset, field.type, type);
-			}
+			writeJsonFieldsImp(dst, polyBase, poly.type->type);
 
 			jso_end_object(&dst);
 		} else {
@@ -47,12 +53,15 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 	} else if (flags & sf::Type::HasFields) {
 		if (dst.pretty && flags & sf::Type::CompactString) jso_single_line(&dst);
 		jso_object(&dst);
-		for (const sf::Field &field : type->fields) {
-			jso_prop_len(&dst, field.name.data, field.name.size);
-			if (dst.pretty && field.flags & sf::Field::CompactString) jso_single_line(&dst);
-			writeInstJson(dst, base + field.offset, field.type, type);
-		}
+		writeJsonFieldsImp(dst, base, type);
 		jso_end_object(&dst);
+	} else if (flags & sf::Type::HasPointer) {
+		void *ptr = type->instGetPointer(inst);
+		if (ptr) {
+			writeInstJson(dst, ptr, type->elementType, type);
+		} else {
+			jso_null(&dst);
+		}
 	} else if (flags & sf::Type::HasArray) {
 		if (dst.pretty && flags & sf::Type::CompactString) jso_single_line(&dst);
 		sf::Type *elem = type->elementType;
@@ -94,6 +103,19 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 		// TODO: Binary serialization
 		jso_string(&dst, "");
 	}
+}
+
+static bool readJsonFieldsImp(jsi_value *src, char *base, sf::Type *type)
+{
+	if (type->baseType) {
+		if (!readJsonFieldsImp(src, base, type->baseType)) return false;
+	}
+	for (const sf::Field &field : type->fields) {
+		jsi_value *child = jsi_get_len(src->object, field.name.data, field.name.size);
+		if (!child) continue;
+		if (!readInstJson(child, base + field.offset, field.type)) return false;
+	}
+	return true;
 }
 
 bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
@@ -156,25 +178,21 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 			sf::String name { tag->string, jsi_length(tag->string) };
 			const sf::PolymorphType *poly = type->elementType->getPolymorphTypeByName(name);
 			char *polyBase = (char*)type->instSetPolymorph(inst, poly->type);
-
-			for (const sf::Field &field : poly->type->fields) {
-				jsi_value *child = jsi_get_len(src->object, field.name.data, field.name.size);
-				if (!child) continue;
-				if (!readInstJson(child, polyBase + field.offset, field.type)) return false;
-			}
+			if (!readJsonFieldsImp(src, polyBase, poly->type)) return false;
 
 		} else if (src->type != jsi_type_null) {
 			return false;
 		}
 	} else if (flags & sf::Type::HasFields) {
 		if (src->type == jsi_type_object) {
-			for (const sf::Field &field : type->fields) {
-				jsi_value *child = jsi_get_len(src->object, field.name.data, field.name.size);
-				if (!child) continue;
-				if (!readInstJson(child, base + field.offset, field.type)) return false;
-			}
+			if (!readJsonFieldsImp(src, base, type)) return false;
 		} else {
 			return false;
+		}
+	} else if (flags & sf::Type::HasPointer) {
+		if (src->type != jsi_type_null) {
+			void *ptr = type->instSetPointer(inst);
+			readInstJson(src, ptr, type->elementType);
 		}
 	} else if (flags & sf::Type::HasArrayResize) {
 		if (src->type == jsi_type_array) {

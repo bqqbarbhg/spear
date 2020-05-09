@@ -3097,7 +3097,7 @@ bool bqws_parse_url(bqws_url *url, const char *str)
 	if (port && port > path) port = NULL;
 	const char *host_end = port ? port : path;
 
-	size_t scheme_len = scheme_end - scheme;
+	size_t scheme_len = scheme_end ? scheme_end - scheme : 0;
 	size_t host_len = host_end - host;
 	if (scheme_len >= sizeof(url->scheme)) return false;
 	if (host_len >= sizeof(url->host)) return false;

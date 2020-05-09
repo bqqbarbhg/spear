@@ -4,8 +4,6 @@ namespace sv {
 
 struct Action
 {
-	virtual ~Action() { }
-
 	enum Type
 	{
 		Error,

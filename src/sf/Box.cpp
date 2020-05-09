@@ -51,7 +51,7 @@ void impBoxDecRef(void *ptr)
 struct BoxType final : Type
 {
 	BoxType(const TypeInfo &info, Type *elemType)
-		: Type("sf::Box", info, HasArray | HasArrayResize)
+		: Type("sf::Box", info, HasPointer | HasArrayResize)
 	{
 		elementType = elemType;
 	}
@@ -87,6 +87,16 @@ struct BoxType final : Type
 		ptr = impBoxAllocate(type->info.size, type->info.destructRange);
 		*(void**)inst = ptr;
 		type->info.constructRange(ptr, 1);
+		return ptr;
+	}
+
+	virtual void *instSetPointer(void *inst)
+	{
+		void *ptr = *(void**)inst;
+		if (ptr) impBoxDecRef(ptr);
+		ptr = impBoxAllocate(elementType->info.size, elementType->info.destructRange);
+		*(void**)inst = ptr;
+		elementType->info.constructRange(ptr, 1);
 		return ptr;
 	}
 };

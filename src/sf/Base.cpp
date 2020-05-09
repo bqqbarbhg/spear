@@ -177,9 +177,16 @@ uint32_t hashReverse32(uint32_t hash)
 struct CPointerType final : Type
 {
 	CPointerType(Type *type)
-		: Type("pointer", getTypeInfo<void*>(), HasArray)
+		: Type("pointer", getTypeInfo<char*>(), HasPointer)
 	{
 		elementType = type;
+	}
+
+	virtual void init()
+	{
+		if (elementType->flags & PolymorphBase) {
+			flags |= Polymorph;
+		}
 	}
 
 	virtual void getName(sf::StringBuf &buf)
@@ -188,10 +195,14 @@ struct CPointerType final : Type
 		buf.append("*");
 	}
 
-	virtual VoidSlice instGetArray(void *inst)
+	virtual PolymorphInstance instGetPolymorph(void *inst)
 	{
-		void **ptr = (void**)inst;
-		return { *ptr, (size_t)(*ptr != 0 ? 1 : 0) };
+		void *ptr = *(void**)inst;
+		if (ptr) {
+			return elementType->instGetPolymorph(ptr);
+		} else {
+			return { };
+		}
 	}
 };
 

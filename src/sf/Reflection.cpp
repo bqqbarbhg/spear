@@ -51,6 +51,17 @@ const PolymorphType *Type::getPolymorphTypeByName(sf::String name)
 	return nullptr;
 }
 
+void *Type::instGetPointer(void *inst)
+{
+	return *(void**)inst;
+}
+
+void *Type::instSetPointer(void *inst)
+{
+	sf_assert(0 && "Set pointer not supported");
+	return nullptr;
+}
+
 PolymorphInstance Type::instGetPolymorph(void *inst)
 {
 	return { };

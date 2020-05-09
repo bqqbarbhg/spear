@@ -4,11 +4,13 @@
 #include "sf/HashMap.h"
 #include "sf/Vector.h"
 #include "sf/Symbol.h"
+#include "sf/Box.h"
 
 namespace sv {
 
 typedef uint16_t TileId;
 typedef uint32_t EntityId;
+struct Event;
 
 struct TileType
 {
@@ -38,18 +40,28 @@ struct Entity
 
 	sf::Vec2i position;
 	Type type;
-	uint32_t index;
+
+	Entity() { }
+	Entity(Type type) : type(type) { }
+
+	template <typename T> T *as() { return type == T::EntityType ? (T*)this : nullptr; }
+	template <typename T> const T *as() const { return type == T::EntityType ? (T*)this : nullptr; }
 };
 
-struct Character
+template <Entity::Type SelfType>
+struct EntityBase : Entity
+{
+	static constexpr Type EntityType = SelfType;
+	EntityBase() : Entity(SelfType) { }
+};
+
+struct Character : EntityBase<Entity::Character>
 {
 	sf::Symbol name;
 };
 
 struct Map
 {
-	rhmap entityTileMap;
-
 	sf::Array<TileType> tileTypes;
 	sf::HashMap<sf::Vec2i, MapChunk> chunks;
 
@@ -57,11 +69,39 @@ struct Map
 	TileId getTile(const sf::Vec2i &pos) const;
 };
 
+struct EntityTileMap
+{
+	rhmap map;
+
+	EntityTileMap();
+	EntityTileMap(const EntityTileMap &rhs);
+	EntityTileMap(EntityTileMap &&rhs);
+	EntityTileMap &operator=(const EntityTileMap &rhs);
+	EntityTileMap &operator=(EntityTileMap &&rhs);
+	~EntityTileMap();
+
+	void add(EntityId entity, const sf::Vec2i &newPos);
+	void update(EntityId entity, const sf::Vec2i &oldPos, const sf::Vec2i &newPos);
+	void remove(EntityId entity, const sf::Vec2i &oldPos);
+	void reserve(size_t size);
+	void clear();
+
+	void impGrow(size_t minSize);
+};
+
 struct State
 {
 	Map map;
-	sf::Array<Entity> entities;
-	sf::Array<Character> characters;
+	sf::Array<sf::Box<Entity>> entities;
+	EntityTileMap entityTileMap;
+
+	void refreshEntityTileMap();
+
+	void initEntity(EntityId entity, sf::Box<Entity> data);
+	void destroyEntity(EntityId entity);
+	void setEntityPosition(EntityId entity, const sf::Vec2i &pos);
+
+	void applyEvent(Event *event);
 };
 
 }

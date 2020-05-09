@@ -55,9 +55,11 @@ struct Type {
 		PolymorphBase = 0x100,
 		Polymorph = 0x200,
 		Initialized = 0x400,
+		HasPointer = 0x800,
 	};
 
 	Type *next = nullptr;
+	Type *baseType = nullptr;
 	sf::CString name;
 	TypeInfo info;
 	uint32_t flags;
@@ -85,16 +87,20 @@ struct Type {
 	virtual const PolymorphType *getPolymorphTypeByValue(uint32_t value);
 	virtual const PolymorphType *getPolymorphTypeByName(sf::String name);
 
+	virtual void *instGetPointer(void *inst);
+	virtual void *instSetPointer(void *inst);
+
 	virtual PolymorphInstance instGetPolymorph(void *inst);
 	virtual void *instSetPolymorph(void *inst, Type *type);
 };
 
 struct TypeStruct final : Type {
 
-	TypeStruct(const char *name, const TypeInfo &info, sf::Slice<const Field> fields, uint32_t userFlags=0)
+	TypeStruct(const char *name, const TypeInfo &info, Type *baseType, sf::Slice<const Field> fields, uint32_t userFlags=0)
 		: Type(name, info, HasFields|userFlags)
 	{
 		this->fields = fields;
+		this->baseType = baseType;
 	}
 };
 
@@ -146,7 +152,8 @@ struct TypeEnum final : Type {
 
 #define sf_field(type, name) Field{ sf::CString(::sf::Const, #name, sizeof(#name) - 1), offsetof(type, name), sizeof(type::name), ::sf::typeOfRecursive<decltype(type::name)>(), 0 }
 #define sf_field_flags(type, name, flags) Field{ sf::CString(::sf::Const, #name, sizeof(#name) - 1), offsetof(type, name), sizeof(type::name), ::sf::typeOfRecursive<decltype(type::name)>(), (flags) }
-#define sf_struct(t, type, ...) new (t) ::sf::TypeStruct(#type, ::sf::getTypeInfo<type>(), __VA_ARGS__)
+#define sf_struct(t, type, ...) new (t) ::sf::TypeStruct(#type, ::sf::getTypeInfo<type>(), nullptr, __VA_ARGS__)
+#define sf_struct_base(t, type, base, ...) new (t) ::sf::TypeStruct(#type, ::sf::getTypeInfo<type>(), ::sf::typeOfRecursive<base>(), __VA_ARGS__)
 #define sf_struct_poly(t, type, tag, ...) new (t) ::sf::TypePolymorphicStruct(#type, ::sf::getTypeInfo<type>(), offsetof(type, tag), #tag, __VA_ARGS__)
 
 void writeInstBinary(sf::Array<char> &dst, void *inst, Type *type);
