@@ -26,6 +26,12 @@ void Map::setTile(const sf::Vec2i &pos, TileId tileId)
 	}
 }
 
+bool Map::canStandOn(const sf::Vec2i &pos) const
+{
+	const TileType &type = tileTypes[getTile(pos)];
+	return type.floor && !type.wall;
+}
+
 TileId Map::getTile(const sf::Vec2i &pos) const
 {
 	sf::Vec2i chunkI, tileI;
@@ -163,12 +169,36 @@ void State::setEntityPosition(EntityId entity, const sf::Vec2i &pos)
 	data->position = pos;
 }
 
+void State::getEntitiesOnTile(sf::Array<Entity*> &dst, const sf::Vec2i &pos) const
+{
+	uint32_t scan = 0, id;
+	uint32_t hash = sf::hash(pos);
+	while (rhmap_find(&entityTileMap.map, hash, &scan, &id)) {
+		Entity *entity = entities[id];
+		if (entity->position == pos) {
+			dst.push(entity);
+		}
+	}
+}
+
+bool State::canStandOn(const sf::Vec2i &pos) const
+{
+	if (!map.canStandOn(pos)) return false;
+	sf::SmallArray<Entity*, 16> entitiesOnTile;
+	getEntitiesOnTile(entitiesOnTile, pos);
+	for (Entity *entity : entitiesOnTile) {
+		if (entity->blocksTile) return false;
+	}
+	return true;
+}
+
 void State::applyEvent(Event *event)
 {
 	if (auto e = event->as<EventMove>()) {
 		setEntityPosition(e->entity, e->position);
 	} else if (auto e = event->as<EventSpawn>()) {
-		initEntity(e->entity, e->data);
+		sf_assert(e->data->id != 0);
+		initEntity(e->data->id, e->data);
 	} else if (auto e = event->as<EventDestroy>()) {
 		destroyEntity(e->entity);
 	}
@@ -209,7 +239,9 @@ template<> void initType<sv::Entity::Type>(Type *t)
 template<> void initType<sv::Entity>(Type *t)
 {
 	static Field fields[] = {
+		sf_field(sv::Entity, id),
 		sf_field(sv::Entity, position),
+		sf_field(sv::Entity, blocksTile),
 	};
 	static PolymorphType polys[] = {
 		sf_poly(sv::Entity, Character, sv::Character),

@@ -46,9 +46,10 @@ void State::applyEvent(sv::Event *event)
 
 	} else if (auto e = event->as<sv::EventSpawn>()) {
 
-		while (e->entity >= entities.size) entities.push();
-		sf_assert(!entities[e->entity]);
-		entities[e->entity] = convertEntity(e->data);
+		sv::EntityId id = e->data->id;
+		while (id >= entities.size) entities.push();
+		sf_assert(!entities[id]);
+		entities[id] = convertEntity(e->data);
 
 	} else if (auto e = event->as<sv::EventDestroy>()) {
 

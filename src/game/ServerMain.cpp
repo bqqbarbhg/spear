@@ -99,6 +99,27 @@ ServerMain *serverInit()
 	return s;
 }
 
+static sf::Vec2i findSpawnPos(sv::State *state, const sf::Vec2i &targetPos)
+{
+	float bestDist = HUGE_VALF;
+	sf::Vec2i bestPos = targetPos;
+	for (int32_t radius = 0; radius < 10; radius++) {
+		for (int32_t dy = -radius; dy <= +radius; dy++)
+		for (int32_t dx = -radius; dx <= +radius; dx++)
+		{
+			sf::Vec2i pos = targetPos + sf::Vec2i(dx, dy);
+			if (state->canStandOn(pos)) {
+				float dist = sf::lengthSq(sf::Vec2(pos - targetPos));
+				if (dist < bestDist) {
+					bestPos = pos;
+					bestDist = dist;
+				}
+			}
+		}
+	}
+	return bestPos;
+}
+
 void serverUpdate(ServerMain *s)
 {
 	// Accept new clients
@@ -144,10 +165,11 @@ void serverUpdate(ServerMain *s)
 			{
 				auto player = sf::box<sv::Character>();
 				player->name = client.name;
+				player->position = findSpawnPos(session.state, sf::Vec2i(-3, -3));
 
 				auto spawn = sf::box<sv::EventSpawn>();
-				spawn->entity = client.playerEntity;
 				spawn->data = player;
+				spawn->data->id = client.playerEntity;
 				session.pendingEvents.push(spawn);
 			}
 

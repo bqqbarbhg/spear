@@ -38,8 +38,10 @@ struct Entity
 		Type_Force32 = 0x7fffffff,
 	};
 
+	EntityId id = 0;
 	sf::Vec2i position;
 	Type type;
+	bool blocksTile = false;
 
 	Entity() { }
 	Entity(Type type) : type(type) { }
@@ -58,6 +60,11 @@ struct EntityBase : Entity
 struct Character : EntityBase<Entity::Character>
 {
 	sf::Symbol name;
+
+	Character()
+	{
+		blocksTile = true;
+	}
 };
 
 struct Map
@@ -67,6 +74,8 @@ struct Map
 
 	void setTile(const sf::Vec2i &pos, TileId tileId);
 	TileId getTile(const sf::Vec2i &pos) const;
+
+	bool canStandOn(const sf::Vec2i &pos) const;
 };
 
 struct EntityTileMap
@@ -100,6 +109,10 @@ struct State
 	void initEntity(EntityId entity, sf::Box<Entity> data);
 	void destroyEntity(EntityId entity);
 	void setEntityPosition(EntityId entity, const sf::Vec2i &pos);
+
+	void getEntitiesOnTile(sf::Array<Entity*> &dst, const sf::Vec2i &pos) const;
+
+	bool canStandOn(const sf::Vec2i &pos) const;
 
 	void applyEvent(Event *event);
 };

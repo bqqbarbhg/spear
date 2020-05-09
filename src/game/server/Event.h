@@ -59,7 +59,6 @@ struct EventMove : EventBase<Event::Move>
 
 struct EventSpawn : EventBase<Event::Spawn>
 {
-	EntityId entity;
 	sf::Box<sv::Entity> data;
 };
 

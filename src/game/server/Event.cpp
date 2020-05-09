@@ -46,7 +46,6 @@ template<> void initType<sv::EventMove>(Type *t)
 template<> void initType<sv::EventSpawn>(Type *t)
 {
 	static Field fields[] = {
-		sf_field(sv::EventSpawn, entity),
 		sf_field(sv::EventSpawn, data),
 	};
 	sf_struct_base(t, sv::EventSpawn, sv::Event, fields);
