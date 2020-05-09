@@ -2,6 +2,7 @@
 
 #include "sf/Reflection.h"
 #include "game/server/Event.h"
+#include "game/server/Action.h"
 
 namespace sv {
 
@@ -204,6 +205,27 @@ void State::applyEvent(Event *event)
 	}
 }
 
+bool State::applyAction(Action *action, sf::Array<sf::Box<Event>> &events, sf::StringBuf &error)
+{
+	if (auto move = action->as<ActionMove>()) {
+
+		if (!canStandOn(move->position)) {
+			error.format("Tile (%d,%d) is not free", move->position.x, move->position.y);
+			return false;
+		}
+
+		auto event = sf::box<EventMove>();
+		event->entity = move->entity;
+		event->position = move->position;
+		events.push(event);
+		return true;
+
+	} else {
+		sf_failf("Unexpected action type: %u", action->type);
+		return false;
+	}
+}
+
 }
 
 namespace sf {
@@ -253,6 +275,7 @@ template<> void initType<sv::Character>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(sv::Character, name),
+		sf_field(sv::Character, players),
 	};
 	sf_struct_base(t, sv::Character, sv::Entity, fields);
 }

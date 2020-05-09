@@ -11,7 +11,7 @@ struct Entity
 
 	sv::Entity::Type type;
 	sf::Box<sv::Entity> svEntity;
-	sf::Vec3 position;
+	sf::Vec2 position;
 
 	Entity() { }
 	Entity(Type type, sf::Box<sv::Entity> svEntity) : type(type), svEntity(std::move(svEntity)) { }
@@ -37,6 +37,9 @@ struct Character : EntityBase<sv::Entity::Character>
 struct State
 {
 	sf::Array<sf::Box<Entity>> entities;
+
+	sf::Vec3 getWorldPosition(const sf::Vec2 &tile);
+	sf::Vec3 getWorldPosition(const sf::Vec2i &tile);
 
 	void reset(sv::State *svState);
 

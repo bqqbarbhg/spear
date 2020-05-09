@@ -8,6 +8,9 @@
 
 static sf::Symbol serverName { "Server" };
 
+static uint32_t playerIdCounter = 100;
+
+
 struct ClientMain
 {
 	bqws_socket *ws;
@@ -33,6 +36,7 @@ ClientMain *clientInit(const sf::Symbol &name)
 		join.name = name;
 		join.sessionId = 1;
 		join.sessionSecret = 10;
+		join.playerId = ++playerIdCounter;
 		writeMessage(c->ws, &join, c->name, serverName);
 	}
 
@@ -69,4 +73,15 @@ bool clientUpdate(ClientMain *c)
 	}
 
 	return false;
+}
+
+void clientDoMoveTemp(ClientMain *client)
+{
+	auto move = sf::box<sv::ActionMove>();
+	move->entity = 1;
+	move->position = sf::Vec2i(5, 5);
+
+	sv::MessageAction action;
+	action.action = move;
+	writeMessage(client->ws, &action, client->name, serverName);
 }

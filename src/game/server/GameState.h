@@ -11,6 +11,7 @@ namespace sv {
 typedef uint16_t TileId;
 typedef uint32_t EntityId;
 struct Event;
+struct Action;
 
 struct TileType
 {
@@ -29,6 +30,10 @@ struct MapChunk
 
 struct Entity
 {
+	#if SF_DEBUG
+		virtual void debugForceVtable() { }
+	#endif
+
 	enum Type
 	{
 		None,
@@ -60,6 +65,7 @@ struct EntityBase : Entity
 struct Character : EntityBase<Entity::Character>
 {
 	sf::Symbol name;
+	sf::Array<uint32_t> players;
 
 	Character()
 	{
@@ -115,6 +121,7 @@ struct State
 	bool canStandOn(const sf::Vec2i &pos) const;
 
 	void applyEvent(Event *event);
+	bool applyAction(Action *action, sf::Array<sf::Box<Event>> &events, sf::StringBuf &error);
 };
 
 }

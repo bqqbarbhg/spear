@@ -15,6 +15,7 @@ struct Client
 	sf::Symbol name;
 	bqws_socket *ws = nullptr;
 	sv::EntityId playerEntity;
+	uint32_t playerId;
 };
 
 struct Session
@@ -155,6 +156,7 @@ void serverUpdate(ServerMain *s)
 			client.ws = ws;
 			client.name = m->name;
 			client.playerEntity = session.allocateEntityId();
+			client.playerId = m->playerId;
 
 			{
 				sv::MessageLoad load;
@@ -166,6 +168,7 @@ void serverUpdate(ServerMain *s)
 				auto player = sf::box<sv::Character>();
 				player->name = client.name;
 				player->position = findSpawnPos(session.state, sf::Vec2i(-3, -3));
+				player->players.push(client.playerId);
 
 				auto spawn = sf::box<sv::EventSpawn>();
 				spawn->data = player;
@@ -205,6 +208,37 @@ void serverUpdate(ServerMain *s)
 			Client &client = session.clients[i];
 
 			bqws_update(client.ws);
+
+			while (bqws_msg *wsMsg = bqws_recv(client.ws)) {
+				auto msg = readMessage(wsMsg);
+
+				if (auto m = msg->as<sv::MessageAction>()) {
+					sv::Action *action = m->action;
+					sv::Entity *entity = session.state->entities[action->entity];
+					sv::Character *chr = entity->as<sv::Character>();
+
+					if (sf::find(chr->players, client.playerId)) {
+
+						sf::StringBuf error;
+						sf::SmallArray<sf::Box<sv::Event>, 64> events;
+						if (session.state->applyAction(action, events, error)) {
+							sv::MessageActionSuccess ok = { };
+							writeMessage(client.ws, &ok, serverName, client.name);
+							session.pendingEvents.push(events);
+						} else {
+							sv::MessageActionFailure fail = { };
+							fail.description = std::move(error);
+							writeMessage(client.ws, &fail, serverName, client.name);
+						}
+
+					} else {
+						sv::MessageActionFailure fail = { };
+						fail.description.format("Player %u cannot control entity %u", client.playerId, action->entity);
+						writeMessage(client.ws, &fail, serverName, client.name);
+					}
+				}
+
+			}
 
 			if (bqws_is_closed(client.ws)) {
 				auto destroy = sf::box<sv::EventDestroy>();

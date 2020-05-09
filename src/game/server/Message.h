@@ -43,24 +43,22 @@ struct MessageBase : Message
 struct MessageJoin : MessageBase<Message::Join>
 {
 	uint32_t sessionId, sessionSecret;
+	uint32_t playerId;
 	sf::Symbol name;
 };
 
 struct MessageAction : MessageBase<Message::Action>
 {
-
-	uint32_t test;
-	// sf::Box<sv::Action> action;
+	sf::Box<sv::Action> action;
 };
 
 struct MessageActionSuccess : MessageBase<Message::ActionSuccess>
 {
-	bool testSuccessFlag;
 };
 
 struct MessageActionFailure : MessageBase<Message::ActionFailure>
 {
-	sf::StringBuf testDescription;
+	sf::StringBuf description;
 };
 
 struct MessageUpdate : MessageBase<Message::Update>

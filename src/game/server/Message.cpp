@@ -21,6 +21,7 @@ template<> void initType<sv::MessageJoin>(Type *t)
 	static Field fields[] = {
 		sf_field(sv::MessageJoin, sessionId),
 		sf_field(sv::MessageJoin, sessionSecret),
+		sf_field(sv::MessageJoin, playerId),
 		sf_field(sv::MessageJoin, name),
 	};
 	sf_struct_base(t, sv::MessageJoin, sv::Message, fields);
@@ -29,23 +30,20 @@ template<> void initType<sv::MessageJoin>(Type *t)
 template<> void initType<sv::MessageAction>(Type *t)
 {
 	static Field fields[] = {
-		sf_field(sv::MessageAction, test),
+		sf_field(sv::MessageAction, action),
 	};
 	sf_struct_base(t, sv::MessageAction, sv::Message, fields);
 }
 
 template<> void initType<sv::MessageActionSuccess>(Type *t)
 {
-	static Field fields[] = {
-		sf_field(sv::MessageActionSuccess, testSuccessFlag),
-	};
-	sf_struct_base(t, sv::MessageActionSuccess, sv::Message, fields);
+	sf_struct_base(t, sv::MessageActionSuccess, sv::Message, { });
 }
 
 template<> void initType<sv::MessageActionFailure>(Type *t)
 {
 	static Field fields[] = {
-		sf_field(sv::MessageActionFailure, testDescription),
+		sf_field(sv::MessageActionFailure, description),
 	};
 	sf_struct_base(t, sv::MessageActionFailure, sv::Message, fields);
 }

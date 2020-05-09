@@ -42,6 +42,9 @@ void spEvent(const sapp_event *e)
 		} else if (e->key_code == SAPP_KEYCODE_Q) {
 			ClientMain *c = clients.back();
 			clientQuit(c);
+		} else if (e->key_code == SAPP_KEYCODE_M) {
+			ClientMain *c = clients.back();
+			clientDoMoveTemp(c);
 		}
 	}
 }

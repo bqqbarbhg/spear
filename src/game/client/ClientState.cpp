@@ -37,19 +37,18 @@ void State::applyEvent(sv::Event *event)
 			d->waypoints.push(e->waypoints);
 
 		} else {
-
-			data->position.x = (float)e->position.x;
-			data->position.y = 0.0f;
-			data->position.z = (float)e->position.y;
-
+			data->position = sf::Vec2(e->position);
 		}
 
 	} else if (auto e = event->as<sv::EventSpawn>()) {
 
 		sv::EntityId id = e->data->id;
+		sf_assert(id != 0);
 		while (id >= entities.size) entities.push();
 		sf_assert(!entities[id]);
-		entities[id] = convertEntity(e->data);
+		sf::Box<Entity> entity = convertEntity(e->data);
+		entity->position = sf::Vec2(e->data->position);
+		entities[id] = entity;
 
 	} else if (auto e = event->as<sv::EventDestroy>()) {
 
