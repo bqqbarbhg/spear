@@ -8,14 +8,11 @@ struct KeyValType final : Type
 	struct Data
 	{
 		Field fields[2];
-		ConstructRangeFn ctor;
-		MoveRangeFn move;
-		DestructRangeFn dtor;
 	};
 	Data *data;
 
-	KeyValType(size_t kvSize, Data *data)
-		: Type("sf::KeyVal", kvSize, HasFields)
+	KeyValType(const TypeInfo &info, Data *data)
+		: Type("sf::KeyVal", info, HasFields)
 		, data(data)
 	{
 		fields = data->fields;
@@ -29,38 +26,20 @@ struct KeyValType final : Type
 		data->fields[1].type->getName(buf);
 		buf.append(">");
 	}
-
-	virtual void instConstruct(void *inst, size_t num)
-	{
-		data->ctor(inst, num);
-	}
-
-	virtual void instMove(void *dst, void *src, size_t num)
-	{
-		data->move(dst, src, num);
-	}
-
-	virtual void instDestruct(void *inst, size_t num)
-	{
-		data->dtor(inst, num);
-	}
 };
 
-void initKeyValType(Type *t, Type *keyType, Type *valType, size_t valOffset, size_t kvSize, ConstructRangeFn ctor, MoveRangeFn move, DestructRangeFn dtor)
+void initKeyValType(Type *t, const TypeInfo &info ,Type *keyType, Type *valType, size_t valOffset)
 {
 	KeyValType::Data *data = new KeyValType::Data();
 	data->fields[0].name = "key";
 	data->fields[0].offset = 0;
-	data->fields[0].size = keyType->size;
+	data->fields[0].size = (uint32_t)keyType->info.size;
 	data->fields[0].type = keyType;
 	data->fields[1].name = "val";
 	data->fields[1].offset = (uint32_t)valOffset;
-	data->fields[1].size = valType->size;
+	data->fields[1].size = (uint32_t)valType->info.size;
 	data->fields[1].type = valType;
-	data->ctor = ctor;
-	data->move = move;
-	data->dtor = dtor;
-	new (t) KeyValType(kvSize, data);
+	new (t) KeyValType(info, data);
 	t->flags |= keyType->flags & valType->flags & (Type::IsPod|Type::CompactString);
 }
 
@@ -68,8 +47,8 @@ struct HashMapType final : Type
 {
 	uint32_t (*hashFn)(void *inst);
 
-	HashMapType(Type *kvType, uint32_t (*hashFn)(void *inst))
-		: Type("sf::HashMap", sizeof(HashMapBase), HasArray | HasArrayResize)
+	HashMapType(const TypeInfo &info, Type *kvType, uint32_t (*hashFn)(void *inst))
+		: Type("sf::HashMap", info, HasArray | HasArrayResize)
 		, hashFn(hashFn)
 	{
 		elementType = kvType;
@@ -92,7 +71,7 @@ struct HashMapType final : Type
 
 	virtual VoidSlice instArrayReserve(void *inst, size_t size)
 	{
-		uint32_t kvSize = elementType->size;
+		uint32_t kvSize = elementType->info.size;
 		KeyValType *kvType = (KeyValType*)elementType;
 
 		HashMapBase *map = (HashMapBase*)inst;
@@ -103,7 +82,7 @@ struct HashMapType final : Type
 			void *newAlloc = memAlloc(allocSize + count * kvSize);
 			void *newData = (char*)newAlloc + allocSize;
 			if (map->map.size) {
-				kvType->data->move(newData, map->data, map->map.size);
+				kvType->info.moveRange(newData, map->data, map->map.size);
 			}
 			map->data = newData;
 
@@ -113,7 +92,7 @@ struct HashMapType final : Type
 
 		if (size > map->map.size) {
 			char *base = (char*)map->data + map->map.size * kvSize;
-			kvType->data->ctor(base, size - map->map.size);
+			kvType->info.constructRange(base, size - map->map.size);
 		}
 
 		return { map->data, map->map.capacity };
@@ -121,7 +100,7 @@ struct HashMapType final : Type
 
 	virtual void instArrayResize(void *inst, size_t size)
 	{
-		uint32_t kvSize = elementType->size;
+		uint32_t kvSize = elementType->info.size;
 
 		HashMapBase *map = (HashMapBase*)inst;
 		sf_assert(map->map.capacity >= size);
@@ -134,7 +113,7 @@ struct HashMapType final : Type
 				rhmap_remove(&map->map, h, scan);
 				ptr += kvSize;
 			}
-			elementType->instDestruct(base, map->map.size - size);
+			elementType->info.destructRange(base, map->map.size - size);
 		}
 		char *ptr = (char*)map->data + map->map.size * kvSize;
 		for (uint32_t i = map->map.size; i < size; i++) {
@@ -145,9 +124,9 @@ struct HashMapType final : Type
 	}
 };
 
-void initHashMapType(Type *t, Type *kvType, uint32_t (*hashFn)(void *inst))
+void initHashMapType(Type *t, const TypeInfo &info, Type *kvType, uint32_t (*hashFn)(void *inst))
 {
-	new (t) HashMapType(kvType, hashFn);
+	new (t) HashMapType(info, kvType, hashFn);
 }
 
 }

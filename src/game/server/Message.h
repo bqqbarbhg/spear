@@ -10,8 +10,6 @@ namespace sv {
 
 struct Message
 {
-	virtual ~Message() { }
-
 	enum Type {
 		Error,
 		Action,
@@ -32,33 +30,33 @@ struct Message
 	Message(Type type) : type(type), serial(++serialCounter) { }
 };
 
-struct MessageAction : Message
+template <Message::Type SelfType>
+struct MessageBase : Message
 {
-	MessageAction() : Message(Action) { }
-
-	uint32_t test;
-	// sf::RcBox<sv::Action> action;
+	static constexpr Type MessageType = SelfType;
+	MessageBase() : Message(MessageType) { }
 };
 
-struct MessageActionSuccess : Message
+struct MessageAction : MessageBase<Message::Action>
 {
-	MessageActionSuccess() : Message(ActionSuccess) { }
 
+	uint32_t test;
+	// sf::Box<sv::Action> action;
+};
+
+struct MessageActionSuccess : MessageBase<Message::ActionSuccess>
+{
 	bool testSuccessFlag;
 };
 
-struct MessageActionFailure : Message
+struct MessageActionFailure : MessageBase<Message::ActionFailure>
 {
-	MessageActionFailure() : Message(ActionFailure) { }
-
 	sf::StringBuf testDescription;
 };
 
-struct MessageUpdate : Message
+struct MessageUpdate : MessageBase<Message::Update>
 {
-	MessageUpdate() : Message(Update) { }
-
-	sf::Array<sf::RcBox<Message>> testMessages;
+	sf::Array<sf::Box<Message>> testMessages;
 };
 
 }

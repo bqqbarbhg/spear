@@ -364,11 +364,11 @@ static bool findRemoveSwap(Array<T> &arr, const U &t)
 	return false;
 }
 
-void initArrayType(Type *t, Type *elemType);
+void initArrayType(Type *t, const TypeInfo &info, Type *elemType);
 
 template <typename T>
 struct InitType<Array<T>> {
-	static void init(Type *t) { return initArrayType(t, typeOfRecursive<T>()); }
+	static void init(Type *t) { return initArrayType(t, getTypeInfo<Array<T>>(), typeOfRecursive<T>()); }
 };
 
 }

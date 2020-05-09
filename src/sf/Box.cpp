@@ -22,7 +22,7 @@ RcHeader *getHeader(void *ptr)
 	return (RcHeader*)((char*)ptr - 16);
 }
 
-void *impRcBoxAllocate(size_t size, DestructFn dtor)
+void *impBoxAllocate(size_t size, DestructRangeFn dtor)
 {
 	void *data = boxAlloc(size + 16);
 	RcHeader *header = (RcHeader*)data;
@@ -32,28 +32,26 @@ void *impRcBoxAllocate(size_t size, DestructFn dtor)
 	return (char*)data + 16;
 }
 
-void impRcBoxIncRef(void *ptr)
+void impBoxIncRef(void *ptr)
 {
 	RcHeader *header = getHeader(ptr);
 	mxa_inc32(&header->refCount);
 }
 
-void impRcBoxDecRef(void *ptr)
+void impBoxDecRef(void *ptr)
 {
 	RcHeader *header = getHeader(ptr);
 	uint32_t left = mxa_dec32(&header->refCount) - 1;
 	if (left == 0) {
-		header->dtor(ptr);
+		header->dtor(ptr, 1);
 		boxFree(header, header->size + 16);
 	}
 }
 
-struct RcBoxType final : Type
+struct BoxType final : Type
 {
-	DestructFn dtor;
-
-	RcBoxType(Type *elemType, DestructFn dtor)
-		: Type("sf::RcBox", sizeof(void*), HasArray | HasArrayResize), dtor(dtor)
+	BoxType(const TypeInfo &info, Type *elemType)
+		: Type("sf::Box", info, HasArray | HasArrayResize)
 	{
 		elementType = elemType;
 	}
@@ -67,7 +65,7 @@ struct RcBoxType final : Type
 
 	virtual void getName(sf::StringBuf &buf)
 	{
-		buf.append("sf::RcBox<");
+		buf.append("sf::Box<");
 		elementType->getName(buf);
 		buf.append(">");
 	}
@@ -85,17 +83,17 @@ struct RcBoxType final : Type
 	virtual void *instSetPolymorph(void *inst, Type *type)
 	{
 		void *ptr = *(void**)inst;
-		if (ptr) impRcBoxDecRef(ptr);
-		ptr = impRcBoxAllocate(type->size, dtor);
+		if (ptr) impBoxDecRef(ptr);
+		ptr = impBoxAllocate(type->info.size, type->info.destructRange);
 		*(void**)inst = ptr;
-		type->instConstruct(ptr, 1);
+		type->info.constructRange(ptr, 1);
 		return ptr;
 	}
 };
 
-void initRcBoxType(Type *t, Type *elemType, DestructFn dtor)
+void initBoxType(Type *t, const TypeInfo &info, Type *elemType)
 {
-	new (t) RcBoxType(elemType, dtor);
+	new (t) BoxType(info, elemType);
 }
 
 }

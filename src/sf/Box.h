@@ -11,49 +11,49 @@ struct RcHeader
 {
 	uint32_t refCount;
 	uint32_t size;
-	DestructFn dtor;
+	DestructRangeFn dtor;
 };
 
-void *impRcBoxAllocate(size_t size, DestructFn dtor);
-void impRcBoxIncRef(void *ptr);
-void impRcBoxDecRef(void *ptr);
+void *impBoxAllocate(size_t size, DestructRangeFn dtor);
+void impBoxIncRef(void *ptr);
+void impBoxDecRef(void *ptr);
 
 template <typename T>
-struct RcBox
+struct Box
 {
 	T *ptr;
 
-	RcBox() : ptr(nullptr) { }
+	Box() : ptr(nullptr) { }
 
 	template <typename U>
-	RcBox(RcBox<U>&& rhs) : ptr(rhs.ptr) { rhs.ptr = nullptr; }
+	Box(Box<U>&& rhs) : ptr(rhs.ptr) { rhs.ptr = nullptr; }
 
 	template <typename U>
-	RcBox &operator=(RcBox<U>&& rhs) {
+	Box &operator=(Box<U>&& rhs) {
 		if (&rhs == this) return *this;
-		if (ptr) impRcBoxDecRef(ptr);
+		if (ptr) impBoxDecRef(ptr);
 		ptr = rhs.ptr;
 		rhs.ptr = nullptr;
 		return *this;
 	}
 
 	template <typename U>
-	RcBox(const RcBox<U>& rhs) : ptr(rhs.ptr) {
-		impRcBoxIncRef(rhs.ptr);
+	Box(const Box<U>& rhs) : ptr(rhs.ptr) {
+		if (rhs.ptr) impBoxIncRef(rhs.ptr);
 	}
 
 	template <typename U>
-	RcBox &operator=(const RcBox<U>& rhs) {
-		impRcBoxIncRef(rhs.ptr);
-		impRcBoxDecRef(ptr);
+	Box &operator=(const Box<U>& rhs) {
+		if (rhs.ptr) impBoxIncRef(rhs.ptr);
+		if (ptr) impBoxDecRef(ptr);
 		ptr = rhs.ptr;
 		return *this;
 	}
 
-	~RcBox() { if (ptr) { impRcBoxDecRef(ptr); } }
+	~Box() { if (ptr) { impBoxDecRef(ptr); } }
 
 	void reset() {
-		if (ptr) { impRcBoxDecRef(ptr); ptr = nullptr; }
+		if (ptr) { impBoxDecRef(ptr); ptr = nullptr; }
 	}
 
 	T *operator->() { return ptr; }
@@ -63,20 +63,20 @@ struct RcBox
 };
 
 template <typename T>
-RcBox<T> rcBox()
+Box<T> box()
 {
-	RcBox<T> box;
-	box.ptr = (T*)impRcBoxAllocate(sizeof(T), &destructImp<T>);
+	Box<T> box;
+	box.ptr = (T*)impBoxAllocate(sizeof(T), &destructRangeImp<T>);
 	new (box.ptr) T();
 	return box;
 }
 
-void initRcBoxType(Type *t, Type *elemType, DestructFn dtor);
+void initBoxType(Type *t, const TypeInfo &info, Type *elemType);
 
 template <typename T>
-struct InitType<RcBox<T>> {
+struct InitType<Box<T>> {
 	static void init(Type *t) {
-		return initRcBoxType(t, typeOfRecursive<T>(), &destructImp<T>);
+		return initBoxType(t, sf::getTypeInfo<Box<T>>(), typeOfRecursive<T>());
 	}
 };
 

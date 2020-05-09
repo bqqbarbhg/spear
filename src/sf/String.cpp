@@ -10,7 +10,7 @@ namespace sf {
 struct StringBufType : Type
 {
 	StringBufType()
-		: Type("sf::StringBuf", sizeof(StringBuf), HasArray|HasArrayResize|HasString|HasSetString)
+		: Type("sf::StringBuf", getTypeInfo<StringBuf>(), HasArray|HasArrayResize|HasString|HasSetString)
 	{
 		elementType = typeOfRecursive<char>();
 	}

@@ -213,22 +213,21 @@ protected:
 
 template <typename K, typename V> struct IsZeroInitializable<HashMap<K, V>> { enum { value = 1 }; };
 
-void initKeyValType(Type *t, Type *keyType, Type *valType, size_t valOffset, size_t kvSize, ConstructRangeFn ctor, MoveRangeFn move, DestructRangeFn dtor);
-void initHashMapType(Type *t, Type *kvType, uint32_t (*hashFn)(void *inst));
+void initKeyValType(Type *t, const TypeInfo &info, Type *keyType, Type *valType, size_t valOffset);
+void initHashMapType(Type *t, const TypeInfo &info, Type *kvType, uint32_t (*hashFn)(void *inst));
 
 template <typename K, typename V>
 struct InitType<KeyVal<K, V>> {
 	static void init(Type *t) {
 		using KV = KeyVal<K, V>;
-		initKeyValType(t, typeOfRecursive<K>(), typeOfRecursive<V>(), offsetof(KV, val), sizeof(KV),
-			&constructRangeImp<KV>, &moveRangeImp<KV>, &destructRangeImp<KV>);
+		initKeyValType(t, getTypeInfo<KV>(), typeOfRecursive<K>(), typeOfRecursive<V>(), offsetof(KV, val));
 	}
 };
 
 template <typename K, typename V>
 struct InitType<HashMap<K, V>> {
 	static void init(Type *t) {
-		return initHashMapType(t, typeOfRecursive<KeyVal<K, V>>(),
+		return initHashMapType(t, getTypeInfo<HashMap<K, V>>(), typeOfRecursive<KeyVal<K, V>>(),
 		[](void *inst) { return hash(*(K*)inst); });
 	}
 };

@@ -21,20 +21,6 @@ sf::CString Type::getPolymorphTagName()
 	return elementType->getPolymorphTagName();
 }
 
-void Type::instConstruct(void *inst, size_t num)
-{
-	memset(inst, 0, num * size);
-}
-
-void Type::instMove(void *dst, void *src, size_t num)
-{
-	memcpy(dst, src, num * size);
-}
-
-void Type::instDestruct(void *inst, size_t num)
-{
-}
-
 VoidSlice Type::instGetArray(void *inst)
 {
 	return { };
@@ -82,10 +68,10 @@ struct TypeEnum::Data
 	sf::HashMap<uint32_t, sf::CString> valueToString;
 };
 
-TypeEnum::TypeEnum(const char *name, size_t size, sf::Slice<const EnumValue> values, uint32_t userFlags)
-	: Type(name, size, IsPod|HasString|HasSetString|userFlags), data(new Data())
+TypeEnum::TypeEnum(const char *name, const TypeInfo &info, sf::Slice<const EnumValue> values, uint32_t userFlags)
+	: Type(name, info, IsPod|HasString|HasSetString|userFlags), data(new Data())
 {
-	sf_assert(size == sizeof(uint32_t));
+	sf_assert(info.size == sizeof(uint32_t));
 	data->stringToValue.reserve((uint32_t)values.size);
 	data->valueToString.reserve((uint32_t)values.size);
 	for (const EnumValue &val : values) {
@@ -131,8 +117,8 @@ struct TypePolymorphicStructBase::Data
 	}
 };
 
-TypePolymorphicStructBase::TypePolymorphicStructBase(const char *name, size_t size, Slice<const PolymorphType> types, size_t tagOffset, const char *tagName, uint32_t userFlags)
-	: Type(name, size, PolymorphBase|HasFields|userFlags), data(new Data(types, tagOffset, tagName))
+TypePolymorphicStructBase::TypePolymorphicStructBase(const char *name, const TypeInfo &info, Slice<const PolymorphType> types, size_t tagOffset, const char *tagName, uint32_t userFlags)
+	: Type(name, info, PolymorphBase|HasFields|userFlags), data(new Data(types, tagOffset, tagName))
 {
 }
 
@@ -161,25 +147,25 @@ PolymorphInstance TypePolymorphicStructBase::instGetPolymorph(void *inst)
 }
 
 static constexpr const uint32_t PrimitiveFlags = Type::IsPrimitive|Type::IsPod|Type::CompactString;
-template<> void initType<bool>(Type *t) { new (t) Type("bool", sizeof(bool), PrimitiveFlags); t->primitive = Type::Bool; }
-template<> void initType<char>(Type *t) { new (t) Type("char", sizeof(char), PrimitiveFlags); t->primitive = Type::Char; }
-template<> void initType<int8_t>(Type *t) { new (t) Type("int8_t", sizeof(int8_t), PrimitiveFlags); t->primitive = Type::I8; }
-template<> void initType<int16_t>(Type *t) { new (t) Type("int16_t", sizeof(int16_t), PrimitiveFlags); t->primitive = Type::I16; }
-template<> void initType<int32_t>(Type *t) { new (t) Type("int32_t", sizeof(int32_t), PrimitiveFlags); t->primitive = Type::I32; }
-template<> void initType<int64_t>(Type *t) { new (t) Type("int64_t", sizeof(int64_t), PrimitiveFlags); t->primitive = Type::I64; }
-template<> void initType<uint8_t>(Type *t) { new (t) Type("uint8_t", sizeof(uint8_t), PrimitiveFlags); t->primitive = Type::U8; }
-template<> void initType<uint16_t>(Type *t) { new (t) Type("uint16_t", sizeof(uint16_t), PrimitiveFlags); t->primitive = Type::U16; }
-template<> void initType<uint32_t>(Type *t) { new (t) Type("uint32_t", sizeof(uint32_t), PrimitiveFlags); t->primitive = Type::U32; }
-template<> void initType<uint64_t>(Type *t) { new (t) Type("uint64_t", sizeof(uint64_t), PrimitiveFlags); t->primitive = Type::U64; }
-template<> void initType<float>(Type *t) { new (t) Type("float", sizeof(float), PrimitiveFlags); t->primitive = Type::F32; }
-template<> void initType<double>(Type *t) { new (t) Type("double", sizeof(double), PrimitiveFlags); t->primitive = Type::F64; }
+template<> void initType<bool>(Type *t) { new (t) Type("bool", getTypeInfo<bool>(), PrimitiveFlags); t->primitive = Type::Bool; }
+template<> void initType<char>(Type *t) { new (t) Type("char", getTypeInfo<char>(), PrimitiveFlags); t->primitive = Type::Char; }
+template<> void initType<int8_t>(Type *t) { new (t) Type("int8_t", getTypeInfo<int8_t>(), PrimitiveFlags); t->primitive = Type::I8; }
+template<> void initType<int16_t>(Type *t) { new (t) Type("int16_t", getTypeInfo<int16_t>(), PrimitiveFlags); t->primitive = Type::I16; }
+template<> void initType<int32_t>(Type *t) { new (t) Type("int32_t", getTypeInfo<int32_t>(), PrimitiveFlags); t->primitive = Type::I32; }
+template<> void initType<int64_t>(Type *t) { new (t) Type("int64_t", getTypeInfo<int64_t>(), PrimitiveFlags); t->primitive = Type::I64; }
+template<> void initType<uint8_t>(Type *t) { new (t) Type("uint8_t", getTypeInfo<uint8_t>(), PrimitiveFlags); t->primitive = Type::U8; }
+template<> void initType<uint16_t>(Type *t) { new (t) Type("uint16_t", getTypeInfo<uint16_t>(), PrimitiveFlags); t->primitive = Type::U16; }
+template<> void initType<uint32_t>(Type *t) { new (t) Type("uint32_t", getTypeInfo<uint32_t>(), PrimitiveFlags); t->primitive = Type::U32; }
+template<> void initType<uint64_t>(Type *t) { new (t) Type("uint64_t", getTypeInfo<uint64_t>(), PrimitiveFlags); t->primitive = Type::U64; }
+template<> void initType<float>(Type *t) { new (t) Type("float", getTypeInfo<float>(), PrimitiveFlags); t->primitive = Type::F32; }
+template<> void initType<double>(Type *t) { new (t) Type("double", getTypeInfo<double>(), PrimitiveFlags); t->primitive = Type::F64; }
 
 void writeInstBinary(sf::Array<char> &dst, void *inst, Type *type)
 {
 	uint32_t flags = type->flags;
 	char *base = (char*)inst;
 	if (flags & Type::IsPod) {
-		dst.push(base, type->size);
+		dst.push(base, type->info.size);
 	} else if (flags & Type::Polymorph) {
 
 		sf::PolymorphInstance poly = type->instGetPolymorph(inst);
@@ -198,7 +184,7 @@ void writeInstBinary(sf::Array<char> &dst, void *inst, Type *type)
 		}
 	} else if (flags & Type::HasArray) {
 		Type *elem = type->elementType;
-		size_t elemSize = elem->size;
+		size_t elemSize = elem->info.size;
 		VoidSlice slice = type->instGetArray(inst);
 		uint32_t size = (uint32_t)slice.size;
 		dst.push((char*)&size, sizeof(uint32_t));
@@ -222,9 +208,9 @@ bool readInstBinary(sf::Slice<char> &src, void *inst, Type *type)
 	uint32_t flags = type->flags;
 	char *base = (char*)inst;
 	if (flags & Type::IsPod) {
-		if (src.size < type->size) return false;
-		memcpy(inst, src.data, type->size);
-		src = src.drop(type->size);
+		if (src.size < type->info.size) return false;
+		memcpy(inst, src.data, type->info.size);
+		src = src.drop(type->info.size);
 	} else if (flags & Type::Polymorph) {
 
 		uint32_t tagValue;
@@ -242,7 +228,7 @@ bool readInstBinary(sf::Slice<char> &src, void *inst, Type *type)
 		}
 	} else if (flags & Type::HasArrayResize) {
 		Type *elem = type->elementType;
-		size_t elemSize = elem->size;
+		size_t elemSize = elem->info.size;
 		uint32_t size;
 		if (src.size < sizeof(uint32_t)) return false;
 		memcpy(&size, src.data,	sizeof(uint32_t));

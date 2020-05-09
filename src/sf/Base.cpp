@@ -177,7 +177,7 @@ uint32_t hashReverse32(uint32_t hash)
 struct CPointerType final : Type
 {
 	CPointerType(Type *type)
-		: Type("pointer", sizeof(void*), HasArray)
+		: Type("pointer", getTypeInfo<void*>(), HasArray)
 	{
 		elementType = type;
 	}
@@ -204,8 +204,8 @@ struct CArrayType final : Type
 {
 	size_t arraySize;
 
-	CArrayType(Type *type, size_t size)
-		: Type("array", sizeof(void*), HasArray | HasArrayResize)
+	CArrayType(const TypeInfo &info, Type *type,  size_t size)
+		: Type("array", info, HasArray | HasArrayResize)
 		, arraySize(size)
 	{
 		elementType = type;
@@ -236,9 +236,9 @@ struct CArrayType final : Type
 
 };
 
-void initCArrayType(Type *t, Type *type, size_t size)
+void initCArrayType(Type *t, const TypeInfo &info, Type *type, size_t size)
 {
-	new (t) CArrayType(type, size);
+	new (t) CArrayType(info, type, size);
 }
 
 static uint32_t g_typeNumInits;

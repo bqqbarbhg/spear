@@ -56,7 +56,7 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 	} else if (flags & sf::Type::HasArray) {
 		if (dst.pretty && flags & sf::Type::CompactString) jso_single_line(&dst);
 		sf::Type *elem = type->elementType;
-		size_t elemSize = elem->size;
+		size_t elemSize = elem->info.size;
 		sf::VoidSlice slice = type->instGetArray(inst);
 		uint32_t size = (uint32_t)slice.size;
 
@@ -179,7 +179,7 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 	} else if (flags & sf::Type::HasArrayResize) {
 		if (src->type == jsi_type_array) {
 			sf::Type *elem = type->elementType;
-			size_t elemSize = elem->size;
+			size_t elemSize = elem->info.size;
 			uint32_t size = (uint32_t)src->array->num_values;
 
 			sf::VoidSlice slice = type->instArrayReserve(inst, size);

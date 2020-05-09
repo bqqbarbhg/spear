@@ -59,15 +59,15 @@ struct Type {
 
 	Type *next = nullptr;
 	sf::CString name;
-	uint32_t size;
+	TypeInfo info;
 	uint32_t flags;
 	Primitive primitive = Bool;
 
 	Slice<const Field> fields;
 	Type *elementType = nullptr;
 
-	Type(const char *name, size_t size, uint32_t flags)
-		: name(name), size((uint32_t)size), flags(flags)
+	Type(const char *name, const TypeInfo &info, uint32_t flags)
+		: name(name), info(info), flags(flags)
 	{
 	}
 
@@ -75,10 +75,6 @@ struct Type {
 
 	virtual void getName(sf::StringBuf &buf);
 	virtual sf::CString getPolymorphTagName();
-
-	virtual void instConstruct(void *inst, size_t num);
-	virtual void instMove(void *dst, void *src, size_t num);
-	virtual void instDestruct(void *inst, size_t num);
 
 	virtual VoidSlice instGetArray(void *inst);
 	virtual VoidSlice instArrayReserve(void *inst, size_t size);
@@ -93,33 +89,17 @@ struct Type {
 	virtual void *instSetPolymorph(void *inst, Type *type);
 };
 
-template <typename T>
 struct TypeStruct final : Type {
 
-	TypeStruct(const char *name, sf::Slice<const Field> fields, uint32_t userFlags=0)
-		: Type(name, sizeof(T), HasFields|userFlags)
+	TypeStruct(const char *name, const TypeInfo &info, sf::Slice<const Field> fields, uint32_t userFlags=0)
+		: Type(name, info, HasFields|userFlags)
 	{
 		this->fields = fields;
-	}
-
-	virtual void instConstruct(void *inst, size_t num)
-	{
-		constructRangeImp<T>(inst, num);
-	}
-
-	virtual void instMove(void *dst, void *src, size_t num)
-	{
-		moveRangeImp<T>(dst, src, num);
-	}
-
-	virtual void instDestruct(void *inst, size_t num)
-	{
-		destructRangeImp<T>(inst, num);
 	}
 };
 
 struct TypePolymorphicStructBase : Type {
-	TypePolymorphicStructBase(const char *name, size_t size, ::sf::Slice<const PolymorphType> types, size_t tagOffset, const char *tagName, uint32_t userFlags);
+	TypePolymorphicStructBase(const char *name, const TypeInfo &info, ::sf::Slice<const PolymorphType> types, size_t tagOffset, const char *tagName, uint32_t userFlags);
 
 	virtual sf::CString TypePolymorphicStructBase::getPolymorphTagName();
 
@@ -132,28 +112,12 @@ struct TypePolymorphicStructBase : Type {
 	Data *data;
 };
 
-template <typename T>
 struct TypePolymorphicStruct final : TypePolymorphicStructBase {
 
-	TypePolymorphicStruct(const char *name, size_t tagOffset, const char *tagName, sf::Slice<const Field> fields, ::sf::Slice<const PolymorphType> types, uint32_t userFlags=0)
-		: TypePolymorphicStructBase(name, sizeof(T), types, tagOffset, tagName, userFlags)
+	TypePolymorphicStruct(const char *name, const TypeInfo &info, size_t tagOffset, const char *tagName, sf::Slice<const Field> fields, ::sf::Slice<const PolymorphType> types, uint32_t userFlags=0)
+		: TypePolymorphicStructBase(name, info, types, tagOffset, tagName, userFlags)
 	{
 		this->fields = fields;
-	}
-
-	virtual void instConstruct(void *inst, size_t num)
-	{
-		constructRangeImp<T>(inst, num);
-	}
-
-	virtual void instMove(void *dst, void *src, size_t num)
-	{
-		moveRangeImp<T>(dst, src, num);
-	}
-
-	virtual void instDestruct(void *inst, size_t num)
-	{
-		destructRangeImp<T>(inst, num);
 	}
 };
 
@@ -168,7 +132,7 @@ struct TypeEnum final : Type {
 	struct Data;
 	Data *data;
 
-	TypeEnum(const char *name, size_t size, sf::Slice<const EnumValue> values, uint32_t userFlags=0);
+	TypeEnum(const char *name, const TypeInfo &info, sf::Slice<const EnumValue> values, uint32_t userFlags=0);
 
 	virtual VoidSlice instGetArray(void *inst);
 	virtual void instSetString(void *inst, sf::String str);
@@ -176,14 +140,14 @@ struct TypeEnum final : Type {
 };
 
 #define sf_enum(type, name) ::sf::EnumValue{ #name, (uint32_t)type::name }
-#define sf_enum_type(t, type, ...) new (t) ::sf::TypeEnum(#type, sizeof(type), __VA_ARGS__)
+#define sf_enum_type(t, type, ...) new (t) ::sf::TypeEnum(#type, ::sf::getTypeInfo<type>(), __VA_ARGS__)
 
 #define sf_poly(type, name, value) ::sf::PolymorphType{ #name, (uint32_t)type::name, ::sf::typeOfRecursive<value>() }
 
 #define sf_field(type, name) Field{ sf::CString(::sf::Const, #name, sizeof(#name) - 1), offsetof(type, name), sizeof(type::name), ::sf::typeOfRecursive<decltype(type::name)>(), 0 }
 #define sf_field_flags(type, name, flags) Field{ sf::CString(::sf::Const, #name, sizeof(#name) - 1), offsetof(type, name), sizeof(type::name), ::sf::typeOfRecursive<decltype(type::name)>(), (flags) }
-#define sf_struct(t, type, ...) new (t) ::sf::TypeStruct<type>(#type, __VA_ARGS__)
-#define sf_struct_poly(t, type, tag, ...) new (t) ::sf::TypePolymorphicStruct<type>(#type, offsetof(type, tag), #tag, __VA_ARGS__)
+#define sf_struct(t, type, ...) new (t) ::sf::TypeStruct(#type, ::sf::getTypeInfo<type>(), __VA_ARGS__)
+#define sf_struct_poly(t, type, tag, ...) new (t) ::sf::TypePolymorphicStruct(#type, ::sf::getTypeInfo<type>(), offsetof(type, tag), #tag, __VA_ARGS__)
 
 void writeInstBinary(sf::Array<char> &dst, void *inst, Type *type);
 bool readInstBinary(sf::Slice<char> &src, void *inst, Type *type);

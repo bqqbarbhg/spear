@@ -808,28 +808,28 @@ void spInit()
 
 	{
 		sf::typeOf<sv::Message>();
-		sf::Array<sf::RcBox<sv::Message>> messages;
+		sf::Array<sf::Box<sv::Message>> messages;
 
 		{
-			sf::RcBox<sv::MessageAction> msg = sf::rcBox<sv::MessageAction>();
+			sf::Box<sv::MessageAction> msg = sf::box<sv::MessageAction>();
 			msg->test = 10;
 			messages.push(msg);
 		}
 
 		{
-			sf::RcBox<sv::MessageActionSuccess> msg = sf::rcBox<sv::MessageActionSuccess>();
+			sf::Box<sv::MessageActionSuccess> msg = sf::box<sv::MessageActionSuccess>();
 			msg->testSuccessFlag = true;
 			messages.push(msg);
 		}
 
 		{
-			sf::RcBox<sv::MessageActionFailure> msg = sf::rcBox<sv::MessageActionFailure>();
+			sf::Box<sv::MessageActionFailure> msg = sf::box<sv::MessageActionFailure>();
 			msg->testDescription = "Path blocked";
 			messages.push(msg);
 		}
 
 		{
-			sf::RcBox<sv::MessageUpdate> msg = sf::rcBox<sv::MessageUpdate>();
+			sf::Box<sv::MessageUpdate> msg = sf::box<sv::MessageUpdate>();
 			msg->testMessages = messages;
 			messages.push(msg);
 		}
@@ -848,7 +848,7 @@ void spInit()
 
 		jsi_value *val = jsi_parse_memory(s.data, (size_t)s.pos, NULL);
 
-		sf::Array<sf::RcBox<sv::Message>> messages2, messages3;
+		sf::Array<sf::Box<sv::Message>> messages2, messages3;
 		sp::readJson(val, messages2);
 		sf::readBinary(binary.slice(), messages3);
 

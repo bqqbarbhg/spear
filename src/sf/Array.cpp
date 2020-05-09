@@ -5,8 +5,8 @@ namespace sf {
 
 struct ArrayType final : Type
 {
-	ArrayType(Type *elemType)
-		: Type("sf::Array", sizeof(ArrayBase), HasArray | HasArrayResize)
+	ArrayType(const TypeInfo &info, Type *elemType)
+		: Type("sf::Array", info, HasArray | HasArrayResize)
 	{
 		elementType = elemType;
 	}
@@ -30,15 +30,15 @@ struct ArrayType final : Type
 		if (arr->capacity < size) {
 			sf_assert(size <= UINT32_MAX);
 			arr->capacity = (uint32_t)size;
-			void *newData = memAlloc(size * elementType->size);
+			void *newData = memAlloc(size * elementType->info.size);
 			if (arr->size) {
-				elementType->instMove(newData, arr->data, arr->size);
+				elementType->info.moveRange(newData, arr->data, arr->size);
 			}
 			arr->data = newData;
 		}
 		if (size > arr->size) {
-			char *base = (char*)arr->data + arr->size * elementType->size;
-			elementType->instConstruct(base, size - arr->size);
+			char *base = (char*)arr->data + arr->size * elementType->info.size;
+			elementType->info.constructRange(base, size - arr->size);
 		}
 		return { arr->data, arr->capacity };
 	}
@@ -48,17 +48,17 @@ struct ArrayType final : Type
 		ArrayBase *arr = (ArrayBase*)inst;
 		sf_assert(arr->capacity >= size);
 		if (size < arr->size) {
-			char *base = (char*)arr->data + size * elementType->size;
-			elementType->instDestruct(base, arr->size - size);
+			char *base = (char*)arr->data + size * elementType->info.size;
+			elementType->info.destructRange(base, arr->size - size);
 		}
 		arr->size = (uint32_t)size;
 	}
 
 };
 
-void initArrayType(Type *t, Type *elemType)
+void initArrayType(Type *t, const TypeInfo &info, Type *elemType)
 {
-	new (t) ArrayType(elemType);
+	new (t) ArrayType(info, elemType);
 }
 
 }

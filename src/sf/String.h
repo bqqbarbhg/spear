@@ -85,7 +85,7 @@ struct StringBuf
 
 	StringBuf &operator=(StringBuf &&rhs) {
 		sf_assert(&rhs != this);
-		if (capacity != 0 && data != (char*)(&rhs + 1)) {
+		if (capacity != 0 && data != (char*)(this + 1)) {
 			memFree(data);
 		}
 		data = rhs.data;
