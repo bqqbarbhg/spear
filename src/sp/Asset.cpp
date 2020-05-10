@@ -176,7 +176,9 @@ struct AssetContext
 			if (state == LoadState::Loaded) {
 				if (mxa_cas32_nf(&asset->impState, (uint32_t)LoadState::Loaded, (uint32_t)LoadState::Unloaded)) {
 					sp_asset_log("Unload: %s %s", asset->type->name, asset->name.data);
+					mutex.unlock();
 					asset->assetUnload();
+					mutex.lock();
 				} else {
 					continue;
 				}
@@ -218,6 +220,7 @@ bool NoAssetProps::equal(const AssetProps &rhs) const
 
 void NoAssetProps::copyTo(AssetProps *uninitDst) const
 {
+	new (uninitDst) NoAssetProps();
 }
 
 Asset::Asset()
