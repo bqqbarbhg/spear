@@ -12,6 +12,7 @@
 #include "Postprocess.h"
 #include "Fxaa.h"
 #include "Upscale.h"
+#include "TestMesh.h"
 #include "TestSkin.h"
 
 #include "GameShaders.h"
@@ -30,6 +31,7 @@ void GameShaders::load()
 	fxaa = sg_make_shader(Fxaa_Fxaa_shader_desc());
 	upscale = sg_make_shader(Upscale_Upscale_shader_desc());
 	upscaleFast = sg_make_shader(Upscale_UpscaleFast_shader_desc());
+	testMesh = sg_make_shader(TestMesh_TestMesh_shader_desc());
 	skinnedMesh = sg_make_shader(TestSkin_TestSkin_shader_desc());
 
 	{

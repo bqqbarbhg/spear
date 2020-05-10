@@ -3,12 +3,20 @@
 #include "game/server/GameState.h"
 #include "game/server/Event.h"
 #include "game/client/AssetInfo.h"
+#include "game/client/MapMesh.h"
 
 namespace cl {
 
 struct TileType
 {
 	TileInfoRef tile;
+};
+
+struct MapChunk
+{
+	sf::Array<MapMesh> meshes;
+	MapChunkGeometry geometry;
+	bool dirty = false;
 };
 
 struct Entity
@@ -49,13 +57,14 @@ struct State
 {
 	sf::Array<TileType> tileTypes;
 	sf::Array<sf::Box<Entity>> entities;
-
-	sf::Vec3 getWorldPosition(const sf::Vec2 &tile);
-	sf::Vec3 getWorldPosition(const sf::Vec2i &tile);
+	sf::HashMap<sf::Vec2i, MapChunk> chunks;
+	sf::Array<sf::Vec2i> dirtyChunks;
 
 	void reset(sv::State *svState);
 
 	void applyEvent(sv::Event *event);
+
+	void updateMapChunks(sv::State &svState);
 };
 
 }

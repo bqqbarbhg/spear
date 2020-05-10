@@ -29,9 +29,14 @@ struct RenderTarget
 	uint32_t msaaSamples = 1;
 	sg_image image = { };
 
-	void init(const char *label, const sf::Vec2i &resolution, sg_pixel_format format, uint32_t samples=1, const sg_image_desc &desc=sg_image_desc{});
-
+	RenderTarget();
+	RenderTarget(RenderTarget &&rhs);
+	RenderTarget &operator=(RenderTarget &&rhs);
+	RenderTarget(const RenderTarget &rhs) = delete;
+	RenderTarget &operator=(const RenderTarget &rhs) = delete;
 	~RenderTarget();
+
+	void init(const char *label, const sf::Vec2i &resolution, sg_pixel_format format, uint32_t samples=1, const sg_image_desc &desc=sg_image_desc{});
 };
 
 struct RenderPass
@@ -41,6 +46,11 @@ struct RenderPass
 	FramebufferDesc desc;
 	sg_pass pass = { };
 
+	RenderPass();
+	RenderPass(RenderPass &&rhs);
+	RenderPass &operator=(RenderPass &&rhs);
+	RenderPass(const RenderPass &rhs) = delete;
+	RenderPass &operator=(const RenderPass &rhs) = delete;
 	~RenderPass();
 
 	void init(const char *label, sf::Slice<const RenderTarget*> targets);
@@ -77,10 +87,41 @@ struct Pipeline
 	PipelineImp imps[4] = { };
 	uint32_t lastUse = 0;
 
+	Pipeline();
+	Pipeline(Pipeline &&rhs);
+	Pipeline &operator=(Pipeline &&rhs);
+	Pipeline(const Pipeline &rhs) = delete;
+	Pipeline &operator=(const Pipeline &rhs) = delete;
+	~Pipeline();
+
 	sg_pipeline_desc &init(sg_shader shader, uint32_t flags);
 	bool bind();
+};
 
-	~Pipeline();
+struct Buffer
+{
+	sg_buffer buffer = { };
+
+	Buffer();
+	Buffer(Buffer &&rhs);
+	Buffer &operator=(Buffer &&rhs);
+	Buffer(const Buffer &rhs) = delete;
+	Buffer &operator=(const Buffer &rhs) = delete;
+	~Buffer();
+
+	void reset();
+	void initVertex(const char *name, const void *data, size_t size);
+	void initIndex(const char *name, const void *data, size_t size);
+
+	template <typename T>
+	void initVertex(const char *name, const sf::Slice<T> &data) {
+		initVertex(name, data.data, data.size * sizeof(T));
+	}
+
+	template <typename T>
+	void initIndex(const char *name, const sf::Slice<T> &data) {
+		initIndex(name, data.data, data.size * sizeof(T));
+	}
 };
 
 FramebufferDesc getFramebufferTypeDesc(uint32_t typeIndex);

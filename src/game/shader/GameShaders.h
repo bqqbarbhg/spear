@@ -15,6 +15,7 @@ struct GameShaders
 	sg_shader fxaa;
 	sg_shader upscale;
 	sg_shader upscaleFast;
+	sg_shader testMesh;
 	sg_shader skinnedMesh;
 
 	sg_buffer fullscreenTriangleBuffer;

@@ -13,6 +13,8 @@
 #include "game/shader/Fxaa.h"
 
 // TEMP
+#include "sf/Frustum.h"
+#include "game/shader/TestMesh.h"
 #include "game/shader/TestSkin.h"
 #include "ext/sokol/sokol_time.h"
 
@@ -42,6 +44,7 @@ struct ClientMain
 	sp::RenderPass tonemapPass;
 	sp::RenderPass fxaaPass;
 
+	sp::Pipeline tempMeshPipe;
 	sp::Pipeline tempSkinnedMeshPipe;
 };
 
@@ -70,13 +73,23 @@ ClientMain *clientInit(const sf::Symbol &name)
 	c->tonemapPipe.init(gameShaders.postprocess, sp::PipeVertexFloat2);
 	c->fxaaPipe.init(gameShaders.fxaa, sp::PipeVertexFloat2);
 
-	uint32_t flags = sp::PipeDepthWrite|sp::PipeIndex16|sp::PipeCullCCW;
-	auto &d = c->tempSkinnedMeshPipe.init(gameShaders.skinnedMesh, flags);
-	d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-	d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
-	d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
-	d.layout.attrs[3].format = SG_VERTEXFORMAT_UBYTE4;
-	d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4N;
+	{
+		uint32_t flags = sp::PipeDepthWrite|sp::PipeIndex16|sp::PipeCullCCW;
+		auto &d = c->tempMeshPipe.init(gameShaders.testMesh, flags);
+		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
+	}
+
+	{
+		uint32_t flags = sp::PipeDepthWrite|sp::PipeIndex16|sp::PipeCullCCW;
+		auto &d = c->tempSkinnedMeshPipe.init(gameShaders.skinnedMesh, flags);
+		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
+		d.layout.attrs[3].format = SG_VERTEXFORMAT_UBYTE4;
+		d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4N;
+	}
 
 	return c;
 }
@@ -114,6 +127,8 @@ bool clientUpdate(ClientMain *c)
 	}
 
 	bqws_update(c->ws);
+
+	c->clientState.updateMapChunks(*c->serverState);
 
 	while (bqws_msg *wsMsg = bqws_recv(c->ws)) {
 		sf::Box<sv::Message> msg = readMessage(wsMsg);
@@ -157,9 +172,30 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 
 		sp::beginPass(c->mainPass, &action);
 
-		sf::Mat44 view = sf::mat::look(sf::Vec3(0.0f, 10.0f, 2.0f), sf::Vec3(0.0f, -1.0f, -0.1f));
-		sf::Mat44 proj = sf::mat::perspectiveD3D(1.5f, (float)resolution.x/(float)resolution.y, 0.1f, 20.0f);
+		sf::Mat44 view = sf::mat::look(sf::Vec3(0.0f, 10.0f, 6.0f), sf::Vec3(0.0f, -1.0f, -0.5f));
+		sf::Mat44 proj = sf::mat::perspectiveD3D(1.0f, (float)resolution.x/(float)resolution.y, 0.1f, 20.0f);
 		sf::Mat44 viewProj = proj * view;
+
+		sf::Frustum frustum { viewProj, sg_query_features().origin_top_left ? 0.0f : -1.0f };
+		for (auto &pair : c->clientState.chunks) {
+			cl::MapChunkGeometry &chunkGeo = pair.val.geometry;
+			if (!chunkGeo.main.vertexBuffer.buffer.id) continue;
+			if (!frustum.intersects(chunkGeo.main.bounds)) continue;
+
+			c->tempMeshPipe.bind();
+
+			TestMesh_Transform_t transform;
+			viewProj.writeColMajor44(transform.transform);
+			sf::Mat44().writeColMajor44(transform.normalTransform);
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestMesh_Transform, &transform, sizeof(transform));
+
+			sg_bindings bindings = { };
+			bindings.vertex_buffers[0] = chunkGeo.main.vertexBuffer.buffer;
+			bindings.index_buffer = chunkGeo.main.indexBuffer.buffer;
+			sg_apply_bindings(&bindings);
+
+			sg_draw(0, chunkGeo.main.numInidces, 1);
+		}
 
 		for (cl::Entity *entity : c->clientState.entities) {
 			if (!entity) continue;

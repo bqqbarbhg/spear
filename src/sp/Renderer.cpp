@@ -292,6 +292,30 @@ static void endQueryImp()
 
 #endif
 
+RenderTarget::RenderTarget() { }
+
+RenderTarget::RenderTarget(RenderTarget &&rhs)
+	: resolution(rhs.resolution), format(rhs.format), msaaSamples(rhs.msaaSamples), image(rhs.image)
+{
+	rhs.image.id = 0;
+}
+
+RenderTarget &RenderTarget::operator=(RenderTarget &&rhs)
+{
+	if (&rhs == this) return *this;
+	resolution = rhs.resolution;
+	format = rhs.format;
+	msaaSamples = rhs.msaaSamples;
+	image = rhs.image;
+	rhs.image.id = 0;
+	return *this;
+}
+
+RenderTarget::~RenderTarget()
+{
+	sg_destroy_image(image);
+}
+
 void RenderTarget::init(const char *label, const sf::Vec2i &resolution, sg_pixel_format format, uint32_t samples, const sg_image_desc &desc)
 {
 	if (image.id) {
@@ -318,9 +342,28 @@ void RenderTarget::init(const char *label, const sf::Vec2i &resolution, sg_pixel
 	image = sg_make_image(&d);
 }
 
-RenderTarget::~RenderTarget()
+RenderPass::RenderPass() { }
+
+RenderPass::RenderPass(RenderPass &&rhs)
+	: name(std::move(rhs.name)), resolution(rhs.resolution), desc(rhs.desc), pass(rhs.pass)
 {
-	sg_destroy_image(image);
+	rhs.pass.id = 0;
+}
+
+RenderPass &RenderPass::operator=(RenderPass &&rhs)
+{
+	if (&rhs == this) return *this;
+	name = std::move(rhs.name);
+	resolution = rhs.resolution;
+	desc = rhs.desc;
+	pass = rhs.pass;
+	rhs.pass.id = 0;
+	return *this;
+}
+
+RenderPass::~RenderPass()
+{
+	sg_destroy_pass(pass);
 }
 
 void RenderPass::init(const char *label, sf::Slice<const RenderTarget*> targets)
@@ -360,11 +403,6 @@ void RenderPass::init(const char *label, const RenderTarget &a) { const RenderTa
 void RenderPass::init(const char *label, const RenderTarget &a, const RenderTarget &b) { const RenderTarget *t[] = { &a, &b, }; init(label, t); }
 void RenderPass::init(const char *label, const RenderTarget &a, const RenderTarget &b, const RenderTarget &c) { const RenderTarget *t[] = { &a, &b, &c, }; init(label, t); }
 void RenderPass::init(const char *label, const RenderTarget &a, const RenderTarget &b, const RenderTarget &c, const RenderTarget &d) { const RenderTarget *t[] = { &a, &b, &c, &d, }; init(label, t); }
-
-RenderPass::~RenderPass()
-{
-	sg_destroy_pass(pass);
-}
 
 sg_pipeline_desc &Pipeline::init(sg_shader shader, uint32_t flags)
 {
@@ -449,6 +487,34 @@ static uint32_t findFramebufferType(const FramebufferDesc &desc)
 }
 
 
+Pipeline::Pipeline() { }
+
+Pipeline::Pipeline(Pipeline &&rhs)
+	: desc(rhs.desc), lastUse(rhs.lastUse)
+{
+	memcpy(imps, rhs.imps, sizeof(imps));
+	memset(rhs.imps, 0, sizeof(rhs.imps));
+}
+
+Pipeline &Pipeline::operator=(Pipeline &&rhs)
+{
+	if (&rhs == this) return *this;
+	desc = rhs.desc;
+	lastUse = rhs.lastUse;
+	memcpy(imps, rhs.imps, sizeof(imps));
+	memset(rhs.imps, 0, sizeof(rhs.imps));
+	return *this;
+}
+
+Pipeline::~Pipeline()
+{
+	for (PipelineImp &imp : imps) {
+		if (imp.pipeline.id) {
+			sg_destroy_pipeline(imp.pipeline);
+		}
+	}
+}
+
 bool Pipeline::bind()
 {
 	sf_assert(g_activeFramebufferType != 0);
@@ -494,13 +560,61 @@ bool Pipeline::bind()
 	return true;
 }
 
-Pipeline::~Pipeline()
+void Buffer::initVertex(const char *name, const void *data, size_t size)
 {
-	for (PipelineImp &imp : imps) {
-		if (imp.pipeline.id) {
-			sg_destroy_pipeline(imp.pipeline);
-		}
+	if (buffer.id) {
+		sg_destroy_buffer(buffer);
 	}
+
+	sg_buffer_desc d = { };
+	d.type = SG_BUFFERTYPE_VERTEXBUFFER;
+	d.usage = SG_USAGE_IMMUTABLE;
+	d.content = data;
+	d.size = (int)size;
+	d.label = name;
+	buffer = sg_make_buffer(&d);
+}
+
+void Buffer::initIndex(const char *name, const void *data, size_t size)
+{
+	if (buffer.id) {
+		sg_destroy_buffer(buffer);
+	}
+
+	sg_buffer_desc d = { };
+	d.type = SG_BUFFERTYPE_INDEXBUFFER;
+	d.usage = SG_USAGE_IMMUTABLE;
+	d.content = data;
+	d.size = (int)size;
+	d.label = name;
+	buffer = sg_make_buffer(&d);
+}
+
+Buffer::Buffer() { }
+
+Buffer::Buffer(Buffer &&rhs)
+	: buffer(rhs.buffer)
+{
+	rhs.buffer.id = 0;
+}
+
+Buffer &Buffer::operator=(Buffer &&rhs)
+{
+	if (&rhs == this) return *this;
+	buffer = rhs.buffer;
+	rhs.buffer.id = 0;
+	return *this;
+}
+
+void Buffer::reset()
+{
+	sg_destroy_buffer(buffer);
+	buffer.id = 0;
+}
+
+Buffer::~Buffer()
+{
+	sg_destroy_buffer(buffer);
 }
 
 FramebufferDesc getFramebufferTypeDesc(uint32_t typeIndex)

@@ -28,12 +28,27 @@ void TileVariantInfo::refresh()
 	sp::ModelProps props;
 	props.cpuData = true;
 	props.ignoreAnimations = true;
-	if (model) modelRef.load(model);
-	if (shadowModel) shadowModelRef.load(shadowModel);
+	if (model) modelRef.load(model, props);
+	if (shadowModel) shadowModelRef.load(shadowModel, props);
+}
+
+TileVariantInfo &TileInfo::getVariant(float x)
+{
+	x *= totalProbability;
+	for (TileVariantInfo &variant : variants) {
+		if (x <= variant.probability) return variant;
+		x -= variant.probability;
+	}
+	return variants.back();
 }
 
 void TileInfo::refresh()
 {
+	float sum = 0.0f;
+	for (TileVariantInfo &variant : variants) {
+		sum += variant.probability;
+	}
+	totalProbability = sum;
 }
 
 void AssetInfoBase::loadCallback(void *user, const sp::ContentFile &file)
@@ -108,6 +123,8 @@ template<> void initType<cl::TileVariantInfo>(Type *t)
 	static Field fields[] = {
 		sf_field(cl::TileVariantInfo, model),
 		sf_field(cl::TileVariantInfo, shadowModel),
+		sf_field(cl::TileVariantInfo, probability),
+		sf_field(cl::TileVariantInfo, scale),
 	};
 	sf_struct(t, cl::TileVariantInfo, fields);
 	t->postSerializeFn = [](void *inst, sf::Type *) {
@@ -119,6 +136,7 @@ template<> void initType<cl::TileInfo>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(cl::TileInfo, variants),
+		sf_field(cl::TileInfo, scale),
 	};
 	sf_struct(t, cl::TileInfo, fields);
 	t->postSerializeFn = [](void *inst, sf::Type *) {

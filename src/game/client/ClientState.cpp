@@ -1,8 +1,10 @@
 #include "ClientState.h"
 
+#include "sf/Random.h"
+
 namespace cl {
 
-sf::Box<Entity> convertEntity(const sf::Box<sv::Entity> &svEntity)
+static sf::Box<Entity> convertEntity(const sf::Box<sv::Entity> &svEntity)
 {
 	sf::Box<Entity> data;
 	if (auto ent = svEntity->as<sv::Character>()) {
@@ -18,6 +20,52 @@ sf::Box<Entity> convertEntity(const sf::Box<sv::Entity> &svEntity)
 	data->position = sf::Vec2(svEntity->position);
 
 	return data;
+}
+
+static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, sv::Map &svMap, const sf::Vec2i &chunkPos)
+{
+	meshes.clear();
+
+	uint32_t hash = sf::hash(chunkPos);
+	sf::Random chunkRng { hash };
+
+	auto chunkIt = svMap.chunks.find(chunkPos);
+	if (!chunkIt) return true;
+	sv::MapChunk &svChunk = chunkIt->val;
+
+	sf::Vec2i origin = chunkPos * (int32_t)sv::MapChunk::Size;
+
+	for (uint32_t y = 0; y < sv::MapChunk::Size; y++)
+	for (uint32_t x = 0; x < sv::MapChunk::Size; x++)
+	{
+		sf::Random tileRng { chunkRng.nextU32(), y * sv::MapChunk::Size + x };
+		tileRng.nextU32();
+		float rotation = (float)(tileRng.nextU32() & 3) * (sf::F_2PI * 0.25f);
+
+		sv::TileId tileId = svChunk.tiles[y * sv::MapChunk::Size + x];
+		TileType &tileType = state.tileTypes[tileId];
+		if (tileType.tile.isLoading()) return false;
+		if (!tileType.tile.isLoaded()) continue;
+
+		TileInfo &info = tileType.tile->data;
+		TileVariantInfo &variant = info.getVariant(tileRng.nextFloat());
+
+		if (variant.modelRef.isLoading()) return false;
+		if (variant.shadowModelRef.isLoading()) return false;
+
+		MapMesh &mesh = meshes.push();
+		if (variant.modelRef) mesh.model = variant.modelRef;
+		if (variant.shadowModelRef) mesh.model = variant.shadowModelRef;
+
+		float scale = variant.scale * info.scale;
+
+		sf::Vec2i tilePos = sf::Vec2i((int32_t)x, (int32_t)y) + origin;
+		sf::Vec3 pos = { (float)tilePos.x, 0.0f, (float)tilePos.y };
+
+		mesh.transform = sf::mat::translate(pos) * sf::mat::rotateY(rotation) * sf::mat::scale(scale);
+	}
+
+	return true;
 }
 
 void State::reset(sv::State *svState)
@@ -45,6 +93,16 @@ void State::reset(sv::State *svState)
 				dst.tile.load(tileType.name);
 			}
 		}
+	}
+
+	chunks.clear();
+	dirtyChunks.clear();
+	chunks.reserve(svState->map.chunks.size());
+	dirtyChunks.reserve(svState->map.chunks.size());
+
+	for (auto &pair : svState->map.chunks) {
+		chunks[pair.key].dirty = true;
+		dirtyChunks.push(pair.key);
 	}
 }
 
@@ -83,6 +141,24 @@ void State::applyEvent(sv::Event *event)
 
 	} else {
 		sf_failf("Unhandled event type: %u", e->type);
+	}
+}
+
+void State::updateMapChunks(sv::State &svState)
+{
+	for (uint32_t i = 0; i < dirtyChunks.size; i++) {
+		sf::Vec2i chunkPos = dirtyChunks[i];
+		MapChunk &chunk = chunks[chunkPos];
+		sf_assert(chunk.dirty);
+
+		if (!generateMapMeshes(chunk.meshes, *this, svState.map, chunkPos)) {
+			continue;
+		}
+
+		chunk.geometry.build(chunk.meshes, chunkPos);
+
+		dirtyChunks.removeSwap(i--);
+		chunk.dirty = false;
 	}
 }
 

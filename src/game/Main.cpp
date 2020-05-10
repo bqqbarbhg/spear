@@ -69,10 +69,8 @@ void spInit()
 	server = serverInit();
 	sf::debugPrintLine("Server: %p", server);
 
-#if !SF_OS_WINDOWS
 	MainClient &client = clients.push();
 	client.client = clientInit(sf::Symbol("Client 1"));
-#endif
 
 	updateLayout();
 

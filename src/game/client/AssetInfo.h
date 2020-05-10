@@ -43,12 +43,19 @@ struct TileVariantInfo
 	sf::Symbol model;
 	sf::Symbol shadowModel;
 
+	float scale = 1.0f;
+	float probability = 1.0f;
+
 	void refresh();
 };
 
 struct TileInfo
 {
 	sf::Array<TileVariantInfo> variants;
+	float scale = 1.0f;
+	float totalProbability = 0.0f;
+
+	TileVariantInfo &getVariant(float x);
 
 	void refresh();
 };

@@ -181,6 +181,7 @@ struct Ref
 		ptr = Asset::load<T>(name, prop);
 	}
 
+	bool isLoading() const { return ptr && !ptr->isLoaded() && !ptr->isFailed(); }
 	bool isLoaded() const { return ptr && ptr->isLoaded(); }
 };
 
