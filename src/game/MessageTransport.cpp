@@ -8,7 +8,9 @@
 sf::Box<sv::Message> readMessage(bqws_msg *wsMsg)
 {
 	sf::Box<sv::Message> msg;
-	jsi_value *value = jsi_parse_memory(wsMsg->data, wsMsg->size, NULL);
+	jsi_args args = { };
+	args.dialect.allow_comments = true;
+	jsi_value *value = jsi_parse_memory(wsMsg->data, wsMsg->size, &args);
 	bqws_free_msg(wsMsg);
 	if (!sp::readJson(value, msg)) return { };
 	jsi_free(value);

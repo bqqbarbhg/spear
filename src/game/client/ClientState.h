@@ -2,11 +2,21 @@
 
 #include "game/server/GameState.h"
 #include "game/server/Event.h"
+#include "game/client/AssetInfo.h"
 
 namespace cl {
 
+struct TileType
+{
+	TileInfoRef tile;
+};
+
 struct Entity
 {
+	#if SF_DEBUG
+		virtual void debugForceVtable() { }
+	#endif
+
 	using Type = sv::Entity::Type;
 
 	sv::Entity::Type type;
@@ -31,11 +41,13 @@ struct Character : EntityBase<sv::Entity::Character>
 {
 	Character(sf::Box<sv::Entity> svEntity) : EntityBase(std::move(svEntity)) { }
 
+	ModelInfoRef model;
 	sf::Array<sv::Waypoint> waypoints;
 };
 
 struct State
 {
+	sf::Array<TileType> tileTypes;
 	sf::Array<sf::Box<Entity>> entities;
 
 	sf::Vec3 getWorldPosition(const sf::Vec2 &tile);

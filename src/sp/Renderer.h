@@ -30,6 +30,8 @@ struct RenderTarget
 	sg_image image = { };
 
 	void init(const char *label, const sf::Vec2i &resolution, sg_pixel_format format, uint32_t samples=1, const sg_image_desc &desc=sg_image_desc{});
+
+	~RenderTarget();
 };
 
 struct RenderPass
@@ -38,6 +40,8 @@ struct RenderPass
 	sf::Vec2i resolution;
 	FramebufferDesc desc;
 	sg_pass pass = { };
+
+	~RenderPass();
 
 	void init(const char *label, sf::Slice<const RenderTarget*> targets);
 	void init(const char *label, const RenderTarget &a);
@@ -75,6 +79,8 @@ struct Pipeline
 
 	sg_pipeline_desc &init(sg_shader shader, uint32_t flags);
 	bool bind();
+
+	~Pipeline();
 };
 
 FramebufferDesc getFramebufferTypeDesc(uint32_t typeIndex);

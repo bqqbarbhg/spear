@@ -65,6 +65,7 @@ struct EntityBase : Entity
 struct Character : EntityBase<Entity::Character>
 {
 	sf::Symbol name;
+	sf::Symbol model;
 	sf::Array<uint32_t> players;
 
 	Character()

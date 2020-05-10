@@ -5,11 +5,20 @@
 
 #include "ext/bq_websocket.h"
 #include "ext/bq_websocket_platform.h"
+#include "ext/sokol/sokol_gfx.h"
+
+#include "sp/Renderer.h"
+#include "game/shader/GameShaders.h"
+#include "game/shader/Postprocess.h"
+#include "game/shader/Fxaa.h"
+
+// TEMP
+#include "game/shader/TestSkin.h"
+#include "ext/sokol/sokol_time.h"
 
 static sf::Symbol serverName { "Server" };
 
 static uint32_t playerIdCounter = 100;
-
 
 struct ClientMain
 {
@@ -18,6 +27,22 @@ struct ClientMain
 
 	sf::Box<sv::State> serverState;
 	cl::State clientState;
+
+	sf::Vec2i resolution;
+
+	sp::Pipeline tonemapPipe;
+	sp::Pipeline fxaaPipe;
+
+	sp::RenderTarget mainTarget;
+	sp::RenderTarget mainDepth;
+	sp::RenderTarget tonemapTarget;
+	sp::RenderTarget fxaaTarget;
+
+	sp::RenderPass mainPass;
+	sp::RenderPass tonemapPass;
+	sp::RenderPass fxaaPass;
+
+	sp::Pipeline tempSkinnedMeshPipe;
 };
 
 ClientMain *clientInit(const sf::Symbol &name)
@@ -25,10 +50,12 @@ ClientMain *clientInit(const sf::Symbol &name)
 	ClientMain *c = new ClientMain();
 	c->name = name;
 
+	gameShaders.load();
+
 	{
 		bqws_opts opts = { };
 		opts.name = name.data;
-		c->ws = bqws_pt_connect("localhost:4004", NULL, &opts, NULL);
+		c->ws = bqws_pt_connect("ws://localhost:4004", NULL, &opts, NULL);
 	}
 
 	{
@@ -40,12 +67,44 @@ ClientMain *clientInit(const sf::Symbol &name)
 		writeMessage(c->ws, &join, c->name, serverName);
 	}
 
+	c->tonemapPipe.init(gameShaders.postprocess, sp::PipeVertexFloat2);
+	c->fxaaPipe.init(gameShaders.fxaa, sp::PipeVertexFloat2);
+
+	uint32_t flags = sp::PipeDepthWrite|sp::PipeIndex16|sp::PipeCullCCW;
+	auto &d = c->tempSkinnedMeshPipe.init(gameShaders.skinnedMesh, flags);
+	d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+	d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+	d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
+	d.layout.attrs[3].format = SG_VERTEXFORMAT_UBYTE4;
+	d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4N;
+
 	return c;
 }
 
 void clientQuit(ClientMain *client)
 {
 	bqws_close(client->ws, BQWS_CLOSE_NORMAL, NULL, 0);
+}
+
+static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
+{
+	c->resolution = systemRes;
+
+	float scale = 1.0f;
+	sf::Vec2i mainRes = sf::Vec2i(sf::Vec2(systemRes) * scale);
+
+	int mainSamples = 1;
+	sg_pixel_format mainFormat = SG_PIXELFORMAT_RG11B10F;
+	sg_pixel_format mainDepthFormat = SG_PIXELFORMAT_DEPTH_STENCIL;
+
+	c->mainTarget.init("mainTarget", mainRes, mainFormat, mainSamples);
+	c->mainDepth.init("mainDepth", mainRes, mainDepthFormat, mainSamples);
+	c->tonemapTarget.init("tonemapTarget", mainRes, SG_PIXELFORMAT_RGBA8);
+	c->fxaaTarget.init("fxaaTarget", mainRes, SG_PIXELFORMAT_RGBA8);
+
+	c->mainPass.init("main", c->mainTarget, c->mainDepth);
+	c->tonemapPass.init("tonemap", c->tonemapTarget);
+	c->fxaaPass.init("fxaa", c->fxaaTarget);
 }
 
 bool clientUpdate(ClientMain *c)
@@ -75,7 +134,171 @@ bool clientUpdate(ClientMain *c)
 	return false;
 }
 
-void clientDoMoveTemp(ClientMain *client)
+void clientFree(ClientMain *client)
+{
+	delete client;
+}
+
+sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
+{
+	if (resolution != c->resolution) {
+		recreateTargets(c, resolution);
+	}
+
+	{
+		sg_pass_action action = { };
+		action.colors[0].action = SG_ACTION_CLEAR;
+		action.colors[0].val[0] = 0.01f;
+		action.colors[0].val[1] = 0.01f;
+		action.colors[0].val[2] = 0.01f;
+		action.colors[0].val[3] = 1.0f;
+		action.depth.action = SG_ACTION_CLEAR;
+		action.depth.val = 1.0f;
+
+		sp::beginPass(c->mainPass, &action);
+
+		sf::Mat44 view = sf::mat::look(sf::Vec3(0.0f, 10.0f, 2.0f), sf::Vec3(0.0f, -1.0f, -0.1f));
+		sf::Mat44 proj = sf::mat::perspectiveD3D(1.5f, (float)resolution.x/(float)resolution.y, 0.1f, 20.0f);
+		sf::Mat44 viewProj = proj * view;
+
+		for (cl::Entity *entity : c->clientState.entities) {
+			if (!entity) continue;
+
+			if (cl::Character *chr = entity->as<cl::Character>()) {
+				c->tempSkinnedMeshPipe.bind();
+
+				if (!chr->model.isLoaded()) continue;
+				cl::ModelInfo &modelInfo = chr->model->data;
+				if (!modelInfo.modelRef.isLoaded()) continue;
+				if (!modelInfo.skinRef.isLoaded()) continue;
+				sp::Model *model = modelInfo.modelRef;
+				sp::Sprite *sprite = modelInfo.skinRef;
+				cl::AnimationInfo &animation = modelInfo.animations[0];
+				if (!animation.modelRef.isLoaded()) continue;
+
+				sp::Model *animModel = animation.modelRef;
+				sp::Animation *anim = &animModel->animations[0];
+				for (sp::Animation &a : animModel->animations) {
+					if (a.name == animation.clip) {
+						anim = &a;
+						break;
+					}
+				}
+
+				sf::SmallArray<sp::BoneTransform, sp::MaxBones> boneTransforms;
+				sf::SmallArray<sf::Mat34, sp::MaxBones> boneWorld;
+				boneTransforms.resizeUninit(model->bones.size);
+				boneWorld.resizeUninit(model->bones.size);
+
+				sf::Vec3 worldPos = sf::Vec3(chr->position.x, 0.0f, chr->position.y);
+				sf::Mat34 world = sf::mat::translate(worldPos) * sf::mat::scale(modelInfo.scale);
+
+				float animTime = fmodf((float)stm_sec(stm_now()), 80.0f/24.0f);
+				sp::evaluateAnimation(animModel, boneTransforms, *anim, animTime);
+				sp::boneTransformToWorld(model, boneWorld, boneTransforms, world);
+
+				sp::Atlas *atlas = sprite->atlas;
+				sf::Vec2 atlasSize = sf::Vec2((float)atlas->width, (float)atlas->height);
+				sf::Vec2 uvSize = sprite->maxVert - sprite->minVert;
+				sf::Vec2 size = sf::Vec2((float)sprite->width, (float)sprite->height);
+				sf::Vec2 pos = sf::Vec2((float)sprite->x, (float)sprite->y) / atlasSize;
+
+				sf::Vec2 scale = size / atlasSize / uvSize;
+				sf::Vec2 offset = pos - sprite->minVert * scale;
+
+				sf::Vec2 minUv = pos;
+				sf::Vec2 maxUv = pos + size;
+
+				TestSkin_VertexUniform_t vu;
+				vu.color[0] = 1.0f;
+				vu.color[1] = 1.0f;
+				vu.color[2] = 1.0f;
+				viewProj.writeColMajor44(vu.viewProj);
+
+				vu.texScaleOffset[0] = scale.x;
+				vu.texScaleOffset[1] = scale.y;
+				vu.texScaleOffset[2] = offset.x;
+				vu.texScaleOffset[3] = offset.y;
+
+				TestSkin_FragUniform_t fragUniform;
+				fragUniform.texMin[0] = minUv.x;
+				fragUniform.texMin[1] = minUv.y;
+				fragUniform.texMax[0] = maxUv.x;
+				fragUniform.texMax[1] = maxUv.y;
+
+				sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestSkin_FragUniform, &fragUniform, sizeof(fragUniform));
+
+				for (sp::SkinMesh &mesh : model->skins) {
+					TestSkin_Bones_t bones;
+					for (uint32_t i = 0; i < mesh.bones.size; i++) {
+						sp::MeshBone &meshBone = mesh.bones[i];
+						sf::Mat34 transform = boneWorld[meshBone.boneIndex] * meshBone.meshToBone;
+						memcpy(bones.bones[i * 3 + 0], transform.getRow(0).v, sizeof(sf::Vec4));
+						memcpy(bones.bones[i * 3 + 1], transform.getRow(1).v, sizeof(sf::Vec4));
+						memcpy(bones.bones[i * 3 + 2], transform.getRow(2).v, sizeof(sf::Vec4));
+					}
+
+					sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestSkin_VertexUniform, &vu, sizeof(vu));
+					sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestSkin_Bones, &bones, sizeof(bones));
+
+					sg_bindings binds = { };
+					binds.vertex_buffers[0] = model->skinVertexBuffer;
+					binds.index_buffer = model->skinIndexBuffer;
+					binds.index_buffer_offset = mesh.indexBufferOffset * sizeof(uint16_t);
+					binds.vertex_buffer_offsets[0] = mesh.vertexBufferOffset * sizeof(sp::SkinVertex);
+					binds.fs_images[0] = atlas->image;
+					sg_apply_bindings(&binds);
+
+					sg_draw(0, mesh.numIndices, 1);
+				}
+			}
+		}
+
+		sp::endPass();
+	}
+
+	{
+		sp::beginPass(c->tonemapPass, nullptr);
+
+		{
+			c->tonemapPipe.bind();
+
+			sg_bindings bindings = { };
+			bindings.fs_images[SLOT_Postprocess_mainImage] = c->mainTarget.image;
+			bindings.vertex_buffers[0] = gameShaders.fullscreenTriangleBuffer;
+			sg_apply_bindings(&bindings);
+
+			sg_draw(0, 3, 1);
+		}
+
+		sp::endPass();
+	}
+
+	{
+		sp::beginPass(c->fxaaPass, nullptr);
+
+		{
+			c->fxaaPipe.bind();
+
+			Fxaa_Pixel_t pixel;
+			pixel.rcpTexSize = sf::Vec2(1.0f) / sf::Vec2(c->tonemapPass.resolution);
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_Fxaa_Pixel, &pixel, sizeof(pixel));
+
+			sg_bindings bindings = { };
+			bindings.fs_images[SLOT_Fxaa_Pixel] = c->tonemapTarget.image;
+			bindings.vertex_buffers[0] = gameShaders.fullscreenTriangleBuffer;
+			sg_apply_bindings(&bindings);
+
+			sg_draw(0, 3, 1);
+		}
+
+		sp::endPass();
+	}
+
+	return c->fxaaTarget.image;
+}
+
+void clientDoMoveTemp(ClientMain *c)
 {
 	auto move = sf::box<sv::ActionMove>();
 	move->entity = 1;
@@ -83,5 +306,5 @@ void clientDoMoveTemp(ClientMain *client)
 
 	sv::MessageAction action;
 	action.action = move;
-	writeMessage(client->ws, &action, client->name, serverName);
+	writeMessage(c->ws, &action, c->name, serverName);
 }

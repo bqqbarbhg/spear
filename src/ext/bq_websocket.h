@@ -121,7 +121,7 @@ typedef struct bqws_msg {
 	// Size of `data` in bytes
 	size_t capacity;
 
-	char data[];
+	char data[0];
 } bqws_msg;
 
 // Message header

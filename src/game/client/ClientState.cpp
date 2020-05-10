@@ -6,10 +6,17 @@ sf::Box<Entity> convertEntity(const sf::Box<sv::Entity> &svEntity)
 {
 	sf::Box<Entity> data;
 	if (auto ent = svEntity->as<sv::Character>()) {
-		data = sf::box<Character>(svEntity);
+		auto chr = sf::box<Character>(svEntity);
+		data = chr;
+
+		chr->model.load(ent->model);
+
 	} else {
 		sf_failf("Unhandled entity type: %u", svEntity->type);
 	}
+
+	data->position = sf::Vec2(svEntity->position);
+
 	return data;
 }
 
@@ -17,12 +24,27 @@ void State::reset(sv::State *svState)
 {
 	entities.clear();
 	entities.resize(svState->entities.size);
-	uint32_t ix = 0;
-	for (sf::Box<sv::Entity> &svEntity : svState->entities) {
-		if (svEntity) {
-			entities[ix] = convertEntity(svEntity);
+
+	{
+		uint32_t ix = 0;
+		for (sf::Box<sv::Entity> &svEntity : svState->entities) {
+			if (svEntity) {
+				entities[ix] = convertEntity(svEntity);
+			}
+			ix++;
 		}
-		ix++;
+	}
+
+	tileTypes.clear();
+	tileTypes.reserve(svState->map.tileTypes.size);
+
+	{
+		for (sv::TileType &tileType : svState->map.tileTypes) {
+			cl::TileType &dst = tileTypes.push();
+			if (tileType.name) {
+				dst.tile.load(tileType.name);
+			}
+		}
 	}
 }
 
@@ -34,7 +56,12 @@ void State::applyEvent(sv::Event *event)
 
 		if (auto d = data->as<Character>()) {
 
-			d->waypoints.push(e->waypoints);
+			if (e->waypoints.size) {
+				d->waypoints.push(e->waypoints);
+			} else {
+				d->waypoints.clear();
+				data->position = sf::Vec2(e->position);
+			}
 
 		} else {
 			data->position = sf::Vec2(e->position);

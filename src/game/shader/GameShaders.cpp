@@ -12,6 +12,7 @@
 #include "Postprocess.h"
 #include "Fxaa.h"
 #include "Upscale.h"
+#include "TestSkin.h"
 
 #include "GameShaders.h"
 
@@ -19,6 +20,9 @@ GameShaders gameShaders;
 
 void GameShaders::load()
 {
+	if (isLoaded) return;
+	isLoaded = true;
+
 	mapTile = sg_make_shader(MapTile_MapTile_shader_desc());
 	mapShadow = sg_make_shader(MapShadow_MapShadow_shader_desc());
 	lightGrid = sg_make_shader(LightGrid_LightGrid_shader_desc());
@@ -26,4 +30,21 @@ void GameShaders::load()
 	fxaa = sg_make_shader(Fxaa_Fxaa_shader_desc());
 	upscale = sg_make_shader(Upscale_Upscale_shader_desc());
 	upscaleFast = sg_make_shader(Upscale_UpscaleFast_shader_desc());
+	skinnedMesh = sg_make_shader(TestSkin_TestSkin_shader_desc());
+
+	{
+		sf::Vec2 verts[] = {
+			{ 0.0f, 0.0f },
+			{ 2.0f, 0.0f },
+			{ 0.0f, 2.0f },
+		};
+
+		sg_buffer_desc d = { };
+		d.type = SG_BUFFERTYPE_VERTEXBUFFER;
+		d.content = verts;
+		d.size = sizeof(verts);
+		d.label = "fullscreenTriangle";
+		fullscreenTriangleBuffer = sg_make_buffer(&d);
+	}
+
 }

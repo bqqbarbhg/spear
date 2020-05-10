@@ -6,6 +6,8 @@
 
 struct GameShaders
 {
+	bool isLoaded = false;
+
 	sg_shader mapTile;
 	sg_shader mapShadow;
 	sg_shader lightGrid;
@@ -13,6 +15,9 @@ struct GameShaders
 	sg_shader fxaa;
 	sg_shader upscale;
 	sg_shader upscaleFast;
+	sg_shader skinnedMesh;
+
+	sg_buffer fullscreenTriangleBuffer;
 
 	void load();
 };

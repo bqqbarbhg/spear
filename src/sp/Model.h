@@ -7,6 +7,7 @@
 #include "sf/Quaternion.h"
 #include "sf/HashMap.h"
 #include "ext/sokol/sokol_defs.h"
+#include "sf/Symbol.h"
 
 namespace sp {
 
@@ -50,7 +51,7 @@ struct MeshBone
 
 struct Mesh
 {
-	sf::StringBuf materialName;
+	sf::Symbol materialName;
 
 	sf::Array<Vertex> vertexData;
 	sf::Array<uint16_t> indexData;
@@ -63,7 +64,7 @@ struct Mesh
 
 struct SkinMesh
 {
-	sf::StringBuf materialName;
+	sf::Symbol materialName;
 
 	sf::Array<Vertex> vertexData;
 	sf::Array<uint16_t> indexData;
@@ -85,7 +86,7 @@ struct BoneTransform
 struct Bone
 {
 	uint32_t parentIx;
-	sf::StringBuf name;
+	sf::Symbol name;
 	sf::Mat34 toRoot;
 	BoneTransform bindTransform;
 };
@@ -93,6 +94,8 @@ struct Bone
 struct ModelProps : AssetProps
 {
 	bool cpuData = false;
+	bool ignoreGeometry = false;
+	bool ignoreAnimations = false;
 	sf::Array<sf::CString> retainBones;
 
 	virtual uint32_t hash() const final;
@@ -102,7 +105,7 @@ struct ModelProps : AssetProps
 
 struct AnimationCurve
 {
-	sf::StringBuf boneName;
+	sf::Symbol boneName;
 	sf::Array<float> translationTime;
 	sf::Array<sf::Vec3> translationValue;
 	sf::Array<float> rotationTime;
@@ -113,7 +116,7 @@ struct AnimationCurve
 
 struct Animation
 {
-	sf::StringBuf name;
+	sf::Symbol name;
 	sf::Array<AnimationCurve> curves;
 };
 
@@ -125,7 +128,7 @@ struct Model : Asset
 	sf::Array<Mesh> meshes;
 	sf::Array<SkinMesh> skins;
 	sf::Array<Bone> bones;
-	sf::HashMap<sf::StringBuf, uint32_t> boneNames;
+	sf::HashMap<sf::Symbol, uint32_t> boneNames;
 	sf::Array<Animation> animations;
 
 	sg_buffer vertexBuffer;

@@ -1256,6 +1256,10 @@ jsi_parse(jsi_parser *p, jsi_args *args)
 	if (p->max_depth < 1) p->max_depth = 1;
 	p->depth_left = p->max_depth;
 
+	if (p->ptr == p->end) {
+		jsi_refill(p);
+	}
+
 	if (args) {
 		if (args->temp_size > sizeof(null_temp_buffer)) {
 			jsi_align_pointer(&p->temp_stack, &p->temp_size,

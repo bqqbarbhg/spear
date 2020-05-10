@@ -2,6 +2,7 @@
 
 #include "sf/Base.h"
 #include "sf/String.h"
+#include "sf/Symbol.h"
 
 namespace sp {
 
@@ -49,7 +50,7 @@ struct Asset
 	// -- Fields
 
 	AssetType *type;         // < Type of the asset
-	sf::CString name;        // < Null-terminated name of the asset
+	sf::Symbol name;         // < Null-terminated name of the asset
 	const AssetProps *props; // < Properties of the asset
 	uint32_t refcount;       // < Number of references to the asset, do not modify!
 
@@ -86,22 +87,22 @@ struct Asset
 
 	// Find asset by name/props but don't create one if it doesn't exist
 	template <typename T>
-	static T *find(const sf::String &name) {
+	static T *find(const sf::Symbol &name) {
 		return (T*)impFind(&T::SelfType, name, typename T::PropType{});
 	}
 	template <typename T>
-	static T *find(const sf::String &name, const typename T::PropType &props) {
+	static T *find(const sf::Symbol &name, const typename T::PropType &props) {
 		sf_assert(sizeof(props) == T::SelfType.propertySize);
 		return (T*)impFind(&T::SelfType, name, props);
 	}
 
 	// Load an asset by name/props, prefer using Ref<> constructor
 	template <typename T>
-	static T *load(const sf::String &name) {
+	static T *load(const sf::Symbol &name) {
 		return (T*)impCreate(&T::SelfType, name, typename T::PropType{});
 	}
 	template <typename T>
-	static T *load(const sf::String &name, const typename T::PropType &props) {
+	static T *load(const sf::Symbol &name, const typename T::PropType &props) {
 		sf_assert(sizeof(props) == T::SelfType.propertySize);
 		return (T*)impCreate(&T::SelfType, name, props);
 	}
@@ -115,8 +116,8 @@ struct Asset
 	uint32_t impState; // < Atomic
 	uint32_t impFlags; // < Protected by AssetLibrary::mutex
 
-	static Asset *impFind(AssetType *type, const sf::String &name, const AssetProps &props);
-	static Asset *impCreate(AssetType *type, const sf::String &name, const AssetProps &props);
+	static Asset *impFind(AssetType *type, const sf::Symbol &name, const AssetProps &props);
+	static Asset *impCreate(AssetType *type, const sf::Symbol &name, const AssetProps &props);
 };
 
 // Automatic asset reference counting
@@ -130,8 +131,8 @@ struct Ref
 	~Ref() { if (ptr) ptr->release(); }
 
 	// Load asset by name/props
-	explicit Ref(const sf::String &name) { ptr = Asset::load<T>(name); }
-	Ref(const sf::String &name, const typename T::PropType &prop) { ptr = Asset::load<T>(name, prop); }
+	explicit Ref(const sf::Symbol &name) { ptr = Asset::load<T>(name); }
+	Ref(const sf::Symbol &name, const typename T::PropType &prop) { ptr = Asset::load<T>(name, prop); }
 
 	// Constructor from raw asset pointer
 	explicit Ref(T *t) : ptr(t) { }
@@ -170,12 +171,12 @@ struct Ref
 		ptr = newPtr;
 	}
 
-	void load(const sf::String &name) {
+	void load(const sf::Symbol &name) {
 		if (ptr) ptr->release();
 		ptr = Asset::load<T>(name);
 	}
 
-	void load(const sf::String &name, const typename T::PropType &prop) {
+	void load(const sf::Symbol &name, const typename T::PropType &prop) {
 		if (ptr) ptr->release();
 		ptr = Asset::load<T>(name, prop);
 	}

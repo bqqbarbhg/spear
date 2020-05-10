@@ -68,9 +68,13 @@ static const char *findSymbolData(const char *data, size_t length)
 
 	uint32_t scan = 0, index;
 	while (rhmap_find(&pool.map, hash, &scan, &index)) {
-		if (pool.data[index] == data) {
+		uint32_t len = dataSize(pool.data[index]);
+		if (len == length && !memcmp(pool.data[index], data, length)) {
 			uint32_t refs = mxa_inc32_nf(&dataRefs(pool.data[index]));
-			if (refs > 0) return pool.data[index];
+			if (refs > 0) {
+				mx_mutex_unlock(&pool.mutex);
+				return pool.data[index];
+			}
 			// About to be deleted, decrement refs back to zero
 			// and continue search
 			mxa_dec32_nf(&dataRefs(pool.data[index]));

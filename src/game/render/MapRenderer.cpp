@@ -1,3 +1,4 @@
+#if 0
 #include "MapRenderer.h"
 
 #include "sf/Array.h"
@@ -683,3 +684,4 @@ void MapRenderer::render()
 	}
 #endif
 }
+#endif

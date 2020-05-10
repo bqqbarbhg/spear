@@ -318,6 +318,11 @@ void RenderTarget::init(const char *label, const sf::Vec2i &resolution, sg_pixel
 	image = sg_make_image(&d);
 }
 
+RenderTarget::~RenderTarget()
+{
+	sg_destroy_image(image);
+}
+
 void RenderPass::init(const char *label, sf::Slice<const RenderTarget*> targets)
 {
 	if (pass.id) {
@@ -355,6 +360,11 @@ void RenderPass::init(const char *label, const RenderTarget &a) { const RenderTa
 void RenderPass::init(const char *label, const RenderTarget &a, const RenderTarget &b) { const RenderTarget *t[] = { &a, &b, }; init(label, t); }
 void RenderPass::init(const char *label, const RenderTarget &a, const RenderTarget &b, const RenderTarget &c) { const RenderTarget *t[] = { &a, &b, &c, }; init(label, t); }
 void RenderPass::init(const char *label, const RenderTarget &a, const RenderTarget &b, const RenderTarget &c, const RenderTarget &d) { const RenderTarget *t[] = { &a, &b, &c, &d, }; init(label, t); }
+
+RenderPass::~RenderPass()
+{
+	sg_destroy_pass(pass);
+}
 
 sg_pipeline_desc &Pipeline::init(sg_shader shader, uint32_t flags)
 {
@@ -482,6 +492,15 @@ bool Pipeline::bind()
 	sg_apply_pipeline(bestImp->pipeline);
 	g_prevPipeline = bestImp->pipeline;
 	return true;
+}
+
+Pipeline::~Pipeline()
+{
+	for (PipelineImp &imp : imps) {
+		if (imp.pipeline.id) {
+			sg_destroy_pipeline(imp.pipeline);
+		}
+	}
 }
 
 FramebufferDesc getFramebufferTypeDesc(uint32_t typeIndex)

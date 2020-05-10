@@ -2743,11 +2743,11 @@ static bool ufbxi_is_array_node(ufbxi_context *uc, ufbxi_parse_state parent, con
 			info->type = 'r';
 			info->result = false;
 			return true;
-		} else if (name == ufbxi_Indexes) {
+		} else if (name == ufbxi_Indexes && !uc->opts.ignore_geometry) {
 			info->type = 'i';
 			info->result = true;
 			return true;
-		} else if (name == ufbxi_Weights) {
+		} else if (name == ufbxi_Weights && !uc->opts.ignore_geometry) {
 			info->type = 'r';
 			info->result = true;
 			return true;
@@ -4656,12 +4656,12 @@ typedef struct {
 
 ufbxi_nodiscard static int ufbxi_read_geometry(ufbxi_context *uc, ufbxi_node *node, ufbxi_object *object)
 {
-	if (uc->opts.ignore_geometry) return 1;
-
 	ufbx_mesh *mesh = ufbxi_push_zero(&uc->tmp_arr_geometry, ufbx_mesh, 1);
 	ufbxi_check(mesh);
 	ufbxi_check(ufbxi_add_connectable(uc, UFBXI_CONNECTABLE_GEOMETRY, object->id, uc->tmp_arr_geometry.num_items - 1));
 	mesh->node.props = object->props;
+
+	if (uc->opts.ignore_geometry) return 1;
 
 	ufbxi_value_array *vertices = ufbxi_find_array(node, ufbxi_Vertices, 'r');
 	ufbxi_value_array *indices = ufbxi_find_array(node, ufbxi_PolygonVertexIndex, 'i');
@@ -5010,18 +5010,21 @@ ufbxi_nodiscard static int ufbxi_read_deformer(ufbxi_context *uc, ufbxi_node *no
 		ufbxi_value_array *transform_link = ufbxi_find_array(node, ufbxi_TransformLink, 'r');
 
 		// TODO: Transform and TransformLink may be missing (?) use BindPose node in that case
-		if (indices && weights && transform && transform_link) {
+		if (transform && transform_link) {
 			ufbx_skin *skin = ufbxi_push_zero(&uc->tmp_arr_skin_clusters, ufbx_skin, 1);
 			ufbxi_check(skin);
 			ufbxi_check(ufbxi_add_connectable(uc, UFBXI_CONNECTABLE_SKIN_CLUSTER, object->id, uc->tmp_arr_skin_clusters.num_items - 1));
 
-			ufbxi_check(indices->size == weights->size);
 			ufbxi_check(transform->size >= 16);
 			ufbxi_check(transform_link->size >= 16);
 
-			skin->num_weights = indices->size;
-			skin->indices = (int32_t*)indices->data;
-			skin->weights = (ufbx_real*)weights->data;
+			if (indices && weights) {
+				ufbxi_check(indices->size == weights->size);
+				skin->num_weights = indices->size;
+				skin->indices = (int32_t*)indices->data;
+				skin->weights = (ufbx_real*)weights->data;
+			}
+
 			ufbxi_read_transform_matrix(&skin->mesh_to_bind, (ufbx_real*)transform->data);
 			ufbxi_read_transform_matrix(&skin->bind_to_world, (ufbx_real*)transform_link->data);
 		}

@@ -16,7 +16,7 @@
 #if defined(_WIN32)
 __declspec(thread) static bqws_pt_error t_err;
 #else
-__thread static bqws_pt_error t_err;
+static __thread bqws_pt_error t_err;
 #endif
 
 #define BQWS_PT_DELETED_MAGIC  0xbdbdbdbd
@@ -152,7 +152,11 @@ EM_JS(int, pt_em_websocket_send_binary, (int handle, const char *data, size_t si
 		return 1;
 	}
 
-	ws.send(HEAPU8.subarray(data, data + size));
+	#if defined(__EMSCRIPTEN_PTHREADS__)
+		ws.send(new Uint8Array(HEAPU8.subarray(data, data + size)));
+	#else
+		ws.send(HEAPU8.subarray(data, data + size));
+	#endif
 	return 1;
 });
 

@@ -8,8 +8,8 @@ namespace sv {
 
 sf_inline void resolveChunk(sf::Vec2i &chunkI, sf::Vec2i &tileI, const sf::Vec2i &pos)
 {
-	chunkI = { pos.x >> MapChunk::SizeLog2, pos.y >> MapChunk::SizeLog2 };
-	tileI = { pos.x & (MapChunk::Size - 1), pos.y & (MapChunk::Size - 1) };
+	chunkI = { pos.x >> (int32_t)MapChunk::SizeLog2, pos.y >> (int32_t)MapChunk::SizeLog2 };
+	tileI = { pos.x & ((int32_t)MapChunk::Size - 1), pos.y & ((int32_t)MapChunk::Size - 1) };
 }
 
 void Map::setTile(const sf::Vec2i &pos, TileId tileId)
@@ -275,6 +275,7 @@ template<> void initType<sv::Character>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(sv::Character, name),
+		sf_field(sv::Character, model),
 		sf_field(sv::Character, players),
 	};
 	sf_struct_base(t, sv::Character, sv::Entity, fields);

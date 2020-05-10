@@ -21,7 +21,7 @@
 #define mxa_or32(dst, val) emscripten_atomic_or_u32((dst), (val))
 #define mxa_and32(dst, val) emscripten_atomic_and_u32((dst), (val))
 #define mxa_inc32(dst) emscripten_atomic_add_u32((dst), 1)
-#define mxa_dec32(dst) emscripten_atomic_sub_u32((dst), (uint32_t)(int32_t)-1)
+#define mxa_dec32(dst) emscripten_atomic_sub_u32((dst), 1)
 #define mxa_add32(dst, val) emscripten_atomic_add_u32((dst), (val))
 #define mxa_sub32(dst, val) emscripten_atomic_sub_u32((dst), (val))
 #define mxa_cas32(dst, cmp, val) (emscripten_atomic_cas_u32((dst), (cmp), (val)) == (cmp))

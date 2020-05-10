@@ -285,6 +285,7 @@ struct bqws_socket {
 		bqws_client_opts *opts_from_client;
 		char *client_key_base64;
 		bool client_handshake_done;
+		bool client_has_protocol;
 
 		// Write/read buffers `recv_header` is also used to buffer
 		// multiple small messages
@@ -1009,7 +1010,7 @@ static void hs_server_handshake(bqws_socket *ws)
 	bqws_mutex_unlock(&ws->state.mutex);
 
 	bqws_assert(protocol);
-	if (*protocol) {
+	if (*protocol && ws->io.client_has_protocol) {
 		hs_push3(ws, "Sec-WebSocket-Protocol: ", protocol, "\r\n");
 	}
 
@@ -1127,6 +1128,7 @@ static bool hs_parse_client_handshake(bqws_socket *ws)
 			opts->num_headers++;
 		} else if (streq_ic(header->name, "Sec-Websocket-Protocol")) {
 			size_t cur_pos = pos;
+			ws->io.client_has_protocol = true;
 
 			// Parse protocols
 			pos = value_pos;

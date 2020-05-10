@@ -29,7 +29,7 @@ enum AssetFlags
 
 struct AssetKey
 {
-	sf::String name;
+	sf::Symbol name;
 	const AssetProps *props;
 
 	bool operator==(const AssetKey &rhs) const
@@ -71,7 +71,7 @@ struct AssetContext
 	// Number of assets loading at the moment
 	uint32_t numAssetsLoading = 0;
 
-	Asset *findAsset(AssetType *type, const sf::String &name, const AssetProps &props)
+	Asset *findAsset(AssetType *type, const sf::Symbol &name, const AssetProps &props)
 	{
 		sf::MutexGuard mg(mutex);
 		AssetTypeImp *typeImp = (AssetTypeImp*)type->impData;
@@ -90,7 +90,7 @@ struct AssetContext
 		}
 	}
 
-	Asset *createAsset(AssetType *type, const sf::String &name, const AssetProps &props)
+	Asset *createAsset(AssetType *type, const sf::Symbol &name, const AssetProps &props)
 	{
 		sf::MutexGuard mg(mutex);
 		AssetTypeImp *typeImp = (AssetTypeImp*)type->impData;
@@ -109,20 +109,17 @@ struct AssetContext
 		}
 
 		// Allocate the asset and name/props
-		size_t size = type->instanceSize + type->propertySize + name.size + 1;
+		size_t size = type->instanceSize + type->propertySize;
 		Asset *asset = (Asset*)sf::memAlloc(size);
 		AssetProps *propCopy = (AssetProps*)((char*)asset + type->instanceSize);
-		char *nameCopy = (char*)propCopy + type->propertySize;
 
 		// Copy name/props
 		props.copyTo(propCopy);
-		memcpy(nameCopy, name.data, name.size);
-		nameCopy[name.size] = '\0';
 
 		// Construct the asset
 		type->ctorFn(asset);
 		asset->type = type;
-		asset->name = sf::CString(nameCopy, name.size);
+		asset->name = name;
 		asset->props = propCopy;
 
 		// Patch the key and value, propSize should be fine from the insert
@@ -325,12 +322,12 @@ void Asset::globalUpdate()
 	g_assetContext.update();
 }
 
-Asset *Asset::impFind(AssetType *type, const sf::String &name, const AssetProps &props)
+Asset *Asset::impFind(AssetType *type, const sf::Symbol &name, const AssetProps &props)
 {
 	return g_assetContext.findAsset(type, name, props);
 }
 
-Asset *Asset::impCreate(AssetType *type, const sf::String &name, const AssetProps &props)
+Asset *Asset::impCreate(AssetType *type, const sf::Symbol &name, const AssetProps &props)
 {
 	Asset *asset = g_assetContext.createAsset(type, name, props);
 

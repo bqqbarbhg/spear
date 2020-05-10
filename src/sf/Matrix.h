@@ -109,6 +109,12 @@ struct Mat34
 		, m20(0.0f), m21(0.0f), m22(rhs.m22), m23(0.0f)
 	{ } 
 
+	Mat34(const Mat34_3 &rhs)
+		: m00(1.0f), m01(0.0f), m02(0.0f), m03(rhs.m03)
+		, m10(0.0f), m11(1.0f), m12(0.0f), m13(rhs.m13)
+		, m20(0.0f), m21(0.0f), m22(1.0f), m23(rhs.m23)
+	{ } 
+
 	Mat34(const Mat33 &rhs)
 		: m00(rhs.m00), m01(rhs.m01), m02(rhs.m02), m03(0.0f)
 		, m10(rhs.m10), m11(rhs.m11), m12(rhs.m12), m13(0.0f)

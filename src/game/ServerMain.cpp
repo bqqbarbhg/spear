@@ -55,11 +55,13 @@ struct ServerMain
 
 ServerMain *serverInit()
 {
-	ServerMain *s = new ServerMain();
-
 	bqws_pt_listen_opts opts = { };
 	opts.port = 4004;
-	s->server = bqws_pt_listen(&opts);
+	bqws_pt_server *server = bqws_pt_listen(&opts);
+	if (!server) return nullptr;
+
+	ServerMain *s = new ServerMain();
+	s->server = server;
 
 	{
 		Session &session = s->sessions[1u];
@@ -72,13 +74,13 @@ ServerMain *serverInit()
 
 		{
 			sv::TileType &tile = map.tileTypes.push();
-			tile.name = sf::Symbol("tile.fbx");
+			tile.name = sf::Symbol("Tiles/floor.js");
 			tile.floor = true;
 		}
 
 		{
 			sv::TileType &tile = map.tileTypes.push();
-			tile.name = sf::Symbol("wall.fbx");
+			tile.name = sf::Symbol("Tiles/wall.js");
 			tile.wall = true;
 		}
 
@@ -125,7 +127,7 @@ void serverUpdate(ServerMain *s)
 {
 	// Accept new clients
 	{
-		uint32_t id = ++s->clientCounter;
+		uint32_t id = s->clientCounter + 1;
 		sf::SmallStringBuf<128> name;
 		name.format("Server to Client %u", id);
 
@@ -135,6 +137,7 @@ void serverUpdate(ServerMain *s)
 		if (ws) {
 			bqws_server_accept(ws, "spear");
 			s->pendingClients.push(ws);
+			++s->clientCounter;
 		}
 	}
 
@@ -167,6 +170,7 @@ void serverUpdate(ServerMain *s)
 			{
 				auto player = sf::box<sv::Character>();
 				player->name = client.name;
+				player->model = sf::Symbol("Characters/human-model.js");
 				player->position = findSpawnPos(session.state, sf::Vec2i(-3, -3));
 				player->players.push(client.playerId);
 

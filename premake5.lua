@@ -49,6 +49,9 @@ workspace "spear"
 	filter "action:vs*"
 		systemversion(os.winSdkVersion() .. ".0")
 
+	filter "not action:vs*"
+		buildoptions { "-Wno-invalid-offsetof" }
+
 	filter "configurations:debug"
 		defines { "DEBUG" }
 		symbols_on()
@@ -89,6 +92,8 @@ workspace "spear"
 			"dl",
 			"GL",
 			"X11",
+			"ssl",
+			"crypto",
 		}
 
 	filter "options:opengl"

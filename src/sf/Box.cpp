@@ -1,5 +1,3 @@
-#pragma once
-
 #include "Box.h"
 #include "ext/mx/mx_platform.h"
 #include "sf/Reflection.h"

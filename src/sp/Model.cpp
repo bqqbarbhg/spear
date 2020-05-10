@@ -32,6 +32,8 @@ uint32_t ModelProps::hash() const
 {
 	uint32_t h = 0;
 	h = sf::hashCombine(h, sf::hash(cpuData));
+	h = sf::hashCombine(h, ignoreGeometry);
+	h = sf::hashCombine(h, ignoreAnimations);
 	for (const sf::CString &s : retainBones) {
 		h = sf::hashCombine(h, sf::hash(s));
 	}
@@ -42,6 +44,8 @@ bool ModelProps::equal(const AssetProps &rhs) const
 {
 	const ModelProps &r = (const ModelProps&)rhs;
 	if (cpuData != r.cpuData) return false;
+	if (ignoreGeometry != r.ignoreGeometry) return false;
+	if (ignoreAnimations != r.ignoreAnimations) return false;
 	if (retainBones.size != r.retainBones.size) return false;
 	for (uint32_t i = 0; i < retainBones.size; i++) {
 		if (retainBones[i] != r.retainBones[i]) return false;
@@ -52,9 +56,7 @@ bool ModelProps::equal(const AssetProps &rhs) const
 void ModelProps::copyTo(AssetProps *uninitDst) const
 {
 	ModelProps *dst = (ModelProps*)uninitDst;
-	new (dst) ModelProps();
-	dst->cpuData = cpuData;
-	dst->retainBones = retainBones;
+	new (dst) ModelProps(*this);
 }
 
 struct ModelImp : Model
@@ -70,7 +72,7 @@ AssetType Model::SelfType = { "Model", sizeof(ModelImp), sizeof(Model::PropType)
 sf_forceinline static sf::Vec2 toSF(ufbx_vec2 v) { return sf::Vec2((float)v.x, (float)v.y); }
 sf_forceinline static sf::Vec3 toSF(ufbx_vec3 v) { return sf::Vec3((float)v.x, (float)v.y, (float)v.z); }
 sf_forceinline static sf::Quat toSFQuat(ufbx_vec4 v) { return sf::Quat((float)v.x, (float)v.y, (float)v.z, (float)v.w); }
-sf_forceinline static sf::String toSF(ufbx_string v) { return sf::String(v.data, v.length); }
+sf_forceinline static sf::Symbol toSF(ufbx_string v) { return sf::Symbol(v.data, v.length); }
 static sf::Mat34 toSF(const ufbx_matrix &m) {
 	sf::Mat34 r = sf::Uninit;
 	r.cols[0] = toSF(m.cols[0]);
@@ -83,7 +85,7 @@ static sf::Mat34 toSF(const ufbx_matrix &m) {
 template <typename VertT>
 struct MeshBuilder
 {
-	sf::StringBuf materialName;
+	sf::Symbol materialName;
 	sf::HashMap<VertT, uint16_t> map;
 	sf::Array<VertT> vertices;
 	sf::Array<uint16_t> indices;
@@ -192,7 +194,11 @@ static void loadImp(void *user, const ContentFile &file)
 	ModelImp *imp = (ModelImp*)user;
 	ModelProps *props = (ModelProps*)imp->props;
 
-	ufbx_scene *scene = ufbx_load_memory(file.data, file.size, NULL, NULL);
+	ufbx_load_opts opts = { };
+	opts.ignore_geometry = props->ignoreGeometry;
+	opts.ignore_animation = props->ignoreAnimations;
+
+	ufbx_scene *scene = ufbx_load_memory(file.data, file.size, &opts, NULL);
 	if (!scene) {
 		imp->assetFailLoading();
 		return;
@@ -214,118 +220,128 @@ static void loadImp(void *user, const ContentFile &file)
 		if (node) addBone(*imp, bonePtrs, node);
 	}
 
-	for (ufbx_mesh &mesh : scene->meshes) {
+	if (!props->ignoreGeometry) {
+		for (ufbx_mesh &mesh : scene->meshes) {
 
-		if (mesh.skins.size > 0) {
-			weights.clear();
-			weights.resize(mesh.num_vertices);
+			if (mesh.skins.size > 0) {
+				weights.clear();
+				weights.resize(mesh.num_vertices);
 
-			sf::SmallArray<MeshBone, MaxBones> meshBones;
+				sf::SmallArray<MeshBone, MaxBones> meshBones;
 
-			sf::SmallArray<BoneRef, 64> skinBuilderIndices;
-			skinBuilderIndices.resizeUninit(scene->materials.size + 1);
-			for (BoneRef &ref : skinBuilderIndices) ref.index = ~0u;
+				sf::SmallArray<BoneRef, 64> skinBuilderIndices;
+				skinBuilderIndices.resizeUninit(scene->materials.size + 1);
+				for (BoneRef &ref : skinBuilderIndices) ref.index = ~0u;
 
-			for (ufbx_skin &skin : mesh.skins) {
-				uint8_t meshBoneIndex = (uint8_t)meshBones.size;
-				MeshBone &meshBone = meshBones.push();
-				uint32_t boneIndex = addBone(*imp, bonePtrs, skin.bone);
-				meshBone.boneIndex = boneIndex;
-				meshBone.meshToBone = toSF(skin.mesh_to_bind);
+				for (ufbx_skin &skin : mesh.skins) {
+					uint8_t meshBoneIndex = (uint8_t)meshBones.size;
+					MeshBone &meshBone = meshBones.push();
+					uint32_t boneIndex = addBone(*imp, bonePtrs, skin.bone);
+					meshBone.boneIndex = boneIndex;
+					meshBone.meshToBone = toSF(skin.mesh_to_bind);
 
-				for (size_t i = 0; i < skin.num_weights; i++) {
-					uint8_t weight = (uint8_t)(sf::clamp(skin.weights[i], 0.0, 1.0) * 255.0);
-					uint8_t index = meshBoneIndex;
-					SkinWeights &vw = weights[skin.indices[i]];
-					for (size_t j = 0; j < 4; j++) {
-						if (vw.weight[j] < weight) {
-							sf::impSwap(vw.weight[j], weight);
-							sf::impSwap(vw.index[j], index);
+					for (size_t i = 0; i < skin.num_weights; i++) {
+						uint8_t weight = (uint8_t)(sf::clamp(skin.weights[i], 0.0, 1.0) * 255.0);
+						uint8_t index = meshBoneIndex;
+						SkinWeights &vw = weights[skin.indices[i]];
+						for (size_t j = 0; j < 4; j++) {
+							if (vw.weight[j] < weight) {
+								sf::impSwap(vw.weight[j], weight);
+								sf::impSwap(vw.index[j], index);
+							}
 						}
 					}
 				}
-			}
 
-			// Normalize weights
-			for (SkinWeights &w : weights) {
-				if (w.weight[0] == 0) continue;
+				// Normalize weights
+				for (SkinWeights &w : weights) {
+					if (w.weight[0] == 0) continue;
 
-				double total = 0;
-				int32_t residue = 255;
-				for (uint8_t ww : w.weight) total += (double)ww;
-				for (uint8_t &ww : w.weight) {
-					ww = (uint8_t)((double)ww / (double)total * 255.0);
-					residue -= ww;
-				}
-
-				// Make sure the integer total sums to 255
-				sf_assert((int32_t)w.weight[0] + residue <= 255 && (int32_t)w.weight[0] + residue >= 0);
-				w.weight[0] += residue;
-			}
-
-			// Add vertices
-			for (size_t fi = 0; fi < mesh.num_faces; fi++) {
-				ufbx_face face = mesh.faces[fi];
-				sf::String materialName;
-				uint32_t materialIx = (uint32_t)scene->materials.size;
-				if (mesh.face_material) {
-					materialName = toSF(mesh.materials.data[mesh.face_material[fi]]->name);
-					materialIx = (uint32_t)(mesh.materials.data[mesh.face_material[fi]] - scene->materials.data);
-				}
-
-				BoneRef &ref = skinBuilderIndices[materialIx];
-				if (ref.index == ~0u) {
-					for (uint32_t ix = 0; ix < skinBuilders.size; ix++) {
-						if (skinBuilders[ix].materialName == materialName && skinBuilders[ix].bones.size + meshBones.size <= MaxBones) {
-							ref.index = ix;
-							ref.boneOffset = (uint8_t)skinBuilders[ix].bones.size;
-							break;
-						}
+					double total = 0;
+					int32_t residue = 255;
+					for (uint8_t ww : w.weight) total += (double)ww;
+					for (uint8_t &ww : w.weight) {
+						ww = (uint8_t)((double)ww / (double)total * 255.0);
+						residue -= ww;
 					}
 
+					// Make sure the integer total sums to 255
+					sf_assert((int32_t)w.weight[0] + residue <= 255 && (int32_t)w.weight[0] + residue >= 0);
+					w.weight[0] += residue;
+				}
+
+				// Add vertices
+				for (size_t fi = 0; fi < mesh.num_faces; fi++) {
+					ufbx_face face = mesh.faces[fi];
+					sf::Symbol materialName;
+					uint32_t materialIx = (uint32_t)scene->materials.size;
+					if (mesh.face_material) {
+						materialName = toSF(mesh.materials.data[mesh.face_material[fi]]->name);
+						materialIx = (uint32_t)(mesh.materials.data[mesh.face_material[fi]] - scene->materials.data);
+					}
+
+					BoneRef &ref = skinBuilderIndices[materialIx];
 					if (ref.index == ~0u) {
-						ref.index = skinBuilders.size;
-						MeshBuilder<SkinVertex> &mb = skinBuilders.push();
-						mb.materialName = materialName;
-						ref.boneOffset = 0;
+						for (uint32_t ix = 0; ix < skinBuilders.size; ix++) {
+							if (skinBuilders[ix].materialName == materialName && skinBuilders[ix].bones.size + meshBones.size <= MaxBones) {
+								ref.index = ix;
+								ref.boneOffset = (uint8_t)skinBuilders[ix].bones.size;
+								break;
+							}
+						}
+
+						if (ref.index == ~0u) {
+							ref.index = skinBuilders.size;
+							MeshBuilder<SkinVertex> &mb = skinBuilders.push();
+							mb.materialName = materialName;
+							ref.boneOffset = 0;
+						}
+
+						MeshBuilder<SkinVertex> &mb = skinBuilders[ref.index];
+						mb.bones.push(meshBones);
 					}
 
 					MeshBuilder<SkinVertex> &mb = skinBuilders[ref.index];
-					mb.bones.push(meshBones);
+					for (uint32_t bi = 1; bi + 2 <= face.num_indices; bi++) {
+						addSkinVertex(mb, mesh, weights, ref.boneOffset, face.index_begin + 0);
+						addSkinVertex(mb, mesh, weights, ref.boneOffset, face.index_begin + bi + 0);
+						addSkinVertex(mb, mesh, weights, ref.boneOffset, face.index_begin + bi + 1);
+					}
+
 				}
 
-				MeshBuilder<SkinVertex> &mb = skinBuilders[ref.index];
-				for (uint32_t bi = 1; bi + 2 <= face.num_indices; bi++) {
-					addSkinVertex(mb, mesh, weights, ref.boneOffset, face.index_begin + 0);
-					addSkinVertex(mb, mesh, weights, ref.boneOffset, face.index_begin + bi + 0);
-					addSkinVertex(mb, mesh, weights, ref.boneOffset, face.index_begin + bi + 1);
-				}
+			} else {
 
+				ufbx_matrix normalMat = ufbx_get_normal_matrix(&mesh.node.to_root);
+
+				// Add vertices
+				for (size_t fi = 0; fi < mesh.num_faces; fi++) {
+					ufbx_face face = mesh.faces[fi];
+					uint32_t materialIx = (uint32_t)scene->materials.size;
+					if (mesh.face_material) {
+						materialIx = (uint32_t)(mesh.materials.data[mesh.face_material[fi]] - scene->materials.data);
+					}
+					MeshBuilder<Vertex> &mb = meshBuilders[materialIx];
+
+					for (uint32_t bi = 1; bi + 2 <= face.num_indices; bi++) {
+						addVertex(mb, mesh, normalMat, face.index_begin + 0);
+						addVertex(mb, mesh, normalMat, face.index_begin + bi + 0);
+						addVertex(mb, mesh, normalMat, face.index_begin + bi + 1);
+					}
+				}
 			}
+		}
 
-		} else {
-
-			ufbx_matrix normalMat = ufbx_get_normal_matrix(&mesh.node.to_root);
-
-			// Add vertices
-			for (size_t fi = 0; fi < mesh.num_faces; fi++) {
-				ufbx_face face = mesh.faces[fi];
-				uint32_t materialIx = (uint32_t)scene->materials.size;
-				if (mesh.face_material) {
-					materialIx = (uint32_t)(mesh.materials.data[mesh.face_material[fi]] - scene->materials.data);
-				}
-				MeshBuilder<Vertex> &mb = meshBuilders[materialIx];
-
-				for (uint32_t bi = 1; bi + 2 <= face.num_indices; bi++) {
-					addVertex(mb, mesh, normalMat, face.index_begin + 0);
-					addVertex(mb, mesh, normalMat, face.index_begin + bi + 0);
-					addVertex(mb, mesh, normalMat, face.index_begin + bi + 1);
+		weights = sf::Array<SkinWeights>();
+	} else {
+		for (ufbx_mesh &mesh : scene->meshes) {
+			if (mesh.skins.size > 0) {
+				for (ufbx_skin &skin : mesh.skins) {
+					addBone(*imp, bonePtrs, skin.bone);
 				}
 			}
 		}
 	}
-
-	weights = sf::Array<SkinWeights>();
 
 	if (props->cpuData) {
 		for (MeshBuilder<Vertex> &mb : meshBuilders) {
@@ -426,30 +442,32 @@ static void loadImp(void *user, const ContentFile &file)
 
 	}
 
-	for (ufbx_anim_layer &layer : scene->anim_layers) {
-		Animation &anim = imp->animations.push();
-		anim.name = toSF(layer.name);
+	if (!props->ignoreAnimations) {
+		for (ufbx_anim_layer &layer : scene->anim_layers) {
+			Animation &anim = imp->animations.push();
+			anim.name = toSF(layer.name);
 
-		for (uint32_t boneI = 0; boneI < bonePtrs.size; boneI++) {
-			Bone &bone = imp->bones[boneI];
-			ufbx_node *node = bonePtrs[boneI];
-			if (!ufbx_find_node_anim_prop_begin(scene, &layer, node)) continue;
+			for (uint32_t boneI = 0; boneI < bonePtrs.size; boneI++) {
+				Bone &bone = imp->bones[boneI];
+				ufbx_node *node = bonePtrs[boneI];
+				if (!ufbx_find_node_anim_prop_begin(scene, &layer, node)) continue;
 
-			AnimationCurve &curve = anim.curves.push();
-			curve.boneName = bone.name;
+				AnimationCurve &curve = anim.curves.push();
+				curve.boneName = bone.name;
 
-			for (uint32_t timeI = 0; timeI < 100; timeI++) {
-				double time = (double)timeI / 24.0;
-				ufbx_evaluate_opts opts = { };
-				opts.layer = &layer;
-				ufbx_transform transform = ufbx_evaluate_transform(scene, node, &opts, time);
+				for (uint32_t timeI = 0; timeI < 100; timeI++) {
+					double time = (double)timeI / 24.0;
+					ufbx_evaluate_opts opts = { };
+					opts.layer = &layer;
+					ufbx_transform transform = ufbx_evaluate_transform(scene, node, &opts, time);
 
-				curve.translationTime.push((float)time);
-				curve.rotationTime.push((float)time);
-				curve.scaleTime.push((float)time);
-				curve.translationValue.push(toSF(transform.translation));
-				curve.rotationValue.push(toSFQuat(transform.rotation));
-				curve.scaleValue.push(toSF(transform.scale));
+					curve.translationTime.push((float)time);
+					curve.rotationTime.push((float)time);
+					curve.scaleTime.push((float)time);
+					curve.translationValue.push(toSF(transform.translation));
+					curve.rotationValue.push(toSFQuat(transform.rotation));
+					curve.scaleValue.push(toSF(transform.scale));
+				}
 			}
 		}
 	}

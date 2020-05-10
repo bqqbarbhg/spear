@@ -34,6 +34,8 @@ struct PolymorphInstance
 	const PolymorphType *type = nullptr;
 };
 
+typedef void (*PostSerializeFn)(void *inst, sf::Type *type);
+
 struct Type {
 
 	enum Primitive {
@@ -64,6 +66,8 @@ struct Type {
 	TypeInfo info;
 	uint32_t flags;
 	Primitive primitive = Bool;
+
+	PostSerializeFn postSerializeFn = nullptr;
 
 	Slice<const Field> fields;
 	Type *elementType = nullptr;
@@ -107,7 +111,7 @@ struct TypeStruct final : Type {
 struct TypePolymorphicStructBase : Type {
 	TypePolymorphicStructBase(const char *name, const TypeInfo &info, ::sf::Slice<const PolymorphType> types, size_t tagOffset, const char *tagName, uint32_t userFlags);
 
-	virtual sf::CString TypePolymorphicStructBase::getPolymorphTagName();
+	virtual sf::CString getPolymorphTagName();
 
 	virtual const PolymorphType *getPolymorphTypeByValue(uint32_t value);
 	virtual const PolymorphType *getPolymorphTypeByName(sf::String name);
