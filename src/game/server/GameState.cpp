@@ -233,7 +233,8 @@ namespace sf {
 template<> void initType<sv::TileType>(Type *t)
 {
 	static Field fields[] = {
-		sf_field(sv::TileType, name),
+		sf_field(sv::TileType, floorName),
+		sf_field(sv::TileType, tileName),
 		sf_field(sv::TileType, floor),
 		sf_field(sv::TileType, wall),
 	};

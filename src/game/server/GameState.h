@@ -15,7 +15,8 @@ struct Action;
 
 struct TileType
 {
-	sf::Symbol name;
+	sf::Symbol floorName;
+	sf::Symbol tileName;
 	bool floor = false;
 	bool wall = false;
 };

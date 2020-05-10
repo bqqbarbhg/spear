@@ -134,6 +134,9 @@ char *memPrintf(const char *fmt, ...);
 void debugPrint(const char *fmt, ...);
 void debugPrintLine(const char *fmt, ...);
 
+struct String;
+void debugPrintJson(const sf::String &label, const sf::String &json);
+
 // Formatted assertions
 #if SF_DEBUG
 	#define sf_assertf(cond, ...) do { if (!(cond)) { ::sf::debugPrintLine("Assertion failed: " __VA_ARGS__); sf_debugbreak(); } } while (0)

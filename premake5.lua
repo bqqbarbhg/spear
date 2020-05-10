@@ -66,6 +66,9 @@ workspace "spear"
 		optimize "On"
         flags { "LinkTimeOptimization" }
 
+	filter { "configurations:debug", "platforms:wasm" }
+		linkoptions { "-g" }
+
 	filter "platforms:x86"
 		architecture "x86"
 

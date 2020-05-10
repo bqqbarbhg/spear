@@ -9,6 +9,7 @@ namespace cl {
 
 struct TileType
 {
+	TileInfoRef floor;
 	TileInfoRef tile;
 };
 

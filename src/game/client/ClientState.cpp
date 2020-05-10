@@ -22,6 +22,32 @@ static sf::Box<Entity> convertEntity(const sf::Box<sv::Entity> &svEntity)
 	return data;
 }
 
+static bool generateMapMesh(sf::Array<cl::MapMesh> &meshes, sf::Random &tileRng, const TileInfoRef &tileRef, const sf::Vec2i &tilePos)
+{
+	if (!tileRef.isLoaded()) {
+		return !tileRef.isLoading();
+	}
+
+	TileInfo &info = tileRef->data;
+	TileVariantInfo &variant = info.getVariant(tileRng.nextFloat());
+
+	if (variant.modelRef.isLoading()) return false;
+	if (variant.shadowModelRef.isLoading()) return false;
+
+	float rotation = (float)(tileRng.nextU32() & 3) * (sf::F_2PI * 0.25f);
+	MapMesh &mesh = meshes.push();
+	if (variant.modelRef) mesh.model = variant.modelRef;
+	if (variant.shadowModelRef) mesh.model = variant.shadowModelRef;
+
+	float scale = variant.scale * info.scale;
+
+	sf::Vec3 pos = { (float)tilePos.x, 0.0f, (float)tilePos.y };
+
+	mesh.transform = sf::mat::translate(pos) * sf::mat::rotateY(rotation) * sf::mat::scale(scale);
+
+	return true;
+}
+
 static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, sv::Map &svMap, const sf::Vec2i &chunkPos)
 {
 	meshes.clear();
@@ -40,29 +66,13 @@ static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, 
 	{
 		sf::Random tileRng { chunkRng.nextU32(), y * sv::MapChunk::Size + x };
 		tileRng.nextU32();
-		float rotation = (float)(tileRng.nextU32() & 3) * (sf::F_2PI * 0.25f);
 
 		sv::TileId tileId = svChunk.tiles[y * sv::MapChunk::Size + x];
 		TileType &tileType = state.tileTypes[tileId];
-		if (tileType.tile.isLoading()) return false;
-		if (!tileType.tile.isLoaded()) continue;
-
-		TileInfo &info = tileType.tile->data;
-		TileVariantInfo &variant = info.getVariant(tileRng.nextFloat());
-
-		if (variant.modelRef.isLoading()) return false;
-		if (variant.shadowModelRef.isLoading()) return false;
-
-		MapMesh &mesh = meshes.push();
-		if (variant.modelRef) mesh.model = variant.modelRef;
-		if (variant.shadowModelRef) mesh.model = variant.shadowModelRef;
-
-		float scale = variant.scale * info.scale;
-
 		sf::Vec2i tilePos = sf::Vec2i((int32_t)x, (int32_t)y) + origin;
-		sf::Vec3 pos = { (float)tilePos.x, 0.0f, (float)tilePos.y };
 
-		mesh.transform = sf::mat::translate(pos) * sf::mat::rotateY(rotation) * sf::mat::scale(scale);
+		if (!generateMapMesh(meshes, tileRng, tileType.floor, tilePos)) return false;
+		if (!generateMapMesh(meshes, tileRng, tileType.tile, tilePos)) return false;
 	}
 
 	return true;
@@ -89,9 +99,8 @@ void State::reset(sv::State *svState)
 	{
 		for (sv::TileType &tileType : svState->map.tileTypes) {
 			cl::TileType &dst = tileTypes.push();
-			if (tileType.name) {
-				dst.tile.load(tileType.name);
-			}
+			if (tileType.floorName) dst.floor.load(tileType.floorName);
+			if (tileType.tileName) dst.tile.load(tileType.tileName);
 		}
 	}
 

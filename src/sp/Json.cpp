@@ -18,7 +18,7 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 	uint32_t flags = type->flags;
 	char *base = (char*)inst;
 
-#if 1
+#if 0
 	if (!parentType || !((parentType->flags & sf::Type::HasArray) && (type->flags & sf::Type::IsPrimitive))) {
 		sf::SmallStringBuf<128> name;
 		name.append("/* ");
@@ -69,7 +69,7 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 		sf::VoidSlice slice = type->instGetArray(inst);
 		uint32_t size = (uint32_t)slice.size;
 
-#if 1
+#if 0
 		{
 			sf::SmallStringBuf<128> comment;
 			comment.format("/* size=%u */ ", size);

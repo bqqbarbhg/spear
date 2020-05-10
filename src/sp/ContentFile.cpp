@@ -15,7 +15,8 @@
 
 namespace sp {
 
-#define sp_file_log(...) sf::debugPrintLine(__VA_ARGS__)
+// #define sp_file_log(...) sf::debugPrintLine(__VA_ARGS__)
+#define sp_file_log(...) (void)0
 
 static constexpr uint32_t NumLanes = 4;
 static constexpr uint32_t BufferSize = 16 * 1024 * 1024;

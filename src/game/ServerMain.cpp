@@ -74,13 +74,14 @@ ServerMain *serverInit()
 
 		{
 			sv::TileType &tile = map.tileTypes.push();
-			tile.name = sf::Symbol("Tiles/floor.js");
+			tile.floorName = sf::Symbol("Tiles/floor.js");
 			tile.floor = true;
 		}
 
 		{
 			sv::TileType &tile = map.tileTypes.push();
-			tile.name = sf::Symbol("Tiles/wall.js");
+			tile.floorName = sf::Symbol("Tiles/floor.js");
+			tile.tileName = sf::Symbol("Tiles/wall.js");
 			tile.wall = true;
 		}
 

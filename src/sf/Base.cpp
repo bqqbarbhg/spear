@@ -15,6 +15,10 @@
 	#include <Windows.h>
 #endif
 
+#if SF_OS_EMSCRIPTEN
+	#include <emscripten.h>
+#endif
+
 namespace sf {
 
 #if SF_DEBUG
@@ -107,6 +111,23 @@ void debugPrintLine(const char *fmt, ...)
 #endif
 
 	va_end(args);
+}
+
+#if SF_OS_EMSCRIPTEN
+EM_JS(void, sf_em_print_json, (const char *label, int labelLen, const char *json, int jsonLen), {
+	var label = UTF8ToString(label, labelLen);
+	var json = UTF8ToString(json, jsonLen);
+	console.log(label, JSON.parse(json));
+});
+#endif
+
+void debugPrintJson(const sf::String &label, const sf::String &json)
+{
+#if SF_OS_EMSCRIPTEN
+	sf_em_print_json(label.data, (int)label.size, json.data, (int)json.size);
+#else
+	sf::debugPrint("%.*s: %.*s\n", (int)label.size, label.data, (int)json.size, json.data);
+#endif
 }
 
 // https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
