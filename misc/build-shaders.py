@@ -1,10 +1,19 @@
+#!/usr/bin/env python3
+
 import os
 import subprocess
 import sys
 import shutil
 
+if sys.platform == "win32":
+    shdc_exe = "sokol-shdc.exe"
+elif sys.platform == "darwin":
+    shdc_exe = "sokol-shdc-mac"
+else:
+    shdc_exe = "sokol-shdc"
+
 self_path = os.path.dirname(os.path.abspath(__file__))
-shdc_exe = os.path.join(self_path, "sokol-shdc.exe")
+shdc_exe = os.path.join(self_path, shdc_exe)
 src_dir = os.path.join(self_path, "..", "src")
 src_dir = os.path.abspath(src_dir)
 
@@ -29,7 +38,7 @@ def compile_file(path):
         pass
 
     print("$ " + " ".join(args))
-    subprocess.check_call(args, shell=True)
+    subprocess.check_call(args)
 
 for root,dirs,files in os.walk(src_dir):
     for f in files:

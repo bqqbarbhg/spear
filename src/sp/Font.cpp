@@ -263,6 +263,51 @@ static void rasterizeGlyph(FontImp *font, Glyph &glyph, uint32_t code)
 	glyph.sdf = sdf;
 }
 
+void Font::retainSlots(sf::String text)
+{
+    FontContext &ctx = g_fontContext;
+    FontImp *imp = (FontImp*)this;
+    
+    sf::MutexGuard mg(ctx.mutex);
+    sf::MutexGuard mg2(imp->mutex);
+
+    size_t pos = 0;
+    while (pos < text.size) {
+        uint32_t code = (unsigned char)text.data[pos++];
+        if (code >= 0x80) {
+            code = decodeUtf8Trail(text.data, text.size, pos, code);
+            if (code == ~0u) continue;
+        }
+        
+        Glyph &glyph = imp->glyphs[code];
+        if (glyph.ttfGlyph < 0) {
+            initGlyph(imp, glyph, code);
+        }
+        
+        if (glyph.globalGlyphIndex == 0) {
+            glyph.globalGlyphIndex = ++ctx.globalGlyphIndexCounter;
+        }
+        
+        if (glyph.width >= 0) {
+            if (glyph.slot == 0 || ctx.atlasSlots[glyph.slot].globalGlyphIndex != glyph.globalGlyphIndex) {
+                rasterizeGlyph(imp, glyph, code);
+                if (glyph.width >= 0) {
+                    glyph.slot = allocateSlot(ctx);
+                    ctx.atlasSlots[glyph.slot].globalGlyphIndex = glyph.globalGlyphIndex;
+                    
+                    imp->codepointsToAlloc.push(code);
+                    if (!imp->inUpdateList) {
+                        imp->inUpdateList = true;
+                        ctx.updateList.push(imp);
+                    }
+                }
+            } else {
+                retainSlot(ctx, glyph.slot);
+            }
+        }
+    }
+}
+
 void Font::getQuads(sf::Array<FontQuad> &quads, const sp::TextDraw &draw, uint32_t color, sf::String text, size_t maxQuads)
 {
 	FontContext &ctx = g_fontContext;
@@ -291,28 +336,6 @@ void Font::getQuads(sf::Array<FontQuad> &quads, const sp::TextDraw &draw, uint32
 		Glyph &glyph = imp->glyphs[code];
 		if (glyph.ttfGlyph < 0) {
 			initGlyph(imp, glyph, code);
-		}
-
-		if (glyph.globalGlyphIndex == 0) {
-			glyph.globalGlyphIndex = ++ctx.globalGlyphIndexCounter;
-		}
-
-		if (glyph.width >= 0) {
-			if (glyph.slot == 0 || ctx.atlasSlots[glyph.slot].globalGlyphIndex != glyph.globalGlyphIndex) {
-				rasterizeGlyph(imp, glyph, code);
-				if (glyph.width >= 0) {
-					glyph.slot = allocateSlot(ctx);
-					ctx.atlasSlots[glyph.slot].globalGlyphIndex = glyph.globalGlyphIndex;
-
-					imp->codepointsToAlloc.push(code);
-					if (!imp->inUpdateList) {
-						imp->inUpdateList = true;
-						ctx.updateList.push(imp);
-					}
-				}
-			} else {
-				retainSlot(ctx, glyph.slot);
-			}
 		}
 
 		if (prevTttfGlyph >= 0) {

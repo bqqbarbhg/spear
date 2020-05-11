@@ -94,7 +94,6 @@ struct CanvasImp
 static_assert(sizeof(Canvas::impData) >= sizeof(CanvasImp), "impData too small");
 static_assert(sizeof(Canvas::impData) <= sizeof(CanvasImp) * 4, "impData too large");
 
-
 CanvasRenderOpts CanvasRenderOpts::windowPixels()
 {
 	return CanvasRenderOpts::pixels((uint32_t)sapp_width(), (uint32_t)sapp_height());
@@ -240,7 +239,6 @@ void Canvas::draw(Sprite *sprite, const sf::Vec2 &pos, const sf::Vec2 &size, con
 	draw(d);
 }
 
-
 static uint32_t packChannel(float f)
 {
 	return sf::clamp((uint32_t)(f * 255.0f), 0u, 255u);
@@ -356,8 +354,6 @@ static void drawTexts(CanvasContext &ctx, sf::Slice<TextDrawImp> draws, const ch
 
 	if (ctx.fontQuads.size == 0) return;
 
-	sp::Font::updateAtlasesForRendering();
-
 	uint32_t offset = sg_append_buffer(ctx.textQuadVertexBuffer, ctx.fontQuads.data, (int)ctx.fontQuads.byteSize());
 
 	sg_apply_pipeline(ctx.fontPipeline);
@@ -372,131 +368,138 @@ static void drawTexts(CanvasContext &ctx, sf::Slice<TextDrawImp> draws, const ch
 	sg_draw(0, 6 * ctx.fontQuads.size, 1);
 }
 
-static void drawCanvases(CanvasContext &ctx, sf::Slice<CanvasDrawImp> draws)
+void Canvas::prepareForRendering()
 {
-
+    CanvasImp *imp = (CanvasImp*)impData;
+    
+    const char *textData = imp->textData.data;
+    for (TextDrawImp &drawImp : imp->textDraws) {
+        if (drawImp.draw.font->isLoaded()) {
+            sf::String text(textData + drawImp.textOffset, drawImp.draw.string.size);
+            drawImp.draw.font->retainSlots(text);
+        }
+    }
 }
 
 void Canvas::render(const CanvasRenderOpts &opts)
 {
-	CanvasContext &ctx = g_canvasContext;
-	CanvasImp *imp = (CanvasImp*)impData;
+    CanvasContext &ctx = g_canvasContext;
+    CanvasImp *imp = (CanvasImp*)impData;
 
-	// Sort lists if necessary
+    // Sort lists if necessary
 
-	if (!imp->spriteDrawsSorted) {
-		imp->spriteDrawsSorted = true;
-		sf::sortBy(imp->spriteDraws, [](const SpriteDrawImp &draw) {
-			return draw.sortKey;
-		});
-	}
+    if (!imp->spriteDrawsSorted) {
+        imp->spriteDrawsSorted = true;
+        sf::sortBy(imp->spriteDraws, [](const SpriteDrawImp &draw) {
+            return draw.sortKey;
+        });
+    }
 
-	if (!imp->textDrawsSorted) {
-		imp->textDrawsSorted = true;
-		sf::sortBy(imp->textDraws, [](const TextDrawImp &draw) {
-			return draw.sortKey;
-		});
-	}
+    if (!imp->textDrawsSorted) {
+        imp->textDrawsSorted = true;
+        sf::sortBy(imp->textDraws, [](const TextDrawImp &draw) {
+            return draw.sortKey;
+        });
+    }
 
-	if (!imp->canvasDrawsSorted) {
-		imp->canvasDrawsSorted = true;
-		sf::sortBy(imp->canvasDraws, [](const CanvasDrawImp &draw) {
-			return draw.sortKey;
-		});
-	}
+    if (!imp->canvasDrawsSorted) {
+        imp->canvasDrawsSorted = true;
+        sf::sortBy(imp->canvasDraws, [](const CanvasDrawImp &draw) {
+            return draw.sortKey;
+        });
+    }
 
-	uint32_t spriteI = 0;
-	uint32_t textI = 0;
-	uint32_t canvasI = 0;
+    uint32_t spriteI = 0;
+    uint32_t textI = 0;
+    uint32_t canvasI = 0;
 
-	uint64_t nextSprite = imp->spriteDraws.size > 0 ? imp->spriteDraws[0].sortKey : UINT64_MAX;
-	uint64_t nextText = imp->textDraws.size > 0 ? imp->textDraws[0].sortKey : UINT64_MAX;
-	uint64_t nextCanvas = imp->canvasDraws.size > 0 ? imp->canvasDraws[0].sortKey : UINT64_MAX;
+    uint64_t nextSprite = imp->spriteDraws.size > 0 ? imp->spriteDraws[0].sortKey : UINT64_MAX;
+    uint64_t nextText = imp->textDraws.size > 0 ? imp->textDraws[0].sortKey : UINT64_MAX;
+    uint64_t nextCanvas = imp->canvasDraws.size > 0 ? imp->canvasDraws[0].sortKey : UINT64_MAX;
 
-	uint64_t next = sf::min(nextSprite, nextText, nextCanvas);
-	while (next != UINT64_MAX) {
+    uint64_t next = sf::min(nextSprite, nextText, nextCanvas);
+    while (next != UINT64_MAX) {
 
-		// All sort keys are unique so dispatch to the type whose sort key
-		// is equal to the lowest one
-		if (next == nextSprite) {
-			next = sf::min(nextText, nextCanvas);
-			SpriteDrawImp *draws = imp->spriteDraws.data;
-			uint32_t numDraws = imp->spriteDraws.size;
+        // All sort keys are unique so dispatch to the type whose sort key
+        // is equal to the lowest one
+        if (next == nextSprite) {
+            next = sf::min(nextText, nextCanvas);
+            SpriteDrawImp *draws = imp->spriteDraws.data;
+            uint32_t numDraws = imp->spriteDraws.size;
 
-			// Setup sprite rendering
-			sg_apply_pipeline(ctx.spritePipeline);
-			Sprite_Transform_t transform;
-			opts.transform.writeColMajor44(transform.transform);
-			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Sprite_Transform, &transform, sizeof(transform));
+            // Setup sprite rendering
+            sg_apply_pipeline(ctx.spritePipeline);
+            Sprite_Transform_t transform;
+            opts.transform.writeColMajor44(transform.transform);
+            sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Sprite_Transform, &transform, sizeof(transform));
 
-			do {
-				Sprite *sprite = draws[spriteI].draw.sprite;
+            do {
+                Sprite *sprite = draws[spriteI].draw.sprite;
 
-				if (sprite->shouldBeLoaded()) {
-					Atlas *atlas = sprite->atlas;
+                if (sprite->shouldBeLoaded()) {
+                    Atlas *atlas = sprite->atlas;
 
-					// Keep appending sprites that are in the same atlas
-					uint32_t end = spriteI + 1;
-					for (; end < numDraws && end - spriteI < MaxQuadsPerDraw; end++) {
-						if (draws[end].sortKey > next) break;
-						sprite = draws[end].draw.sprite;
-						if (!sprite->shouldBeLoaded()) break;
-						if (sprite->atlas != atlas) {
-							atlas->brokeBatch();
-							sprite->atlas->brokeBatch();
-							break;
-						}
-					}
+                    // Keep appending sprites that are in the same atlas
+                    uint32_t end = spriteI + 1;
+                    for (; end < numDraws && end - spriteI < MaxQuadsPerDraw; end++) {
+                        if (draws[end].sortKey > next) break;
+                        sprite = draws[end].draw.sprite;
+                        if (!sprite->shouldBeLoaded()) break;
+                        if (sprite->atlas != atlas) {
+                            atlas->brokeBatch();
+                            sprite->atlas->brokeBatch();
+                            break;
+                        }
+                    }
 
-					drawSprites(ctx, sf::slice(draws + spriteI, end - spriteI), atlas, opts);
-					spriteI = end;
-				} else {
-					spriteI++;
-				}
+                    drawSprites(ctx, sf::slice(draws + spriteI, end - spriteI), atlas, opts);
+                    spriteI = end;
+                } else {
+                    spriteI++;
+                }
 
-				nextSprite = spriteI < numDraws ? draws[spriteI].sortKey : UINT64_MAX;
-			} while (nextSprite < next);
+                nextSprite = spriteI < numDraws ? draws[spriteI].sortKey : UINT64_MAX;
+            } while (nextSprite < next);
 
-		} else if (next == nextText) {
-			next = sf::min(nextSprite, nextCanvas);
-			TextDrawImp *draws = imp->textDraws.data;
-			uint32_t numDraws = imp->textDraws.size;
+        } else if (next == nextText) {
+            next = sf::min(nextSprite, nextCanvas);
+            TextDrawImp *draws = imp->textDraws.data;
+            uint32_t numDraws = imp->textDraws.size;
 
-			uint32_t begin = textI;
+            uint32_t begin = textI;
 
-			do {
-				textI++;
-				nextText = textI < numDraws ? draws[textI].sortKey : UINT64_MAX;
-			} while (nextText < next);
+            do {
+                textI++;
+                nextText = textI < numDraws ? draws[textI].sortKey : UINT64_MAX;
+            } while (nextText < next);
 
-			drawTexts(ctx, sf::slice(draws + begin, textI - begin), imp->textData.data, opts);
+            drawTexts(ctx, sf::slice(draws + begin, textI - begin), imp->textData.data, opts);
 
-		} else if (next == nextCanvas) {
-			next = sf::min(nextSprite, nextText);
-			CanvasDrawImp *draws = imp->canvasDraws.data;
-			uint32_t numDraws = imp->canvasDraws.size;
+        } else if (next == nextCanvas) {
+            next = sf::min(nextSprite, nextText);
+            CanvasDrawImp *draws = imp->canvasDraws.data;
+            uint32_t numDraws = imp->canvasDraws.size;
 
-			do {
-				CanvasDraw &draw = draws[canvasI++].draw;
+            do {
+                CanvasDraw &draw = draws[canvasI++].draw;
 
-				sf::Mat44 transform;
-				transform.m00 = draw.transform.m00;
-				transform.m01 = draw.transform.m01;
-				transform.m03 = draw.transform.m02;
-				transform.m10 = draw.transform.m10;
-				transform.m11 = draw.transform.m11;
-				transform.m13 = draw.transform.m12;
+                sf::Mat44 transform;
+                transform.m00 = draw.transform.m00;
+                transform.m01 = draw.transform.m01;
+                transform.m03 = draw.transform.m02;
+                transform.m10 = draw.transform.m10;
+                transform.m11 = draw.transform.m11;
+                transform.m13 = draw.transform.m12;
 
-				CanvasRenderOpts innerOpts;
-				innerOpts.transform = transform * opts.transform;
-				innerOpts.color = draw.color * opts.color;
-				draw.canvas->render(innerOpts);
+                CanvasRenderOpts innerOpts;
+                innerOpts.transform = transform * opts.transform;
+                innerOpts.color = draw.color * opts.color;
+                draw.canvas->render(innerOpts);
 
-				nextCanvas = canvasI < numDraws ? draws[canvasI].sortKey : UINT64_MAX;
-			} while (nextCanvas < next);
-		}
-	}
-
+                nextCanvas = canvasI < numDraws ? draws[canvasI].sortKey : UINT64_MAX;
+            } while (nextCanvas < next);
+        }
+    }
 }
 
 bool Canvas::isLoaded() const
@@ -626,6 +629,5 @@ void Canvas::globalUpdate()
 	ctx.quadsLeftThisFrame = MaxQuadsPerFrame;
 	ctx.textQuadsLeftThisFrame = MaxQuadsPerFrame;
 }
-
 
 }

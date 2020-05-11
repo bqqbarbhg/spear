@@ -22,7 +22,7 @@ layout(location=2) in vec2 uv;
 #if SOKOL_GLSL
 	layout(location=3) in vec4 indices;
 #else
-	layout(location=3) in ivec4 indices;
+	layout(location=3) in uvec4 indices;
 #endif
 layout(location=4) in vec4 weights;
 
@@ -35,7 +35,7 @@ void main()
 #if SOKOL_GLSL
 	ivec4 ix = ivec4(indices * 3.0);
 #else
-	ivec4 ix = indices * 3;
+	ivec4 ix = ivec4(indices) * 3;
 #endif
 	vec4 row0 = bones[ix.x + 0] * weights.x;
 	vec4 row1 = bones[ix.x + 1] * weights.x;
@@ -50,13 +50,15 @@ void main()
 	row1 += bones[ix.w + 1] * weights.w;
 	row2 += bones[ix.w + 2] * weights.w;
 
-	vec3 p, n;
-	p.x = dot(row0, vec4(position, 1.0));
-	n.x = dot(row0, vec4(normal, 0.0));
-	p.y = dot(row1, vec4(position, 1.0));
-	n.y = dot(row1, vec4(normal, 0.0));
-	p.z = dot(row2, vec4(position, 1.0));
-	n.z = dot(row2, vec4(normal, 0.0));
+	vec3 p = vec3(
+		dot(row0, vec4(position, 1.0)),
+		dot(row1, vec4(position, 1.0)),
+		dot(row2, vec4(position, 1.0)));
+
+	vec3 n = vec3(
+		dot(row0, vec4(normal, 0.0)),
+		dot(row1, vec4(normal, 0.0)),
+		dot(row2, vec4(normal, 0.0)));
 
     gl_Position = viewProj * vec4(p, 1.0);
 	v_normal = normalize(n);

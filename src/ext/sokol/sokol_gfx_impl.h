@@ -6771,6 +6771,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
     SOKOL_ASSERT(img && desc);
     img->type = desc->type;
     img->render_target = desc->render_target;
+    img->bqq_copy_target = desc->bqq_copy_target;
     img->width = desc->width;
     img->height = desc->height;
     img->depth = desc->depth;
@@ -6841,7 +6842,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
             }
             else {
                 tex = [_sg_mtl_device newTextureWithDescriptor:mtl_desc];
-                if ((img->usage == SG_USAGE_IMMUTABLE) && !img->render_target) {
+                if ((img->usage == SG_USAGE_IMMUTABLE) && !img->render_target && !img->bqq_copy_target) {
                     _sg_mtl_copy_image_content(img, tex, &desc->content);
                 }
             }
@@ -7571,6 +7572,37 @@ _SOKOL_PRIVATE void _sg_update_image(_sg_image_t* img, const sg_image_content* d
 
 _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc, _sg_image_t *dst_img, const _sg_image_t *src_img)
 {
+	if (nil == _sg_mtl_cmd_buffer) {
+		_sg_mtl_cmd_buffer = [_sg_mtl_cmd_queue commandBufferWithUnretainedReferences];
+	}
+
+    SOKOL_ASSERT(nil != _sg_mtl_cmd_encoder);
+    id<MTLBlitCommandEncoder> blit_encoder = [_sg_mtl_cmd_buffer blitCommandEncoder];
+
+    id<MTLTexture> src_tex = _sg_mtl_idpool[src_img->mtl_tex[src_img->active_slot]];
+    id<MTLTexture> dst_tex = _sg_mtl_idpool[dst_img->mtl_tex[dst_img->active_slot]];
+
+	for (int mip_index = 0; mip_index < desc->num_mips; mip_index++) {
+		for (int rect_index = 0; rect_index < desc->num_rects; rect_index++) {
+			const sg_bqq_subimage_rect *rect = &desc->rects[rect_index];
+			MTLOrigin src_origin = { rect->src_x >> mip_index, rect->src_y >> mip_index, 1 };
+			MTLOrigin dst_origin = { rect->dst_x >> mip_index, rect->dst_y >> mip_index, 1 };
+			MTLSize size = { rect->width >> mip_index, rect->height >> mip_index, 1 };
+			[blit_encoder
+				copyFromTexture: src_tex
+				sourceSlice: 0
+				sourceLevel: mip_index
+				sourceOrigin: src_origin
+				sourceSize: size
+				toTexture: dst_tex
+				destinationSlice: 0
+				destinationLevel: mip_index
+				destinationOrigin: dst_origin
+			 ];
+		}
+	}
+
+	[blit_encoder endEncoding];
 }
 
 _SOKOL_PRIVATE void _sg_bqq_generate_mipmaps(_sg_image_t *img)

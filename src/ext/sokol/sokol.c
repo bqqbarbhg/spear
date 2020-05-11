@@ -20,12 +20,12 @@
 #include "sokol_time.h"
 #include "sokol_fetch.h"
 
-#include "sokol_gfx_impl.h"
 #include "sokol_gl_impl.h"
 #include "sokol_time_impl.h"
 #include "sokol_fetch_impl.h"
 
 #if !SF_OS_APPLE
 	#include "sokol_app_impl.h"
+    #include "sokol_gfx_impl.h"
 #endif
 

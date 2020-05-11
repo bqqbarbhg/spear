@@ -64,6 +64,8 @@ struct Canvas
 	void draw(Sprite *sprite, const sf::Vec2 &pos, const sf::Vec2 &size);
 	void draw(Sprite *sprite, const sf::Vec2 &pos, const sf::Vec2 &size, const sf::Vec4 &color);
 
+    void prepareForRendering();
+
 	void render(const CanvasRenderOpts &opts);
 
 	bool isLoaded() const;

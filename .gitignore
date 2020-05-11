@@ -5,3 +5,7 @@ build/
 premake5
 .DS_store
 *.swp
+*.dia
+*.air
+*.metallib
+*.metal

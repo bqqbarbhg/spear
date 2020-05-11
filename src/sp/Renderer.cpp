@@ -97,9 +97,13 @@
 	}
 
 #else
-	#error "TODO"
+    #error "Unsupported platform"
 #endif
 
+#elif defined(SOKOL_METAL)
+    #include "ext/sokol/sg_ext_metal_timing.h"
+#else
+    #error "Unsupported platform"
 #endif
 
 namespace sp {
@@ -164,7 +168,8 @@ static void endQueryFrame()
 		if (!disjoint.Disjoint) {
 			g_passTimes.reserve(frame.queries.size);
 			g_passTimes.clear();
-			for (Query &query : frame.queries) {
+            for (uint32_t i = 0; i < frame.numQueries; i++) {
+                Query &query = frame.queries[i];
 				PassTime &time = g_passTimes.push();
 				time.name = query.name;
 				UINT64 begin, end;
@@ -173,7 +178,6 @@ static void endQueryFrame()
 				time.time = (double)(end - begin) / (double)disjoint.Frequency;
 			}
 		}
-		frame.queries.clear();
 		frame.numQueries = 0;
 	}
 }
@@ -252,14 +256,14 @@ static void endQueryFrame()
 	QueryFrame &frame = queryFrames[queryFrameIndex];
 	g_passTimes.reserve(frame.queries.size);
 	g_passTimes.clear();
-	for (Query &query : frame.queries) {
+    for (uint32_t i = 0; i < frame.numQueries; i++) {
+        Query &query = frame.queries[i];
 		PassTime &time = g_passTimes.push();
 		GLuint duration = 0;
 		glGetQueryObjectuiv(query.query, GL_QUERY_RESULT, &duration);
 		time.name = query.name;
 		time.time = (double)duration * 1e-9;
 	}
-	frame.queries.clear();
 	frame.numQueries = 0;
 }
 
@@ -288,7 +292,53 @@ static void endQueryImp()
 
 #else
 
-// TODO
+struct Query
+{
+    sf::Symbol name;
+    uint32_t index;
+};
+
+struct QueryFrame
+{
+    sf::Array<Query> queries;
+};
+
+static QueryFrame queryFrames[SG_EXT_MAX_FRAMES_IN_FLIGHT];
+static uint32_t queryFrameIndex = 0;
+
+static void beginQueryFrame()
+{
+    sg_ext_mtl_begin_frame();
+    
+    queryFrameIndex = (queryFrameIndex + 1) % sf_arraysize(queryFrames);
+    QueryFrame &frame = queryFrames[queryFrameIndex];
+    g_passTimes.reserve(frame.queries.size);
+    g_passTimes.clear();
+    for (Query &query : frame.queries) {
+        PassTime &time = g_passTimes.push();
+        time.name = query.name;
+        time.time = sg_ext_mtl_pass_time(query.index);
+    }
+    frame.queries.clear();
+}
+
+static void endQueryFrame()
+{
+    sg_ext_mtl_end_frame();
+}
+
+static void beginQueryImp(sf::Symbol name)
+{
+    QueryFrame &frame = queryFrames[queryFrameIndex];
+    Query &query = frame.queries.push();
+    query.name = name;
+    query.index = sg_ext_mtl_begin_pass();
+}
+
+static void endQueryImp()
+{
+    sg_ext_mtl_end_pass();
+}
 
 #endif
 
