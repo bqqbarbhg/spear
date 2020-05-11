@@ -45,6 +45,10 @@
 
 	#endif
 
+// TODO: Use some non-time-based pseudorandom, dealing with this
+// is really an unnecessary pain...
+#undef bqws_cpu_time
+
 #else
 	#define bqws_forceinline
 #endif
