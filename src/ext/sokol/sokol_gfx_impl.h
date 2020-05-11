@@ -7631,6 +7631,7 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
 
 _SOKOL_PRIVATE void _sg_bqq_generate_mipmaps(_sg_image_t *img)
 {
+    SOKOL_ASSERT(0 && "Unimplemented");
 }
 
 #endif

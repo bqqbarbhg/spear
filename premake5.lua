@@ -51,14 +51,24 @@ workspace "spear"
 
 	filter "action:xcode4"
 		links {
-			"AppKit.framework",
+			"Foundation.framework",
 			"Security.framework",
 			"Metal.framework",
 			"MetalKit.framework",
 			"QuartzCore.framework",
-			"curl",
+			"CFNetwork.framework",
 		}
 		buildoptions { "-fobjc-arc" }
+
+	filter { "action:xcode4", "system:macosx" }
+		links {
+			"AppKit.framework",
+		}
+
+	filter { "action:xcode4", "system:ios" }
+		links {
+			"UIKit.framework",
+		}
 
 	filter "action:vs*"
 		systemversion(os.winSdkVersion() .. ".0")
@@ -151,5 +161,6 @@ project "spear"
     files { "src/**.h", "src/**.cpp", "src/**.c", "src/**.m" }
     files { "misc/*.natvis" }
 	debugdir "."
+	filter { "system:ios" }
+		files { "misc/Info.plist" }
 
-	debugdir "."

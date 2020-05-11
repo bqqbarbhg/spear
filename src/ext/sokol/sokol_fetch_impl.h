@@ -2000,6 +2000,41 @@ _SOKOL_PRIVATE void _sfetch_curl_cleanup(_sfetch_channel_t *chn) {
 	}
 }
 
+#elif defined(__APPLE__)
+
+#include <Foundation/NSString.h>
+#include <Foundation/NSData.h>
+#include <Foundation/NSURL.h>
+#include <Foundation/NSURLSession.h>
+
+_SOKOL_PRIVATE void _sfetch_curl_global_setup()  { }
+_SOKOL_PRIVATE void _sfetch_curl_global_cleanup() { }
+_SOKOL_PRIVATE void _sfetch_curl_setup(_sfetch_channel_t *chn) { }
+_SOKOL_PRIVATE void _sfetch_curl_add_request(_sfetch_channel_t *chn, _sfetch_item_t *item) {
+    NSString *dataUrl = [NSString stringWithUTF8String: item->path.buf];
+    NSURL *url = [NSURL URLWithString:dataUrl];
+    NSURLSessionDownloadTask *task =[[NSURLSession sharedSession]
+        dataTaskWithURL: url
+        completionHandler: ^(NSData *data, NSURLResponse *response, NSError *error) {
+            item->thread.finished = true;
+            if (error) {
+                item->thread.failed = true;
+                item->thread.error_code = SFETCH_ERROR_CURL_FAILED;
+                SOKOL_ASSERT(!_sfetch_ring_full(&chn->thread_outgoing));
+            } else {
+                // TODO: Handle buffer overflow
+                [data getBytes: item->buffer.ptr length: (int)item->buffer.size];
+                item->thread.fetched_size = item->thread.content_size = (int)data.length;
+            }
+            _sfetch_thread_enqueue_outgoing(&chn->thread, &chn->thread_outgoing, item->handle.id);
+        }
+    ];
+    
+    [task resume];
+}
+_SOKOL_PRIVATE int _sfetch_curl_process(_sfetch_channel_t *chn) { return 0; }
+_SOKOL_PRIVATE void _sfetch_curl_cleanup(_sfetch_channel_t *chn) { }
+
 #else
 
 _SOKOL_PRIVATE void _sfetch_curl_global_setup()  { }

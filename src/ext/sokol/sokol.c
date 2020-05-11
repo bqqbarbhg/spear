@@ -7,11 +7,12 @@
 
 #define SOKOL_FETCH_THREAD_START() sf_set_debug_thread_name("Fetch Thread")
 
-#if !SF_OS_WASM
+#if !SF_OS_WASM && !SF_OS_APPLE
 	#include <curl/curl.h>
 	#include <curl/easy.h>
 	#include <curl/multi.h>
 	#define SOKOL_CURL_STATIC
+    #define SOKOL_FETCH_USE_CURL
 #endif
 
 #include "sokol_app.h"
@@ -22,9 +23,9 @@
 
 #include "sokol_gl_impl.h"
 #include "sokol_time_impl.h"
-#include "sokol_fetch_impl.h"
 
 #if !SF_OS_APPLE
+    #include "sokol_fetch_impl.h"
 	#include "sokol_app_impl.h"
     #include "sokol_gfx_impl.h"
 #endif

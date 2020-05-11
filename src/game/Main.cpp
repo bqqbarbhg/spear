@@ -65,15 +65,16 @@ int port;
 
 void spInit()
 {
-    port = rand() % 1000 + 1000;
+    port = 4004;
     
     font.load(sf::Symbol("sp://OpenSans-Ascii.ttf"));
 	gameShaders.load();
 
-	sp::ContentFile::addRelativeFileRoot("data");
-	sp::ContentFile::addRelativeFileRoot("/data");
+	// sp::ContentFile::addRelativeFileRoot("data");
+	// sp::ContentFile::addRelativeFileRoot("/data");
+    sp::ContentFile::addRelativeFileRoot("http://localhost:5000");
 
-	server = serverInit(port);
+	// server = serverInit(port);
 	sf::debugPrintLine("Server: %p", server);
 
 	MainClient &client = clients.push();

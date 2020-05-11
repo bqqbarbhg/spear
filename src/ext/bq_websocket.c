@@ -38,6 +38,11 @@
 		#define BQWS_USE_SSE 1
 		#define bqws_cpu_time() (uint64_t)__rdtsc()
 
+    #else
+
+        // TODO
+        #define bqws_cpu_time() (uint64_t)0
+
 	#endif
 
 #else
