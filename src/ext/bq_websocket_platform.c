@@ -668,7 +668,7 @@ static bool os_imp_config_data_socket(os_socket s)
 
 	// Disable Nagle's algorithm to make writes immediate
 	int nd_flag = 1;
-	res = setsockopt(s, SOL_TCP, TCP_NODELAY, &nd_flag, sizeof(nd_flag));
+	res = setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &nd_flag, sizeof(nd_flag));
 	if (res != 0) { pt_fail_posix("setsockopt(TCP_NODELAY)"); return false; }
 
 	return true;
@@ -1063,7 +1063,7 @@ static void tls_free_server(pt_tls_server *tls)
 
 static bool tls_init_accept(pt_tls *tls, pt_tls_server *tls_server, os_socket s)
 {
-	bwqs_assert(0 && "Should never get here");
+	bqws_assert(0 && "Should never get here");
 }
 
 static void tls_free(pt_tls *tls)
@@ -1072,13 +1072,13 @@ static void tls_free(pt_tls *tls)
 
 static size_t tls_send(pt_tls *tls, const void *data, size_t size)
 {
-	bwqs_assert(0 && "Should never get here");
+	bqws_assert(0 && "Should never get here");
 	return SIZE_MAX;
 }
 
 static size_t tls_recv(pt_tls *tls, void *data, size_t size)
 {
-	bwqs_assert(0 && "Should never get here");
+	bqws_assert(0 && "Should never get here");
 	return SIZE_MAX;
 }
 

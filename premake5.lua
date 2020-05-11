@@ -32,7 +32,7 @@ newoption {
 
 workspace "spear"
 	configurations { "debug", "develop", "release" }
-	platforms { "x86", "x64", "wasm" }
+
 	location "proj"
 	includedirs { "src" }
 	targetdir "build/%{cfg.buildcfg}_%{cfg.platform}"
@@ -45,6 +45,20 @@ workspace "spear"
 	else
 		flags { "C++14" }
 	end
+
+	filter "not action:xcode4"
+		platforms { "x86", "x64", "wasm" }
+
+	filter "action:xcode4"
+		links {
+			"AppKit.framework",
+			"Security.framework",
+			"Metal.framework",
+			"MetalKit.framework",
+			"QuartzCore.framework",
+			"curl",
+		}
+		buildoptions { "-fobjc-arc" }
 
 	filter "action:vs*"
 		systemversion(os.winSdkVersion() .. ".0")
@@ -134,7 +148,7 @@ workspace "spear"
 project "spear"
 	kind "WindowedApp"
 	language "C++"
-    files { "src/**.h", "src/**.cpp", "src/**.c" }
+    files { "src/**.h", "src/**.cpp", "src/**.c", "src/**.m" }
     files { "misc/*.natvis" }
 	debugdir "."
 

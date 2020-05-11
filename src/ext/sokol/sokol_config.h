@@ -18,6 +18,8 @@
 	#else
 		#define SOKOL_GLES2
 	#endif
+#elif SF_OS_APPLE
+    #define SOKOL_METAL
 #else
 	#define SOKOL_GLCORE33
 #endif

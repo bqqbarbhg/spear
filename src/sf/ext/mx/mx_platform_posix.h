@@ -18,75 +18,55 @@
 
 // -- mxa_*32
 
-#define mxa_load32(src) __atomic_load_4((src), __ATOMIC_SEQ_CST)
-#define mxa_or32(dst, val) __atomic_fetch_or_4((dst), (val), __ATOMIC_SEQ_CST)
-#define mxa_and32(dst, val) __atomic_fetch_and_4((dst), (val), __ATOMIC_SEQ_CST)
-#define mxa_inc32(dst) __atomic_fetch_add_4((dst), 1u, __ATOMIC_SEQ_CST)
-#define mxa_dec32(dst) __atomic_fetch_sub_4((dst), (uint32_t)-1, __ATOMIC_SEQ_CST)
-#define mxa_add32(dst, val) __atomic_fetch_add_4((dst), (val), __ATOMIC_SEQ_CST)
-#define mxa_sub32(dst, val) __atomic_fetch_sub_4((dst), (val), __ATOMIC_SEQ_CST)
-static mx_forceinline int mxa_cas32(void *dst, uint32_t cmp, uint32_t val) { return __atomic_compare_exchange_4(dst, &cmp, val, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
+#define mxa_load32(src) __c11_atomic_load((_Atomic(uint32_t) *)(src), __ATOMIC_SEQ_CST)
+#define mxa_or32(dst, val) __c11_atomic_fetch_or((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_SEQ_CST)
+#define mxa_and32(dst, val) __c11_atomic_fetch_and((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_SEQ_CST)
+#define mxa_inc32(dst) __c11_atomic_fetch_add((_Atomic(uint32_t) *)(dst), 1u, __ATOMIC_SEQ_CST)
+#define mxa_dec32(dst) __c11_atomic_fetch_sub((_Atomic(uint32_t) *)(dst), 1u, __ATOMIC_SEQ_CST)
+#define mxa_add32(dst, val) __c11_atomic_fetch_add((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_SEQ_CST)
+#define mxa_sub32(dst, val) __c11_atomic_fetch_sub((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_SEQ_CST)
+static mx_forceinline int mxa_cas32(void *dst, uint32_t cmp, uint32_t val) { return __c11_atomic_compare_exchange_strong((_Atomic(uint32_t) *)dst, &cmp, val, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
 
-#define mxa_load32_acq(src) __atomic_load_4((src), __ATOMIC_ACQUIRE)
-#define mxa_or32_acq(dst, val) __atomic_fetch_or_4((dst), (val), __ATOMIC_ACQUIRE)
-#define mxa_and32_acq(dst, val) __atomic_fetch_and_4((dst), (val), __ATOMIC_ACQUIRE)
-#define mxa_inc32_acq(dst) __atomic_fetch_add_4((dst), 1u, __ATOMIC_ACQUIRE)
-#define mxa_dec32_acq(dst) __atomic_fetch_sub_4((dst), (uint32_t)-1, __ATOMIC_ACQUIRE)
-#define mxa_add32_acq(dst, val) __atomic_fetch_add_4((dst), (val), __ATOMIC_ACQUIRE)
-#define mxa_sub32_acq(dst, val) __atomic_fetch_sub_4((dst), (val), __ATOMIC_ACQUIRE)
-static mx_forceinline int mxa_cas32_acq(void *dst, uint32_t cmp, uint32_t val) { return __atomic_compare_exchange_4(dst, &cmp, val, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
+#define mxa_load32_acq(src) __c11_atomic_load((_Atomic(uint32_t) *)(src), __ATOMIC_ACQUIRE)
+#define mxa_or32_acq(dst, val) __c11_atomic_fetch_or((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_ACQUIRE)
+#define mxa_and32_acq(dst, val) __c11_atomic_fetch_and((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_ACQUIRE)
+#define mxa_inc32_acq(dst) __c11_atomic_fetch_add((_Atomic(uint32_t) *)(dst), 1u, __ATOMIC_ACQUIRE)
+#define mxa_dec32_acq(dst) __c11_atomic_fetch_sub((_Atomic(uint32_t) *)(dst), 1u, __ATOMIC_ACQUIRE)
+#define mxa_add32_acq(dst, val) __c11_atomic_fetch_add((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_ACQUIRE)
+#define mxa_sub32_acq(dst, val) __c11_atomic_fetch_sub((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_ACQUIRE)
+static mx_forceinline int mxa_cas32_acq(void *dst, uint32_t cmp, uint32_t val) { return __c11_atomic_compare_exchange_strong((_Atomic(uint32_t) *)dst, &cmp, val, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
 
-#define mxa_load32_rel(src) __atomic_load_4((src), __ATOMIC_RELEASE)
-#define mxa_or32_rel(dst, val) __atomic_fetch_or_4((dst), (val), __ATOMIC_RELEASE)
-#define mxa_and32_rel(dst, val) __atomic_fetch_and_4((dst), (val), __ATOMIC_RELEASE)
-#define mxa_inc32_rel(dst) __atomic_fetch_add_4((dst), 1u, __ATOMIC_RELEASE)
-#define mxa_dec32_rel(dst) __atomic_fetch_sub_4((dst), (uint32_t)-1, __ATOMIC_RELEASE)
-#define mxa_add32_rel(dst, val) __atomic_fetch_add_4((dst), (val), __ATOMIC_RELEASE)
-#define mxa_sub32_rel(dst, val) __atomic_fetch_sub_4((dst), (val), __ATOMIC_RELEASE)
-static mx_forceinline int mxa_cas32_rel(void *dst, uint32_t cmp, uint32_t val) { return __atomic_compare_exchange_4(dst, &cmp, val, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
+#define mxa_load32_rel(src) __c11_atomic_load((_Atomic uint32_t*)(src), __ATOMIC_RELEASE)
+#define mxa_or32_rel(dst, val) __c11_atomic_fetch_or((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_RELEASE)
+#define mxa_and32_rel(dst, val) __c11_atomic_fetch_and((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_RELEASE)
+#define mxa_inc32_rel(dst) __c11_atomic_fetch_add((_Atomic(uint32_t) *)(dst), 1u, __ATOMIC_RELEASE)
+#define mxa_dec32_rel(dst) __c11_atomic_fetch_sub((_Atomic(uint32_t) *)(dst), 1u, __ATOMIC_RELEASE)
+#define mxa_add32_rel(dst, val) __c11_atomic_fetch_add((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_RELEASE)
+#define mxa_sub32_rel(dst, val) __c11_atomic_fetch_sub((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_RELEASE)
+static mx_forceinline int mxa_cas32_rel(void *dst, uint32_t cmp, uint32_t val) { return __c11_atomic_compare_exchange_strong((_Atomic(uint32_t) *)dst, &cmp, val, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
 
-#define mxa_load32_nf(src) __atomic_load_4((src), __ATOMIC_RELAXED)
-#define mxa_or32_nf(dst, val) __atomic_fetch_or_4((dst), (val), __ATOMIC_RELAXED)
-#define mxa_and32_nf(dst, val) __atomic_fetch_and_4((dst), (val), __ATOMIC_RELAXED)
-#define mxa_inc32_nf(dst) __atomic_fetch_add_4((dst), 1u, __ATOMIC_RELAXED)
-#define mxa_dec32_nf(dst) __atomic_fetch_sub_4((dst), (uint32_t)-1, __ATOMIC_RELAXED)
-#define mxa_add32_nf(dst, val) __atomic_fetch_add_4((dst), (val), __ATOMIC_RELAXED)
-#define mxa_sub32_nf(dst, val) __atomic_fetch_sub_4((dst), (val), __ATOMIC_RELAXED)
-static mx_forceinline int mxa_cas32_nf(void *dst, uint32_t cmp, uint32_t val) { return __atomic_compare_exchange_4(dst, &cmp, val, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED); }
+#define mxa_load32_nf(src) __c11_atomic_load((_Atomic(uint32_t) *)(src), __ATOMIC_RELAXED)
+#define mxa_or32_nf(dst, val) __c11_atomic_fetch_or((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_RELAXED)
+#define mxa_and32_nf(dst, val) __c11_atomic_fetch_and((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_RELAXED)
+#define mxa_inc32_nf(dst) __c11_atomic_fetch_add((_Atomic(uint32_t) *)(dst), 1u, __ATOMIC_RELAXED)
+#define mxa_dec32_nf(dst) __c11_atomic_fetch_sub((_Atomic(uint32_t) *)(dst), 1u, __ATOMIC_RELAXED)
+#define mxa_add32_nf(dst, val) __c11_atomic_fetch_add((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_RELAXED)
+#define mxa_sub32_nf(dst, val) __c11_atomic_fetch_sub((_Atomic(uint32_t) *)(dst), (val), __ATOMIC_RELAXED)
+static mx_forceinline int mxa_cas32_nf(void *dst, uint32_t cmp, uint32_t val) { return __c11_atomic_compare_exchange_strong((_Atomic(uint32_t) *)dst, &cmp, val, __ATOMIC_RELAXED, __ATOMIC_RELAXED); }
 
 // -- mxa_*_ptr
 
-#if defined(__i386__)
+#define mxa_load_ptr(src) (void*)__c11_atomic_load((_Atomic(void*) *)(src), __ATOMIC_SEQ_CST)
+static mx_forceinline int mxa_cas_ptr(void *dst, const void *cmp, const void *val) { return __c11_atomic_compare_exchange_strong((_Atomic(void*) *)dst, (void**)&cmp, (void*)val, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
 
-	#define mxa_load_ptr(src) (void*)__atomic_load_4((src), __ATOMIC_SEQ_CST)
-	static mx_forceinline void *mxa_cas_ptr(void *dst, const void *cmp, const void *val) { return (void*)__atomic_compare_exchange_4(dst, (uint32_t*)&cmp, (uint32_t)val, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
+#define mxa_load_ptr_acq(src) (void*)__c11_atomic_load((_Atomic(void*) *)(src), __ATOMIC_ACQUIRE)
+static mx_forceinline int mxa_cas_ptr_acq(void *dst, const void *cmp, const void *val) { return __c11_atomic_compare_exchange_strong((_Atomic(void*) *)dst, (void**)&cmp, (void*)val, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
 
-	#define mxa_load_ptr_acq(src) (void*)__atomic_load_4((src), __ATOMIC_ACQUIRE)
-	static mx_forceinline void *mxa_cas_ptr_acq(void *dst, const void *cmp, const void *val) { return (void*)__atomic_compare_exchange_4(dst, (uint32_t*)&cmp, (uint32_t)val, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
+#define mxa_load_ptr_rel(src) (void*)__c11_atomic_load((_Atomic(void*) *)(src), __ATOMIC_RELEASE)
+static mx_forceinline int mxa_cas_ptr_rel(void *dst, const void *cmp, const void *val) { return __c11_atomic_compare_exchange_strong((_Atomic(void*) *)dst, (void**)&cmp, (void*)val, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
 
-	#define mxa_load_ptr_rel(src) (void*)__atomic_load_4((src), __ATOMIC_RELEASE)
-	static mx_forceinline void *mxa_cas_ptr_rel(void *dst, const void *cmp, const void *val) { return (void*)__atomic_compare_exchange_4(dst, (uint32_t*)&cmp, (uint32_t)val, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
-
-	#define mxa_load_ptr_nf(src) (void*)__atomic_load_4((src), __ATOMIC_RELAXED)
-	static mx_forceinline void *mxa_cas_ptr_nf(void *dst, const void *cmp, const void *val) { return (void*)__atomic_compare_exchange_4(dst, (uint32_t*)&cmp, (uint32_t)val, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED); }
-
-#elif defined(__x86_64__)
-
-	#define mxa_load_ptr(src) (void*)__atomic_load_8((src), __ATOMIC_SEQ_CST)
-	static mx_forceinline void *mxa_cas_ptr(void *dst, const void *cmp, const void *val) { return (void*)__atomic_compare_exchange_8(dst, (uint64_t*)&cmp, (uint64_t)val, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
-
-	#define mxa_load_ptr_acq(src) (void*)__atomic_load_8((src), __ATOMIC_ACQUIRE)
-	static mx_forceinline void *mxa_cas_ptr_acq(void *dst, const void *cmp, const void *val) { return (void*)__atomic_compare_exchange_8(dst, (uint64_t*)&cmp, (uint64_t)val, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
-
-	#define mxa_load_ptr_rel(src) (void*)__atomic_load_8((src), __ATOMIC_RELEASE)
-	static mx_forceinline void *mxa_cas_ptr_rel(void *dst, const void *cmp, const void *val) { return (void*)__atomic_compare_exchange_8(dst, (uint64_t*)&cmp, (uint64_t)val, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
-
-	#define mxa_load_ptr_nf(src) (void*)__atomic_load_8((src), __ATOMIC_RELAXED)
-	static mx_forceinline void *mxa_cas_ptr_nf(void *dst, const void *cmp, const void *val) { return (void*)__atomic_compare_exchange_8(dst, (uint64_t*)&cmp, (uint64_t)val, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED); }
-
-#else
-	#error "Unhandled platform"
-#endif
+#define mxa_load_ptr_nf(src) (void*)__c11_atomic_load((_Atomic(void*) *)(src), __ATOMIC_RELAXED)
+static mx_forceinline int mxa_cas_ptr_nf(void *dst, const void *cmp, const void *val) { return __c11_atomic_compare_exchange_strong((_Atomic(void*) *)dst, (void**)&cmp, (void*)val, __ATOMIC_RELAXED, __ATOMIC_RELAXED); }
 
 // -- Misc intrinsics
 

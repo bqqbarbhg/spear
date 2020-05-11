@@ -50,9 +50,10 @@
 #define SF_OS_LINUX 0      // < Linux desktop application
 #define SF_OS_WASM 0       // < WebAssembly (but maybe not Emscripten)
 #define SF_OS_EMSCRIPTEN 0 // < Emscripten (with SF_OS_WASM)
+#define SF_OS_APPLE 0      // < Any Apple OS (MacOS or iOS)
 #define SF_OS_GENERIC 0    // < Modern C++11-17 OS wrappers
 
-#if defined(SF_DEF_OS_WIDOWS) || defined(SF_DEF_OS_LINUX) || defined(SF_DEF_OS_WASM) || defined(SF_DEF_OS_EMSCRIPTEN) || defined(SF_DEF_OS_GENERIC) || defined(SF_DEF_GENERIC)
+#if defined(SF_DEF_OS_WIDOWS) || defined(SF_DEF_OS_LINUX) || defined(SF_DEF_OS_WASM) || defined(SF_DEF_OS_EMSCRIPTEN) || defined(SF_DEF_OS_APPLE) || defined(SF_DEF_OS_GENERIC) || defined(SF_DEF_GENERIC)
 	#define SF_FOUND_OS 1
 #endif
 
@@ -80,6 +81,12 @@
 	#undef SF_OS_WASM
 	#define SF_OS_WASM 1
 	#define SF_FOUND_OS 1
+#endif
+
+#if !defined(SF_FOUND_OS) && defined(__APPLE__) || defined(SF_DEF_OS_APPLE)
+    #undef SF_OS_APPLE
+    #define SF_OS_APPLE 1
+    #define SF_FOUND_OS 1
 #endif
 
 #if !defined(SF_FOUND_OS) || (defined(SF_DEF_OS_GENERIC) || defined(SF_DEF_GENERIC))

@@ -761,6 +761,7 @@ typedef struct {
     _sg_slot_t slot;
     sg_image_type type;
     bool render_target;
+    bool bqq_copy_target;
     int width;
     int height;
     int depth;
@@ -7564,6 +7565,16 @@ _SOKOL_PRIVATE void _sg_update_image(_sg_image_t* img, const sg_image_content* d
     }
     __unsafe_unretained id<MTLTexture> mtl_tex = _sg_mtl_idpool[img->mtl_tex[img->active_slot]];
     _sg_mtl_copy_image_content(img, mtl_tex, data);
+}
+
+/* bqq extensions */
+
+_SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc, _sg_image_t *dst_img, const _sg_image_t *src_img)
+{
+}
+
+_SOKOL_PRIVATE void _sg_bqq_generate_mipmaps(_sg_image_t *img)
+{
 }
 
 #endif

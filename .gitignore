@@ -3,3 +3,5 @@ proj/
 cache/
 build/
 premake5
+.DS_store
+*.swp
