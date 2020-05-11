@@ -437,7 +437,7 @@ void Font::updateAtlasesForRendering()
 	if (ctx.updateList.size == 0) return;
 
 	sf::SmallArray<AtlasUpdate, 128> updates;
-
+    
 	for (FontImp *imp : ctx.updateList) {
 		sf::MutexGuard mg(imp->mutex);
 		imp->inUpdateList = false;
@@ -454,7 +454,7 @@ void Font::updateAtlasesForRendering()
 			update.sdf = glyph.sdf;
 			update.width = glyph.width;
 			update.height = glyph.height;
-			glyph.sdf = nullptr;
+            glyph.sdf = nullptr;
 		}
 		imp->codepointsToAlloc.clear();
 	}

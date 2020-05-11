@@ -2,5 +2,5 @@
 
 struct ServerMain;
 
-ServerMain *serverInit();
+ServerMain *serverInit(int port);
 void serverUpdate(ServerMain *s);

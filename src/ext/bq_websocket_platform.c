@@ -1143,12 +1143,10 @@ static size_t cf_send(pt_cf *cf, const void *data, size_t size)
     return (size_t)res;
 }
 
-static size_t cf_recv(void *user, bqws_socket *ws, void *data, size_t max_size, size_t min_size)
+static size_t cf_recv(pt_cf *cf, void *data, size_t max_size)
 {
     if (max_size == 0) return 0;
-    
-    pt_cf *cf = (pt_cf*)user;
-    
+
     switch (CFReadStreamGetStatus(cf->read)) {
         case kCFStreamStatusOpening: return 0;
         case kCFStreamStatusError: case kCFStreamStatusClosed: return SIZE_MAX;
@@ -1183,6 +1181,7 @@ static bool cf_connect(const bqws_url *url, pt_cf *cf)
                 &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
             
             CFWriteStreamSetProperty(cf->write, kCFStreamPropertySSLSettings, dict);
+            CFReadStreamSetProperty(cf->read, kCFStreamPropertySSLSettings, dict);
             
             CFRelease(dict);
         }
@@ -1190,6 +1189,7 @@ static bool cf_connect(const bqws_url *url, pt_cf *cf)
         CFWriteStreamOpen(cf->write);
         CFReadStreamOpen(cf->read);
 
+        cf->enabled = true;
         return true;
     } while (false);
     
@@ -1229,7 +1229,7 @@ typedef struct {
 
 static void cf_free(pf_cf *cf) { }
 static size_t cf_send(pt_cf *cf, const void *data, size_t size) { return SIZE_MAX; }
-static size_t cf_recv(void *user, bqws_socket *ws, void *data, size_t max_size, size_t min_size) { return SIZE_MAX; }
+static size_t cf_recv(pt_cf *cf, void *data, size_t max_size) { return SIZE_MAX; }
 static bool cf_connect(const bqws_url *url, pt_cf *cf) { return false; }
 static void cf_get_address(pt_cf *cf, bqws_pt_address *address) { }
 
@@ -1267,7 +1267,7 @@ static size_t io_imp_send(pt_io *io, const void *data, size_t size)
 	if (size == 0) return 0;
 
     if (cf_enabled(&io->cf)) {
-        return cf_send(&io->tls, data, size);
+        return cf_send(&io->cf, data, size);
     } else if (io->secure) {
 		return tls_send(&io->tls, data, size);
 	} else {
@@ -1299,19 +1299,6 @@ static size_t io_push_imp(pt_io *io, const char *ptr, const char *end)
 	memcpy(io->send_buf + offset, ptr, to_copy);
 	io->send_size += to_copy;
 	return to_copy;
-}
-
-static size_t io_recv(pt_io *io, const void *data, size_t size)
-{
-	if (size == 0) return 0;
-
-    if (cf_enabled(&io->cf)) {
-        return cf_send(&io->cf, data, size);
-    } else if (io->secure) {
-		return tls_send(&io->tls, data, size);
-	} else {
-		return os_socket_send(io->s, data, size);
-	}
 }
 
 static void io_free(pt_io *io)
@@ -1358,7 +1345,9 @@ static size_t pt_io_recv(void *user, bqws_socket *ws, void *data, size_t max_siz
 	if (max_size == 0) return 0;
 
 	pt_io *io = (pt_io*)user;
-	if (io->secure) {
+    if (cf_enabled(&io->cf)) {
+        return cf_recv(&io->cf, data, max_size);
+    } else if (io->secure) {
 		return tls_recv(&io->tls, data, max_size);
 	} else {
 		return os_socket_recv(io->s, data, max_size);
@@ -1404,7 +1393,7 @@ static bqws_socket *pt_connect(const bqws_url *url, const bqws_pt_connect_opts *
         memset(io, 0, sizeof(pt_io));
         io->s = OS_BAD_SOCKET;
 
-        if (cf_connect(url, &io->cf)) {
+        if (!cf_connect(url, &io->cf)) {
     		bqws_pt_address addr = { 0 };
     		io->s = os_socket_connect(url, &addr);
     		if (io->s == OS_BAD_SOCKET) break;

@@ -5,6 +5,8 @@
 #include "ServerMain.h"
 
 #include "sp/Renderer.h"
+#include "sp/Font.h"
+#include "sp/Canvas.h"
 #include "game/shader/GameShaders.h"
 #include "game/shader/Upscale.h"
 
@@ -59,18 +61,23 @@ static void updateLayout()
 	}
 }
 
+int port;
+
 void spInit()
 {
+    port = rand() % 1000 + 1000;
+    
+    font.load(sf::Symbol("sp://OpenSans-Ascii.ttf"));
 	gameShaders.load();
 
 	sp::ContentFile::addRelativeFileRoot("data");
 	sp::ContentFile::addRelativeFileRoot("/data");
 
-	server = serverInit();
+	server = serverInit(port);
 	sf::debugPrintLine("Server: %p", server);
 
 	MainClient &client = clients.push();
-	client.client = clientInit(sf::Symbol("Client 1"));
+	client.client = clientInit(port, sf::Symbol("Client 1"));
 
 	updateLayout();
 
@@ -89,7 +96,7 @@ void spEvent(const sapp_event *e)
 			sf::SmallStringBuf<64> name;
 			name.format("Client %u", clients.size + 1);
 			MainClient &client = clients.push();
-			client.client = clientInit(sf::Symbol(name));
+			client.client = clientInit(port, sf::Symbol(name));
 			updateLayout();
 		} else if (e->key_code == SAPP_KEYCODE_Q) {
 			MainClient &client = clients.back();
@@ -121,6 +128,25 @@ void spFrame(float dt)
 	for (MainClient &client : clients) {
 		client.image = clientRender(client.client, client.resolution);
 	}
+    
+    canvas.clear();
+    
+    float y = 100.0f;
+    for (const sp::PassTime &time : sp::getPassTimes()) {
+        sf::SmallStringBuf<128> text;
+        text.format("%s: %.2fms", time.name.data, time.time * 1000.0);
+        sp::TextDraw td;
+        td.font = font;
+        td.string = text;
+        td.transform.m02 = 100.0f;
+        td.transform.m12 = y; y += 60.0f;
+        td.height = 60.0f;
+        canvas.drawText(td);
+    }
+    
+    canvas.prepareForRendering();
+    
+    sp::Font::updateAtlasesForRendering();
 
 	{
 		sp::beginDefaultPass(sapp_width(), sapp_height(), nullptr);
@@ -138,6 +164,8 @@ void spFrame(float dt)
 
 			sg_draw(0, 3, 1);
 		}
+        
+        canvas.render(sp::CanvasRenderOpts::windowPixels());
 
 		sp::endPass();
 	}

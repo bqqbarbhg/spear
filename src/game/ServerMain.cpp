@@ -53,10 +53,10 @@ struct ServerMain
 	uint32_t clientCounter = 0;
 };
 
-ServerMain *serverInit()
+ServerMain *serverInit(int port)
 {
 	bqws_pt_listen_opts opts = { };
-	opts.port = 4004;
+	opts.port = (uint16_t)port;
 	bqws_pt_server *server = bqws_pt_listen(&opts);
 	if (!server) return nullptr;
 

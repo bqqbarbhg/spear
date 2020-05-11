@@ -332,7 +332,7 @@ static void beginQueryImp(sf::Symbol name)
     QueryFrame &frame = queryFrames[queryFrameIndex];
     Query &query = frame.queries.push();
     query.name = name;
-    query.index = sg_ext_mtl_begin_pass();
+    query.index = sg_ext_mtl_begin_pass(name.data);
 }
 
 static void endQueryImp()

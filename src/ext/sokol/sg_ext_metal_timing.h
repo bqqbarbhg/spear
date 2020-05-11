@@ -7,7 +7,7 @@ extern "C" {
 
 void sg_ext_mtl_begin_frame();
 void sg_ext_mtl_end_frame();
-uint32_t sg_ext_mtl_begin_pass();
+uint32_t sg_ext_mtl_begin_pass(const char *name);
 void sg_ext_mtl_end_pass();
 double sg_ext_mtl_pass_time(uint32_t index);
 

@@ -5,7 +5,7 @@
 
 struct ClientMain;
 
-ClientMain *clientInit(const sf::Symbol &name);
+ClientMain *clientInit(int port, const sf::Symbol &name);
 void clientQuit(ClientMain *client);
 bool clientUpdate(ClientMain *client);
 void clientFree(ClientMain *client);

@@ -842,6 +842,7 @@ typedef struct {
     int num_color_atts;
     _sg_attachment_t color_atts[SG_MAX_COLOR_ATTACHMENTS];
     _sg_attachment_t ds_att;
+    char label[64];
 } _sg_pass_t;
 
 typedef struct {
@@ -1616,6 +1617,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_pass(_sg_pass_t* pass, _sg_image_t**
         att->mip_level = att_desc->mip_level;
         att->slice = att_desc->slice;
     }
+
     return SG_RESOURCESTATE_VALID;
 }
 
@@ -6629,6 +6631,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_buffer(_sg_buffer_t* buf, const sg_b
             else {
                 mtl_buf = [_sg_mtl_device newBufferWithLength:buf->size options:mtl_options];
             }
+			if (desc->label) mtl_buf.label = [NSString stringWithUTF8String:desc->label];
         }
         buf->mtl_buf[slot] = _sg_mtl_add_resource(mtl_buf);
     }
@@ -6819,6 +6822,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
             _sg_mtl_init_texdesc_rt(mtl_desc, img);
         }
         id<MTLTexture> tex = [_sg_mtl_device newTextureWithDescriptor:mtl_desc];
+		if (desc->label) tex.label = [NSString stringWithUTF8String:desc->label];
         SOKOL_ASSERT(nil != tex);
         img->mtl_depth_tex = _sg_mtl_add_resource(tex);
     }
@@ -6842,6 +6846,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
             }
             else {
                 tex = [_sg_mtl_device newTextureWithDescriptor:mtl_desc];
+				if (desc->label) tex.label = [NSString stringWithUTF8String:desc->label];
                 if ((img->usage == SG_USAGE_IMMUTABLE) && !img->render_target && !img->bqq_copy_target) {
                     _sg_mtl_copy_image_content(img, tex, &desc->content);
                 }
@@ -6853,6 +6858,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
         if (img->render_target && msaa) {
             _sg_mtl_init_texdesc_rt_msaa(mtl_desc, img);
             id<MTLTexture> tex = [_sg_mtl_device newTextureWithDescriptor:mtl_desc];
+			if (desc->label) tex.label = [NSString stringWithUTF8String:desc->label];
             img->mtl_msaa_tex = _sg_mtl_add_resource(tex);
         }
 
@@ -7144,12 +7150,24 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_pass(_sg_pass_t* pass, _sg_image_t**
         att->mip_level = att_desc->mip_level;
         att->slice = att_desc->slice;
     }
+
+	if (desc->label) {
+        size_t len = strlen(desc->label);
+        if (len > sizeof(pass->label) - 1) len = sizeof(pass->label) - 1;
+        memcpy(pass->label, desc->label, len);
+        pass->label[len] = '\0';
+	} else {
+        pass->label[0] = '\0';
+	}
+
     return SG_RESOURCESTATE_VALID;
 }
 
 _SOKOL_PRIVATE void _sg_destroy_pass(_sg_pass_t* pass) {
     SOKOL_ASSERT(pass);
-    _SOKOL_UNUSED(pass);
+	if (pass->label) {
+        pass->label[0] = '\0';
+	}
 }
 
 _SOKOL_PRIVATE void _sg_begin_pass(_sg_pass_t* pass, const sg_pass_action* action, int w, int h) {
@@ -7274,6 +7292,12 @@ _SOKOL_PRIVATE void _sg_begin_pass(_sg_pass_t* pass, const sg_pass_action* actio
     if (_sg_mtl_cmd_encoder == nil) {
         _sg.mtl.pass_valid = false;
         return;
+    }
+    
+    if (!pass) {
+        _sg_mtl_cmd_encoder.label = [NSString stringWithUTF8String: "Deafult pass"];
+    } else if (pass->label[0]) {
+        _sg_mtl_cmd_encoder.label = [NSString stringWithUTF8String: pass->label];
     }
 
     /* bind the global uniform buffer, this only happens once per pass */
@@ -7576,7 +7600,7 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
 		_sg_mtl_cmd_buffer = [_sg_mtl_cmd_queue commandBufferWithUnretainedReferences];
 	}
 
-    SOKOL_ASSERT(nil != _sg_mtl_cmd_encoder);
+    SOKOL_ASSERT(nil == _sg_mtl_cmd_encoder);
     id<MTLBlitCommandEncoder> blit_encoder = [_sg_mtl_cmd_buffer blitCommandEncoder];
 
     id<MTLTexture> src_tex = _sg_mtl_idpool[src_img->mtl_tex[src_img->active_slot]];
@@ -7585,8 +7609,8 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
 	for (int mip_index = 0; mip_index < desc->num_mips; mip_index++) {
 		for (int rect_index = 0; rect_index < desc->num_rects; rect_index++) {
 			const sg_bqq_subimage_rect *rect = &desc->rects[rect_index];
-			MTLOrigin src_origin = { rect->src_x >> mip_index, rect->src_y >> mip_index, 1 };
-			MTLOrigin dst_origin = { rect->dst_x >> mip_index, rect->dst_y >> mip_index, 1 };
+			MTLOrigin src_origin = { rect->src_x >> mip_index, rect->src_y >> mip_index, 0 };
+			MTLOrigin dst_origin = { rect->dst_x >> mip_index, rect->dst_y >> mip_index, 0 };
 			MTLSize size = { rect->width >> mip_index, rect->height >> mip_index, 1 };
 			[blit_encoder
 				copyFromTexture: src_tex

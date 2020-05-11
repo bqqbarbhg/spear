@@ -29,23 +29,25 @@ void sg_ext_mtl_end_frame()
 	}
 }
 
-uint32_t sg_ext_mtl_begin_pass()
+uint32_t sg_ext_mtl_begin_pass(const char *name)
 {
-	if (nil == _sg_mtl_cmd_buffer) {
+	if (nil != _sg_mtl_cmd_buffer) {
 		[_sg_mtl_cmd_buffer commit];
 	}
 
-	SOKOL_ASSERT(nil == _sg_mtl_cmd_buffer);
 	_sg_mtl_cmd_buffer = [_sg_mtl_cmd_queue commandBufferWithUnretainedReferences];
+    // [_sg_mtl_cmd_buffer pushDebugGroup: [NSString stringWithUTF8String: name]];
 
 	uint32_t index = _sg_ext_buffer_index++;
 	_sg_ext_buffer_queue[index] = _sg_mtl_cmd_buffer;
+    if (name) _sg_mtl_cmd_buffer.label = [NSString stringWithUTF8String: name];
 	return index;
 }
 
 void sg_ext_mtl_end_pass()
 {
     SOKOL_ASSERT(nil != _sg_mtl_cmd_buffer);
+    // [_sg_mtl_cmd_buffer popDebugGroup];
 	[_sg_mtl_cmd_buffer commit];
 	_sg_mtl_cmd_buffer = nil;
 }

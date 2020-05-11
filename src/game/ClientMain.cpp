@@ -48,7 +48,7 @@ struct ClientMain
 	sp::Pipeline tempSkinnedMeshPipe;
 };
 
-ClientMain *clientInit(const sf::Symbol &name)
+ClientMain *clientInit(int port, const sf::Symbol &name)
 {
 	ClientMain *c = new ClientMain();
 	c->name = name;
@@ -56,9 +56,12 @@ ClientMain *clientInit(const sf::Symbol &name)
 	gameShaders.load();
 
 	{
+        sf::SmallStringBuf<128> url;
+        url.format("ws://localhost:%d", port);
+        
 		bqws_opts opts = { };
 		opts.name = name.data;
-		c->ws = bqws_pt_connect("ws://localhost:4004", NULL, &opts, NULL);
+        c->ws = bqws_pt_connect(url.data, NULL, &opts, NULL);
 	}
 
 	{
