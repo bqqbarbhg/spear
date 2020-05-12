@@ -14,6 +14,7 @@
 #include "Upscale.h"
 #include "TestMesh.h"
 #include "TestSkin.h"
+#include "ShadowGrid.h"
 
 #include "GameShaders.h"
 
@@ -33,6 +34,7 @@ void GameShaders::load()
 	upscaleFast = sg_make_shader(Upscale_UpscaleFast_shader_desc());
 	testMesh = sg_make_shader(TestMesh_TestMesh_shader_desc());
 	skinnedMesh = sg_make_shader(TestSkin_TestSkin_shader_desc());
+	shadowGrid = sg_make_shader(ShadowGrid_ShadowGrid_shader_desc());
 
 	{
 		sf::Vec2 verts[] = {
@@ -49,4 +51,11 @@ void GameShaders::load()
 		fullscreenTriangleBuffer = sg_make_buffer(&d);
 	}
 
+	for (int largeIndices = 0; largeIndices <= 1; largeIndices++) {
+		uint32_t flags = sp::PipeDepthWrite | sp::PipeCullAuto | (largeIndices ? sp::PipeIndex32 : sp::PipeIndex16);
+		sg_pipeline_desc &d = mapChunkShadowPipe[largeIndices].init(mapShadow, flags);
+		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+	}
+
+	shadowGridPipe.init(shadowGrid, sp::PipeVertexFloat2);
 }

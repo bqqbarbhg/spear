@@ -5819,8 +5819,9 @@ _SOKOL_PRIVATE void _sg_update_image(_sg_image_t* img, const sg_image_content* d
 
 _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc, _sg_image_t *dst_img, const _sg_image_t *src_img)
 {
-    ID3D11Resource *dst_res = (ID3D11Resource*)dst_img->d3d11_tex2d;
     ID3D11Resource *src_res = (ID3D11Resource*)src_img->d3d11_tex2d;
+    ID3D11Resource *dst_res = (ID3D11Resource*)dst_img->d3d11_tex2d;
+    if (!dst_res) dst_res = (ID3D11Resource*)dst_img->d3d11_tex3d;
 
 	for (int mip_index = 0; mip_index < desc->num_mips; mip_index++) {
 
@@ -5828,6 +5829,7 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
             const sg_bqq_subimage_rect *rect = &desc->rects[rect_index];
 			int dst_x = rect->dst_x >> mip_index;
 			int dst_y = rect->dst_y >> mip_index;
+			int dst_z = rect->dst_z >> mip_index;
 			int src_x = rect->src_x >> mip_index;
 			int src_y = rect->src_y >> mip_index;
 			int width = rect->width >> mip_index;
@@ -5845,7 +5847,7 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
             box.bottom = src_y + height;
             box.back = 1;
 
-            ID3D11DeviceContext_CopySubresourceRegion(_sg.d3d11.ctx, dst_res, subres_index, dst_x, dst_y, 0, src_res, subres_index, &box);
+            ID3D11DeviceContext_CopySubresourceRegion(_sg.d3d11.ctx, dst_res, subres_index, dst_x, dst_y, dst_z, src_res, subres_index, &box);
         }
     }
 }

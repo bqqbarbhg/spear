@@ -89,7 +89,7 @@ ServerMain *serverInit(int port)
 		for (int32_t x = -10; x <= 10; x++)
 		{
 			sf::Vec2i v = { x, y };
-			map.setTile(v, 1);
+			map.setTile(v, (rand() % 15 == 0) ? 2 : 1);
 		}
 
 		for (int32_t i = -10; i <= 10; i++) {

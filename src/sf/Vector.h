@@ -38,6 +38,8 @@ struct Vec2
 	Vec2 &operator*=(float rhs) { x *= rhs; y *= rhs; return *this; }
 	Vec2 &operator/=(float rhs) { x /= rhs; y /= rhs; return *this; }
 
+	Vec2 operator-() const { return Vec2(-x, -y); }
+
 	bool operator==(const Vec2 &rhs) const { return x == rhs.x && y == rhs.y; }
 	bool operator!=(const Vec2 &rhs) const { return x != rhs.x || y != rhs.y; }
 };
@@ -84,6 +86,8 @@ struct Vec3
 
 	Vec3 &operator*=(float rhs) { x *= rhs; y *= rhs; z *= rhs; return *this; }
 	Vec3 &operator/=(float rhs) { x /= rhs; y /= rhs; z /= rhs; return *this; }
+
+	Vec3 operator-() const { return Vec3(-x, -y, -z); }
 
 	bool operator==(const Vec3 &rhs) const { return x == rhs.x && y == rhs.y && z == rhs.z; }
 	bool operator!=(const Vec3 &rhs) const { return x != rhs.x || y != rhs.y || z != rhs.z; }
@@ -140,6 +144,8 @@ struct Vec4
 	Vec4 &operator*=(float rhs) { x *= rhs; y *= rhs; z *= rhs; w *= rhs; return *this; }
 	Vec4 &operator/=(float rhs) { x /= rhs; y /= rhs; z /= rhs; w /= rhs; return *this; }
 
+	Vec4 operator-() const { return Vec4(-x, -y, -z, -w); }
+
 	bool operator==(const Vec4 &rhs) const { return x == rhs.x && y == rhs.y && z == rhs.z && w == rhs.w; }
 	bool operator!=(const Vec4 &rhs) const { return x != rhs.x || y != rhs.y || z != rhs.z && w == rhs.w; }
 };
@@ -192,6 +198,8 @@ struct Vec2i
 	Vec2i &operator*=(int32_t rhs) { x *= rhs; y *= rhs; return *this; }
 	Vec2i &operator/=(int32_t rhs) { x /= rhs; y /= rhs; return *this; }
 
+	Vec2i operator-() const { return Vec2i(-x, -y); }
+
 	bool operator==(const Vec2i &rhs) const { return x == rhs.x && y == rhs.y; }
 	bool operator!=(const Vec2i &rhs) const { return x != rhs.x || y != rhs.y; }
 };
@@ -231,6 +239,8 @@ struct Vec3i
 	Vec3i &operator*=(int32_t rhs) { x *= rhs; y *= rhs; z *= rhs; return *this; }
 	Vec3i &operator/=(int32_t rhs) { x /= rhs; y /= rhs; z /= rhs; return *this; }
 
+	Vec3i operator-() const { return Vec3i(-x, -y, -z); }
+
 	bool operator==(const Vec3i &rhs) const { return x == rhs.x && y == rhs.y && z == rhs.z; }
 	bool operator!=(const Vec3i &rhs) const { return x != rhs.x || y != rhs.y || z != rhs.z; }
 };
@@ -269,6 +279,8 @@ struct Vec4i
 
 	Vec4i &operator*=(int32_t rhs) { x *= rhs; y *= rhs; z *= rhs; w *= rhs; return *this; }
 	Vec4i &operator/=(int32_t rhs) { x /= rhs; y /= rhs; z /= rhs; w /= rhs; return *this; }
+
+	Vec4i operator-() const { return Vec4i(-x, -y, -z, -w); }
 
 	bool operator==(const Vec4i &rhs) const { return x == rhs.x && y == rhs.y && z == rhs.z && w == rhs.w; }
 	bool operator!=(const Vec4i &rhs) const { return x != rhs.x || y != rhs.y || z != rhs.z && w == rhs.w; }

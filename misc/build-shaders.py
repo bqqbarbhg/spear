@@ -25,7 +25,7 @@ def compile_file(path):
     outname = os.path.splitext(path)[0] + ".h"
 
     args = [shdc_exe, "-i", path, "-o", outname, "-b"]
-    args += ["-l", "glsl100:glsl300es:glsl330:hlsl5:metal_macos:metal_ios"]
+    args += ["-l", "glsl300es:glsl330:hlsl5:metal_macos:metal_ios"]
     args += ["-f", "sokol_impl"]
 
     try:

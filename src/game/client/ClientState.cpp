@@ -2,6 +2,9 @@
 
 #include "sf/Random.h"
 
+#include "game/shader/GameShaders.h"
+#include "game/shader/MapShadow.h"
+
 namespace cl {
 
 static sf::Box<Entity> convertEntity(const sf::Box<sv::Entity> &svEntity)
@@ -37,7 +40,7 @@ static bool generateMapMesh(sf::Array<cl::MapMesh> &meshes, sf::Random &tileRng,
 	float rotation = (float)(tileRng.nextU32() & 3) * (sf::F_2PI * 0.25f);
 	MapMesh &mesh = meshes.push();
 	if (variant.modelRef) mesh.model = variant.modelRef;
-	if (variant.shadowModelRef) mesh.model = variant.shadowModelRef;
+	if (variant.shadowModelRef) mesh.shadowModel = variant.shadowModelRef;
 
 	float scale = variant.scale * info.scale;
 
@@ -153,8 +156,39 @@ void State::applyEvent(sv::Event *event)
 	}
 }
 
+void State::renderShadows(const RenderShadowArgs &args)
+{
+	// Map chunks
+	{
+		sg_bindings bindings = { };
+		bool first = true;
+		for (auto &pair : chunks) {
+			MapChunk &chunk = pair.val;
+			MapGeometry &geo = chunk.geometry.shadow;
+			if (!geo.indexBuffer.buffer.id) continue;
+			if (!args.frustum.intersects(geo.bounds)) continue;
+
+			sp::Pipeline &pipe = gameShaders.mapChunkShadowPipe[geo.largeIndices];
+			if (pipe.bind() || first) {
+				first = false;
+				MapShadow_Vertex_t vu;
+				vu.cameraPosition = args.cameraPosition;
+				args.worldToClip.writeColMajor44(vu.worldToClip);
+				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_MapShadow_Vertex, &vu, sizeof(vu));
+			}
+
+			bindings.vertex_buffers[0] = geo.vertexBuffer.buffer;
+			bindings.index_buffer = geo.indexBuffer.buffer;
+			sg_apply_bindings(&bindings);
+
+			sg_draw(0, geo.numInidces, 1);
+		}
+	}
+}
+
 void State::updateMapChunks(sv::State &svState)
 {
+
 	for (uint32_t i = 0; i < dirtyChunks.size; i++) {
 		sf::Vec2i chunkPos = dirtyChunks[i];
 		MapChunk &chunk = chunks[chunkPos];
@@ -169,6 +203,11 @@ void State::updateMapChunks(sv::State &svState)
 		dirtyChunks.removeSwap(i--);
 		chunk.dirty = false;
 	}
+}
+
+void State::recreateTargets()
+{
+	shadowCache.recreateTargets();
 }
 
 }

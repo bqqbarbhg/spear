@@ -416,6 +416,21 @@ RenderPass::~RenderPass()
 	sg_destroy_pass(pass);
 }
 
+void RenderPass::init(const sg_pass_desc &desc, const sf::Vec2i &resolution, const FramebufferDesc &fbDesc)
+{
+	if (pass.id) {
+		sg_destroy_pass(pass);
+		pass.id = 0;
+	}
+
+	sf_assert(desc.label);
+
+	this->name = sf::Symbol(desc.label);
+	this->desc = fbDesc;
+	this->resolution = resolution;
+	this->pass = sg_make_pass(&desc);
+}
+
 void RenderPass::init(const char *label, sf::Slice<const RenderTarget*> targets)
 {
 	if (pass.id) {
@@ -665,6 +680,39 @@ void Buffer::reset()
 Buffer::~Buffer()
 {
 	sg_destroy_buffer(buffer);
+}
+
+Texture::Texture() { }
+
+Texture::Texture(Texture &&rhs)
+	: image(rhs.image)
+{
+	rhs.image.id = 0;
+}
+
+Texture &Texture::operator=(Texture &&rhs)
+{
+	if (&rhs == this) return *this;
+	image = rhs.image;
+	rhs.image.id = 0;
+	return *this;
+}
+
+void Texture::reset()
+{
+	sg_destroy_image(image);
+	image.id = 0;
+}
+
+Texture::~Texture()
+{
+	sg_destroy_image(image);
+}
+
+void Texture::init(const sg_image_desc &desc)
+{
+	if (image.id) sg_destroy_image(image);
+	image = sg_make_image(&desc);
 }
 
 FramebufferDesc getFramebufferTypeDesc(uint32_t typeIndex)

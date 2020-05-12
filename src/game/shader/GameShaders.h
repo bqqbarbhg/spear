@@ -17,8 +17,12 @@ struct GameShaders
 	sg_shader upscaleFast;
 	sg_shader testMesh;
 	sg_shader skinnedMesh;
+	sg_shader shadowGrid;
 
 	sg_buffer fullscreenTriangleBuffer;
+
+	sp::Pipeline mapChunkShadowPipe[2];
+	sp::Pipeline shadowGridPipe;
 
 	void load();
 };

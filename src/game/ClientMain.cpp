@@ -121,6 +121,33 @@ static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
 	c->mainPass.init("main", c->mainTarget, c->mainDepth);
 	c->tonemapPass.init("tonemap", c->tonemapTarget);
 	c->fxaaPass.init("fxaa", c->fxaaTarget);
+
+	c->clientState.recreateTargets();
+
+	// HACK
+	{
+		cl::PointLight &l = c->clientState.pointLights.push();
+		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
+		l.color = sf::Vec3(4.0f, 0.0f, 0.0f);
+		l.radius = 16.0f;
+		l.shadowIndex = 0;
+	}
+
+	{
+		cl::PointLight &l = c->clientState.pointLights.push();
+		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
+		l.color = sf::Vec3(0.0f, 4.0f, 0.0f);
+		l.radius = 16.0f;
+		l.shadowIndex = 1;
+	}
+
+	{
+		cl::PointLight &l = c->clientState.pointLights.push();
+		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
+		l.color = sf::Vec3(0.0f, 0.0f, 4.0f);
+		l.radius = 16.0f;
+		l.shadowIndex = 2;
+	}
 }
 
 bool clientUpdate(ClientMain *c)
@@ -163,6 +190,17 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 		recreateTargets(c, resolution);
 	}
 
+	// HACK HACK
+	{
+		float t = (float)stm_sec(stm_now());
+		for (cl::PointLight &light : c->clientState.pointLights) {
+			light.position.x = sinf(t) * 5.0f;
+			light.position.z = cosf(t) * 5.0f;
+			c->clientState.shadowCache.updatePointLight(c->clientState, light);
+			t += sf::F_2PI / 3.0f;
+		}
+	}
+
 	{
 		sg_pass_action action = { };
 		action.colors[0].action = SG_ACTION_CLEAR;
@@ -179,6 +217,7 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 		sf::Mat44 proj = sf::mat::perspectiveD3D(1.0f, (float)resolution.x/(float)resolution.y, 0.1f, 20.0f);
 		sf::Mat44 viewProj = proj * view;
 
+		TestMesh_Pixel_t pu = { };
 		sf::Frustum frustum { viewProj, sg_query_features().origin_top_left ? 0.0f : -1.0f };
 		for (auto &pair : c->clientState.chunks) {
 			cl::MapChunkGeometry &chunkGeo = pair.val.geometry;
@@ -192,9 +231,33 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 			sf::Mat44().writeColMajor44(transform.normalTransform);
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestMesh_Transform, &transform, sizeof(transform));
 
+			pu.numLightsF = (float)c->clientState.pointLights.size;
+			float (*dst)[4] = pu.lightData;
+			for (cl::PointLight &light : c->clientState.pointLights) {
+				dst[0][0] = light.position.x;
+				dst[0][1] = light.position.y;
+				dst[0][2] = light.position.z;
+				dst[0][3] = light.radius;
+				dst[1][0] = light.color.x;
+				dst[1][1] = light.color.y;
+				dst[1][2] = light.color.z;
+				dst[1][3] = 0.0f;
+				dst[2][0] = light.shadowMul.x;
+				dst[2][1] = light.shadowMul.y;
+				dst[2][2] = light.shadowMul.z;
+				dst[2][3] = 0.0f;
+				dst[3][0] = light.shadowBias.x;
+				dst[3][1] = light.shadowBias.y;
+				dst[3][2] = light.shadowBias.z;
+				dst[3][3] = 0.0f;
+				dst += 4;
+			}
+
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestMesh_Pixel, &pu, sizeof(pu));
 			sg_bindings bindings = { };
 			bindings.vertex_buffers[0] = chunkGeo.main.vertexBuffer.buffer;
 			bindings.index_buffer = chunkGeo.main.indexBuffer.buffer;
+			bindings.fs_images[0] = c->clientState.shadowCache.shadowCache.image;
 			sg_apply_bindings(&bindings);
 
 			sg_draw(0, chunkGeo.main.numInidces, 1);

@@ -53,6 +53,7 @@ struct RenderPass
 	RenderPass &operator=(const RenderPass &rhs) = delete;
 	~RenderPass();
 
+	void init(const sg_pass_desc &desc, const sf::Vec2i &resolution, const FramebufferDesc &fbDesc);
 	void init(const char *label, sf::Slice<const RenderTarget*> targets);
 	void init(const char *label, const RenderTarget &a);
 	void init(const char *label, const RenderTarget &a, const RenderTarget &b);
@@ -123,6 +124,23 @@ struct Buffer
 		initIndex(name, data.data, data.size * sizeof(T));
 	}
 };
+
+struct Texture
+{
+	sg_image image = { };
+
+	Texture();
+	Texture(Texture &&rhs);
+	Texture &operator=(Texture &&rhs);
+	Texture(const Texture &rhs) = delete;
+	Texture &operator=(const Texture &rhs) = delete;
+	~Texture();
+
+	void init(const sg_image_desc &desc);
+
+	void reset();
+};
+
 
 FramebufferDesc getFramebufferTypeDesc(uint32_t typeIndex);
 

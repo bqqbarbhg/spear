@@ -1608,6 +1608,7 @@ typedef struct sg_bqq_subimage_rect {
     int src_y;
     int dst_x;
     int dst_y;
+    int dst_z;
     int width;
     int height;
 } sg_bqq_subimage_rect;
