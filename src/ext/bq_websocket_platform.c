@@ -1,4 +1,7 @@
-#define BQWS_PT_USE_OPENSSL 0
+
+#if !SF_OS_WASM && !SF_OS_APPLE
+	#define BQWS_PT_USE_OPENSSL 1
+#endif
 
 #include "bq_websocket_platform.h"
 
@@ -1227,7 +1230,7 @@ typedef struct {
     int unused;
 } pt_cf;
 
-static void cf_free(pf_cf *cf) { }
+static void cf_free(pt_cf *cf) { }
 static size_t cf_send(pt_cf *cf, const void *data, size_t size) { return SIZE_MAX; }
 static size_t cf_recv(pt_cf *cf, void *data, size_t max_size) { return SIZE_MAX; }
 static bool cf_connect(const bqws_url *url, pt_cf *cf) { return false; }

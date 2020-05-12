@@ -15,39 +15,16 @@
 		#include <intrin.h>
 		#include <xmmintrin.h>
 		#define BQWS_USE_SSE 1
-		#define bqws_cpu_time() (uint64_t)__rdtsc()
 	#endif
-
 
 #elif defined(__GNUC__) || defined(__clang__)
 	#define bqws_forceinline __attribute__((always_inline)) inline
 
-	#if defined(__EMSCRIPTEN__)
-		#include <emscripten.h>
-
-		EM_JS(double, bqws_js_perfnow, (void), {
-			return performance.now();
-		});
-
-		#define bqws_cpu_time() (uint64_t)(bqws_js_perfnow() * 1e3)
-
-	#elif defined(__i386__) || defined(__x86_64__)
-
+	#if defined(__i386__) || defined(__x86_64__)
 		#include <x86intrin.h>
 		#include <xmmintrin.h>
 		#define BQWS_USE_SSE 1
-		#define bqws_cpu_time() (uint64_t)__rdtsc()
-
-    #else
-
-        // TODO
-        #define bqws_cpu_time() (uint64_t)0
-
 	#endif
-
-// TODO: Use some non-time-based pseudorandom, dealing with this
-// is really an unnecessary pain...
-#undef bqws_cpu_time
 
 #else
 	#define bqws_forceinline
@@ -57,7 +34,6 @@
 #include <assert.h>
 #define bqws_assert(x) assert(x)
 #endif
-
 
 // TODO: QueryPerformanceCounter() or clock_gettime() might be faster
 typedef clock_t bqws_timestamp;
@@ -179,13 +155,12 @@ typedef struct {
 
 // Random entropy source
 typedef struct {
-	uint64_t cpu_time_a;
 	void (*function_pointer)(bqws_socket *ws, const bqws_client_opts *opts);
 	void *stack_pointer;
 	void *heap_pointer;
 	clock_t clock;
 	time_t time;
-	uint64_t cpu_time_b;
+	uint32_t mask_key;
 } bqws_random_entropy;
 
 typedef struct {
@@ -295,6 +270,10 @@ struct bqws_socket {
 		char *client_key_base64;
 		bool client_handshake_done;
 		bool client_has_protocol;
+
+		// Masking random state
+		uint64_t mask_random_state;
+		uint64_t mask_random_stream;
 
 		// Write/read buffers `recv_header` is also used to buffer
 		// multiple small messages
@@ -791,16 +770,14 @@ static void msg_queue_get_stats(bqws_msg_queue *mq, bqws_io_stats *stats)
 
 static uint32_t mask_make_key(bqws_socket *ws)
 {
-	// https://nullprogram.com/blog/2018/07/31/
-	uint64_t x = bqws_cpu_time();
-
-	x ^= x >> 32;
-	x *= UINT64_C(0xd6e8feb86659fd93);
-	x ^= x >> 32;
-	x *= UINT64_C(0xd6e8feb86659fd93);
-	x ^= x >> 32;
-
-	return (uint32_t)x;
+	bqws_assert_locked(&ws->io.mutex);
+	// PCG Random step
+	const uint64_t c = UINT64_C(6364136223846793005);
+	uint64_t s = ws->io.mask_random_state * c + ws->io.mask_random_stream;
+	uint32_t xs = (uint32_t)(((s >> 18u) ^ s) >> 27u), r = s >> 59u;
+	ws->io.mask_random_state = s;
+	uint32_t rng = (xs >> r) | (xs << (((uint32_t)-(int32_t)r) & 31));
+	return rng ^ (uint32_t)bqws_get_timestamp();
 }
 
 static void mask_apply(void *data, size_t size, uint32_t mask)
@@ -974,13 +951,12 @@ static void hs_client_handshake(bqws_socket *ws, const bqws_client_opts *opts)
 
 	// Random key
 	bqws_random_entropy entropy;
-	entropy.cpu_time_a = bqws_cpu_time();
 	entropy.clock = clock();
 	entropy.time = time(NULL);
 	entropy.function_pointer = &hs_client_handshake;
 	entropy.stack_pointer = &entropy;
 	entropy.heap_pointer = ws;
-	entropy.cpu_time_b = bqws_cpu_time();
+	entropy.mask_key = mask_make_key(ws);
 
 	uint8_t digest[20];
 	bqws_sha1(digest, &entropy, sizeof(entropy));
@@ -2302,6 +2278,9 @@ static bqws_socket *ws_new_socket(const bqws_opts *opts, bool is_server)
 		ws_log(ws, "State: CONNECTING");
 		ws->state.state = BQWS_STATE_CONNECTING;
 	}
+
+	ws->io.mask_random_state = (uint32_t)(uintptr_t)ws ^ (uint32_t)time(NULL);
+	ws->io.mask_random_stream = (uint32_t)bqws_get_timestamp() | 1u;
 
 	if (ws->err) {
 		bqws_free_socket(ws);

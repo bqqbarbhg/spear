@@ -70,11 +70,11 @@ void spInit()
     font.load(sf::Symbol("sp://OpenSans-Ascii.ttf"));
 	gameShaders.load();
 
-	// sp::ContentFile::addRelativeFileRoot("data");
-	// sp::ContentFile::addRelativeFileRoot("/data");
-    sp::ContentFile::addRelativeFileRoot("http://localhost:5000");
+	sp::ContentFile::addRelativeFileRoot("data");
+	sp::ContentFile::addRelativeFileRoot("/data");
+    // sp::ContentFile::addRelativeFileRoot("http://localhost:5000");
 
-	// server = serverInit(port);
+	server = serverInit(port);
 	sf::debugPrintLine("Server: %p", server);
 
 	MainClient &client = clients.push();
