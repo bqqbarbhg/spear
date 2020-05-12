@@ -109,7 +109,7 @@ static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
 	float scale = 1.0f;
 	sf::Vec2i mainRes = sf::Vec2i(sf::Vec2(systemRes) * scale);
 
-	int mainSamples = 1;
+	int mainSamples = 4;
 	sg_pixel_format mainFormat = SG_PIXELFORMAT_RGBA8;
 	sg_pixel_format mainDepthFormat = SG_PIXELFORMAT_DEPTH_STENCIL;
 
@@ -125,28 +125,13 @@ static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
 	c->clientState.recreateTargets();
 
 	// HACK
+	for (uint32_t i = 0; i < 16; i++)
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
 		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
-		l.color = sf::Vec3(4.0f, 0.0f, 0.0f);
+		l.color = sf::Vec3(1.0f, 1.0f, 1.0f);
 		l.radius = 16.0f;
-		l.shadowIndex = 0;
-	}
-
-	{
-		cl::PointLight &l = c->clientState.pointLights.push();
-		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
-		l.color = sf::Vec3(0.0f, 4.0f, 0.0f);
-		l.radius = 16.0f;
-		l.shadowIndex = 1;
-	}
-
-	{
-		cl::PointLight &l = c->clientState.pointLights.push();
-		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
-		l.color = sf::Vec3(0.0f, 0.0f, 4.0f);
-		l.radius = 16.0f;
-		l.shadowIndex = 2;
+		l.shadowIndex = i;
 	}
 }
 
@@ -191,7 +176,8 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 	}
 
 	// HACK HACK
-	{
+	static int counter = 0;
+	if (++counter < 400) {
 		float t = (float)stm_sec(stm_now());
 		for (cl::PointLight &light : c->clientState.pointLights) {
 			light.position.x = sinf(t) * 5.0f;

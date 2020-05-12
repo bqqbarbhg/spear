@@ -105,7 +105,9 @@ void ShadowCache::updatePointLight(State &cs, PointLight &light)
 	sf::Vec3 volumeOrigin = sf::Vec3(-radius, -height, -radius);
 	sf::Vec3 volumeExtent = sf::Vec3(radius*2.0f, height, radius*2.0f);
 
-	light.shadowBias = (-volumeOrigin / volumeExtent + sf::Vec3((float)light.shadowIndex, 0.0f, 0.0f)) / sf::Vec3((float)cacheNumTilesX, 1.0f, (float)cacheNumTilesY);
+	uint32_t offsetX = light.shadowIndex % cacheNumTilesX;
+	uint32_t offsetY = light.shadowIndex / cacheNumTilesX;
+	light.shadowBias = (-volumeOrigin / volumeExtent + sf::Vec3((float)offsetX, 0.0f, (float)offsetY)) / sf::Vec3((float)cacheNumTilesX, 1.0f, (float)cacheNumTilesY);
 	light.shadowMul = sf::Vec3(-1.0f) / volumeExtent / sf::Vec3((float)cacheNumTilesX, 1.0f, (float)cacheNumTilesY);
 
 	{
@@ -136,8 +138,8 @@ void ShadowCache::updatePointLight(State &cs, PointLight &light)
 			sg_bqq_subimage_rect &rect = rects.push();
 			rect.src_x = (int)(i * cacheTileExtent);
 			rect.src_y = 0;
-			rect.dst_x = (int)(light.shadowIndex * cacheTileExtent);
-			rect.dst_y = 0;
+			rect.dst_x = (int)(offsetX * cacheTileExtent);
+			rect.dst_y = (int)(offsetY * cacheTileExtent);
 			rect.dst_z = (int)i;
 			rect.width = rect.height = (int)cacheTileExtent;
 		}

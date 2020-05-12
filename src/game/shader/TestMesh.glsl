@@ -43,7 +43,7 @@ uniform sampler3D shadowGrid;
 uniform Pixel
 {
 	float numLightsF;
-	vec4 lightData[MAX_LIGHTS];
+	vec4 lightData[MAX_LIGHTS*DATA_PER_LIGHT];
 };
 
 vec3 evalLight(vec3 P, vec3 N, int base)
