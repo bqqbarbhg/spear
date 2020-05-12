@@ -110,7 +110,7 @@ static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
 	sf::Vec2i mainRes = sf::Vec2i(sf::Vec2(systemRes) * scale);
 
 	int mainSamples = 1;
-	sg_pixel_format mainFormat = SG_PIXELFORMAT_RG11B10F;
+	sg_pixel_format mainFormat = SG_PIXELFORMAT_RGBA8;
 	sg_pixel_format mainDepthFormat = SG_PIXELFORMAT_DEPTH_STENCIL;
 
 	c->mainTarget.init("mainTarget", mainRes, mainFormat, mainSamples);
@@ -359,6 +359,7 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 		sp::endPass();
 	}
 
+#if 0
 	{
 		sp::beginPass(c->tonemapPass, nullptr);
 
@@ -396,8 +397,9 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 
 		sp::endPass();
 	}
+#endif
 
-	return c->fxaaTarget.image;
+	return c->mainTarget.image;
 }
 
 void clientDoMoveTemp(ClientMain *c)

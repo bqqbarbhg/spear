@@ -80,6 +80,26 @@ vec3 evalLight(vec3 P, vec3 N, int base)
 	return result;
 }
 
+float linearToSrgb(float x)
+{
+	x = clamp(x, 0.0, 1.0);
+	if (x <= 0.00031308)
+		return 12.92 * x;
+	else
+		return 1.055*pow(x,(1.0 / 2.4) ) - 0.055;
+}
+
+vec3 linearToSrgb(vec3 v)
+{
+	return vec3(linearToSrgb(v.x), linearToSrgb(v.y), linearToSrgb(v.z));
+}
+
+vec3 tonemap(vec3 v)
+{
+	vec3 x = v / (1.0 + v);
+	return linearToSrgb(x);
+}
+
 void main()
 {
 	vec3 P = v_position;
@@ -89,7 +109,7 @@ void main()
 	for (int base = 0; base < end; base += DATA_PER_LIGHT) {
 		result += evalLight(P, N, base);
 	}
-	o_color = vec4(result, 1.0);
+	o_color = vec4(tonemap(result), 1.0);
 }
 
 @end
