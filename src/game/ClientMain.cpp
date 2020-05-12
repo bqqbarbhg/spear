@@ -125,13 +125,36 @@ static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
 	c->clientState.recreateTargets();
 
 	// HACK
-	for (uint32_t i = 0; i < 16; i++)
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
 		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
-		l.color = sf::Vec3(1.0f, 1.0f, 1.0f);
+		l.color = sf::Vec3(4.0f, 0.0f, 0.0f);
 		l.radius = 16.0f;
-		l.shadowIndex = i;
+		l.shadowIndex = 0;
+	}
+
+	{
+		cl::PointLight &l = c->clientState.pointLights.push();
+		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
+		l.color = sf::Vec3(0.0f, 3.0f, 0.0f);
+		l.radius = 16.0f;
+		l.shadowIndex = 1;
+	}
+
+	{
+		cl::PointLight &l = c->clientState.pointLights.push();
+		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
+		l.color = sf::Vec3(0.0f, 0.0f, 6.0f);
+		l.radius = 16.0f;
+		l.shadowIndex = 2;
+	}
+
+	{
+		cl::PointLight &l = c->clientState.pointLights.push();
+		l.position = sf::Vec3(0.0f, 2.0f, 0.0f);
+		l.color = sf::Vec3(2.0f, 2.0f, 2.0f);
+		l.radius = 16.0f;
+		l.shadowIndex = 3;
 	}
 }
 
@@ -176,12 +199,14 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 	}
 
 	// HACK HACK
-	static int counter = 0;
-	if (++counter < 400) {
+	{
 		float t = (float)stm_sec(stm_now());
+		uint32_t ix = 0;
 		for (cl::PointLight &light : c->clientState.pointLights) {
-			light.position.x = sinf(t) * 5.0f;
-			light.position.z = cosf(t) * 5.0f;
+			if (ix++ < 3) {
+				light.position.x = sinf(t) * 5.0f;
+				light.position.z = cosf(t) * 5.0f;
+			}
 			c->clientState.shadowCache.updatePointLight(c->clientState, light);
 			t += sf::F_2PI / 3.0f;
 		}
@@ -297,6 +322,30 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 				sf::Vec2 minUv = pos;
 				sf::Vec2 maxUv = pos + size;
 
+				pu.numLightsF = (float)c->clientState.pointLights.size;
+				float (*dst)[4] = pu.lightData;
+				for (cl::PointLight &light : c->clientState.pointLights) {
+					dst[0][0] = light.position.x;
+					dst[0][1] = light.position.y;
+					dst[0][2] = light.position.z;
+					dst[0][3] = light.radius;
+					dst[1][0] = light.color.x;
+					dst[1][1] = light.color.y;
+					dst[1][2] = light.color.z;
+					dst[1][3] = 0.0f;
+					dst[2][0] = light.shadowMul.x;
+					dst[2][1] = light.shadowMul.y;
+					dst[2][2] = light.shadowMul.z;
+					dst[2][3] = 0.0f;
+					dst[3][0] = light.shadowBias.x;
+					dst[3][1] = light.shadowBias.y;
+					dst[3][2] = light.shadowBias.z;
+					dst[3][3] = 0.0f;
+					dst += 4;
+				}
+
+				sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestSkin_Pixel, &pu, sizeof(pu));
+
 				TestSkin_VertexUniform_t vu;
 				vu.color[0] = 1.0f;
 				vu.color[1] = 1.0f;
@@ -334,7 +383,8 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 					binds.index_buffer = model->skinIndexBuffer;
 					binds.index_buffer_offset = mesh.indexBufferOffset * sizeof(uint16_t);
 					binds.vertex_buffer_offsets[0] = mesh.vertexBufferOffset * sizeof(sp::SkinVertex);
-					binds.fs_images[0] = atlas->image;
+					binds.fs_images[SLOT_TestSkin_albedo] = atlas->image;
+					binds.fs_images[SLOT_TestSkin_shadowGrid] = c->clientState.shadowCache.shadowCache.image;
 					sg_apply_bindings(&binds);
 
 					sg_draw(0, mesh.numIndices, 1);
