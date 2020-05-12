@@ -13,9 +13,9 @@
 
 namespace sp {
 
-static const uint32_t MaxQuadsPerDraw = 1024;
-static const uint32_t MaxQuadsPerFrame = 16*1024;
-static const uint32_t MaxTextQuadsPerFrame = 16*1024;
+static const uint32_t MaxQuadsPerDraw = 16*1024;
+static const uint32_t MaxQuadsPerFrame = 32*1024;
+static const uint32_t MaxTextQuadsPerFrame = 32*1024;
 
 struct SpriteDrawImp
 {
