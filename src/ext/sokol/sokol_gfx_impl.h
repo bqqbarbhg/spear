@@ -6762,7 +6762,11 @@ _SOKOL_PRIVATE void _sg_mtl_init_texdesc_rt_msaa(MTLTextureDescriptor* mtl_desc,
     mtl_desc.cpuCacheMode = MTLCPUCacheModeDefaultCache;
     /* render targets are only visible to the GPU */
     mtl_desc.resourceOptions = MTLResourceStorageModePrivate;
-    mtl_desc.storageMode = MTLStorageModePrivate;
+    #if defined(_SG_TARGET_MACOS)
+    	mtl_desc.storageMode = MTLStorageModePrivate;
+	#else
+    	mtl_desc.storageMode = MTLStorageModeMemoryless;
+	#endif
     /* MSAA render targets are not shader-readable (instead they are resolved) */
     mtl_desc.usage = MTLTextureUsageRenderTarget;
     mtl_desc.textureType = MTLTextureType2DMultisample;
@@ -7612,7 +7616,7 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
 		for (int rect_index = 0; rect_index < desc->num_rects; rect_index++) {
 			const sg_bqq_subimage_rect *rect = &desc->rects[rect_index];
 			MTLOrigin src_origin = { rect->src_x >> mip_index, rect->src_y >> mip_index, 0 };
-			MTLOrigin dst_origin = { rect->dst_x >> mip_index, rect->dst_y >> mip_index, 0 };
+			MTLOrigin dst_origin = { rect->dst_x >> mip_index, rect->dst_y >> mip_index, rect->dst_z >> mip_index };
 			MTLSize size = { rect->width >> mip_index, rect->height >> mip_index, 1 };
 			[blit_encoder
 				copyFromTexture: src_tex

@@ -1,8 +1,3 @@
-
-#if !SF_OS_WASM && !SF_OS_APPLE
-	#define BQWS_PT_USE_OPENSSL 1
-#endif
-
 #include "bq_websocket_platform.h"
 
 #include <stdlib.h>
