@@ -1603,7 +1603,8 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
         _sapp_mtl_device_obj = MTLCreateSystemDefaultDevice();
         _sapp_ios_mtk_view_dlg_obj = [[_sapp_ios_mtk_view_dlg alloc] init];
         _sapp_view_obj = [[_sapp_ios_view alloc] init];
-        _sapp_view_obj.preferredFramesPerSecond = 60 / _sapp.swap_interval;
+        _sapp_view_obj.preferredFramesPerSecond = UIScreen.mainScreen.maximumFramesPerSecond / _sapp.swap_interval;
+        // _sapp_view_obj.preferredFramesPerSecond = 60 / _sapp.swap_interval;
         _sapp_view_obj.delegate = _sapp_ios_mtk_view_dlg_obj;
         _sapp_view_obj.device = _sapp_mtl_device_obj;
         _sapp_view_obj.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
