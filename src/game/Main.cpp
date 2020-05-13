@@ -10,6 +10,8 @@
 #include "game/shader/GameShaders.h"
 #include "game/shader/Upscale.h"
 
+#include "Processing.h"
+
 void spConfig(sp::MainConfig &config)
 {
 	config.sappDesc.window_title = "Spear";
@@ -82,8 +84,9 @@ void spInit()
 
 	updateLayout();
 
-
 	upscalePipe.init(gameShaders.upscaleFast, sp::PipeVertexFloat2);
+
+	initializeProcessing();
 }
 
 void spCleanup()
@@ -113,6 +116,8 @@ void spEvent(const sapp_event *e)
 
 void spFrame(float dt)
 {
+	updateProcessing();
+
 	if (server) serverUpdate(server);
 
 	for (uint32_t i = 0; i < clients.size; i++) {

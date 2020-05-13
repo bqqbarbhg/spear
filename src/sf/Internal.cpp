@@ -8,6 +8,7 @@
 namespace sf {
 
 #if SF_OS_WINDOWS
+
 bool win32Utf8To16(sf::Array<wchar_t> &arr, sf::String str)
 {
 	arr.clear();
@@ -42,6 +43,40 @@ bool win32Utf8To16(sf::Array<wchar_t> &arr, sf::String str)
 	arr.data[num] = (wchar_t)0;
 	return true;
 }
+
+bool win32Utf16To8(sf::StringBuf &str, const wchar_t *strW)
+{
+	int num = WideCharToMultiByte(CP_UTF8, 0, strW, -1, str.data, (int)(str.capacity ? str.capacity + 1 : 0), NULL, NULL);
+	if (num < 0) {
+		str.clear();
+		return false;
+	}
+
+	if (num > (int)str.capacity) {
+		if (str.capacity > 0) {
+			num = WideCharToMultiByte(CP_UTF8, 0, strW, -1, NULL, 0, NULL, NULL);
+			if (num < 0) {
+				str.clear();
+				return false;
+			}
+		}
+		if (num <= 1) {
+			str.clear();
+			return true;
+		}
+
+		str.reserveGeometric(num - 1);
+		num = WideCharToMultiByte(CP_UTF8, 0, strW, -1, str.data, (int)str.capacity + 1, NULL, NULL);
+		if (num < 0) {
+			str.clear();
+			return false;
+		}
+	}
+	sf_assert(num - 1 <= (int)str.capacity);
+	str.size = num - 1;
+	return true;
+}
+
 #endif
 
 }

@@ -2,6 +2,7 @@ data/
 proj/
 cache/
 build/
+temp/
 premake5
 .DS_store
 *.swp

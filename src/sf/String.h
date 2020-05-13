@@ -67,6 +67,9 @@ struct StringBuf
 		}
 	}
 
+	template <size_t N>
+	StringBuf(const char (&arr)[N]) : StringBuf(sf::String(arr)) { }
+
 	StringBuf(StringBuf &&rhs) : data(rhs.data), size(rhs.size), capacity(rhs.capacity) {
 		rhs.data = (char*)"";
 		rhs.capacity = rhs.size = 0;
@@ -107,8 +110,13 @@ struct StringBuf
 	char *begin() { return data; }
 	char *end() { return data + size; }
 
-	explicit StringBuf(String s);
+	StringBuf(String s);
 	StringBuf& operator=(String s);
+
+	template <size_t N>
+	StringBuf& operator=(const char (&arr)[N]) {
+		return this->operator=(sf::String(arr));
+	}
 
 	operator String() const { return String(data, size); }
 	operator CString() const { return CString(data, size); }
@@ -159,6 +167,12 @@ struct StringBuf
 	void reserve(size_t size) {
 		if (size > capacity) {
 			impGrowTo(size);
+		}
+	}
+
+	void reserveGeometric(size_t size) {
+		if (size > capacity) {
+			impGrowToGeometric(size);
 		}
 	}
 
@@ -271,5 +285,8 @@ sf_inline uint32_t hash(const String &str) {
 }
 
 template <> struct IsZeroInitializable<String> { enum { value = 1 }; };
+
+bool beginsWith(sf::String s, sf::String prefix);
+bool endsWith(sf::String s, sf::String suffix);
 
 }

@@ -4,6 +4,10 @@
 #include "game/shader/GameShaders.h"
 #include "game/shader/ShadowGrid.h"
 
+// HACK
+
+#include "ext/sokol/sokol_time.h"
+
 namespace cl {
 
 void ShadowCache::recreateTargets()
@@ -99,15 +103,24 @@ void ShadowCache::updatePointLight(State &cs, PointLight &light)
 		sp::endPass();
 	}
 
-	float radius = 16.0f;
+	float radius = light.radius;
 	float height = 4.0f;
 
-	sf::Vec3 volumeOrigin = sf::Vec3(-radius, -height, -radius);
+	sf::Vec3 f = sf::Vec3((float)cacheTileExtent, (float)cacheTileSlices, (float)cacheTileExtent) / (light.radius*2.0f);
+	f = sf::Vec3(1.0f);
+	sf::Vec3 p = light.position * f;
+	p.x = p.x - floorf(p.x);
+	p.y = p.y - floorf(p.y);
+	p.z = p.z - floorf(p.z);
+	sf::Vec3 volumeOrigin = sf::Vec3(-radius, -height, -radius) - p / f;
 	sf::Vec3 volumeExtent = sf::Vec3(radius*2.0f, height, radius*2.0f);
+
+	sf::Vec3 t = volumeOrigin + light.position;
 
 	uint32_t offsetX = light.shadowIndex % cacheNumTilesX;
 	uint32_t offsetY = light.shadowIndex / cacheNumTilesX;
-	light.shadowBias = (-volumeOrigin / volumeExtent + sf::Vec3((float)offsetX, 0.0f, (float)offsetY)) / sf::Vec3((float)cacheNumTilesX, 1.0f, (float)cacheNumTilesY);
+	sf::Vec3 uvw = -volumeOrigin / volumeExtent;
+	light.shadowBias = (uvw + sf::Vec3((float)offsetX, 0.0f, (float)offsetY)) / sf::Vec3((float)cacheNumTilesX, 1.0f, (float)cacheNumTilesY);
 	light.shadowMul = sf::Vec3(-1.0f) / volumeExtent / sf::Vec3((float)cacheNumTilesX, 1.0f, (float)cacheNumTilesY);
 
 	{

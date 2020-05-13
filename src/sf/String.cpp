@@ -201,4 +201,14 @@ sf_noinline void StringBuf::impGrowToGeometric(size_t sz) {
 	capacity = (uint32_t)sz;
 }
 
+bool beginsWith(sf::String s, sf::String prefix)
+{
+	return s.size >= prefix.size && sf::String(s.data, prefix.size) == prefix;
+}
+
+bool endsWith(sf::String s, sf::String suffix)
+{
+	return s.size >= suffix.size && sf::String(s.data + s.size - suffix.size, suffix.size) == suffix;
+}
+
 }

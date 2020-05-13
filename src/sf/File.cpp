@@ -150,4 +150,110 @@ bool createDirectory(sf::String name)
 #endif
 }
 
+void createDirectories(sf::String name)
+{
+	for (size_t i = 0; i < name.size; i++) {
+		if (name.data[i] == '/' || name.data[i] == '\\') {
+			createDirectory(sf::String(name.data, i));
+		}
+	}
+}
+
+bool listFiles(sf::String path, sf::Array<FileInfo> &files)
+{
+#if SF_OS_WINDOWS
+	sf::SmallArray<wchar_t, 256> nameBuf;
+	if (!win32Utf8To16(nameBuf, path)) return false;
+	if (nameBuf.size <= 1) return false;
+	nameBuf.pop();
+	if (nameBuf.back() != '/' && nameBuf.back() != '\\') nameBuf.push('\\');
+	nameBuf.push('*');
+	nameBuf.push('\0');
+
+	WIN32_FIND_DATAW findData;
+	HANDLE findHandle = FindFirstFileW(nameBuf.data, &findData);
+	if (findHandle == INVALID_HANDLE_VALUE) {
+		return GetLastError() == ERROR_FILE_NOT_FOUND;
+	}
+
+	do {
+		if (!wcscmp(findData.cFileName, L".") || !wcscmp(findData.cFileName, L"..")) continue;
+
+		FileInfo &info = files.push();
+
+		sf::win32Utf16To8(info.name, findData.cFileName);
+		info.isDirectory = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+
+	} while (FindNextFileW(findHandle, &findData));
+
+	FindClose(findHandle);
+
+	return true;
+#else
+	return false;
+#endif
+}
+
+void appendPath(sf::StringBuf &path, sf::String a)
+{
+#if SF_OS_WINDOWS
+	char sep = '\\';
+#else
+	char sep = '/';
+#endif
+
+	path.reserveGeometric(path.size + 1 + a.size);
+	if (path.size > 0) {
+		char last = path.data[path.size - 1];
+		if (last != '\\' && last != '/') {
+			path.append(sep);
+		}
+	}
+	if (path.size > 0 && a.size > 0 && (a.data[0] == '\\' || a.data[0] == '/')) {
+		path.append(a.slice().drop(1));
+	} else {
+		path.append(a);
+	}
+}
+
+uint64_t getFileTimestamp(sf::String path)
+{
+#if SF_OS_WINDOWS
+	sf::SmallArray<wchar_t, 256> nameBuf;
+	if (!win32Utf8To16(nameBuf, path)) return false;
+	HANDLE h = CreateFileW(nameBuf.data, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+	if (h == INVALID_HANDLE_VALUE) return 0;
+
+	FILETIME lastWrite;
+	GetFileTime(h, NULL, NULL, &lastWrite);
+	return (uint64_t)lastWrite.dwHighDateTime << 32u | (uint64_t)lastWrite.dwLowDateTime;
+#else
+	return 0;
+#endif
+}
+
+void appendPath(sf::StringBuf &path, sf::String a, sf::String b)
+{
+	path.reserveGeometric(path.size + 2 + a.size + b.size);
+	appendPath(path, a);
+	appendPath(path, b);
+}
+
+void appendPath(sf::StringBuf &path, sf::String a, sf::String b, sf::String c)
+{
+	path.reserveGeometric(path.size + 3 + a.size + b.size);
+	appendPath(path, a);
+	appendPath(path, b);
+	appendPath(path, c);
+}
+
+void appendPath(sf::StringBuf &path, sf::String a, sf::String b, sf::String c, sf::String d)
+{
+	path.reserveGeometric(path.size + 4 + a.size + b.size);
+	appendPath(path, a);
+	appendPath(path, b);
+	appendPath(path, c);
+	appendPath(path, d);
+}
+
 }

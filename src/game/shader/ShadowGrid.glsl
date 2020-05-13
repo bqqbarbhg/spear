@@ -39,7 +39,7 @@ void main()
 	float x = v_uv.x * depthSlices;
 	float slice = floor(x);
 	vec3 relPos = vec3(x - slice, slice, v_uv.y);
-	vec3 pos = volumeOrigin + relPos * volumeUnits;
+	vec3 pos = relPos * volumeUnits + volumeOrigin;
 
 	float dist = length(pos) - 0.5;
 	float sum = 0.0;

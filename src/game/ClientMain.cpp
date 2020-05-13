@@ -125,6 +125,7 @@ static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
 	c->clientState.recreateTargets();
 
 	// HACK
+#if 0
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
 		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
@@ -148,6 +149,7 @@ static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
 		l.radius = 16.0f;
 		l.shadowIndex = 2;
 	}
+#endif
 
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
@@ -200,12 +202,12 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 
 	// HACK HACK
 	{
-		float t = (float)stm_sec(stm_now());
+		float t = (float)stm_sec(stm_now())*0.5f;
 		uint32_t ix = 0;
 		for (cl::PointLight &light : c->clientState.pointLights) {
 			if (ix++ < 3) {
-				light.position.x = sinf(t) * 5.0f;
-				light.position.z = cosf(t) * 5.0f;
+				// light.position.x = sinf(t) * 5.0f;
+				// light.position.z = cosf(t) * 5.0f;
 			}
 			c->clientState.shadowCache.updatePointLight(c->clientState, light);
 			t += sf::F_2PI / 3.0f;
