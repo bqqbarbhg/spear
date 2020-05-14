@@ -161,6 +161,10 @@ project "spear"
     files { "src/**.h", "src/**.cpp", "src/**.c", "src/**.m" }
     files { "misc/*.natvis" }
 	debugdir "."
+	filter { "action:xcode4" }
+		symbolspath "build/%{cfg.configuration}"
 	filter { "system:ios" }
-		files { "misc/Info.plist" }
+		files { "misc/ios/Info.plist" }
+	filter { "system:macosx" }
+		files { "misc/macos/Info.plist" }
 

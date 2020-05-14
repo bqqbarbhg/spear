@@ -94,10 +94,11 @@ vec3 linearToSrgb(vec3 v)
 	return vec3(linearToSrgb(v.x), linearToSrgb(v.y), linearToSrgb(v.z));
 }
 
-vec3 tonemap(vec3 v)
+vec4 tonemap(vec3 v)
 {
 	vec3 x = v / (1.0 + v);
-	return linearToSrgb(x);
+	x = linearToSrgb(x);
+	return vec4(x, dot(x, vec3(0.299, 0.587, 0.114)));
 }
 
 void main()
@@ -109,7 +110,7 @@ void main()
 	for (int base = 0; base < end; base += DATA_PER_LIGHT) {
 		result += evalLight(P, N, base);
 	}
-	o_color = vec4(tonemap(result), 1.0);
+	o_color = tonemap(result);
 }
 
 @end
