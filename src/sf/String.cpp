@@ -211,4 +211,44 @@ bool endsWith(sf::String s, sf::String suffix)
 	return s.size >= suffix.size && sf::String(s.data + s.size - suffix.size, suffix.size) == suffix;
 }
 
+size_t indexOf(sf::String s, sf::String substr)
+{
+	if (s.size < substr.size) return SIZE_MAX;
+	if (substr.size == 0) return SIZE_MAX;
+
+	// Hash s[0]*a^n + s[1]*a^2 + s[len]*a
+	uint32_t a = 13;
+	uint32_t an = 1;
+
+	uint32_t substrHash = 0;
+	for (size_t i = substr.size; i > 0; i--) {
+		an *= a;
+		substrHash += (uint32_t)substr.data[i - 1] * an;
+	}
+
+
+	uint32_t sHash = 0;
+	for (size_t i = 0; i < substr.size - 1; i++) {
+		sHash = (sHash + (uint32_t)s.data[i]) * a;
+	}
+
+	for (size_t i = substr.size - 1; i < s.size; i++) {
+		sHash = (sHash + (uint32_t)s.data[i]) * a;
+
+		size_t offset = i - (substr.size - 1);
+		if (sHash == substrHash && !memcmp(s.data + offset, substr.data, substr.size)) {
+			return offset;
+		}
+
+		sHash -= s.data[offset] * an;
+	}
+
+	return SIZE_MAX;
+}
+
+bool contains(sf::String s, sf::String substr)
+{
+	return indexOf(s, substr) != SIZE_MAX;
+}
+
 }

@@ -25,8 +25,9 @@ sf_inline bool writeFile(sf::String name, sf::Slice<const char> slice) {
 	return writeFile(name, slice.data, slice.size);
 }
 
+bool isDirectory(sf::String name);
 bool createDirectory(sf::String name);
-void createDirectories(sf::String name);
+bool createDirectories(sf::String name);
 
 bool listFiles(sf::String path, sf::Array<FileInfo> &files);
 
@@ -36,5 +37,27 @@ void appendPath(sf::StringBuf &path, sf::String a);
 void appendPath(sf::StringBuf &path, sf::String a, sf::String b);
 void appendPath(sf::StringBuf &path, sf::String a, sf::String b, sf::String c);
 void appendPath(sf::StringBuf &path, sf::String a, sf::String b, sf::String c, sf::String d);
+
+bool containsDirectory(sf::String path, sf::String dir);
+
+struct DirectoryMonitor
+{
+	DirectoryMonitor();
+	~DirectoryMonitor();
+
+	DirectoryMonitor(DirectoryMonitor &&rhs);
+	DirectoryMonitor &operator=(DirectoryMonitor&& rhs);
+
+	DirectoryMonitor(const DirectoryMonitor&) = delete;
+	DirectoryMonitor &operator=(const DirectoryMonitor&) = delete;
+
+	void begin(sf::String root);
+	void end();
+
+	void getUpdates(sf::Array<sf::StringBuf> &paths);
+
+	struct Data;
+	Data *data;
+};
 
 }

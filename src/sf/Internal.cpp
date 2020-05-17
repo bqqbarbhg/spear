@@ -44,36 +44,45 @@ bool win32Utf8To16(sf::Array<wchar_t> &arr, sf::String str)
 	return true;
 }
 
-bool win32Utf16To8(sf::StringBuf &str, const wchar_t *strW)
+bool win32Utf16To8(sf::StringBuf &str, const wchar_t *strW, int lengthW)
 {
-	int num = WideCharToMultiByte(CP_UTF8, 0, strW, -1, str.data, (int)(str.capacity ? str.capacity + 1 : 0), NULL, NULL);
-	if (num < 0) {
+	if (lengthW == 0) {
 		str.clear();
 		return false;
 	}
 
-	if (num > (int)str.capacity) {
+	int num = WideCharToMultiByte(CP_UTF8, 0, strW, lengthW, str.data, (int)(str.capacity ? str.capacity + 1 : 0), NULL, NULL);
+	if (num < 0) {
+		str.clear();
+		return false;
+	}
+	if (lengthW < 0) num--;
+
+	if (num >= (int)str.capacity) {
 		if (str.capacity > 0) {
-			num = WideCharToMultiByte(CP_UTF8, 0, strW, -1, NULL, 0, NULL, NULL);
+			num = WideCharToMultiByte(CP_UTF8, 0, strW, lengthW, NULL, 0, NULL, NULL);
 			if (num < 0) {
 				str.clear();
 				return false;
 			}
+			if (lengthW < 0) num--;
 		}
-		if (num <= 1) {
+		if (num <= 0) {
 			str.clear();
 			return true;
 		}
 
-		str.reserveGeometric(num - 1);
-		num = WideCharToMultiByte(CP_UTF8, 0, strW, -1, str.data, (int)str.capacity + 1, NULL, NULL);
+		str.reserveGeometric(num);
+		num = WideCharToMultiByte(CP_UTF8, 0, strW, lengthW, str.data, (int)str.capacity + 1, NULL, NULL);
 		if (num < 0) {
 			str.clear();
 			return false;
 		}
+		if (lengthW < 0) num--;
 	}
-	sf_assert(num - 1 <= (int)str.capacity);
-	str.size = num - 1;
+	sf_assert((uint32_t)num <= str.capacity);
+	str.size = num;
+	str.data[num] = '\0';
 	return true;
 }
 

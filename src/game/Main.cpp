@@ -91,6 +91,7 @@ void spInit()
 
 void spCleanup()
 {
+	closeProcessing();
 }
 
 void spEvent(const sapp_event *e)

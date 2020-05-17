@@ -2,6 +2,8 @@
 
 #include "Array.h"
 #include "Internal.h"
+#include "Thread.h"
+#include "Mutex.h"
 
 #if SF_OS_WINDOWS
 	#define _WIN32_LEAN_AND_MEAN
@@ -138,25 +140,57 @@ bool writeFile(sf::String name, const void *data, size_t size)
 	return true;
 }
 
+bool isDirectory(sf::String name)
+{
+#if SF_OS_WINDOWS
+	sf::SmallArray<wchar_t, 256> nameBuf;
+	if (!win32Utf8To16(nameBuf, name)) return false;
+	DWORD attr = GetFileAttributesW(nameBuf.data);
+	if (INVALID_FILE_ATTRIBUTES) return false;
+	return (attr & FILE_ATTRIBUTE_DIRECTORY) != 0;
+#else
+	sf::SmallStringBuf<512> nameBuf(name);
+	if (stat(nameBuf.data, &sb) == 0) {
+		return (sb.st_mode & S_IFMT) == S_IFDIR;
+	} else {
+		return false;
+	}
+#endif
+}
+
 bool createDirectory(sf::String name)
 {
 #if SF_OS_WINDOWS
 	sf::SmallArray<wchar_t, 256> nameBuf;
 	if (!win32Utf8To16(nameBuf, name)) return false;
-	return CreateDirectoryW(nameBuf.data, NULL) != 0;
+	if (CreateDirectoryW(nameBuf.data, NULL) == 0) {
+		return GetLastError() == ERROR_ALREADY_EXISTS;
+	} else {
+		return true;
+	}
 #else
 	sf::SmallStringBuf<512> nameBuf(name);
-	return mkdir(nameBuf.data, 0777) == 0;
+	if (mkdir(nameBuf.data, 0777) == 0) {
+		struct stat sb;
+		if (stat(nameBuf.data, &sb) == 0) {
+			return (sb.st_mode & S_IFMT) == S_IFDIR;
+		}
+		return false;
+	} else {
+		return true;
+	}
 #endif
 }
 
-void createDirectories(sf::String name)
+bool createDirectories(sf::String name)
 {
+	if (isDirectory(name)) return true;
 	for (size_t i = 0; i < name.size; i++) {
 		if (name.data[i] == '/' || name.data[i] == '\\') {
-			createDirectory(sf::String(name.data, i));
+			if (!createDirectory(sf::String(name.data, i))) return false;
 		}
 	}
+	return createDirectory(name);
 }
 
 bool listFiles(sf::String path, sf::Array<FileInfo> &files)
@@ -225,7 +259,11 @@ uint64_t getFileTimestamp(sf::String path)
 	if (h == INVALID_HANDLE_VALUE) return 0;
 
 	FILETIME lastWrite;
-	GetFileTime(h, NULL, NULL, &lastWrite);
+	BOOL ok = GetFileTime(h, NULL, NULL, &lastWrite);
+
+	CloseHandle(h);
+
+	if (!ok) return 0;
 	return (uint64_t)lastWrite.dwHighDateTime << 32u | (uint64_t)lastWrite.dwLowDateTime;
 #else
 	return 0;
@@ -254,6 +292,159 @@ void appendPath(sf::StringBuf &path, sf::String a, sf::String b, sf::String c, s
 	appendPath(path, b);
 	appendPath(path, c);
 	appendPath(path, d);
+}
+
+bool containsDirectory(sf::String path, sf::String dir)
+{
+	size_t begin = 0;
+	for (size_t i = 0; i < path.size; i++) {
+		if (path.data[i] == '/' || path.data[i] == '\\') {
+			if (path.substring(begin, i - begin) == dir) return true;
+			begin = i + 1;
+		}
+	}
+	return false;
+}
+
+#if SF_OS_WINDOWS
+
+struct DirectoryMonitor::Data
+{
+	OVERLAPPED overlapped = { };
+	sf::Thread *thread = nullptr;
+	sf::StringBuf path;
+	HANDLE dirHandle = INVALID_HANDLE_VALUE;
+	HANDLE closeEvent;
+	bool quit = false, ioPending = false;
+	alignas(DWORD) char buffer[32*1024];
+
+	sf::Mutex mutex;
+	sf::Array<sf::StringBuf> paths;
+
+	Data(sf::String path) : path(path)
+	{
+		ThreadDesc desc;
+		desc.entry = [](void *user) {
+			((DirectoryMonitor::Data*)user)->threadEntry();
+		};
+		desc.user = this;
+		desc.name = "DirectoryMonitor";
+		thread = Thread::start(desc);
+
+		closeEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
+	}
+
+	~Data()
+	{
+		quit = true;
+		SetEvent(closeEvent);
+		Thread::join(thread);
+	}
+
+	static void CALLBACK overlappedCompletion(DWORD error, DWORD size, LPOVERLAPPED overlapped)
+	{
+		DirectoryMonitor::Data *data = (DirectoryMonitor::Data*)overlapped;
+		data->ioPending = false;
+		if (size < sizeof(FILE_NOTIFY_INFORMATION)) return;
+
+		FILE_NOTIFY_INFORMATION *info = (FILE_NOTIFY_INFORMATION*)data->buffer;
+		for (;;) {
+
+			{
+				sf::MutexGuard mg(data->mutex);
+				sf::StringBuf &str = data->paths.push();
+				sf::win32Utf16To8(str, info->FileName, (int)info->FileNameLength / 2);
+			}
+
+			if (info->NextEntryOffset == 0) break;
+			info = (FILE_NOTIFY_INFORMATION*)((char*)info + info->NextEntryOffset);
+		}
+	}
+
+	void threadEntry()
+	{
+		{
+			sf::SmallArray<wchar_t, 256> pathBuf;
+			sf::win32Utf8To16(pathBuf, path);
+
+			dirHandle = CreateFileW(pathBuf.data, FILE_LIST_DIRECTORY,
+				FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+				NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
+		}
+
+		for (;;) {
+			if (dirHandle != INVALID_HANDLE_VALUE && !ioPending) {
+				DWORD filter = FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_LAST_WRITE
+					| FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_FILE_NAME;
+				DWORD numRead = 0;
+				BOOL res = ReadDirectoryChangesW(dirHandle, buffer, sizeof(buffer), TRUE, filter, &numRead, &overlapped, &overlappedCompletion);
+				if (res) ioPending = true;
+			}
+
+			WaitForMultipleObjectsEx(1, &closeEvent, FALSE, 1000, TRUE);
+			if (quit) {
+				CloseHandle(closeEvent);
+				break;
+			}
+
+		}
+	}
+
+	void getUpdates(sf::Array<sf::StringBuf> &dstPaths)
+	{
+		sf::MutexGuard mg(mutex);
+		dstPaths.push(paths);
+		paths.clear();
+	}
+};
+
+#else
+
+struct DirectoryMonitor::Data
+{
+	void getUpdates(sf::Array<sf::StringBuf> &paths)
+	{
+	}
+};
+
+#endif
+
+DirectoryMonitor::DirectoryMonitor() : data(nullptr) { }
+DirectoryMonitor::~DirectoryMonitor()
+{
+	if (data) delete data;
+}
+
+DirectoryMonitor::DirectoryMonitor(DirectoryMonitor &&rhs) : data(rhs.data)
+{
+	rhs.data = nullptr;
+}
+
+DirectoryMonitor &DirectoryMonitor::operator=(DirectoryMonitor&& rhs)
+{
+	if (&rhs == this) return *this;
+	data = rhs.data;
+	rhs.data = nullptr;
+	return *this;
+}
+
+void DirectoryMonitor::begin(sf::String root)
+{
+	data = new Data(root);
+}
+
+void DirectoryMonitor::end()
+{
+	if (data) {
+		delete data;
+		data = nullptr;
+	}
+}
+
+void DirectoryMonitor::getUpdates(sf::Array<sf::StringBuf> &paths)
+{
+	if (!data) return;
+	return data->getUpdates(paths);
 }
 
 }
