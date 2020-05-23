@@ -384,6 +384,9 @@ struct DirectoryMonitor::Data
 			WaitForMultipleObjectsEx(1, &closeEvent, FALSE, 1000, TRUE);
 			if (quit) {
 				CloseHandle(closeEvent);
+				if (dirHandle != INVALID_HANDLE_VALUE) {
+					CloseHandle(dirHandle);
+				}
 				break;
 			}
 

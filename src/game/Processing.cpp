@@ -11,6 +11,10 @@
 
 #include "ext/sokol/sokol_time.h"
 
+// For std::thread::hardware_concurrency()
+// TODO: Reimplement this
+#include <thread>
+
 sf::Symbol symf(const char *fmt, ...)
 {
 	va_list args;
@@ -230,7 +234,7 @@ struct Processor
 	sf::HashMap<sf::Symbol, sf::Array<sf::Box<TaskInstance>>> tasksForInput;
 	sf::Array<TaskInstance*> dirtyTaskInstances;
 
-	uint32_t maxActiveJobs = 4;
+	uint32_t maxActiveJobs = 1;
 	sf::Array<ActiveJobQueue> activeJobs;
 	sf::Array<JobQueue> jobQueues[(uint32_t)JobPriority::Count];
 
@@ -391,6 +395,8 @@ Job::Status ExecJob::getStatus()
 static const sf::Symbol s_metallic{"metallic"};
 static const sf::Symbol s_ao{"ao"};
 static const sf::Symbol s_roughness{"roughness"};
+static const sf::Symbol s_albedo{"albdo"};
+static const sf::Symbol s_normal{"normal"};
 static const sf::Symbol s_src{"src"};
 static const sf::Symbol s_dst{"dst"};
 
@@ -457,6 +463,141 @@ struct GuiTextureTask : Task
 		{
 			sf::SmallStringBuf<512> path;
 			sf::appendPath(path, p.dataRoot, ti.inputs[s_src]);
+			args.push("--input");
+			args.push(path);
+		}
+
+		args.push("--output");
+		args.push(tempFile);
+
+		JobPriority priority = getPriorityForTextureFormat(format);
+
+		JobQueue jq;
+		jq.mkdirsToFile(tempFile);
+		jq.mkdirsToFile(dstFile);
+		jq.exec("sp-texcomp", std::move(args));
+		jq.move(tempFile, dstFile);
+		p.addJobs(priority, ti, jq);
+	}
+};
+
+struct AlbedoTextureTask : Task
+{
+	sf::Symbol format;
+	int resolution;
+	sf::SmallStringBuf<16> resolutionString;
+
+	AlbedoTextureTask(sf::String format, int resolution)
+		: format(format), resolution(resolution)
+	{
+		name.append("AlbedoTextureTask ", format);
+		resolutionString.format("%d", resolution);
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (endsWithStrip(ti.key, path, "_albedo.png")) {
+			ti.inputs[s_albedo] = path;
+		} else {
+			return false;
+		}
+		ti.outputs[s_dst] = symf("%s_albedo.%s.sptex", ti.key.data, format.data);
+		return true;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		sf::Array<sf::StringBuf> args;
+
+		sf::StringBuf tempFile, dstFile;
+		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+
+		args.push("--output-ignores-alpha");
+
+		args.push("--level");
+		args.push().format("%d", p.level);
+
+		args.push("--format");
+		args.push(sf::String(format));
+
+		args.push("--resolution");
+		args.push(resolutionString);
+		args.push(resolutionString);
+
+		{
+			sf::SmallStringBuf<512> path;
+			sf::appendPath(path, p.dataRoot, ti.inputs[s_albedo]);
+			args.push("--input");
+			args.push(path);
+		}
+
+		args.push("--output");
+		args.push(tempFile);
+
+		JobPriority priority = getPriorityForTextureFormat(format);
+
+		JobQueue jq;
+		jq.mkdirsToFile(tempFile);
+		jq.mkdirsToFile(dstFile);
+		jq.exec("sp-texcomp", std::move(args));
+		jq.move(tempFile, dstFile);
+		p.addJobs(priority, ti, jq);
+	}
+};
+
+struct NormalTextureTask : Task
+{
+	sf::Symbol format;
+	bool remap;
+	int resolution;
+	sf::SmallStringBuf<16> resolutionString;
+
+	NormalTextureTask(sf::String format, bool remap, int resolution)
+		: format(format), remap(remap), resolution(resolution)
+	{
+		name.append("NormalTextureTask ", format);
+		resolutionString.format("%d", resolution);
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (endsWithStrip(ti.key, path, "_normal.png")) {
+			ti.inputs[s_normal] = path;
+		} else {
+			return false;
+		}
+		ti.outputs[s_dst] = symf("%s_normal.%s.sptex", ti.key.data, format.data);
+		return true;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		sf::Array<sf::StringBuf> args;
+
+		sf::StringBuf tempFile, dstFile;
+		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+
+		args.push("--linear");
+		args.push("--normal-map");
+		if (remap) {
+			args.push("--decorrelate-remap");
+		}
+
+		args.push("--level");
+		args.push().format("%d", p.level);
+
+		args.push("--format");
+		args.push(sf::String(format));
+
+		args.push("--resolution");
+		args.push(resolutionString);
+		args.push(resolutionString);
+
+		{
+			sf::SmallStringBuf<512> path;
+			sf::appendPath(path, p.dataRoot, ti.inputs[s_normal]);
 			args.push("--input");
 			args.push(path);
 		}
@@ -557,6 +698,107 @@ struct MaskTextureTask : Task
 	}
 };
 
+struct AnimationTask : Task
+{
+	AnimationTask()
+	{
+		name = "AnimatationTask";
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (sf::endsWith(path, ".fbx") && sf::contains(path, "_anim_")) {
+			ti.inputs[s_src] = path;
+		} else {
+			return false;
+		}
+		ti.outputs[s_dst] = symf("%s.spanim", path.data);
+		return true;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		sf::Array<sf::StringBuf> args;
+
+		sf::StringBuf srcFile, tempFile, dstFile;
+		sf::appendPath(srcFile, p.dataRoot, ti.inputs[s_src]);
+		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+
+		args.push("--level");
+		args.push().format("%d", p.level);
+
+		args.push("--vertex");
+		args.push("pos_rgb32f,bonei_rgba8u,bonew_rgba8");
+
+		args.push("--anim");
+
+		args.push("--input");
+		args.push(srcFile);
+
+		args.push("--output");
+		args.push(tempFile);
+
+		JobQueue jq;
+		jq.mkdirsToFile(tempFile);
+		jq.mkdirsToFile(dstFile);
+		jq.exec("sp-model", std::move(args));
+		jq.move(tempFile, dstFile);
+		p.addJobs(JobPriority::Normal, ti, jq);
+	}
+};
+
+struct CharacterModelTask : Task
+{
+	CharacterModelTask()
+	{
+		name = "CharacterModelTask";
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (sf::endsWith(path, ".fbx") && sf::contains(path, "_character")) {
+			ti.inputs[s_src] = path;
+		} else {
+			return false;
+		}
+		ti.outputs[s_dst] = symf("%s.spmdl", path.data);
+		return true;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		sf::Array<sf::StringBuf> args;
+
+		sf::StringBuf srcFile, tempFile, dstFile;
+		sf::appendPath(srcFile, p.dataRoot, ti.inputs[s_src]);
+		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+
+		args.push("--level");
+		args.push().format("%d", p.level);
+
+		args.push("--vertex");
+		args.push("pos_rgb32f,nrm_rgb32f,uv_rg32f,bonei_rgba8u,bonew_rgba8");
+
+		args.push("--combine-materials");
+		args.push("--mesh");
+
+		args.push("--input");
+		args.push(srcFile);
+
+		args.push("--output");
+		args.push(tempFile);
+
+		JobQueue jq;
+		jq.mkdirsToFile(tempFile);
+		jq.mkdirsToFile(dstFile);
+		jq.exec("sp-model", std::move(args));
+		jq.move(tempFile, dstFile);
+		p.addJobs(JobPriority::Normal, ti, jq);
+	}
+};
+
 Processor g_processor;
 
 static void findResourcesImp(Processor &p, sf::String root, sf::StringBuf &prefix)
@@ -589,10 +831,12 @@ void initializeProcessing()
 {
 	Processor &p = g_processor;
 
+	p.maxActiveJobs = sf::max(1u, (uint32_t)std::thread::hardware_concurrency() / 4);
+
 	sf::appendPath(p.dataRoot, "data");
 	sf::appendPath(p.tempRoot, "temp", "data");
 	sf::appendPath(p.buildRoot, "build", "data");
-	sf::appendPath(p.toolRoot, "tool");
+	sf::appendPath(p.toolRoot, "data", "tool");
 #if SF_OS_WINDOWS
 	sf::appendPath(p.toolRoot, "win32");
 #elif SF_OS_APPLE
@@ -602,6 +846,14 @@ void initializeProcessing()
 #endif
 
 	int materialResolution = 512;
+	p.tasks.push(sf::box<AlbedoTextureTask>("bc1", materialResolution));
+	p.tasks.push(sf::box<AlbedoTextureTask>("bc7", materialResolution));
+	p.tasks.push(sf::box<AlbedoTextureTask>("astc4x4", materialResolution));
+	p.tasks.push(sf::box<AlbedoTextureTask>("rgba8", materialResolution));
+	p.tasks.push(sf::box<NormalTextureTask>("bc5", false, materialResolution));
+	p.tasks.push(sf::box<NormalTextureTask>("bc3", true, materialResolution));
+	p.tasks.push(sf::box<NormalTextureTask>("astc4x4", true, materialResolution));
+	p.tasks.push(sf::box<NormalTextureTask>("rgba8", false, materialResolution));
 	p.tasks.push(sf::box<MaskTextureTask>("bc3", materialResolution));
 	p.tasks.push(sf::box<MaskTextureTask>("rgba8", materialResolution));
 	p.tasks.push(sf::box<MaskTextureTask>("astc8x8", materialResolution));
@@ -610,6 +862,9 @@ void initializeProcessing()
 	p.tasks.push(sf::box<GuiTextureTask>("bc7", maxGuiExtent));
 	p.tasks.push(sf::box<GuiTextureTask>("rgba8", maxGuiExtent));
 	p.tasks.push(sf::box<GuiTextureTask>("astc4x4", maxGuiExtent));
+
+	p.tasks.push(sf::box<AnimationTask>());
+	p.tasks.push(sf::box<CharacterModelTask>());
 
 	p.dataMonitor.begin(p.dataRoot);
 
