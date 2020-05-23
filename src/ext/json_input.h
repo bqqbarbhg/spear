@@ -17,6 +17,7 @@ typedef struct jsi_dialect {
 	unsigned allow_comments : 1;
 	unsigned allow_unknown_escape : 1;
 	unsigned allow_control_in_string : 1;
+	unsigned allow_equals_as_colon : 1;
 } jsi_dialect;
 
 typedef struct jsi_error {

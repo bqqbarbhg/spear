@@ -920,7 +920,11 @@ jsi_parse_object(jsi_parser *p, const char *ptr, const char *end, jsi_value *val
 				if (!jsi_skip_whitespace(p, ptr, end)) return 0;
 				ptr = p->ptr; end = p->end;
 				if (*ptr != ':') {
-					return jsi_err(p, ptr, "Expected ':' after key");
+					if (p->dialect.allow_equals_as_colon && *ptr == '=') {
+						// Parse as ':'
+					} else {
+						return jsi_err(p, ptr, "Expected ':' after key");
+					}
 				}
 			}
 			jsi_advance(p, ptr, end);
