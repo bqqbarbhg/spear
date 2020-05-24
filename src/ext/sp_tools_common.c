@@ -358,6 +358,101 @@ void spfile_util_free(spfile_util *su)
 	memset(su, 0, sizeof(spfile_util));
 }
 
+bool spanim_check_bones(spanim_util *su, spanim_bone *bones)
+{
+	if (su->file.failed) return false;
+	spanim_header *header = (spanim_header*)su->file.data;
+	if (!su->file.failed) {
+		uint32_t ix = 0;
+		for (spanim_bone *b = bones, *end = b + header->info.num_bones; b != end; b++) {
+			spfile_check_string(&su->file, &b->name);
+			if (ix > 0) {
+				spfile_check(b->parent < ix);
+			} else {
+				spfile_check(b->parent == ~0u);
+			}
+			ix++;
+		}
+	}
+	return true;
+}
+
+bool spanim_util_init(spanim_util *su, const void *data, size_t size)
+{
+	spfile_check(size >= sizeof(spanim_header));
+	spfile_util_init(&su->file, data, size);
+	if (su->file.failed) return false;
+
+	spanim_header *header = (spanim_header*)data;
+	spfile_check(header->header.magic == SPFILE_HEADER_SPANIM);
+	spfile_check(header->header.header_info_size == sizeof(spanim_info));
+	spfile_check(header->header.version == 1);
+
+	spfile_check(header->s_bones.uncompressed_size / sizeof(spanim_bone) == header->info.num_bones);
+	return true;
+}
+
+bool spanim_decode_strings_to(spanim_util *su, char *buffer)
+{
+	if (su->file.failed) return false;
+	spanim_header *header = (spanim_header*)su->file.data;
+	return spfile_decode_strings_to(&su->file, &header->s_strings, buffer);
+}
+
+bool spanim_decode_bones_to(spanim_util *su, spanim_bone *buffer)
+{
+	if (su->file.failed) return false;
+	spanim_header *header = (spanim_header*)su->file.data;
+	if (spfile_decode_section_to(&su->file, &header->s_bones, buffer)) {
+		return spanim_check_bones(su, buffer);
+	} else {
+		return false;
+	}
+}
+
+bool spanim_decode_animation_to(spanim_util *su, char *buffer)
+{
+	if (su->file.failed) return false;
+	spanim_header *header = (spanim_header*)su->file.data;
+	return spfile_decode_section_to(&su->file, &header->s_animation, buffer);
+}
+
+spanim_header spanim_decode_header(spanim_util *su)
+{
+	if (su->file.failed) {
+		spanim_header zero = { 0 };
+		return zero;
+	}
+	return *(spanim_header*)su->file.data;
+}
+
+char *spanim_decode_strings(spanim_util *su)
+{
+	if (su->file.failed) return false;
+	spanim_header *header = (spanim_header*)su->file.data;
+	return spfile_decode_strings(&su->file, &header->s_strings);
+}
+
+spanim_bone *spanim_decode_bones(spanim_util *su)
+{
+	if (su->file.failed) return NULL;
+	spanim_header *header = (spanim_header*)su->file.data;
+	spanim_bone *buffer = spfile_decode_section(&su->file, &header->s_bones);
+	if (buffer) {
+		if (!spanim_check_bones(su, buffer)) return NULL;
+		return buffer;
+	} else {
+		return NULL;
+	}
+}
+
+char *spanim_decode_animation(spanim_util *su)
+{
+	if (su->file.failed) return NULL;
+	spanim_header *header = (spanim_header*)su->file.data;
+	return (char*)spfile_decode_section(&su->file, &header->s_animation);
+}
+
 bool spmdl_util_init(spmdl_util *su, const void *data, size_t size)
 {
 	spfile_check(size >= sizeof(spmdl_header));

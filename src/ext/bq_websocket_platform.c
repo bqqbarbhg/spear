@@ -1063,6 +1063,7 @@ static void tls_free_server(pt_tls_server *tls)
 static bool tls_init_accept(pt_tls *tls, pt_tls_server *tls_server, os_socket s)
 {
 	bqws_assert(0 && "Should never get here");
+	return false;
 }
 
 static void tls_free(pt_tls *tls)

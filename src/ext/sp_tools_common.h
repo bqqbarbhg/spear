@@ -315,6 +315,21 @@ char *spfile_decode_strings(spfile_util *su, const spfile_section *s);
 bool spfile_util_failed(spfile_util *su);
 void spfile_util_free(spfile_util *su);
 
+typedef struct spanim_util {
+	spfile_util file;
+} spanim_util;
+
+bool spanim_util_init(spanim_util *su, const void *data, size_t size);
+
+bool spanim_decode_strings_to(spanim_util *su, char *buffer);
+bool spanim_decode_bones_to(spanim_util *su, spanim_bone *buffer);
+bool spanim_decode_animation_to(spanim_util *su, char *buffer);
+
+spanim_header spanim_decode_header(spanim_util *su);
+char *spanim_decode_strings(spanim_util *su);
+spanim_bone *spanim_decode_bones(spanim_util *su);
+char *spanim_decode_animation(spanim_util *su);
+
 typedef struct spmdl_util {
 	spfile_util file;
 } spmdl_util;
@@ -335,6 +350,7 @@ spmdl_bone *spmdl_decode_bones(spmdl_util *su);
 spmdl_mesh *spmdl_decode_meshes(spmdl_util *su);
 char *spmdl_decode_vertex(spmdl_util *su);
 char *spmdl_decode_index(spmdl_util *su);
+
 
 #ifdef __cplusplus
 }

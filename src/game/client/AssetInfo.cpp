@@ -10,7 +10,7 @@ namespace cl {
 
 void AnimationInfo::refresh()
 {
-	modelRef.load(file);
+	animationRef.load(file);
 }
 
 void ModelInfo::refresh()
@@ -91,7 +91,6 @@ template<> void initType<cl::AnimationInfo>(Type *t)
 		sf_field(cl::AnimationInfo, name),
 		sf_field(cl::AnimationInfo, tags),
 		sf_field(cl::AnimationInfo, file),
-		sf_field(cl::AnimationInfo, clip),
 	};
 	sf_struct(t, cl::AnimationInfo, fields);
 	t->postSerializeFn = [](void *inst, sf::Type *) {

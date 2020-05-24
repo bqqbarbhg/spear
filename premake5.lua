@@ -34,11 +34,13 @@ workspace "spear"
 	configurations { "debug", "develop", "release" }
 
 	location "proj"
-	includedirs { "src" }
+	includedirs { "src", "src/ext" }
 	targetdir "build/%{cfg.buildcfg}_%{cfg.platform}"
     startproject "test"
 	flags { "MultiProcessorCompile" }
 	staticruntime "on"
+	exceptionhandling "Off"
+	rtti "Off"
 
 	if cppdialect ~= nil then
 		cppdialect "C++14"
@@ -72,6 +74,9 @@ workspace "spear"
 
 	filter "action:vs*"
 		systemversion(os.winSdkVersion() .. ".0")
+
+	filter { "action:vs*", "configurations:release" }
+		flags { "NoBufferSecurityCheck" }
 
 	filter "not action:vs*"
 		buildoptions { "-Wno-invalid-offsetof" }

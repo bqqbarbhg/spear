@@ -45,7 +45,7 @@ static void updateLayout()
 {
 	sf::Vec2i systemRes = { sapp_width(), sapp_height() };
 	int32_t numX = 1, numY = 1;
-	while (numX * numY < clients.size) {
+	while (numX * numY < (int32_t)clients.size) {
 		if (numX <= numY) numX++; else numY++;
 	}
 

@@ -3,6 +3,7 @@
 #include "sf/Base.h"
 #include "sf/Symbol.h"
 #include "sp/Model.h"
+#include "sp/Animation.h"
 #include "sp/Sprite.h"
 #include "sp/Asset.h"
 
@@ -12,12 +13,11 @@ namespace cl {
 
 struct AnimationInfo
 {
-	sp::ModelRef modelRef;
+	sp::AnimationRef animationRef;
 
 	sf::Symbol name;
 	sf::Array<sf::Symbol> tags;
 	sf::Symbol file;
-	sf::Symbol clip;
 
 	void refresh();
 };
