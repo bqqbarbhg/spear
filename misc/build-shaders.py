@@ -6,11 +6,11 @@ import sys
 import shutil
 
 if sys.platform == "win32":
-    shdc_exe = "sokol-shdc.exe"
+    shdc_exe = "..\\tool\\win32\\sokol-shdc.exe"
 elif sys.platform == "darwin":
-    shdc_exe = "sokol-shdc-mac"
+    shdc_exe = "../tool/macos/sokol-shdc"
 else:
-    shdc_exe = "sokol-shdc"
+    shdc_exe = "../tool/linux/sokol-shdc"
 
 self_path = os.path.dirname(os.path.abspath(__file__))
 shdc_exe = os.path.join(self_path, shdc_exe)

@@ -81,7 +81,8 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
 		auto &d = c->tempMeshPipe.init(gameShaders.testMesh, flags);
 		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
 		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
-		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
+		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2;
 	}
 
 	{
@@ -214,6 +215,7 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 		}
 	}
 
+
 	{
 		sg_pass_action action = { };
 		action.colors[0].action = SG_ACTION_CLEAR;
@@ -276,6 +278,7 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 			sg_draw(0, chunkGeo.main.numInidces, 1);
 		}
 
+#if 0
 		for (cl::Entity *entity : c->clientState.entities) {
 			if (!entity) continue;
 
@@ -393,9 +396,11 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 				}
 			}
 		}
+#endif
 
 		sp::endPass();
 	}
+
 
 #if 0
 	{

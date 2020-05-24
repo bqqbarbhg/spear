@@ -10,16 +10,12 @@ namespace cl {
 
 void AnimationInfo::refresh()
 {
-	sp::ModelProps props;
-	props.ignoreGeometry = true;
-	modelRef.load(file, props);
+	modelRef.load(file);
 }
 
 void ModelInfo::refresh()
 {
-	sp::ModelProps props;
-	props.ignoreAnimations = true;
-	modelRef.load(model, props);
+	modelRef.load(model);
 	skinRef.load(skin);
 }
 
@@ -27,7 +23,6 @@ void TileVariantInfo::refresh()
 {
 	sp::ModelProps props;
 	props.cpuData = true;
-	props.ignoreAnimations = true;
 	if (model) modelRef.load(model, props);
 	if (shadowModel) shadowModelRef.load(shadowModel, props);
 }

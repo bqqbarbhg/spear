@@ -74,14 +74,14 @@ ServerMain *serverInit(int port)
 
 		{
 			sv::TileType &tile = map.tileTypes.push();
-			tile.floorName = sf::Symbol("Tiles/floor.js");
+			tile.floorName = sf::Symbol("Game/Tiles/floor.js");
 			tile.floor = true;
 		}
 
 		{
 			sv::TileType &tile = map.tileTypes.push();
-			tile.floorName = sf::Symbol("Tiles/floor.js");
-			tile.tileName = sf::Symbol("Tiles/wall.js");
+			tile.floorName = sf::Symbol("Game/Tiles/floor.js");
+			tile.tileName = sf::Symbol("Game/Tiles/wall.js");
 			tile.wall = true;
 		}
 
@@ -171,7 +171,7 @@ void serverUpdate(ServerMain *s)
 			{
 				auto player = sf::box<sv::Character>();
 				player->name = client.name;
-				player->model = sf::Symbol("Characters/human-model.js");
+				player->model = sf::Symbol("Game/Characters/human-model.js");
 				player->position = findSpawnPos(session.state, sf::Vec2i(-3, -3));
 				player->players.push(client.playerId);
 

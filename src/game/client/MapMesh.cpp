@@ -94,25 +94,28 @@ void MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 	mainBuilder.finishCount();
 	shadowBuilder.finishCount();
 
-	sf::Array<sp::Vertex> vertices;
+	sf::Array<MapVertex> vertices;
 	sf::Array<sf::Vec3> shadowVertices;
 	vertices.resizeUninit(mainBuilder.numVertices);
 	shadowVertices.resizeUninit(shadowBuilder.numVertices);
-	sp::Vertex *vertexDst = vertices.data;
+	MapVertex *vertexDst = vertices.data;
 	sf::Vec3 *shadowVertexDst = shadowVertices.data;
 
 	for (MapMesh &mapMesh : meshes) {
 		// TODO: Fix inverse tranpsose
 		sf::Mat34 transform = mapMesh.transform;
+		sf::Mat33 tangentTransform = transform.get33();
 		sf::Mat33 normalTransform = transform.get33();
 
 		if (mapMesh.model) {
 			for (sp::Mesh &mesh : mapMesh.model->meshes) {
-				mainBuilder.appendIndices(mesh.indexData, (uint32_t)(vertexDst - vertices.data));
-				for (sp::Vertex &vertex : mesh.vertexData) {
-					sp::Vertex &dst = *vertexDst++;
+				sf_assert(mesh.streams[0].stride == sizeof(MapVertex));
+				mainBuilder.appendIndices(sf::slice(mesh.cpuIndexData16, mesh.numIndices), (uint32_t)(vertexDst - vertices.data));
+				for (MapVertex &vertex : sf::slice((MapVertex*)mesh.streams[0].cpuData, mesh.numVertices)) {
+					MapVertex &dst = *vertexDst++;
 					dst.position = sf::transformPoint(transform, vertex.position);
 					dst.normal = sf::normalizeOrZero(sf::transformPoint(normalTransform, vertex.normal));
+					dst.tangent = sf::normalizeOrZero(sf::transformPoint(tangentTransform, vertex.tangent));
 					dst.uv = vertex.uv;
 					mainBuilder.updateBounds(dst.position);
 				}
@@ -121,8 +124,8 @@ void MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 
 		if (mapMesh.shadowModel) {
 			for (sp::Mesh &mesh : mapMesh.shadowModel->meshes) {
-				shadowBuilder.appendIndices(mesh.indexData, (uint32_t)(shadowVertexDst - shadowVertices.data));
-				for (sp::Vertex &vertex : mesh.vertexData) {
+				shadowBuilder.appendIndices(sf::slice(mesh.cpuIndexData16, mesh.numIndices), (uint32_t)(shadowVertexDst - shadowVertices.data));
+				for (MapVertex &vertex : sf::slice((MapVertex*)mesh.streams[0].cpuData, mesh.numVertices)) {
 					sf::Vec3 &dst = *shadowVertexDst++;
 					dst = sf::transformPoint(transform, vertex.position);
 					shadowBuilder.updateBounds(dst);

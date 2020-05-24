@@ -779,9 +779,60 @@ struct CharacterModelTask : Task
 		args.push().format("%d", p.level);
 
 		args.push("--vertex");
-		args.push("pos_rgb32f,nrm_rgb32f,uv_rg32f,bonei_rgba8u,bonew_rgba8");
+		args.push("pos_rgb32f,uv_rg32f,nrm_rgb16sn,pad_r16sn,tan_rgba8sn,bonei_rgba8u,bonew_rgba8");
 
 		args.push("--combine-materials");
+		args.push("--mesh");
+
+		args.push("--input");
+		args.push(srcFile);
+
+		args.push("--output");
+		args.push(tempFile);
+
+		JobQueue jq;
+		jq.mkdirsToFile(tempFile);
+		jq.mkdirsToFile(dstFile);
+		jq.exec("sp-model", std::move(args));
+		jq.move(tempFile, dstFile);
+		p.addJobs(JobPriority::Normal, ti, jq);
+	}
+};
+
+struct TileModelTask : Task
+{
+	TileModelTask()
+	{
+		name = "TileModelTask";
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (sf::endsWith(path, ".fbx") && sf::containsDirectory(path, "Tiles")) {
+			ti.inputs[s_src] = path;
+		} else {
+			return false;
+		}
+		ti.outputs[s_dst] = symf("%s.spmdl", path.data);
+		return true;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		sf::Array<sf::StringBuf> args;
+
+		sf::StringBuf srcFile, tempFile, dstFile;
+		sf::appendPath(srcFile, p.dataRoot, ti.inputs[s_src]);
+		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+
+		args.push("--level");
+		args.push().format("%d", p.level);
+
+		args.push("--vertex");
+		args.push("pos_rgb32f,nrm_rgb32f,tan_rgb32f,uv_rg32f");
+
+		args.push("--transform-to-root");
 		args.push("--mesh");
 
 		args.push("--input");
@@ -865,6 +916,7 @@ void initializeProcessing()
 
 	p.tasks.push(sf::box<AnimationTask>());
 	p.tasks.push(sf::box<CharacterModelTask>());
+	p.tasks.push(sf::box<TileModelTask>());
 
 	p.dataMonitor.begin(p.dataRoot);
 

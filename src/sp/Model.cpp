@@ -3,40 +3,14 @@
 #include "ContentFile.h"
 #include "sf/HashMap.h"
 
-#include "ext/ufbx.h"
 #include "ext/sokol/sokol_gfx.h"
 
 namespace sp {
-
-bool operator==(const Vertex &a, const Vertex &b)
-{
-	return !memcmp(&a, &b, sizeof(a));
-}
-
-uint32_t hash(const Vertex &v)
-{
-	return sf::hashBuffer(&v, sizeof(v));
-}
-
-bool operator==(const SkinVertex &a, const SkinVertex &b)
-{
-	return !memcmp(&a, &b, sizeof(a));
-}
-
-uint32_t hash(const SkinVertex &v)
-{
-	return sf::hashBuffer(&v, sizeof(v));
-}
 
 uint32_t ModelProps::hash() const
 {
 	uint32_t h = 0;
 	h = sf::hashCombine(h, sf::hash(cpuData));
-	h = sf::hashCombine(h, ignoreGeometry);
-	h = sf::hashCombine(h, ignoreAnimations);
-	for (const sf::CString &s : retainBones) {
-		h = sf::hashCombine(h, sf::hash(s));
-	}
 	return h;
 }
 
@@ -44,12 +18,6 @@ bool ModelProps::equal(const AssetProps &rhs) const
 {
 	const ModelProps &r = (const ModelProps&)rhs;
 	if (cpuData != r.cpuData) return false;
-	if (ignoreGeometry != r.ignoreGeometry) return false;
-	if (ignoreAnimations != r.ignoreAnimations) return false;
-	if (retainBones.size != r.retainBones.size) return false;
-	for (uint32_t i = 0; i < retainBones.size; i++) {
-		if (retainBones[i] != r.retainBones[i]) return false;
-	}
 	return true;
 }
 
@@ -69,501 +37,140 @@ AssetType Model::SelfType = { "Model", sizeof(ModelImp), sizeof(Model::PropType)
 	[](Asset *a) { new ((ModelImp*)a) ModelImp(); }
 };
 
-sf_forceinline static sf::Vec2 toSF(ufbx_vec2 v) { return sf::Vec2((float)v.x, (float)v.y); }
-sf_forceinline static sf::Vec3 toSF(ufbx_vec3 v) { return sf::Vec3((float)v.x, (float)v.y, (float)v.z); }
-sf_forceinline static sf::Quat toSFQuat(ufbx_vec4 v) { return sf::Quat((float)v.x, (float)v.y, (float)v.z, (float)v.w); }
-sf_forceinline static sf::Symbol toSF(ufbx_string v) { return sf::Symbol(v.data, v.length); }
-static sf::Mat34 toSF(const ufbx_matrix &m) {
+static sf::Symbol toSymbol(char *strings, spfile_string str)
+{
+	return sf::Symbol(strings + str.offset, str.length);
+}
+
+static sf::Vec3 toSF(spmdl_vec3 v) { return { v.x, v.y, v.z }; }
+static sf::Quat toSFQuat(spmdl_vec4 v) { return { v.x, v.y, v.z, v.w }; }
+static sf::Mat34 toSF(const spmdl_matrix &m) {
 	sf::Mat34 r = sf::Uninit;
-	r.cols[0] = toSF(m.cols[0]);
-	r.cols[1] = toSF(m.cols[1]);
-	r.cols[2] = toSF(m.cols[2]);
-	r.cols[3] = toSF(m.cols[3]);
+	r.cols[0] = toSF(m.columns[0]);
+	r.cols[1] = toSF(m.columns[1]);
+	r.cols[2] = toSF(m.columns[2]);
+	r.cols[3] = toSF(m.columns[3]);
 	return r;
-}
-
-template <typename VertT>
-struct MeshBuilder
-{
-	sf::Symbol materialName;
-	sf::HashMap<VertT, uint16_t> map;
-	sf::Array<VertT> vertices;
-	sf::Array<uint16_t> indices;
-	sf::Array<MeshBone> bones;
 };
-
-static void addVertex(MeshBuilder<Vertex> &mb, ufbx_mesh &mesh, ufbx_matrix normalMat, uint32_t index)
-{
-	Vertex vert;
-
-	{
-		ufbx_vec3 v = ufbx_get_vertex_vec3(&mesh.vertex_position, index);
-		v = ufbx_transform_position(&mesh.node.to_root, v);
-		vert.position = toSF(v);
-	}
-
-	if (mesh.vertex_normal.data) {
-		ufbx_vec3 v = ufbx_get_vertex_vec3(&mesh.vertex_normal, index);
-		v = ufbx_transform_direction(&normalMat, v);
-		vert.normal = normalize(toSF(v));
-	} else {
-		vert.normal = sf::Vec3();
-	}
-
-	if (mesh.vertex_uv.data) {
-		vert.uv = toSF(ufbx_get_vertex_vec2(&mesh.vertex_uv, index));
-		vert.uv.y = 1.0f - vert.uv.y;
-	} else {
-		vert.uv = sf::Vec2();
-	}
-
-	auto res = mb.map.insert(vert, (uint16_t)mb.vertices.size);
-	mb.indices.push(res.entry.val);
-	if (res.inserted) {
-		mb.vertices.push(vert);
-	}
-}
-
-static void addSkinVertex(MeshBuilder<SkinVertex> &mb, ufbx_mesh &mesh, sf::Array<SkinWeights> &weights, uint32_t boneOffset, uint32_t index)
-{
-	SkinVertex vert;
-
-	{
-		vert.position = toSF(ufbx_get_vertex_vec3(&mesh.vertex_position, index));
-	}
-
-	if (mesh.vertex_normal.data) {
-		vert.normal = normalize(toSF(ufbx_get_vertex_vec3(&mesh.vertex_normal, index)));
-	} else {
-		vert.normal = sf::Vec3();
-	}
-
-	if (mesh.vertex_uv.data) {
-		vert.uv = toSF(ufbx_get_vertex_vec2(&mesh.vertex_uv, index));
-		vert.uv.y = 1.0f - vert.uv.y;
-	} else {
-		vert.uv = sf::Vec2();
-	}
-
-	SkinWeights w = weights[mesh.vertex_position.indices[index]];
-	for (uint32_t i = 0; i < 4; i++) {
-		vert.index[i] = (uint8_t)(w.index[i] + boneOffset);
-		vert.weight[i] = w.weight[i];
-	}
-
-	auto res = mb.map.insert(vert, (uint16_t)mb.vertices.size);
-	mb.indices.push(res.entry.val);
-	if (res.inserted) {
-		mb.vertices.push(vert);
-	}
-}
-
-struct BoneRef
-{
-	uint32_t index;
-	uint8_t boneOffset;
-};
-
-static uint32_t addBone(Model &model, sf::Array<ufbx_node*> &bonePtrs, ufbx_node *node)
-{
-	uint32_t parentIx = ~0u;
-	if (node->parent) {
-		parentIx = addBone(model, bonePtrs, node->parent);
-	}
-
-	sf_assert(model.bones.size == bonePtrs.size);
-	for (uint32_t i = 0; i < bonePtrs.size; i++) {
-		if (bonePtrs[i] == node) return i;
-	}
-
-	uint32_t boneIndex = model.bones.size;
-	bonePtrs.push(node);
-	Bone &bone = model.bones.push();
-	bone.name = toSF(node->name);
-	bone.toRoot = toSF(node->to_root);
-	bone.parentIx = parentIx;
-	bone.bindTransform.translation = toSF(node->transform.translation);
-	bone.bindTransform.rotation = toSFQuat(node->transform.rotation);
-	bone.bindTransform.scale = toSF(node->transform.scale);
-	model.boneNames[bone.name] = boneIndex;
-	return boneIndex;
-}
 
 static void loadImp(void *user, const ContentFile &file)
 {
 	ModelImp *imp = (ModelImp*)user;
-	ModelProps *props = (ModelProps*)imp->props;
+	ModelProps &props = *(ModelProps*)imp->props;
 
-	ufbx_load_opts opts = { };
-	opts.ignore_geometry = props->ignoreGeometry;
-	opts.ignore_animation = props->ignoreAnimations;
+	spmdl_util su = { file.data, file.size };
+	spmdl_util_init(&su, file.data, file.size);
+	spmdl_header header = spmdl_decode_header(&su);
+	char *strings = spmdl_decode_strings(&su);
+	spmdl_node *nodes = spmdl_decode_nodes(&su);
+	spmdl_bone *bones = spmdl_decode_bones(&su);
+	spmdl_mesh *meshes = spmdl_decode_meshes(&su);
+	char *vertex, *index;
 
-	ufbx_scene *scene = ufbx_load_memory(file.data, file.size, &opts, NULL);
-	if (!scene) {
+	if (props.cpuData && !spfile_util_failed(&su.file)) {
+		imp->cpuVertexData.resizeUninit(header.s_vertex.uncompressed_size);
+		imp->cpuIndexData.resizeUninit(header.s_index.uncompressed_size);
+		vertex = imp->cpuVertexData.data;
+		index = imp->cpuIndexData.data;
+		spmdl_decode_vertex_to(&su, vertex);
+		spmdl_decode_index_to(&su, index);
+	} else {
+		vertex = spmdl_decode_vertex(&su);
+		index = spmdl_decode_index(&su);
+	}
+
+	if (spfile_util_failed(&su.file)) {
+		spfile_util_free(&su.file);
 		imp->assetFailLoading();
 		return;
 	}
 
-	sf::Array<MeshBuilder<Vertex>> meshBuilders;
-	sf::Array<MeshBuilder<SkinVertex>> skinBuilders;
+	imp->bones.reserve(header.info.num_nodes);
+	for (uint32_t i = 0; i < header.info.num_nodes; i++) {
+		spmdl_node &sp_node = nodes[i];
+		Bone &bone = imp->bones.push();
+		bone.parentIx = sp_node.parent;
+		bone.name = toSymbol(strings, sp_node.name);
+		bone.bindTransform.translation = toSF(sp_node.translation);
+		bone.bindTransform.rotation = toSFQuat(sp_node.rotation);
+		bone.bindTransform.scale = toSF(sp_node.scale);
+		bone.toRoot = toSF(sp_node.self_to_root);
 
-	meshBuilders.resize(scene->materials.size + 1);
-	for (uint32_t i = 0; i < scene->materials.size; i++) {
-		meshBuilders[i].materialName = toSF(scene->materials.data[i].name);
+		imp->boneNames.insert(bone.name, i);
 	}
 
-	sf::Array<SkinWeights> weights;
-	sf::Array<ufbx_node*> bonePtrs;
+	imp->meshes.reserve(header.info.num_meshes);
+	for (uint32_t i = 0; i < header.info.num_meshes; i++) {
+		spmdl_mesh &sp_mesh = meshes[i];
+		sp::Mesh &mesh = imp->meshes.push();
 
-	for (sf::CString name : props->retainBones) {
-		ufbx_node *node = ufbx_find_node_len(scene, name.data, name.size);
-		if (node) addBone(*imp, bonePtrs, node);
-	}
+		mesh.numIndices = sp_mesh.num_indices;
+		mesh.numVertices = sp_mesh.num_vertices;
+		mesh.indexBufferOffset = sp_mesh.index_buffer.offset;
 
-	if (!props->ignoreGeometry) {
-		for (ufbx_mesh &mesh : scene->meshes) {
+		mesh.attribs.reserve(sp_mesh.num_attribs);
+		for (uint32_t attrI = 0; attrI < sp_mesh.num_attribs; attrI++) {
+			if (sp_mesh.attribs[attrI].attrib == SP_VERTEX_ATTRIB_PADDING) continue;
+			mesh.attribs.push(sp_mesh.attribs[attrI]);
+		}
 
-			if (mesh.skins.size > 0) {
-				weights.clear();
-				weights.resize(mesh.num_vertices);
+		mesh.bones.reserve(sp_mesh.num_bones);
+		for (uint32_t boneI = 0; boneI < sp_mesh.num_bones; boneI++) {
+			spmdl_bone &sp_bone = bones[sp_mesh.bone_offset + boneI];
+			sp::MeshBone &bone = mesh.bones.push();
+			bone.boneIndex = sp_bone.node;
+			bone.meshToBone = toSF(sp_bone.mesh_to_bone);
+		}
 
-				sf::SmallArray<MeshBone, MaxBones> meshBones;
+		mesh.streams.reserve(sp_mesh.num_vertex_buffers);
+		for (uint32_t bufI = 0; bufI < sp_mesh.num_vertex_buffers; bufI++) {
+			spmdl_buffer &sp_buffer = sp_mesh.vertex_buffers[bufI];
+			sp::VertexStream &stream = mesh.streams.push();
+			stream.offset = sp_buffer.offset;
+			stream.stride = sp_buffer.stride;
+			if (props.cpuData) {
+				stream.cpuData = vertex + sp_buffer.offset;
+			}
+		}
 
-				sf::SmallArray<BoneRef, 64> skinBuilderIndices;
-				skinBuilderIndices.resizeUninit(scene->materials.size + 1);
-				for (BoneRef &ref : skinBuilderIndices) ref.index = ~0u;
-
-				for (ufbx_skin &skin : mesh.skins) {
-					uint8_t meshBoneIndex = (uint8_t)meshBones.size;
-					MeshBone &meshBone = meshBones.push();
-					uint32_t boneIndex = addBone(*imp, bonePtrs, skin.bone);
-					meshBone.boneIndex = boneIndex;
-					meshBone.meshToBone = toSF(skin.mesh_to_bind);
-
-					for (size_t i = 0; i < skin.num_weights; i++) {
-						uint8_t weight = (uint8_t)(sf::clamp(skin.weights[i], 0.0, 1.0) * 255.0);
-						uint8_t index = meshBoneIndex;
-						SkinWeights &vw = weights[skin.indices[i]];
-						for (size_t j = 0; j < 4; j++) {
-							if (vw.weight[j] < weight) {
-								sf::impSwap(vw.weight[j], weight);
-								sf::impSwap(vw.index[j], index);
-							}
-						}
-					}
-				}
-
-				// Normalize weights
-				for (SkinWeights &w : weights) {
-					if (w.weight[0] == 0) continue;
-
-					double total = 0;
-					int32_t residue = 255;
-					for (uint8_t ww : w.weight) total += (double)ww;
-					for (uint8_t &ww : w.weight) {
-						ww = (uint8_t)((double)ww / (double)total * 255.0);
-						residue -= ww;
-					}
-
-					// Make sure the integer total sums to 255
-					sf_assert((int32_t)w.weight[0] + residue <= 255 && (int32_t)w.weight[0] + residue >= 0);
-					w.weight[0] += residue;
-				}
-
-				// Add vertices
-				for (size_t fi = 0; fi < mesh.num_faces; fi++) {
-					ufbx_face face = mesh.faces[fi];
-					sf::Symbol materialName;
-					uint32_t materialIx = (uint32_t)scene->materials.size;
-					if (mesh.face_material) {
-						materialName = toSF(mesh.materials.data[mesh.face_material[fi]]->name);
-						materialIx = (uint32_t)(mesh.materials.data[mesh.face_material[fi]] - scene->materials.data);
-					}
-
-					BoneRef &ref = skinBuilderIndices[materialIx];
-					if (ref.index == ~0u) {
-						for (uint32_t ix = 0; ix < skinBuilders.size; ix++) {
-							if (skinBuilders[ix].materialName == materialName && skinBuilders[ix].bones.size + meshBones.size <= MaxBones) {
-								ref.index = ix;
-								ref.boneOffset = (uint8_t)skinBuilders[ix].bones.size;
-								break;
-							}
-						}
-
-						if (ref.index == ~0u) {
-							ref.index = skinBuilders.size;
-							MeshBuilder<SkinVertex> &mb = skinBuilders.push();
-							mb.materialName = materialName;
-							ref.boneOffset = 0;
-						}
-
-						MeshBuilder<SkinVertex> &mb = skinBuilders[ref.index];
-						mb.bones.push(meshBones);
-					}
-
-					MeshBuilder<SkinVertex> &mb = skinBuilders[ref.index];
-					for (uint32_t bi = 1; bi + 2 <= face.num_indices; bi++) {
-						addSkinVertex(mb, mesh, weights, ref.boneOffset, face.index_begin + 0);
-						addSkinVertex(mb, mesh, weights, ref.boneOffset, face.index_begin + bi + 0);
-						addSkinVertex(mb, mesh, weights, ref.boneOffset, face.index_begin + bi + 1);
-					}
-
-				}
-
+		if (props.cpuData) {
+			if (sp_mesh.index_buffer.stride == 2) {
+				mesh.cpuIndexData16 = (uint16_t*)(index + sp_mesh.index_buffer.offset);
 			} else {
-
-				ufbx_matrix normalMat = ufbx_get_normal_matrix(&mesh.node.to_root);
-
-				// Add vertices
-				for (size_t fi = 0; fi < mesh.num_faces; fi++) {
-					ufbx_face face = mesh.faces[fi];
-					uint32_t materialIx = (uint32_t)scene->materials.size;
-					if (mesh.face_material) {
-						materialIx = (uint32_t)(mesh.materials.data[mesh.face_material[fi]] - scene->materials.data);
-					}
-					MeshBuilder<Vertex> &mb = meshBuilders[materialIx];
-
-					for (uint32_t bi = 1; bi + 2 <= face.num_indices; bi++) {
-						addVertex(mb, mesh, normalMat, face.index_begin + 0);
-						addVertex(mb, mesh, normalMat, face.index_begin + bi + 0);
-						addVertex(mb, mesh, normalMat, face.index_begin + bi + 1);
-					}
-				}
-			}
-		}
-
-		weights = sf::Array<SkinWeights>();
-	} else {
-		for (ufbx_mesh &mesh : scene->meshes) {
-			if (mesh.skins.size > 0) {
-				for (ufbx_skin &skin : mesh.skins) {
-					addBone(*imp, bonePtrs, skin.bone);
-				}
+				mesh.cpuIndexData32 = (uint32_t*)(index + sp_mesh.index_buffer.offset);
 			}
 		}
 	}
 
-	if (props->cpuData) {
-		for (MeshBuilder<Vertex> &mb : meshBuilders) {
-			if (mb.indices.size == 0) continue;
-
-			Mesh &dst = imp->meshes.push();
-			dst.materialName = mb.materialName;
-			dst.numVertices = mb.vertices.size;
-			dst.numIndices = mb.indices.size;
-			dst.vertexData = std::move(mb.vertices);
-			dst.indexData = std::move(mb.indices);
-		}
-	} else {
-		sf::Array<Vertex> vertices;
-		sf::Array<uint16_t> indices;
-
-		sf::Array<SkinVertex> skinVertices;
-		sf::Array<uint16_t> skinIndices;
-
-		for (MeshBuilder<Vertex> &mb : meshBuilders) {
-			if (mb.indices.size == 0) continue;
-
-			Mesh &dst = imp->meshes.push();
-			dst.materialName = mb.materialName;
-			dst.vertexBufferOffset = vertices.size;
-			dst.indexBufferOffset = indices.size;
-			dst.numVertices = mb.vertices.size;
-			dst.numIndices = mb.indices.size;
-			vertices.push(mb.vertices);
-			indices.push(mb.indices);
+	if (!props.cpuData) {
+		{
+			sf::SmallStringBuf<256> name;
+			name.append(imp->name, " vertexBuffer");
+			imp->vertexBuffer.initVertex(name.data, vertex, header.s_vertex.uncompressed_size);
 		}
 
-		for (MeshBuilder<SkinVertex> &mb : skinBuilders) {
-			if (mb.indices.size == 0) continue;
-
-			SkinMesh &dst = imp->skins.push();
-			dst.materialName = mb.materialName;
-			dst.vertexBufferOffset = skinVertices.size;
-			dst.indexBufferOffset = skinIndices.size;
-			dst.numVertices = mb.vertices.size;
-			dst.numIndices = mb.indices.size;
-			dst.bones = std::move(mb.bones);
-			skinVertices.push(mb.vertices);
-			skinIndices.push(mb.indices);
-		}
-
-		if (vertices.size > 0) {
-			sf::SmallStringBuf<128> label;
-			label.append(imp->name, " vertices");
-
-			sg_buffer_desc desc = { };
-			desc.type = SG_BUFFERTYPE_VERTEXBUFFER;
-			desc.size = (int)vertices.byteSize();
-			desc.content = vertices.data;
-			desc.usage = SG_USAGE_IMMUTABLE;
-			desc.label = label.data;
-			imp->vertexBuffer = sg_make_buffer(&desc);
-		}
-
-		if (indices.size > 0) {
-			sf::SmallStringBuf<128> label;
-			label.append(imp->name, " indices");
-
-			sg_buffer_desc desc = { };
-			desc.type = SG_BUFFERTYPE_INDEXBUFFER;
-			desc.size = (int)indices.byteSize();
-			desc.content = indices.data;
-			desc.usage = SG_USAGE_IMMUTABLE;
-			desc.label = label.data;
-			imp->indexBuffer = sg_make_buffer(&desc);
-		}
-
-		if (skinVertices.size > 0) {
-			sf::SmallStringBuf<128> label;
-			label.append(imp->name, " skinVertices");
-
-			sg_buffer_desc desc = { };
-			desc.type = SG_BUFFERTYPE_VERTEXBUFFER;
-			desc.size = (int)skinVertices.byteSize();
-			desc.content = skinVertices.data;
-			desc.usage = SG_USAGE_IMMUTABLE;
-			desc.label = label.data;
-			imp->skinVertexBuffer = sg_make_buffer(&desc);
-		}
-
-		if (skinIndices.size > 0) {
-			sf::SmallStringBuf<128> label;
-			label.append(imp->name, " skinIndices");
-
-			sg_buffer_desc desc = { };
-			desc.type = SG_BUFFERTYPE_INDEXBUFFER;
-			desc.size = (int)skinIndices.byteSize();
-			desc.content = skinIndices.data;
-			desc.usage = SG_USAGE_IMMUTABLE;
-			desc.label = label.data;
-			imp->skinIndexBuffer = sg_make_buffer(&desc);
-		}
-
-	}
-
-	if (!props->ignoreAnimations) {
-		for (ufbx_anim_layer &layer : scene->anim_layers) {
-			Animation &anim = imp->animations.push();
-			anim.name = toSF(layer.name);
-
-			for (uint32_t boneI = 0; boneI < bonePtrs.size; boneI++) {
-				Bone &bone = imp->bones[boneI];
-				ufbx_node *node = bonePtrs[boneI];
-				if (!ufbx_find_node_anim_prop_begin(scene, &layer, node)) continue;
-
-				AnimationCurve &curve = anim.curves.push();
-				curve.boneName = bone.name;
-
-				for (uint32_t timeI = 0; timeI < 100; timeI++) {
-					double time = (double)timeI / 24.0;
-					ufbx_evaluate_opts opts = { };
-					opts.layer = &layer;
-					ufbx_transform transform = ufbx_evaluate_transform(scene, node, &opts, time);
-
-					curve.translationTime.push((float)time);
-					curve.rotationTime.push((float)time);
-					curve.scaleTime.push((float)time);
-					curve.translationValue.push(toSF(transform.translation));
-					curve.rotationValue.push(toSFQuat(transform.rotation));
-					curve.scaleValue.push(toSF(transform.scale));
-				}
-			}
+		{
+			sf::SmallStringBuf<256> name;
+			name.append(imp->name, " indexBuffer");
+			imp->indexBuffer.initIndex(name.data, index, header.s_index.uncompressed_size);
 		}
 	}
 
-	ufbx_free_scene(scene);
-
+	spfile_util_free(&su.file);
 	imp->assetFinishLoading();
 }
 
 void ModelImp::assetStartLoading()
 {
+	sf::SmallStringBuf<256> assetName;
+	assetName.append(name, ".spmdl");
+
 	// TODO: Create buffers on main thread
-	ContentFile::loadMainThread(name, &loadImp, this);
+	ContentFile::loadMainThread(assetName, &loadImp, this);
 }
 
 void ModelImp::assetUnload()
 {
-}
-
-static void findKey(uint32_t &aIx, uint32_t &bIx, float &t, const sf::Array<float> &times, float time)
-{
-	uint32_t begin = 0;
-	uint32_t end = times.size;
-	float *ts = times.data;
-	while (end - begin >= 16) {
-		uint32_t mid = (begin + end) >> 1;
-		if (ts[mid] < time) {
-			begin = mid + 1;
-		} else {
-			end = mid;
-		}
-	}
-
-	end = times.size;
-	for (; begin < end; begin++) {
-		if (ts[begin] < time) continue;
-
-		bIx = begin;
-		if (begin == 0) {
-			aIx = begin;
-			t = 0.0f;
-			return;
-		}
-
-		aIx = begin - 1;
-		t = (time - ts[begin - 1]) / (ts[begin] - ts[begin - 1]);
-		return;
-	}
-
-	aIx = end - 1;
-	bIx = end - 1;
-	t = 0.0f;
-}
-
-sf::Mat34 boneTransformToMatrix(const BoneTransform &t)
-{
-	return sf::mat::world(t.translation, t.rotation, t.scale);
-}
-
-void evaluateAnimation(Model *model, sf::Slice<BoneTransform> dst, const Animation &animation, float time)
-{
-	if (!model) return;
-
-	uint32_t ix = 0;
-	for (Bone &bone : model->bones) {
-		dst[ix] = bone.bindTransform;
-		ix++;
-	}
-
-	for (const AnimationCurve &curve : animation.curves) {
-		auto pair = model->boneNames.find(curve.boneName);
-		if (!pair) continue;
-		uint32_t index = pair->val;
-		uint32_t a, b;
-		float t;
-
-		findKey(a, b, t, curve.translationTime, time);
-		dst[index].translation = sf::lerp(curve.translationValue[a], curve.translationValue[b], t);
-		findKey(a, b, t, curve.rotationTime, time);
-		dst[index].rotation = sf::normalize(sf::lerp(curve.rotationValue[a], curve.rotationValue[b], t));
-		findKey(a, b, t, curve.scaleTime, time);
-		dst[index].scale = sf::lerp(curve.scaleValue[a], curve.scaleValue[b], t);
-	}
-}
-
-void boneTransformToWorld(Model *model, sf::Slice<sf::Mat34> dst, const sf::Slice<BoneTransform> src, const sf::Mat34 &toWorld)
-{
-	if (!model) return;
-	uint32_t numBones = model->bones.size;
-	if (numBones == 0) return;
-
-	dst[0] = toWorld * boneTransformToMatrix(src[0]);
-	for (uint32_t boneI = 1; boneI < numBones; boneI++) {
-		uint32_t parentI = model->bones[boneI].parentIx;
-		dst[boneI] = dst[parentI] * boneTransformToMatrix(src[boneI]);
-	}
 }
 
 }
