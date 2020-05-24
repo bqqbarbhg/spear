@@ -171,8 +171,8 @@ void serverUpdate(ServerMain *s)
 			{
 				auto player = sf::box<sv::Character>();
 				player->name = client.name;
-				player->model = sf::Symbol("Game/Characters/human-model.js");
-				player->position = findSpawnPos(session.state, sf::Vec2i(-3, -3));
+				player->model = sf::Symbol("Game/Characters/human-astro.js");
+				player->position = findSpawnPos(session.state, sf::Vec2i(1, -3));
 				player->players.push(client.playerId);
 
 				auto spawn = sf::box<sv::EventSpawn>();

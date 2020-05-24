@@ -779,7 +779,7 @@ struct CharacterModelTask : Task
 		args.push().format("%d", p.level);
 
 		args.push("--vertex");
-		args.push("pos_rgb32f,uv_rg32f,nrm_rgb16sn,pad_r16sn,tan_rgba8sn,bonei_rgba8u,bonew_rgba8");
+		args.push("pos_rgb32f,uv_rg32f,nrm_rgb16sn,pad_r16sn,tan_rgba16sn,bonei_rgba8u,bonew_rgba8");
 
 		args.push("--combine-materials");
 		args.push("--mesh");

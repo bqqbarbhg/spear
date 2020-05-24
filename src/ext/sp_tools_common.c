@@ -503,18 +503,18 @@ bool spmdl_check_meshes(spmdl_util *su, spmdl_mesh *meshes)
 	if (su->file.failed) return false;
 	spmdl_header *header = (spmdl_header*)su->file.data;
 	if (!su->file.failed) {
-		for (spmdl_mesh *m = meshes, *end = m + header->info.num_bones; m != end; m++) {
-			spfile_check(m->bone_offset < header->info.num_bones && header->info.num_bones - m->bone_offset >= m->num_bones);
+		for (spmdl_mesh *m = meshes, *end = m + header->info.num_meshes; m != end; m++) {
+			spfile_check(m->bone_offset <= header->info.num_bones && header->info.num_bones - m->bone_offset >= m->num_bones);
 			spfile_check(m->node < header->info.num_nodes);
 			spfile_check(m->num_vertex_buffers < SPMDL_MAX_VERTEX_BUFFERS);
 			spfile_check(m->num_attribs < SPMDL_MAX_VERTEX_ATTRIBS);
 			uint32_t index_size = header->s_index.uncompressed_size;
 			spfile_check(m->index_buffer.stride == 2 || m->index_buffer.stride == 4);
-			spfile_check(m->index_buffer.offset < index_size && index_size - m->index_buffer.offset < m->index_buffer.encoded_size);
+			spfile_check(m->index_buffer.offset <= index_size && index_size - m->index_buffer.offset >= m->index_buffer.encoded_size);
 			for (uint32_t i = 0; i < m->num_vertex_buffers; i++) {
 				const spmdl_buffer *buf = (const spmdl_buffer*)&m->vertex_buffers[i];
 				uint32_t vertex_size = header->s_vertex.uncompressed_size;
-				spfile_check(buf->offset < vertex_size && vertex_size - buf->offset < buf->encoded_size);
+				spfile_check(buf->offset <= vertex_size && vertex_size - buf->offset >= buf->encoded_size);
 			}
 		}
 	}

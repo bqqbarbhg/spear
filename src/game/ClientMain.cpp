@@ -89,10 +89,11 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
 		uint32_t flags = sp::PipeDepthWrite|sp::PipeIndex16|sp::PipeCullCCW;
 		auto &d = c->tempSkinnedMeshPipe.init(gameShaders.skinnedMesh, flags);
 		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
-		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
-		d.layout.attrs[3].format = SG_VERTEXFORMAT_UBYTE4;
-		d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4N;
+		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT2;
+		d.layout.attrs[2].format = SG_VERTEXFORMAT_SHORT4N;
+		d.layout.attrs[3].format = SG_VERTEXFORMAT_SHORT4N;
+		d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4;
+		d.layout.attrs[5].format = SG_VERTEXFORMAT_UBYTE4N;
 	}
 
 	return c;
@@ -278,7 +279,6 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 			sg_draw(0, chunkGeo.main.numInidces, 1);
 		}
 
-#if 0
 		for (cl::Entity *entity : c->clientState.entities) {
 			if (!entity) continue;
 
@@ -288,20 +288,14 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 				if (!chr->model.isLoaded()) continue;
 				cl::ModelInfo &modelInfo = chr->model->data;
 				if (!modelInfo.modelRef.isLoaded()) continue;
-				if (!modelInfo.skinRef.isLoaded()) continue;
 				sp::Model *model = modelInfo.modelRef;
-				sp::Sprite *sprite = modelInfo.skinRef;
 				cl::AnimationInfo &animation = modelInfo.animations[0];
-				if (!animation.modelRef.isLoaded()) continue;
+				if (!animation.animationRef.isLoaded()) continue;
+				sp::Animation *anim = animation.animationRef;
 
-				sp::Model *animModel = animation.modelRef;
-				sp::Animation *anim = &animModel->animations[0];
-				for (sp::Animation &a : animModel->animations) {
-					if (a.name == animation.clip) {
-						anim = &a;
-						break;
-					}
-				}
+				sf::SmallArray<uint32_t, 64> boneMapping;
+				boneMapping.resizeUninit(anim->bones.size);
+				anim->generateBoneMapping(model, boneMapping);
 
 				sf::SmallArray<sp::BoneTransform, sp::MaxBones> boneTransforms;
 				sf::SmallArray<sf::Mat34, sp::MaxBones> boneWorld;
@@ -311,21 +305,15 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 				sf::Vec3 worldPos = sf::Vec3(chr->position.x, 0.0f, chr->position.y);
 				sf::Mat34 world = sf::mat::translate(worldPos) * sf::mat::scale(modelInfo.scale);
 
-				float animTime = fmodf((float)stm_sec(stm_now()), 80.0f/24.0f);
-				sp::evaluateAnimation(animModel, boneTransforms, *anim, animTime);
+				float animTime = fmodf((float)stm_sec(stm_now()), anim->duration);
+
+				for (uint32_t i = 0; i < model->bones.size; i++) {
+					boneTransforms[i] = model->bones[i].bindTransform;
+				}
+
+				anim->evaluate(animTime, boneMapping, boneTransforms);
+
 				sp::boneTransformToWorld(model, boneWorld, boneTransforms, world);
-
-				sp::Atlas *atlas = sprite->atlas;
-				sf::Vec2 atlasSize = sf::Vec2((float)atlas->width, (float)atlas->height);
-				sf::Vec2 uvSize = sprite->maxVert - sprite->minVert;
-				sf::Vec2 size = sf::Vec2((float)sprite->width, (float)sprite->height);
-				sf::Vec2 pos = sf::Vec2((float)sprite->x, (float)sprite->y) / atlasSize;
-
-				sf::Vec2 scale = size / atlasSize / uvSize;
-				sf::Vec2 offset = pos - sprite->minVert * scale;
-
-				sf::Vec2 minUv = pos;
-				sf::Vec2 maxUv = pos + size;
 
 				pu.numLightsF = (float)c->clientState.pointLights.size;
 				float (*dst)[4] = pu.lightData;
@@ -351,26 +339,17 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 
 				sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestSkin_Pixel, &pu, sizeof(pu));
 
-				TestSkin_VertexUniform_t vu;
+				TestSkin_VertexUniform_t vu = { };
 				vu.color[0] = 1.0f;
 				vu.color[1] = 1.0f;
 				vu.color[2] = 1.0f;
 				viewProj.writeColMajor44(vu.viewProj);
 
-				vu.texScaleOffset[0] = scale.x;
-				vu.texScaleOffset[1] = scale.y;
-				vu.texScaleOffset[2] = offset.x;
-				vu.texScaleOffset[3] = offset.y;
+				// TestSkin_FragUniform_t fragUniform = { };
 
-				TestSkin_FragUniform_t fragUniform;
-				fragUniform.texMin[0] = minUv.x;
-				fragUniform.texMin[1] = minUv.y;
-				fragUniform.texMax[0] = maxUv.x;
-				fragUniform.texMax[1] = maxUv.y;
+				// sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestSkin_FragUniform, &fragUniform, sizeof(fragUniform));
 
-				sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestSkin_FragUniform, &fragUniform, sizeof(fragUniform));
-
-				for (sp::SkinMesh &mesh : model->skins) {
+				for (sp::Mesh &mesh : model->meshes) {
 					TestSkin_Bones_t bones;
 					for (uint32_t i = 0; i < mesh.bones.size; i++) {
 						sp::MeshBone &meshBone = mesh.bones[i];
@@ -384,11 +363,11 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 					sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestSkin_Bones, &bones, sizeof(bones));
 
 					sg_bindings binds = { };
-					binds.vertex_buffers[0] = model->skinVertexBuffer;
-					binds.index_buffer = model->skinIndexBuffer;
-					binds.index_buffer_offset = mesh.indexBufferOffset * sizeof(uint16_t);
-					binds.vertex_buffer_offsets[0] = mesh.vertexBufferOffset * sizeof(sp::SkinVertex);
-					binds.fs_images[SLOT_TestSkin_albedo] = atlas->image;
+					binds.vertex_buffers[0] = model->vertexBuffer.buffer;
+					binds.index_buffer = model->indexBuffer.buffer;
+					binds.index_buffer_offset = mesh.indexBufferOffset;
+					binds.vertex_buffer_offsets[0] = mesh.streams[0].offset;
+					// binds.fs_images[SLOT_TestSkin_albedo] = atlas->image;
 					binds.fs_images[SLOT_TestSkin_shadowGrid] = c->clientState.shadowCache.shadowCache.image;
 					sg_apply_bindings(&binds);
 
@@ -396,7 +375,6 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 				}
 			}
 		}
-#endif
 
 		sp::endPass();
 	}

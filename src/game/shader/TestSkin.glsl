@@ -17,14 +17,15 @@ uniform Bones
 };
 
 layout(location=0) in vec3 position;
-layout(location=1) in vec3 normal;
-layout(location=2) in vec2 uv;
+layout(location=1) in vec2 uv;
+layout(location=2) in vec3 normal;
+layout(location=3) in vec4 tangent;
 #if SOKOL_GLSL
-	layout(location=3) in vec4 indices;
+	layout(location=4) in vec4 indices;
 #else
-	layout(location=3) in uvec4 indices;
+	layout(location=4) in uvec4 indices;
 #endif
-layout(location=4) in vec4 weights;
+layout(location=5) in vec4 weights;
 
 out vec3 v_position;
 out vec3 v_normal;
@@ -166,11 +167,13 @@ void main()
 		result += evalLight(P, N, base);
 	}
 
+#if 0
 	if (v_uv.x < texMin.x || v_uv.y < texMin.y || v_uv.x > texMax.x || v_uv.y > texMax.y) discard;
 	vec3 tex = texture(albedo, v_uv).xyz;
 	tex *= v_color;
+#endif
 
-	o_color = vec4(tex * tonemap(result), 1.0);
+	o_color = vec4(tonemap(result), 1.0);
 }
 
 @end

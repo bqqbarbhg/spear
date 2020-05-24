@@ -77,7 +77,7 @@ void AnimationImp::assetUnload()
 
 struct AclOutputWriter final : public acl::OutputWriter
 {
-	sf::Slice<uint32_t> boneMapping;
+	sf::Slice<const uint32_t> boneMapping;
 	sf::Slice<BoneTransform> transforms;
 
 	void RTM_SIMD_CALL write_bone_rotation(uint16_t bone_index, rtm::quatf_arg0 rotation)
@@ -121,7 +121,7 @@ void Animation::generateBoneMapping(Model *model, sf::Slice<uint32_t> dst)
 	}
 }
 
-void Animation::evaluate(float time, sf::Slice<uint32_t> boneMapping, sf::Slice<BoneTransform> transforms)
+void Animation::evaluate(float time, sf::Slice<const uint32_t> boneMapping, sf::Slice<BoneTransform> transforms)
 {
 	AnimationImp *imp = (AnimationImp*)this;
 	imp->decompressionContext.seek(time, acl::sample_rounding_policy::none);
@@ -130,6 +130,24 @@ void Animation::evaluate(float time, sf::Slice<uint32_t> boneMapping, sf::Slice<
 	writer.boneMapping = boneMapping;
 	writer.transforms = transforms;
 	imp->decompressionContext.decompress_pose(writer);
+}
+
+sf::Mat34 boneTransformToMatrix(const BoneTransform &t)
+{
+	return sf::mat::world(t.translation, t.rotation, t.scale);
+}
+
+void boneTransformToWorld(Model *model, sf::Slice<sf::Mat34> dst, const sf::Slice<BoneTransform> src, const sf::Mat34 &toWorld)
+{
+	if (!model) return;
+	uint32_t numBones = model->bones.size;
+	if (numBones == 0) return;
+
+	dst[0] = toWorld * boneTransformToMatrix(src[0]);
+	for (uint32_t boneI = 1; boneI < numBones; boneI++) {
+		uint32_t parentI = model->bones[boneI].parentIx;
+		dst[boneI] = dst[parentI] * boneTransformToMatrix(src[boneI]);
+	}
 }
 
 }

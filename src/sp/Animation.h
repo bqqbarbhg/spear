@@ -23,9 +23,11 @@ struct Animation : Asset
 	float duration = 0.0f;
 
 	void generateBoneMapping(Model *model, sf::Slice<uint32_t> dst);
-	void evaluate(float time, sf::Slice<uint32_t> boneMapping, sf::Slice<BoneTransform> transforms);
+	void evaluate(float time, sf::Slice<const uint32_t> boneMapping, sf::Slice<BoneTransform> transforms);
 };
 
 using AnimationRef = Ref<Animation>;
+
+void boneTransformToWorld(Model *model, sf::Slice<sf::Mat34> dst, const sf::Slice<BoneTransform> src, const sf::Mat34 &toWorld);
 
 }
