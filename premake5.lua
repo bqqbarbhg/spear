@@ -121,8 +121,10 @@ workspace "spear"
 			"libeay32",
 		}
 
-	filter { "platforms:not wasm",  "system:linux" }
+	filter { "platforms:not wasm", "system:linux" }
 		linkoptions "-pthread"
+
+	filter { "platforms:not wasm", "system:linux", "not options:dedicated-processor" }
 		links {
 			"curl",
 			"z",
