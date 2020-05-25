@@ -18,7 +18,7 @@ void Map::setTile(const sf::Vec2i &pos, TileId tileId)
 	resolveChunk(chunkI, tileI, pos);
 	auto result = chunks.insert(chunkI);
 	MapChunk &chunk = result.entry.val;
-	TileId &dst = chunks[chunkI].tiles[tileI.y * MapChunk::Size + tileI.x];
+	TileId &dst = chunk.tiles[tileI.y * MapChunk::Size + tileI.x];
 	if (dst == 0 && tileId != 0) chunk.numNonZeroTiles++;
 	if (dst != 0 && tileId == 0) chunk.numNonZeroTiles--;
 	dst = tileId;
