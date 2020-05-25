@@ -7,7 +7,7 @@
 
 #define SOKOL_FETCH_THREAD_START() sf_set_debug_thread_name("Fetch Thread")
 
-#if !SF_OS_WASM && !SF_OS_APPLE
+#if !SF_OS_WASM && !SF_OS_APPLE && !defined(SP_NO_APP)
 	#include <curl/curl.h>
 	#include <curl/easy.h>
 	#include <curl/multi.h>
