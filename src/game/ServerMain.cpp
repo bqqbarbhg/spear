@@ -124,6 +124,14 @@ static sf::Vec2i findSpawnPos(sv::State *state, const sf::Vec2i &targetPos)
 	return bestPos;
 }
 
+static void wsLog(void *user, bqws_socket *ws, const char *line)
+{
+	char addr_str[256];
+	bqws_pt_address addr = bqws_pt_get_address(ws);
+	bqws_pt_format_address(addr_str, sizeof(addr_str), &addr);
+	sf::debugPrintLine("%p (%s): %s", ws, addr_str, line);
+}
+
 void serverUpdate(ServerMain *s)
 {
 	// Accept new clients
@@ -134,6 +142,7 @@ void serverUpdate(ServerMain *s)
 
 		bqws_opts opts = { };
 		opts.name = name.data;
+		opts.log_fn = &wsLog;
 		bqws_socket *ws = bqws_pt_accept(s->server, &opts, NULL);
 		if (ws) {
 			bqws_server_accept(ws, "spear");
