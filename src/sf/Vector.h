@@ -147,7 +147,7 @@ struct Vec4
 	Vec4 operator-() const { return Vec4(-x, -y, -z, -w); }
 
 	bool operator==(const Vec4 &rhs) const { return x == rhs.x && y == rhs.y && z == rhs.z && w == rhs.w; }
-	bool operator!=(const Vec4 &rhs) const { return x != rhs.x || y != rhs.y || z != rhs.z && w == rhs.w; }
+	bool operator!=(const Vec4 &rhs) const { return x != rhs.x || y != rhs.y || z != rhs.z || w == rhs.w; }
 };
 
 sf_inline float dot(const Vec4 &a, const Vec4 &b) { return a.x*b.x + a.y*b.y + a.z*b.z + a.w*b.w; }
@@ -283,7 +283,7 @@ struct Vec4i
 	Vec4i operator-() const { return Vec4i(-x, -y, -z, -w); }
 
 	bool operator==(const Vec4i &rhs) const { return x == rhs.x && y == rhs.y && z == rhs.z && w == rhs.w; }
-	bool operator!=(const Vec4i &rhs) const { return x != rhs.x || y != rhs.y || z != rhs.z && w == rhs.w; }
+	bool operator!=(const Vec4i &rhs) const { return x != rhs.x || y != rhs.y || z != rhs.z || w == rhs.w; }
 };
 
 sf_inline int32_t dot(const Vec4i &a, const Vec4i &b) { return a.x*b.x + a.y*b.y + a.z*b.z + a.w*b.w; }

@@ -4,6 +4,13 @@
 #if SF_OS_WINDOWS
 	#define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
+#else
+	#include <stdlib.h>
+	#include <unistd.h>
+	#include <sys/types.h>
+	#include <sys/wait.h>
+	#include <stdio.h>
+	#include <errno.h>
 #endif
 
 namespace sf {
@@ -172,6 +179,71 @@ size_t readProcessStdErr(Process *p, void *dst, size_t size)
 	if (!ReadFile(p->hStdErr, dst, (DWORD)size, &num, NULL)) return 0;
 	return num;
 }
+
+#elif 1
+
+struct Process
+{
+	pid_t pid;
+};
+
+Process *startProcess(sf::String path, sf::Slice<sf::String> args, const ProcessStartOpts &opts, sf::StringBuf *pCommandLine)
+{
+	sf::SmallArray<sf::StringBuf, 64> argsStorage;
+	sf::SmallArray<char*, 64> argsCopy;
+	argsStorage.reserve(args.size + 1);
+	argsCopy.reserve(args.size + 2);
+
+	argsStorage.push(path);
+
+	for (const sf::String &arg : args) {
+		argsStorage.push(arg);
+	}
+	for (sf::StringBuf &arg : argsStorage) {
+		if (pCommandLine) {
+			pCommandLine->append(arg, " ");
+		}
+		argsCopy.push(arg.data);
+	}
+	argsCopy.push(NULL);
+
+	pid_t pid = vfork();
+	if (pid == 0) {
+		execv(path.data, argsCopy.data);
+		// Should never return, just failsafe
+		exit(1);
+		return NULL;
+	} else {
+		Process *p = new Process();
+		p->pid = pid;
+		return p;
+	}
+}
+
+bool getProcessCompleted(Process *p, uint32_t *pCode)
+{
+	int wstatus;
+	pid_t ret = waitpid(p->pid, &wstatus, WNOHANG);
+	if (ret == 0) return false;
+	uint32_t exitCode = WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : 256;
+	if (pCode) *pCode = exitCode;
+	return true;
+}
+
+void joinProcess(Process *p)
+{
+	int wstatus;
+	waitpid(p->pid, &wstatus, 0);
+	delete p;
+}
+
+void detachProcess(Process *p)
+{
+	delete p;
+}
+
+size_t readProcessStdOut(Process *p, void *dst, size_t size) { return 0; }
+size_t readProcessStdErr(Process *p, void *dst, size_t size) { return 0; }
 
 #else
 

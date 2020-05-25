@@ -5,7 +5,9 @@
 #define SOKOL_ASSERT(cond) sf_assert(cond)
 #define SOKOL_LOG(msg) sf_debug_log(msg)
 
-#if SF_OS_WINDOWS
+#if defined(SP_NO_APP)
+	#define SOKOL_DUMMY_BACKEND
+#elif SF_OS_WINDOWS
 	#if defined(SP_USE_OPENGL)
 		#define SOKOL_GLCORE33
 	#else

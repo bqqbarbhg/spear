@@ -884,10 +884,10 @@ void initializeProcessing()
 
 	p.maxActiveJobs = sf::max(1u, (uint32_t)std::thread::hardware_concurrency() / 4);
 
-	sf::appendPath(p.dataRoot, "data");
-	sf::appendPath(p.tempRoot, "temp", "data");
-	sf::appendPath(p.buildRoot, "build", "data");
-	sf::appendPath(p.toolRoot, "data", "tool");
+	sf::appendPath(p.dataRoot, "Assets");
+	sf::appendPath(p.tempRoot, "Temp");
+	sf::appendPath(p.buildRoot, "Build");
+	sf::appendPath(p.toolRoot, "Tools");
 #if SF_OS_WINDOWS
 	sf::appendPath(p.toolRoot, "win32");
 #elif SF_OS_APPLE
@@ -955,7 +955,7 @@ void closeProcessing()
 	g_processor.dataMonitor.end();
 }
 
-void updateProcessing()
+bool updateProcessing()
 {
 	Processor &p = g_processor;
 
@@ -985,5 +985,7 @@ void updateProcessing()
 			}
 		}
 	}
+
+	return p.dirtyTaskInstances.size > 0 || p.activeJobs.size > 0;
 }
 

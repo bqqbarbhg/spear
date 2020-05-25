@@ -15,8 +15,8 @@
 
 namespace sp {
 
-// #define sp_file_log(...) sf::debugPrintLine(__VA_ARGS__)
-#define sp_file_log(...) (void)0
+#define sp_file_log(...) sf::debugPrintLine(__VA_ARGS__)
+// #define sp_file_log(...) (void)0
 
 static constexpr uint32_t NumLanes = 4;
 static constexpr uint32_t BufferSize = 16 * 1024 * 1024;
@@ -87,9 +87,10 @@ static void fetchCallback(const sfetch_response_t *response)
 struct FetchFilePackage : ContentPackage
 {
 	sf::StringBuf root;
+	sf::StringBuf prefix;
 
-	FetchFilePackage(const sf::String &root_)
-		: root(root_)
+	FetchFilePackage(const sf::String &root_, const sf::String &prefix_)
+		: root(root_), prefix(prefix_)
 	{
 		if (root.size > 0) {
 			char c = root.data[root.size - 1];
@@ -98,19 +99,18 @@ struct FetchFilePackage : ContentPackage
 			}
 		}
 
-		name.append("Fetch(", root_, ")");
+		name.append("Fetch(", prefix_, ")");
 	}
 
 	virtual bool shouldTryToLoad(const sf::CString &name) final
 	{
-		// TODO: Separate absolute and relative files?
-		return true;
+		return sf::beginsWith(name, prefix);
 	}
 
 	virtual bool startLoadingFile(ContentLoadHandle handle, const sf::CString &name) final
 	{
 		sf::SmallStringBuf<256> path;
-		path.append(root, name);
+		path.append(root, name.slice().drop(prefix.size));
 
 		sfetch_request_t req = { };
 		req.callback = &fetchCallback;
@@ -228,12 +228,12 @@ static void fetchCacheCallback(const sfetch_response_t *response)
 	}
 }
 
-void ContentFile::addRelativeFileRoot(const sf::String &root)
+void ContentFile::addRelativeFileRoot(const sf::String &root, const sf::String &prefix)
 {
 	ContentFileContext &ctx = g_contentFileContext;
 	sf::MutexGuard mg(ctx.mutex);
 
-	FetchFilePackage *package = new FetchFilePackage(root);
+	FetchFilePackage *package = new FetchFilePackage(root, prefix);
 	ctx.packages.push(package);
 	ctx.packagesToDelete.push(package);
 }

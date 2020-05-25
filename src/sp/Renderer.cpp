@@ -101,9 +101,13 @@
 #endif
 
 #elif defined(SOKOL_METAL)
+
     #include "ext/sokol/sg_ext_metal_timing.h"
+
+#elif defined(SOKOL_DUMMY_BACKEND)
+
 #else
-    #error "Unsupported platform"
+    #error "Unsupported backend"
 #endif
 
 namespace sp {
@@ -290,7 +294,7 @@ static void endQueryImp()
 	glEndQuery(GL_TIME_ELAPSED_EXT);
 }
 
-#else
+#elif defined(SOKOL_METAL)
 
 struct Query
 {
@@ -340,6 +344,16 @@ static void endQueryImp()
     sg_ext_mtl_end_pass();
 }
 
+#elif defined(SOKOL_DUMMY_BACKEND)
+
+static void beginQueryFrame() { }
+static void endQueryFrame() { }
+
+static void beginQueryImp(sf::Symbol name) { }
+static void endQueryImp() { }
+
+#else
+	#error "Unsupported backend"
 #endif
 
 RenderTarget::RenderTarget() { }

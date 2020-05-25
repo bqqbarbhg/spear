@@ -81,6 +81,7 @@ void debugPrint(const char *fmt, ...)
 		SmallStringBuf<1024> line;
 		line.vformat(fmt, args);
 		OutputDebugStringA(line.data);
+		printf("%s", line.data);
 	}
 #else
 	{
@@ -102,6 +103,7 @@ void debugPrintLine(const char *fmt, ...)
 		line.vformat(fmt, args);
 		line.append('\n');
 		OutputDebugStringA(line.data);
+		printf("%s", line.data);
 	}
 #else
 	{

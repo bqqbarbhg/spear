@@ -1,3 +1,5 @@
+#ifndef SP_NO_APP
+
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "sp/GameMain.h"
@@ -72,7 +74,8 @@ void spInit()
     font.load(sf::Symbol("sp://OpenSans-Ascii.ttf"));
 	gameShaders.load();
 
-	sp::ContentFile::addRelativeFileRoot("build/data");
+	sp::ContentFile::addRelativeFileRoot("Build", "Content/");
+	sp::ContentFile::addRelativeFileRoot("Game", "Game/");
 	// sp::ContentFile::addRelativeFileRoot("/data");
     // sp::ContentFile::addRelativeFileRoot("http://localhost:5000");
 
@@ -152,7 +155,7 @@ void spFrame(float dt)
     }
     
     canvas.prepareForRendering();
-    
+/   
     sp::Font::updateAtlasesForRendering();
 
 	{
@@ -181,3 +184,5 @@ void spFrame(float dt)
 
 	sg_commit();
 }
+
+#endif

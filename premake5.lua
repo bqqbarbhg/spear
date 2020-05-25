@@ -30,6 +30,11 @@ newoption {
    description = "Use WASM threads extension"
 }
 
+newoption {
+   trigger     = "dedicated-processor",
+   description = "Build a dedicated resource processor"
+}
+
 workspace "spear"
 	configurations { "debug", "develop", "release" }
 
@@ -160,16 +165,23 @@ workspace "spear"
 		targetsuffix "-simd-threads"
 		objdir "proj/obj/wasm-simd-threads/%{cfg.buildcfg}"
 
+	filter { "options:dedicated-processor" }
+		defines { "SP_DEDICATED_PROCESSOR=1", "SP_NO_APP=1" }
+		targetsuffix "-processor"
+
 project "spear"
 	kind "WindowedApp"
 	language "C++"
-    files { "src/**.h", "src/**.cpp", "src/**.c", "src/**.m" }
+    files { "src/**.h", "src/**.cpp", "src/**.c" }
     files { "misc/*.natvis" }
 	debugdir "."
 	filter { "action:xcode4" }
 		symbolspath "build/%{cfg.configuration}"
+		files { "src/**.m" }
 	filter { "system:ios" }
 		files { "misc/ios/Info.plist" }
 	filter { "system:macosx" }
 		files { "misc/macos/Info.plist" }
+	filter { "options:dedicated-processor" }
+		kind "ConsoleApp"
 

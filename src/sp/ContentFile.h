@@ -36,7 +36,7 @@ struct ContentFile
 	// -- Static API
 
 	// Add a file path to load from
-	static void addRelativeFileRoot(const sf::String &root);
+	static void addRelativeFileRoot(const sf::String &root, const sf::String &prefix=sf::String());
 	static void addCacheDownloadRoot(sf::String name, ContentCacheResolveFunc *resolveFunc, void *user);
 
 	// Add a custom package type

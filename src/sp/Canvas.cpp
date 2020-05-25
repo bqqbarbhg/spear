@@ -96,7 +96,11 @@ static_assert(sizeof(Canvas::impData) <= sizeof(CanvasImp) * 4, "impData too lar
 
 CanvasRenderOpts CanvasRenderOpts::windowPixels()
 {
+#if defined(SP_NO_APP)
+	return CanvasRenderOpts::pixels(800, 600);
+#else
 	return CanvasRenderOpts::pixels((uint32_t)sapp_width(), (uint32_t)sapp_height());
+#endif
 }
 
 CanvasRenderOpts CanvasRenderOpts::pixels(uint32_t width, uint32_t height)

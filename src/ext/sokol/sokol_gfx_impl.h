@@ -307,6 +307,7 @@ typedef struct {
     uint32_t upd_frame_index;
     int num_slots;
     int active_slot;
+    bool bqq_copy_target;
 } _sg_image_t;
 
 typedef struct {
@@ -1510,6 +1511,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
     img->upd_frame_index = 0;
     img->num_slots = (img->usage == SG_USAGE_IMMUTABLE) ? 1 :SG_NUM_INFLIGHT_FRAMES;
     img->active_slot = 0;
+    img->bqq_copy_target = desc->bqq_copy_target;
     return SG_RESOURCESTATE_VALID;
 }
 
@@ -1723,6 +1725,16 @@ _SOKOL_PRIVATE void _sg_update_image(_sg_image_t* img, const sg_image_content* d
     if (++img->active_slot >= img->num_slots) {
         img->active_slot = 0;
     }
+}
+
+/* bqq extensions */
+
+_SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc, _sg_image_t *dst_img, const _sg_image_t *src_img)
+{
+}
+
+_SOKOL_PRIVATE void _sg_bqq_generate_mipmaps(_sg_image_t *img)
+{
 }
 
 /*== GL BACKEND ==============================================================*/

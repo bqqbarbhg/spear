@@ -30,7 +30,7 @@ struct Quat
 	Quat &operator/=(float rhs) { x /= rhs; y /= rhs; z /= rhs; w /= rhs; return *this; }
 
 	bool operator==(const Quat &rhs) const { return x == rhs.x && y == rhs.y && z == rhs.z && w == rhs.w; }
-	bool operator!=(const Quat &rhs) const { return x != rhs.x || y != rhs.y || z != rhs.z && w == rhs.w; }
+	bool operator!=(const Quat &rhs) const { return x != rhs.x || y != rhs.y || z != rhs.z || w == rhs.w; }
 
 	Quat operator*(const Quat &rhs) const {
 		Quat r;

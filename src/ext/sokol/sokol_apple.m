@@ -8,8 +8,10 @@
 
 #if SF_OS_APPLE
     #include "sokol_fetch_impl.h"
-	#include "sokol_app_impl.h"
     #include "sokol_gfx_impl.h"
     #include "sg_ext_metal_timing_impl.h"
+	#if !defined(SP_NO_APP)
+		#include "sokol_app_impl.h"
+	#endif
 #endif
 

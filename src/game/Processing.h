@@ -2,4 +2,4 @@
 
 void initializeProcessing();
 void closeProcessing();
-void updateProcessing();
+bool updateProcessing();

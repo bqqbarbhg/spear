@@ -10,6 +10,8 @@
 	#include <Windows.h>
 #else
 	#include <sys/stat.h>
+	#include <dirent.h>
+	#include <stdio.h>
 #endif
 
 namespace sf {
@@ -71,7 +73,7 @@ bool replaceFile(sf::String dst, sf::String src)
 #else
 	sf::SmallStringBuf<512> srcBuf(src);
 	sf::SmallStringBuf<512> dstBuf(dst);
-	return rename(srcBuf.data, dstBuf.data) != 0;
+	return rename(srcBuf.data, dstBuf.data) == 0;
 #endif
 }
 
@@ -150,6 +152,7 @@ bool isDirectory(sf::String name)
 	return (attr & FILE_ATTRIBUTE_DIRECTORY) != 0;
 #else
 	sf::SmallStringBuf<512> nameBuf(name);
+	struct stat sb;
 	if (stat(nameBuf.data, &sb) == 0) {
 		return (sb.st_mode & S_IFMT) == S_IFDIR;
 	} else {
@@ -224,7 +227,18 @@ bool listFiles(sf::String path, sf::Array<FileInfo> &files)
 
 	return true;
 #else
-	return false;
+	sf::SmallStringBuf<512> nameBuf(path);
+	DIR *d = opendir(nameBuf.data);
+	if (!d) return false;
+	struct dirent *dir;
+	while ((dir = readdir(d)) != NULL) {
+		if (!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, "..")) continue;
+		FileInfo &info = files.push();
+		info.name = sf::String(dir->d_name, strlen(dir->d_name));
+		info.isDirectory = (dir->d_type == DT_DIR);
+	}
+	closedir(d);
+	return true;
 #endif
 }
 
@@ -405,6 +419,8 @@ struct DirectoryMonitor::Data
 
 struct DirectoryMonitor::Data
 {
+	Data(sf::String path) { }
+
 	void getUpdates(sf::Array<sf::StringBuf> &paths)
 	{
 	}
