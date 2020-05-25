@@ -155,7 +155,7 @@ void spFrame(float dt)
     }
     
     canvas.prepareForRendering();
-/   
+   
     sp::Font::updateAtlasesForRendering();
 
 	{
