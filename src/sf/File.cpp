@@ -280,7 +280,13 @@ uint64_t getFileTimestamp(sf::String path)
 	if (!ok) return 0;
 	return (uint64_t)lastWrite.dwHighDateTime << 32u | (uint64_t)lastWrite.dwLowDateTime;
 #else
-	return 0;
+	sf::SmallStringBuf<512> nameBuf(path);
+	struct stat sb;
+	if (stat(nameBuf.data, &sb) == 0) {
+		return (uint64_t)sb.st_mtime;
+	} else {
+		return 0;
+	}
 #endif
 }
 
