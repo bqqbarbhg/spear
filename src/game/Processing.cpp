@@ -882,8 +882,9 @@ void initializeProcessing()
 {
 	Processor &p = g_processor;
 
+	// TODO: -j argument
 	#if defined(SP_DEDICATED_PROCESSOR)
-		p.maxActiveJobs = sf::max(1u, (uint32_t)std::thread::hardware_concurrency());
+		p.maxActiveJobs = sf::max(1u, (uint32_t)std::thread::hardware_concurrency() / 2);
 	#else
 		p.maxActiveJobs = sf::max(1u, (uint32_t)std::thread::hardware_concurrency() / 4);
 	#endif
