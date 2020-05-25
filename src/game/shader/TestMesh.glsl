@@ -32,6 +32,8 @@ in vec3 v_normal;
 
 out vec4 o_color;
 
+#define USE_ARRAY 1
+
 #define MAX_LIGHTS 16
 #define DATA_PER_LIGHT 4
 // vec3 origin; float radius;
@@ -39,7 +41,11 @@ out vec4 o_color;
 // vec3 shadowMul; float ?
 // vec3 shadowBias; float ?
 
-uniform sampler3D shadowGrid;
+#if USE_ARRAY
+	uniform sampler2DArray shadowGrid;
+#else
+	uniform sampler3D shadowGrid;
+#endif
 
 uniform Pixel
 {
@@ -69,7 +75,18 @@ vec3 evalLight(vec3 P, vec3 N, int base)
 		vec3 shadowMul = data2.xyz;
 		vec3 shadowBias = data3.xyz;
 		vec3 shadowTexCoord = delta * shadowMul + shadowBias;
+
+#if USE_ARRAY
+		float ly = shadowTexCoord.y * 8.0;
+		float l0 = clamp(floor(ly), 0.0, 7.0);
+		float l1 = min(l0 + 1.0, 7.0);
+		float t = ly - l0;
+		float s0 = textureLod(shadowGrid, vec3(shadowTexCoord.xz, l0), 0.0).x;
+		float s1 = textureLod(shadowGrid, vec3(shadowTexCoord.xz, l1), 0.0).x;
+		float shadow = mix(s0, s1, t);
+#else
 		float shadow = textureLod(shadowGrid, shadowTexCoord.xzy, 0.0).x;
+#endif
 
 		float attenuation = 1.0 / (0.1 + distSq) - 1.0 / (0.1 + radiusSq);
 		result = dot(N, L) * vec3(shadow) * attenuation * lightColor;

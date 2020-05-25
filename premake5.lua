@@ -35,6 +35,11 @@ newoption {
    description = "Build a dedicated resource processor"
 }
 
+newoption {
+   trigger     = "dedicated-server",
+   description = "Build a dedicated server"
+}
+
 workspace "spear"
 	configurations { "debug", "develop", "release" }
 
@@ -129,10 +134,14 @@ workspace "spear"
 			"curl",
 			"z",
 			"dl",
-			"GL",
-			"X11",
 			"ssl",
 			"crypto",
+		}
+
+	filter { "platforms:not wasm", "system:linux", "not options:dedicated-processor", "not options:dedicated-server" }
+		links {
+			"GL",
+			"X11",
 		}
 
 	filter "options:opengl"
@@ -171,6 +180,10 @@ workspace "spear"
 		defines { "SP_DEDICATED_PROCESSOR=1", "SP_NO_APP=1" }
 		targetsuffix "-processor"
 
+	filter { "options:dedicated-server" }
+		defines { "SP_DEDICATED_SERVER=1", "SP_NO_APP=1" }
+		targetsuffix "-server"
+
 project "spear"
 	kind "WindowedApp"
 	language "C++"
@@ -185,5 +198,7 @@ project "spear"
 	filter { "system:macosx" }
 		files { "misc/macos/Info.plist" }
 	filter { "options:dedicated-processor" }
+		kind "ConsoleApp"
+	filter { "options:dedicated-server" }
 		kind "ConsoleApp"
 

@@ -3193,6 +3193,8 @@ static PFN_glCullFace _sapp_glCullFace;
 
 typedef void (GL_APIENTRY *PFN_glCopyTexSubImage2D)(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
 static PFN_glCopyTexSubImage2D _sapp_glCopyTexSubImage2D;
+typedef void (GL_APIENTRY *PFN_glCopyTexSubImage3D)(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLint x, GLint y, GLsizei width, GLsizei height);
+static PFN_glCopyTexSubImage3D _sapp_glCopyTexSubImage3D;
 typedef void (GL_APIENTRY *PFN_glGenerateMipmap)(GLenum target);
 static PFN_glGenerateMipmap _sapp_glGenerateMipmap;
 
@@ -3307,6 +3309,7 @@ _SOKOL_PRIVATE  void _sapp_win32_gl_loadfuncs(void) {
 
     /* bqq extension */
     _SAPP_GLPROC(glCopyTexSubImage2D);
+    _SAPP_GLPROC(glCopyTexSubImage3D);
     _SAPP_GLPROC(glGenerateMipmap);
 }
 #define glBindVertexArray _sapp_glBindVertexArray
@@ -3404,6 +3407,7 @@ _SOKOL_PRIVATE  void _sapp_win32_gl_loadfuncs(void) {
 #define glFrontFace _sapp_glFrontFace
 #define glCullFace _sapp_glCullFace
 #define glCopyTexSubImage2D _sapp_glCopyTexSubImage2D
+#define glCopyTexSubImage3D _sapp_glCopyTexSubImage3D
 #define glGenerateMipmap _sapp_glGenerateMipmap
 
 #endif /* SOKOL_WIN32_NO_GL_LOADER */

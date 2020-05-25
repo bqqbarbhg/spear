@@ -12,6 +12,8 @@
 #include "game/shader/GameShaders.h"
 #include "game/shader/Upscale.h"
 
+#include "bq_websocket_platform.h"
+
 #include "Processing.h"
 
 void spConfig(sp::MainConfig &config)

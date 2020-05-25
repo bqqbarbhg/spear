@@ -18,7 +18,8 @@ void ShadowCache::recreateTargets()
 		sg_image_desc d = { };
 		d.label = "shadowCache";
 		d.pixel_format = SG_PIXELFORMAT_R8;
-		d.type = SG_IMAGETYPE_3D;
+		// d.type = SG_IMAGETYPE_3D;
+		d.type = SG_IMAGETYPE_ARRAY;
 		d.width = (int)(cacheTileExtent * cacheNumTilesX);
 		d.height = (int)(cacheTileExtent * cacheNumTilesX);
 		d.depth = (int)cacheTileSlices;

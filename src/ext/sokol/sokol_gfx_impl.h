@@ -1,4 +1,7 @@
 
+// HACHACHACHACKA
+#include <stdio.h>
+
 /*--- IMPLEMENTATION ---------------------------------------------------------*/
 #ifdef SOKOL_IMPL
 #define SOKOL_GFX_IMPL_INCLUDED (1)
@@ -4300,18 +4303,18 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
     GLuint dst_tex = dst_img->gl_tex[dst_img->active_slot];
 
 	for (int mip_index = 0; mip_index < desc->num_mips; mip_index++) {
-		_sg_gl_bind_texture(0, GL_TEXTURE_2D, src_tex);
+		_sg_gl_bind_texture(0, src_img->gl_target, src_tex);
 
 		_SG_GL_CHECK_ERROR();
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, src_tex, mip_index);
 		_SG_GL_CHECK_ERROR();
 
-		_sg_gl_bind_texture(0, GL_TEXTURE_2D, dst_tex);
-
         for (int rect_index = 0; rect_index < desc->num_rects; rect_index++) {
+
             const sg_bqq_subimage_rect *rect = &desc->rects[rect_index];
 			int dst_x = rect->dst_x >> mip_index;
 			int dst_y = rect->dst_y >> mip_index;
+			int dst_z = rect->dst_z >> mip_index;
 			int src_x = rect->src_x >> mip_index;
 			int src_y = rect->src_y >> mip_index;
 			int width = rect->width >> mip_index;
@@ -4319,8 +4322,14 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
 			if (width == 0) width = 1;
 			if (height == 0) height = 1;
 
+			_sg_gl_bind_texture(0, dst_img->gl_target, dst_tex);
+
 			_SG_GL_CHECK_ERROR();
-			glCopyTexSubImage2D(GL_TEXTURE_2D, mip_index, dst_x, dst_y, src_x, src_y, width, height);
+            if (dst_img->gl_target == GL_TEXTURE_3D || dst_img->gl_target == GL_TEXTURE_2D_ARRAY) {
+				glCopyTexSubImage3D(dst_img->gl_target, mip_index, dst_x, dst_y, dst_z, src_x, src_y, width, height);
+            } else {
+				glCopyTexSubImage2D(GL_TEXTURE_2D, mip_index, dst_x, dst_y, src_x, src_y, width, height);
+            }
 			_SG_GL_CHECK_ERROR();
         }
     }
