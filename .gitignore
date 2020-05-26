@@ -10,3 +10,4 @@ premake5
 *.air
 *.metallib
 *.metal
+src/game/GameConfig.h

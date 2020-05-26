@@ -13,6 +13,8 @@
 #include "game/shader/Fxaa.h"
 #include "game/client/TileMaterial.h"
 
+#include "GameConfig.h"
+
 // TEMP
 #include "sf/Frustum.h"
 #include "game/shader/TestMesh.h"
@@ -68,7 +70,12 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
 
 	{
         sf::SmallStringBuf<128> url;
+
+#if defined(GAME_WEBSOCKET_URL)
+        url = GAME_WEBSOKCET_URL;
+#else
         url.format("ws://localhost:%d", port);
+#endif
         
 		bqws_opts opts = { };
 		opts.name = name.data;
