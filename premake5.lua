@@ -181,10 +181,12 @@ workspace "spear"
 	filter { "options:dedicated-processor" }
 		defines { "SP_DEDICATED_PROCESSOR=1", "SP_NO_APP=1" }
 		targetsuffix "-processor"
+		objdir "proj/obj/processor/%{cfg.platform}_%{cfg.buildcfg}"
 
 	filter { "options:dedicated-server" }
 		defines { "SP_DEDICATED_SERVER=1", "SP_NO_APP=1" }
 		targetsuffix "-server"
+		objdir "proj/obj/server/%{cfg.platform}_%{cfg.buildcfg}"
 
 project "spear"
 	kind "WindowedApp"
