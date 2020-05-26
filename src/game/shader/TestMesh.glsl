@@ -147,7 +147,7 @@ void main()
 	vec3 result = vec3(0.0);
 	int end = int(numLightsF) * DATA_PER_LIGHT;
 
-	vec2 matNormal = texture(normalAtlas, v_uv).xy * 2.0 - vec2(1.0);
+	vec2 matNormal = texture(normalAtlas, v_uv).yw * 2.0 - vec2(1.0);
 	float matNormalY = sqrt(clamp(1.0 - dot(matNormal, matNormal), 0.0, 1.0));
 
 	vec3 matAlbedo = texture(albedoAtlas, v_uv).xyz;

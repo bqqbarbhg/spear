@@ -215,6 +215,7 @@ void TileMaterial::globalInit()
     sg_pixel_format normalFormats[] = {
         SG_PIXELFORMAT_BC5_RG,
         SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA,
+        SG_PIXELFORMAT_BC3_RGBA,
         SG_PIXELFORMAT_RGBA8,
     };
     
