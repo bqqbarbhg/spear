@@ -377,7 +377,7 @@ RenderTarget &RenderTarget::operator=(RenderTarget &&rhs)
 
 RenderTarget::~RenderTarget()
 {
-	sg_destroy_image(image);
+	if (image.id) sg_destroy_image(image);
 }
 
 void RenderTarget::init(const char *label, const sf::Vec2i &resolution, sg_pixel_format format, uint32_t samples, const sg_image_desc &desc)
@@ -427,7 +427,7 @@ RenderPass &RenderPass::operator=(RenderPass &&rhs)
 
 RenderPass::~RenderPass()
 {
-	sg_destroy_pass(pass);
+	if (pass.id) sg_destroy_pass(pass);
 }
 
 void RenderPass::init(const sg_pass_desc &desc, const sf::Vec2i &resolution, const FramebufferDesc &fbDesc)
@@ -687,13 +687,13 @@ Buffer &Buffer::operator=(Buffer &&rhs)
 
 void Buffer::reset()
 {
-	sg_destroy_buffer(buffer);
+	if (buffer.id) sg_destroy_buffer(buffer);
 	buffer.id = 0;
 }
 
 Buffer::~Buffer()
 {
-	sg_destroy_buffer(buffer);
+	if (buffer.id) sg_destroy_buffer(buffer);
 }
 
 Texture::Texture() { }
@@ -714,13 +714,13 @@ Texture &Texture::operator=(Texture &&rhs)
 
 void Texture::reset()
 {
-	sg_destroy_image(image);
+	if (image.id) sg_destroy_image(image);
 	image.id = 0;
 }
 
 Texture::~Texture()
 {
-	sg_destroy_image(image);
+	if (image.id) sg_destroy_image(image);
 }
 
 void Texture::init(const sg_image_desc &desc)
