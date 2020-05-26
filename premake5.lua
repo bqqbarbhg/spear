@@ -129,6 +129,7 @@ workspace "spear"
 
 	filter { "platforms:not wasm", "system:linux" }
 		linkoptions "-pthread"
+		toolset "clang"
 
 	filter { "platforms:not wasm", "system:linux", "not options:dedicated-processor" }
 		links {
