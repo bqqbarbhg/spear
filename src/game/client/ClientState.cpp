@@ -36,11 +36,17 @@ static bool generateMapMesh(sf::Array<cl::MapMesh> &meshes, sf::Random &tileRng,
 
 	if (variant.modelRef.isLoading()) return false;
 	if (variant.shadowModelRef.isLoading()) return false;
+	if (variant.materialRef.isLoading()) return false;
+
+	if (variant.modelRef && !variant.modelRef.isLoaded()) return true;
+	if (variant.shadowModelRef && !variant.shadowModelRef.isLoaded()) return true;
+	if (!variant.materialRef.isLoaded()) return true;
 
 	float rotation = (float)(tileRng.nextU32() & 3) * (sf::F_2PI * 0.25f);
 	MapMesh &mesh = meshes.push();
 	if (variant.modelRef) mesh.model = variant.modelRef;
 	if (variant.shadowModelRef) mesh.shadowModel = variant.shadowModelRef;
+	mesh.material = variant.materialRef;
 
 	float scale = variant.scale * info.scale;
 

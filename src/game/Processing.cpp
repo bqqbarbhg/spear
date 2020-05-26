@@ -191,6 +191,7 @@ struct TaskInstance
 struct Task
 {
 	sf::StringBuf name;
+	sf::Array<sf::StringBuf> tools;
 
 	~Task() { }
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) = 0;
@@ -432,6 +433,7 @@ struct GuiTextureTask : Task
 	{
 		name.format("GuiTextureTask %s %d", format.data, maxExtent);
 		maxExtentStr.format("%d", maxExtent);
+		tools.push("sp-texcomp");
 	}
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
@@ -492,11 +494,12 @@ struct AlbedoTextureTask : Task
 	{
 		name.append("AlbedoTextureTask ", format);
 		resolutionString.format("%d", resolution);
+		tools.push("sp-texcomp");
 	}
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
 	{
-		if (endsWithStrip(ti.key, path, "_albedo.png")) {
+		if (endsWithStrip(ti.key, path, "_BaseColor.png")) {
 			ti.inputs[s_albedo] = path;
 		} else {
 			return false;
@@ -558,11 +561,12 @@ struct NormalTextureTask : Task
 	{
 		name.append("NormalTextureTask ", format);
 		resolutionString.format("%d", resolution);
+		tools.push("sp-texcomp");
 	}
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
 	{
-		if (endsWithStrip(ti.key, path, "_normal.png")) {
+		if (endsWithStrip(ti.key, path, "_Normal.png")) {
 			ti.inputs[s_normal] = path;
 		} else {
 			return false;
@@ -627,15 +631,16 @@ struct MaskTextureTask : Task
 	{
 		name.append("MaskTextureTask ", format);
 		resolutionString.format("%d", resolution);
+		tools.push("sp-texcomp");
 	}
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
 	{
-		if (endsWithStrip(ti.key, path, "_metallic.png")) {
+		if (endsWithStrip(ti.key, path, "_Metallic.png")) {
 			ti.inputs[s_metallic] = path;
 		} else if (endsWithStrip(ti.key, path, "_ao.png")) {
 			ti.inputs[s_ao] = path;
-		} else if (endsWithStrip(ti.key, path, "_roughness.png")) {
+		} else if (endsWithStrip(ti.key, path, "_Roughness.png")) {
 			ti.inputs[s_roughness] = path;
 		} else {
 			return false;
@@ -703,6 +708,7 @@ struct AnimationTask : Task
 	AnimationTask()
 	{
 		name = "AnimatationTask";
+		tools.push("sp-model");
 	}
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
@@ -753,6 +759,7 @@ struct CharacterModelTask : Task
 	CharacterModelTask()
 	{
 		name = "CharacterModelTask";
+		tools.push("sp-model");
 	}
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
@@ -804,6 +811,7 @@ struct TileModelTask : Task
 	TileModelTask()
 	{
 		name = "TileModelTask";
+		tools.push("sp-model");
 	}
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
@@ -933,6 +941,16 @@ void initializeProcessing()
 		sf::Box<TaskInstance> ti = pair.val;
 		uint64_t oldestOutput = SIZE_MAX;
 		uint64_t newestInput = 0;
+
+		for (auto &tool : ti->task->tools) {
+			sf::SmallStringBuf<1024> path;
+			sf::appendPath(path, p.toolRoot, tool);
+			#if SF_OS_WINDOWS
+				path.append(".exe");
+			#endif
+			uint64_t ts = sf::getFileTimestamp(path);
+			if (ts) newestInput = sf::max(newestInput, ts);
+		}
 
 		for (auto &input : ti->inputs) {
 			sf::SmallStringBuf<1024> path;

@@ -351,6 +351,16 @@ spmdl_mesh *spmdl_decode_meshes(spmdl_util *su);
 char *spmdl_decode_vertex(spmdl_util *su);
 char *spmdl_decode_index(spmdl_util *su);
 
+typedef struct sptex_util {
+	spfile_util file;
+} sptex_util;
+
+bool sptex_util_init(sptex_util *su, const void *data, size_t size);
+
+bool sptex_decode_mip_to(sptex_util *su, uint32_t index, char *buffer);
+
+sptex_header sptex_decode_header(sptex_util *su);
+char *sptex_decode_mip(sptex_util *su, uint32_t index);
 
 #ifdef __cplusplus
 }

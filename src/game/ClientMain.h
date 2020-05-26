@@ -5,6 +5,9 @@
 
 struct ClientMain;
 
+void clientGlobalInit();
+void clientGlobalCleanup();
+
 ClientMain *clientInit(int port, const sf::Symbol &name);
 void clientQuit(ClientMain *client);
 bool clientUpdate(ClientMain *client);

@@ -11,6 +11,7 @@
 #include "game/shader/GameShaders.h"
 #include "game/shader/Postprocess.h"
 #include "game/shader/Fxaa.h"
+#include "game/client/TileMaterial.h"
 
 // TEMP
 #include "sf/Frustum.h"
@@ -47,6 +48,16 @@ struct ClientMain
 	sp::Pipeline tempMeshPipe;
 	sp::Pipeline tempSkinnedMeshPipe;
 };
+
+void clientGlobalInit()
+{
+	cl::TileMaterial::globalInit();
+}
+
+void clientGlobalCleanup()
+{
+	cl::TileMaterial::globalCleanup();
+}
 
 ClientMain *clientInit(int port, const sf::Symbol &name)
 {
@@ -96,38 +107,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
 		d.layout.attrs[5].format = SG_VERTEXFORMAT_UBYTE4N;
 	}
 
-	return c;
-}
-
-void clientQuit(ClientMain *client)
-{
-	bqws_close(client->ws, BQWS_CLOSE_NORMAL, NULL, 0);
-}
-
-static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
-{
-	c->resolution = systemRes;
-
-	float scale = 1.0f;
-	sf::Vec2i mainRes = sf::Vec2i(sf::Vec2(systemRes) * scale);
-
-	int mainSamples = 4;
-	sg_pixel_format mainFormat = SG_PIXELFORMAT_RGBA8;
-	sg_pixel_format mainDepthFormat = SG_PIXELFORMAT_DEPTH_STENCIL;
-
-	c->mainTarget.init("mainTarget", mainRes, mainFormat, mainSamples);
-	c->mainDepth.init("mainDepth", mainRes, mainDepthFormat, mainSamples);
-	c->tonemapTarget.init("tonemapTarget", mainRes, SG_PIXELFORMAT_RGBA8);
-	c->fxaaTarget.init("fxaaTarget", mainRes, SG_PIXELFORMAT_RGBA8);
-
-	c->mainPass.init("main", c->mainTarget, c->mainDepth);
-	c->tonemapPass.init("tonemap", c->tonemapTarget);
-	c->fxaaPass.init("fxaa", c->fxaaTarget);
-
-	c->clientState.recreateTargets();
-
 	// HACK
-#if 0
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
 		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
@@ -151,15 +131,44 @@ static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
 		l.radius = 16.0f;
 		l.shadowIndex = 2;
 	}
-#endif
 
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
 		l.position = sf::Vec3(0.0f, 2.0f, 0.0f);
-		l.color = sf::Vec3(2.0f, 2.0f, 2.0f);
+		l.color = sf::Vec3(4.0f, 4.0f, 4.0f);
 		l.radius = 16.0f;
 		l.shadowIndex = 3;
 	}
+
+	return c;
+}
+
+void clientQuit(ClientMain *client)
+{
+	bqws_close(client->ws, BQWS_CLOSE_NORMAL, NULL, 0);
+}
+
+static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
+{
+	c->resolution = systemRes;
+
+	float scale = 1.0f;
+	sf::Vec2i mainRes = sf::Vec2i(sf::Vec2(systemRes) * sqrtf(scale));
+
+	int mainSamples = 1;
+	sg_pixel_format mainFormat = SG_PIXELFORMAT_RGBA8;
+	sg_pixel_format mainDepthFormat = SG_PIXELFORMAT_DEPTH_STENCIL;
+
+	c->mainTarget.init("mainTarget", mainRes, mainFormat, mainSamples);
+	c->mainDepth.init("mainDepth", mainRes, mainDepthFormat, mainSamples);
+	c->tonemapTarget.init("tonemapTarget", mainRes, SG_PIXELFORMAT_RGBA8);
+	c->fxaaTarget.init("fxaaTarget", mainRes, SG_PIXELFORMAT_RGBA8);
+
+	c->mainPass.init("main", c->mainTarget, c->mainDepth);
+	c->tonemapPass.init("tonemap", c->tonemapTarget);
+	c->fxaaPass.init("fxaa", c->fxaaTarget);
+
+	c->clientState.recreateTargets();
 }
 
 bool clientUpdate(ClientMain *c)
@@ -208,8 +217,8 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 		uint32_t ix = 0;
 		for (cl::PointLight &light : c->clientState.pointLights) {
 			if (ix++ < 3) {
-				// light.position.x = sinf(t) * 5.0f;
-				// light.position.z = cosf(t) * 5.0f;
+				light.position.x = sinf(t) * 5.0f;
+				light.position.z = cosf(t) * 5.0f;
 			}
 			c->clientState.shadowCache.updatePointLight(c->clientState, light);
 			t += sf::F_2PI / 3.0f;
@@ -229,11 +238,11 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 
 		sp::beginPass(c->mainPass, &action);
 
-		sf::Mat44 view = sf::mat::look(sf::Vec3(0.0f, 10.0f, 6.0f), sf::Vec3(0.0f, -1.0f, -0.5f));
+		sf::Vec3 cameraPosition = sf::Vec3(0.0f, 10.0f, 6.0f);
+		sf::Mat44 view = sf::mat::look(cameraPosition, sf::Vec3(0.0f, -1.0f, -0.5f));
 		sf::Mat44 proj = sf::mat::perspectiveD3D(1.0f, (float)resolution.x/(float)resolution.y, 0.1f, 20.0f);
 		sf::Mat44 viewProj = proj * view;
 
-		TestMesh_Pixel_t pu = { };
 		sf::Frustum frustum { viewProj, sg_query_features().origin_top_left ? 0.0f : -1.0f };
 		for (auto &pair : c->clientState.chunks) {
 			cl::MapChunkGeometry &chunkGeo = pair.val.geometry;
@@ -247,6 +256,8 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 			sf::Mat44().writeColMajor44(transform.normalTransform);
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestMesh_Transform, &transform, sizeof(transform));
 
+			TestMesh_Pixel_t pu = { };
+			memcpy(pu.cameraPosition, cameraPosition.v, sizeof(cameraPosition));
 			pu.numLightsF = (float)c->clientState.pointLights.size;
 			float (*dst)[4] = pu.lightData;
 			for (cl::PointLight &light : c->clientState.pointLights) {
@@ -273,7 +284,10 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 			sg_bindings bindings = { };
 			bindings.vertex_buffers[0] = chunkGeo.main.vertexBuffer.buffer;
 			bindings.index_buffer = chunkGeo.main.indexBuffer.buffer;
-			bindings.fs_images[0] = c->clientState.shadowCache.shadowCache.image;
+			bindings.fs_images[SLOT_TestMesh_shadowGrid] = c->clientState.shadowCache.shadowCache.image;
+			bindings.fs_images[SLOT_TestMesh_albedoAtlas] = cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Albedo);
+			bindings.fs_images[SLOT_TestMesh_normalAtlas] = cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Normal);
+			bindings.fs_images[SLOT_TestMesh_maskAtlas] = cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Mask);
 			sg_apply_bindings(&bindings);
 
 			sg_draw(0, chunkGeo.main.numInidces, 1);
@@ -315,6 +329,7 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 
 				sp::boneTransformToWorld(model, boneWorld, boneTransforms, world);
 
+				TestSkin_Pixel_t pu = { };
 				pu.numLightsF = (float)c->clientState.pointLights.size;
 				float (*dst)[4] = pu.lightData;
 				for (cl::PointLight &light : c->clientState.pointLights) {

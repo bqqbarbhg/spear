@@ -31,7 +31,7 @@ static void loadImp(void *user, const ContentFile &file)
 {
 	AnimationImp *imp = (AnimationImp*)user;
 
-	spanim_util su = { file.data, file.size };
+	spanim_util su;
 	spanim_util_init(&su, file.data, file.size);
 	spanim_header header = spanim_decode_header(&su);
 	char *strings = spanim_decode_strings(&su);

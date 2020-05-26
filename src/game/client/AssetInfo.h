@@ -6,6 +6,7 @@
 #include "sp/Animation.h"
 #include "sp/Sprite.h"
 #include "sp/Asset.h"
+#include "TileMaterial.h"
 
 namespace sp { struct ContentFile; }
 
@@ -39,9 +40,11 @@ struct TileVariantInfo
 {
 	sp::ModelRef modelRef;
 	sp::ModelRef shadowModelRef;
+	cl::TileMaterialRef materialRef;
 
 	sf::Symbol model;
 	sf::Symbol shadowModel;
+	sf::Symbol material;
 
 	float scale = 1.0f;
 	float probability = 1.0f;

@@ -4,6 +4,7 @@
 #include "sp/Model.h"
 #include "sf/Geometry.h"
 #include "game/server/GameState.h"
+#include "TileMaterial.h"
 
 namespace cl {
 
@@ -19,6 +20,7 @@ struct MapMesh
 {
 	sp::ModelRef model;
 	sp::ModelRef shadowModel;
+	cl::TileMaterialRef material;
 	sf::Mat34 transform;
 };
 

@@ -10,25 +10,36 @@ uniform Transform
 
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 normal;
-layout(location=2) in vec3 tangent;
+layout(location=2) in vec4 tangent;
 layout(location=3) in vec2 uv;
 
 out vec3 v_position;
 out vec3 v_normal;
+out vec3 v_tangent;
+out vec3 v_bitangent;
+out vec2 v_uv;
 
 void main()
 {
 	v_position = position;
     gl_Position = transform * vec4(position, 1.0);
-	v_normal = normalize((normalTransform * vec4(normal, 0.0)).xyz);
+	v_normal = normal;
+	v_tangent = tangent.xyz;
+	v_bitangent = tangent.w * cross(v_normal, v_tangent); 
+	v_uv = uv;
 }
 
 @end
 
 @fs fs
 
+@include Brdf.inc.glsl
+
 in vec3 v_position;
 in vec3 v_normal;
+in vec3 v_tangent;
+in vec3 v_bitangent;
+in vec2 v_uv;
 
 out vec4 o_color;
 
@@ -47,13 +58,18 @@ out vec4 o_color;
 	uniform sampler3D shadowGrid;
 #endif
 
+uniform sampler2D albedoAtlas;
+uniform sampler2D normalAtlas;
+uniform sampler2D maskAtlas;
+
 uniform Pixel
 {
 	float numLightsF;
+	vec3 cameraPosition;
 	vec4 lightData[MAX_LIGHTS*DATA_PER_LIGHT];
 };
 
-vec3 evalLight(vec3 P, vec3 N, int base)
+vec3 evalLight(vec3 P, vec3 N, vec3 V, vec3 cdiff, vec3 f0, float alpha2, int base)
 {
 	vec4 data0 = lightData[base + 0];
 	vec4 data1 = lightData[base + 1];
@@ -87,10 +103,17 @@ vec3 evalLight(vec3 P, vec3 N, int base)
 #else
 		float shadow = textureLod(shadowGrid, shadowTexCoord.xzy, 0.0).x;
 #endif
-
 		float attenuation = 1.0 / (0.1 + distSq) - 1.0 / (0.1 + radiusSq);
-		result = dot(N, L) * vec3(shadow) * attenuation * lightColor;
 
+		vec3 H = normalize(L + V);
+		float VdotH = clamp(dot(V, H), 0.0, 1.0);
+		float NdotL = clamp(dot(N, L), 0.0, 1.0);
+		float NdotV = clamp(dot(N, V), 0.0, 1.0);
+		float NdotH = clamp(dot(N, H), 0.0, 1.0);
+
+		result = vec3(shadow * attenuation * NdotL) * lightColor * BRDF_specularGGX(cdiff, f0, alpha2, VdotH, NdotL, NdotV, NdotH);
+		// result.xy *= 0.001;
+		// result.xy += fract(shadowTexCoord.xz * 20.0);
 	} else {
 		result = vec3(0.0);
 	}
@@ -121,13 +144,27 @@ vec4 tonemap(vec3 v)
 
 void main()
 {
-	vec3 P = v_position;
-	vec3 N = normalize(v_normal);
 	vec3 result = vec3(0.0);
 	int end = int(numLightsF) * DATA_PER_LIGHT;
+
+	vec2 matNormal = texture(normalAtlas, v_uv).xy * 2.0 - vec2(1.0);
+	float matNormalY = sqrt(clamp(1.0 - dot(matNormal, matNormal), 0.0, 1.0));
+
+	vec3 matAlbedo = texture(albedoAtlas, v_uv).xyz;
+	vec4 matMask = texture(maskAtlas, v_uv);
+	
+	vec3 P = v_position;
+	vec3 N = normalize(matNormal.x * v_tangent + matNormal.y * v_bitangent + matNormalY * v_normal);
+	vec3 V = normalize(cameraPosition - v_position);
+	vec3 cdiff = matAlbedo.xyz * (1.0 - matMask.x);
+	vec3 f0 = mix(vec3(0.03), matAlbedo, matMask.x);
+	float alpha = matMask.w*matMask.w;
+	float alpha2 = alpha*alpha;
+
 	for (int base = 0; base < end; base += DATA_PER_LIGHT) {
-		result += evalLight(P, N, base);
+		result += evalLight(P, N, V, cdiff, f0, alpha2, base);
 	}
+
 	o_color = tonemap(result);
 }
 

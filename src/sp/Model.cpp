@@ -58,7 +58,7 @@ static void loadImp(void *user, const ContentFile &file)
 	ModelImp *imp = (ModelImp*)user;
 	ModelProps &props = *(ModelProps*)imp->props;
 
-	spmdl_util su = { file.data, file.size };
+	spmdl_util su;
 	spmdl_util_init(&su, file.data, file.size);
 	spmdl_header header = spmdl_decode_header(&su);
 	char *strings = spmdl_decode_strings(&su);

@@ -8,6 +8,8 @@
 
 namespace cl {
 
+static const sf::Symbol g_defaultTileMaterial { "Assets/Tiles/Default_Material/TileDefault" };
+
 void AnimationInfo::refresh()
 {
 	animationRef.load(file);
@@ -25,6 +27,11 @@ void TileVariantInfo::refresh()
 	props.cpuData = true;
 	if (model) modelRef.load(model, props);
 	if (shadowModel) shadowModelRef.load(shadowModel, props);
+	if (material) {
+		materialRef.load(material);
+	} else {
+		materialRef.load(g_defaultTileMaterial);
+	}
 }
 
 TileVariantInfo &TileInfo::getVariant(float x)
@@ -117,6 +124,7 @@ template<> void initType<cl::TileVariantInfo>(Type *t)
 	static Field fields[] = {
 		sf_field(cl::TileVariantInfo, model),
 		sf_field(cl::TileVariantInfo, shadowModel),
+		sf_field(cl::TileVariantInfo, material),
 		sf_field(cl::TileVariantInfo, probability),
 		sf_field(cl::TileVariantInfo, scale),
 	};

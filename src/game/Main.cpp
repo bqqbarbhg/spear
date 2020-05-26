@@ -76,7 +76,9 @@ void spInit()
     font.load(sf::Symbol("sp://OpenSans-Ascii.ttf"));
 	gameShaders.load();
 
-	sp::ContentFile::addRelativeFileRoot("Build", "Content/");
+	clientGlobalInit();
+
+	sp::ContentFile::addRelativeFileRoot("Build", "Assets/");
 	sp::ContentFile::addRelativeFileRoot("Game", "Game/");
 	// sp::ContentFile::addRelativeFileRoot("/data");
     // sp::ContentFile::addRelativeFileRoot("http://localhost:5000");
@@ -96,6 +98,7 @@ void spInit()
 
 void spCleanup()
 {
+	clientGlobalCleanup();
 	closeProcessing();
 }
 

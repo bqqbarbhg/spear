@@ -74,7 +74,7 @@ ServerMain *serverInit(int port)
 
 		{
 			sv::TileType &tile = map.tileTypes.push();
-			tile.floorName = sf::Symbol("Game/Tiles/floor.js");
+			tile.floorName = sf::Symbol("Game/Tiles/Tile_Test.js");
 			tile.floor = true;
 		}
 

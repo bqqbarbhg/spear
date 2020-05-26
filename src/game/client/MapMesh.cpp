@@ -108,6 +108,8 @@ void MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 		sf::Mat33 normalTransform = transform.get33();
 
 		if (mapMesh.model) {
+			sf_assert(mapMesh.material.isLoaded());
+			cl::TileMaterial *material = mapMesh.material;
 			for (sp::Mesh &mesh : mapMesh.model->meshes) {
 				sf_assert(mesh.streams[0].stride == sizeof(MapVertex));
 				mainBuilder.appendIndices(sf::slice(mesh.cpuIndexData16, mesh.numIndices), (uint32_t)(vertexDst - vertices.data));
@@ -116,7 +118,7 @@ void MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 					dst.position = sf::transformPoint(transform, vertex.position);
 					dst.normal = sf::normalizeOrZero(sf::transformPoint(normalTransform, vertex.normal));
 					dst.tangent = sf::normalizeOrZero(sf::transformPoint(tangentTransform, vertex.tangent));
-					dst.uv = vertex.uv;
+					dst.uv = vertex.uv * material->uvScale + material->uvBase;
 					mainBuilder.updateBounds(dst.position);
 				}
 			}

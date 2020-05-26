@@ -379,8 +379,8 @@ bool spanim_check_bones(spanim_util *su, spanim_bone *bones)
 
 bool spanim_util_init(spanim_util *su, const void *data, size_t size)
 {
-	spfile_check(size >= sizeof(spanim_header));
 	spfile_util_init(&su->file, data, size);
+	spfile_check(size >= sizeof(spanim_header));
 	if (su->file.failed) return false;
 
 	spanim_header *header = (spanim_header*)data;
@@ -455,8 +455,8 @@ char *spanim_decode_animation(spanim_util *su)
 
 bool spmdl_util_init(spmdl_util *su, const void *data, size_t size)
 {
-	spfile_check(size >= sizeof(spmdl_header));
 	spfile_util_init(&su->file, data, size);
+	spfile_check(size >= sizeof(spmdl_header));
 	if (su->file.failed) return false;
 
 	spmdl_header *header = (spmdl_header*)data;
@@ -642,4 +642,42 @@ char *spmdl_decode_index(spmdl_util *su)
 	if (su->file.failed) return NULL;
 	spmdl_header *header = (spmdl_header*)su->file.data;
 	return (char*)spfile_decode_section(&su->file, &header->s_index);
+}
+
+bool sptex_util_init(sptex_util *su, const void *data, size_t size)
+{
+	spfile_util_init(&su->file, data, size);
+	if (su->file.failed) return false;
+
+	sptex_header *header = (sptex_header*)data;
+	spfile_check(header->header.magic == SPFILE_HEADER_SPTEX);
+	spfile_check(header->header.header_info_size == sizeof(sptex_info));
+	spfile_check(header->header.version == 1);
+	spfile_check(header->info.num_mips == header->header.num_sections);
+	spfile_check(header->info.num_mips <= 16);
+
+	return true;
+}
+
+bool sptex_decode_mip_to(sptex_util *su, uint32_t index, char *buffer)
+{
+	if (su->file.failed) return false;
+	sptex_header *header = (sptex_header*)su->file.data;
+	return spfile_decode_section_to(&su->file, &header->s_mips[index], buffer);
+}
+
+sptex_header sptex_decode_header(sptex_util *su)
+{
+	sptex_header header = { 0 };
+	if (su->file.failed) return header;
+	memcpy(&header, su->file.data, sizeof(spfile_header) + sizeof(sptex_info));
+	memcpy(header.s_mips, (char*)su->file.data + sizeof(spfile_header) + sizeof(sptex_info), sizeof(spfile_section) * header.info.num_mips);
+	return header;
+}
+
+char *sptex_decode_mip(sptex_util *su, uint32_t index)
+{
+	if (su->file.failed) return NULL;
+	sptex_header *header = (sptex_header*)su->file.data;
+	return (char*)spfile_decode_section(&su->file, &header->s_mips[index]);
 }

@@ -220,8 +220,10 @@ typedef enum sg_pixel_format {
     SG_PIXELFORMAT_DEPTH_STENCIL,
 
     SG_PIXELFORMAT_BC1_RGBA,
+    SG_PIXELFORMAT_BQQ_BC1_SRGB,
     SG_PIXELFORMAT_BC2_RGBA,
     SG_PIXELFORMAT_BC3_RGBA,
+    SG_PIXELFORMAT_BQQ_BC3_SRGB,
     SG_PIXELFORMAT_BC4_R,
     SG_PIXELFORMAT_BC4_RSN,
     SG_PIXELFORMAT_BC5_RG,
@@ -1621,6 +1623,7 @@ typedef struct sg_bqq_subimage_copy_desc {
     int num_mips;
 } sg_bqq_subimage_copy_desc;
 
+SOKOL_API_DECL void sg_bqq_update_subimage(sg_image img, const sg_image_desc *desc, int dst_x, int dst_y);
 SOKOL_API_DECL void sg_bqq_copy_subimages(const sg_bqq_subimage_copy_desc *desc);
 SOKOL_API_DECL void sg_bqq_generate_mipmaps(sg_image image);
 
