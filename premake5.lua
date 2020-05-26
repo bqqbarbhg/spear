@@ -44,7 +44,8 @@ workspace "spear"
 	configurations { "debug", "develop", "release" }
 
 	location "proj"
-	includedirs { "src", "src/ext" }
+	includedirs { "src" }
+	sysincludedirs { "src/ext" }
 	targetdir "build/%{cfg.buildcfg}_%{cfg.platform}"
     startproject "test"
 	flags { "MultiProcessorCompile" }

@@ -5912,7 +5912,7 @@ _SOKOL_PRIVATE void _sg_bqq_update_subimage(_sg_image_t *dst_img, const sg_image
         box.front = 0;
         box.back = 1;
 		const sg_subimage_content *sub = &desc->content.subimage[0][mip_index];
-		int pitch = _sg_row_pitch(dst_img->pixel_format, box.right - box.left, box.bottom - box.top);
+		int pitch = _sg_row_pitch(dst_img->pixel_format, box.right - box.left);
 		ID3D11DeviceContext_UpdateSubresource(_sg.d3d11.ctx, dst_res, mip_index, &box, sub->ptr, pitch, 0);
     }
 }
@@ -6078,10 +6078,10 @@ _SOKOL_PRIVATE MTLPixelFormat _sg_mtl_pixel_format(sg_pixel_format fmt) {
         case SG_PIXELFORMAT_DEPTH_STENCIL:          return MTLPixelFormatDepth32Float_Stencil8;
         #if defined(_SG_TARGET_MACOS)
         case SG_PIXELFORMAT_BC1_RGBA:               return MTLPixelFormatBC1_RGBA;
-        case SG_PIXELFORMAT_BQQ_BC1_SRGB:           return MTLPixelFormatBC1_sRGB;
+        case SG_PIXELFORMAT_BQQ_BC1_SRGB:           return MTLPixelFormatBC1_RGBA_sRGB;
         case SG_PIXELFORMAT_BC2_RGBA:               return MTLPixelFormatBC2_RGBA;
         case SG_PIXELFORMAT_BC3_RGBA:               return MTLPixelFormatBC3_RGBA;
-        case SG_PIXELFORMAT_BQQ_BC3_RGBA:           return MTLPixelFormatBC3_sRGB;
+        case SG_PIXELFORMAT_BQQ_BC3_SRGB:           return MTLPixelFormatBC3_RGBA_sRGB;
         case SG_PIXELFORMAT_BC4_R:                  return MTLPixelFormatBC4_RUnorm;
         case SG_PIXELFORMAT_BC4_RSN:                return MTLPixelFormatBC4_RSnorm;
         case SG_PIXELFORMAT_BC5_RG:                 return MTLPixelFormatBC5_RGUnorm;
@@ -7709,6 +7709,26 @@ _SOKOL_PRIVATE void _sg_update_image(_sg_image_t* img, const sg_image_content* d
 
 /* bqq extensions */
 
+_SOKOL_PRIVATE void _sg_bqq_update_subimage(_sg_image_t *dst_img, const sg_image_desc *desc, int dst_x, int dst_y)
+{
+    id<MTLTexture> dst_tex = _sg_mtl_idpool[dst_img->mtl_tex[dst_img->active_slot]];
+    
+    for (int mip_index = 0; mip_index < desc->num_mipmaps; mip_index++) {
+        MTLRegion region = MTLRegionMake2D(dst_x >> mip_index, dst_y >> mip_index,
+                                           dst_img->width >> mip_index, dst_img->height >> mip_index);
+        const sg_subimage_content *sub = &desc->content.subimage[0][mip_index];
+        int pitch = _sg_row_pitch(dst_img->pixel_format, region.size.width);
+        int slice_pitch = _sg_surface_pitch(dst_img->pixel_format, region.size.width, region.size.height);
+        [dst_tex replaceRegion: region
+            mipmapLevel: mip_index
+            slice: 0
+            withBytes: sub->ptr
+            bytesPerRow: pitch
+            bytesPerImage: slice_pitch
+        ];
+    }
+}
+
 _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc, _sg_image_t *dst_img, const _sg_image_t *src_img)
 {
 	if (nil == _sg_mtl_cmd_buffer) {
@@ -7725,19 +7745,34 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
 		for (int rect_index = 0; rect_index < desc->num_rects; rect_index++) {
 			const sg_bqq_subimage_rect *rect = &desc->rects[rect_index];
 			MTLOrigin src_origin = { rect->src_x >> mip_index, rect->src_y >> mip_index, 0 };
-			MTLOrigin dst_origin = { rect->dst_x >> mip_index, rect->dst_y >> mip_index, rect->dst_z >> mip_index };
+            MTLOrigin dst_origin = { rect->dst_x >> mip_index, rect->dst_y >> mip_index, 0 };
 			MTLSize size = { rect->width >> mip_index, rect->height >> mip_index, 1 };
-			[blit_encoder
-				copyFromTexture: src_tex
-				sourceSlice: 0
-				sourceLevel: mip_index
-				sourceOrigin: src_origin
-				sourceSize: size
-				toTexture: dst_tex
-				destinationSlice: 0
-				destinationLevel: mip_index
-				destinationOrigin: dst_origin
-			 ];
+            if (dst_img->type == SG_IMAGETYPE_3D) {
+                dst_origin.x = rect->dst_z >> mip_index;
+                [blit_encoder
+                 copyFromTexture: src_tex
+                 sourceSlice: 0
+                 sourceLevel: mip_index
+                 sourceOrigin: src_origin
+                 sourceSize: size
+                 toTexture: dst_tex
+                 destinationSlice: 0
+                 destinationLevel: mip_index
+                 destinationOrigin: dst_origin
+                 ];
+            } else {
+                [blit_encoder
+                 copyFromTexture: src_tex
+                 sourceSlice: 0
+                 sourceLevel: mip_index
+                 sourceOrigin: src_origin
+                 sourceSize: size
+                 toTexture: dst_tex
+                 destinationSlice: rect->dst_z
+                 destinationLevel: mip_index
+                 destinationOrigin: dst_origin
+                 ];
+            }
 		}
 	}
 
