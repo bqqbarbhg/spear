@@ -9,6 +9,23 @@
 
 namespace cl {
 
+static const char *getPixelFormatSuffix(sg_pixel_format format)
+{
+    switch (format) {
+    case SG_PIXELFORMAT_RGBA8: return "rgba8";
+    case SG_PIXELFORMAT_BQQ_SRGBA8: return "rgba8";
+    case SG_PIXELFORMAT_BC1_RGBA: return "bc1";
+    case SG_PIXELFORMAT_BQQ_BC1_SRGB: return "bc1";
+    case SG_PIXELFORMAT_BC3_RGBA: return "bc3";
+    case SG_PIXELFORMAT_BQQ_BC3_SRGB: return "bc3";
+    case SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA: return "astc4x4";
+    case SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB: return "astc4x4";
+    case SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA: return "astc8x8";
+    case SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB: return "astc8x8";
+    default: return "";
+    }
+}
+
 struct TileMaterialAtlasTexture
 {
 	sp::Texture texture;
@@ -20,7 +37,7 @@ struct TileMaterialAtlasTexture
 	void init(uint32_t numSlotsX, uint32_t numSlotsY, uint32_t extent, sg_pixel_format format, const char *label)
 	{
 		numMips = 0;
-		for (uint32_t e = extent; e >= 4; e /= 2) {
+		for (uint32_t e = extent; e >= 8; e /= 2) {
 			numMips++;
 		}
 
@@ -143,31 +160,28 @@ static void loadMaskImp(void *user, const sp::ContentFile &file) { loadTextureIm
 
 void TileMaterialImp::assetStartLoading()
 {
+    TileMaterialContext &ctx = g_tileMaterialContext;
 	sf::SmallStringBuf<256> path;
 
 	{
-		TileMaterialContext &ctx = g_tileMaterialContext;
 		sf::MutexGuard mg(ctx.mutex);
-
 		slot = ctx.allocSlot();
-
-		sf::Vec2 rcpSize = sf::Vec2(1.0f) / sf::Vec2((float)ctx.numSlotsX, (float)ctx.numSlotsY);
-		sf::Vec2i offset = { (int32_t)(slot % ctx.numSlotsX), (int32_t)(slot / ctx.numSlotsX) };
-		uvBase = sf::Vec2(offset) * rcpSize;
-		uvScale = rcpSize;
 	}
 
-
+    sf::Vec2 rcpSize = sf::Vec2(1.0f) / sf::Vec2((float)ctx.numSlotsX, (float)ctx.numSlotsY);
+    sf::Vec2i offset = { (int32_t)(slot % ctx.numSlotsX), (int32_t)(slot / ctx.numSlotsX) };
+    uvBase = sf::Vec2(offset) * rcpSize;
+    uvScale = rcpSize;
 
 	// TODO: Formats
 
-	path.clear(); path.append(name, "_albedo.bc1.sptex");
+    path.clear(); path.format("%s_albedo.%s.sptex", name.data, getPixelFormatSuffix(ctx.atlases[(uint32_t)MaterialTexture::Albedo].pixelFormat));
 	sp::ContentFile::loadMainThread(path, &loadAlbedoImp, this);
 
-	path.clear(); path.append(name, "_normal.bc5.sptex");
+    path.clear(); path.format("%s_normal.%s.sptex", name.data, getPixelFormatSuffix(ctx.atlases[(uint32_t)MaterialTexture::Normal].pixelFormat));
 	sp::ContentFile::loadMainThread(path, &loadNormalImp, this);
 
-	path.clear(); path.append(name, "_mask.bc3.sptex");
+    path.clear(); path.format("%s_mask.%s.sptex", name.data, getPixelFormatSuffix(ctx.atlases[(uint32_t)MaterialTexture::Mask].pixelFormat));
 	sp::ContentFile::loadMainThread(path, &loadMaskImp, this);
 }
 
@@ -191,10 +205,42 @@ sg_image TileMaterial::getAtlasImage(MaterialTexture texture)
 void TileMaterial::globalInit()
 {
 	TileMaterialContext &ctx = g_tileMaterialContext;
+    
+    sg_pixel_format albedoFormats[] = {
+        SG_PIXELFORMAT_BQQ_BC1_SRGB,
+        SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB,
+        SG_PIXELFORMAT_BQQ_SRGBA8,
+    };
+    
+    sg_pixel_format normalFormats[] = {
+        SG_PIXELFORMAT_BC5_RG,
+        SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA,
+        SG_PIXELFORMAT_RGBA8,
+    };
+    
+    sg_pixel_format maskFormats[] = {
+        SG_PIXELFORMAT_BC3_RGBA,
+        SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB,
+        SG_PIXELFORMAT_RGBA8,
+    };
 
-	ctx.atlases[(uint32_t)MaterialTexture::Albedo].init(ctx.numSlotsX, ctx.numSlotsY, 256, SG_PIXELFORMAT_BQQ_BC1_SRGB, "TileMaterial albedo");
-	ctx.atlases[(uint32_t)MaterialTexture::Normal].init(ctx.numSlotsX, ctx.numSlotsY, 256, SG_PIXELFORMAT_BC5_RG, "TileMaterial normal");
-	ctx.atlases[(uint32_t)MaterialTexture::Mask].init(ctx.numSlotsX, ctx.numSlotsY, 256, SG_PIXELFORMAT_BC3_RGBA, "TileMaterial mask");
+    for (sg_pixel_format format : albedoFormats) {
+        if (!sg_query_pixelformat(format).sample) continue;
+        ctx.atlases[(uint32_t)MaterialTexture::Albedo].init(ctx.numSlotsX, ctx.numSlotsY, 256, format, "TileMaterial albedo");
+        break;
+    }
+
+    for (sg_pixel_format format : normalFormats) {
+        if (!sg_query_pixelformat(format).sample) continue;
+    	ctx.atlases[(uint32_t)MaterialTexture::Normal].init(ctx.numSlotsX, ctx.numSlotsY, 256, format, "TileMaterial normal");
+        break;
+    }
+    
+    for (sg_pixel_format format : maskFormats) {
+        if (!sg_query_pixelformat(format).sample) continue;
+    	ctx.atlases[(uint32_t)MaterialTexture::Mask].init(ctx.numSlotsX, ctx.numSlotsY, 256, format, "TileMaterial mask");
+        break;
+    }
 }
 
 void TileMaterial::globalCleanup()

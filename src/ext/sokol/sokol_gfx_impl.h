@@ -1190,6 +1190,10 @@ _SOKOL_PRIVATE bool _sg_is_compressed_pixel_format(sg_pixel_format fmt) {
         case SG_PIXELFORMAT_PVRTC_RGBA_4BPP:
         case SG_PIXELFORMAT_ETC2_RGB8:
         case SG_PIXELFORMAT_ETC2_RGB8A1:
+        case SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA:
+        case SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB:
+        case SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA:
+        case SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB:
             return true;
         default:
             return false;
@@ -1320,6 +1324,16 @@ _SOKOL_PRIVATE int _sg_row_pitch(sg_pixel_format fmt, int width) {
                 pitch = width_blocks * ((block_size * bpp) / 8);
             }
             break;
+        case SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA:
+        case SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB:
+            pitch = ((width + 3) / 4) * 16;
+            pitch = pitch < 16 ? 16 : pitch;
+            break;
+        case SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA:
+        case SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB:
+            pitch = ((width + 7) / 8) * 16;
+            pitch = pitch < 16 ? 16 : pitch;
+            break;
         default:
             pitch = width * _sg_pixelformat_bytesize(fmt);
             break;
@@ -1351,7 +1365,13 @@ _SOKOL_PRIVATE int _sg_surface_pitch(sg_pixel_format fmt, int width, int height)
         case SG_PIXELFORMAT_PVRTC_RGBA_4BPP:
         case SG_PIXELFORMAT_PVRTC_RGB_2BPP:
         case SG_PIXELFORMAT_PVRTC_RGBA_2BPP:
+        case SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA:
+        case SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB:
             num_rows = ((height + 3) / 4);
+            break;
+        case SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA:
+        case SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB:
+            num_rows = ((height + 7) / 8);
             break;
         default:
             num_rows = height;
@@ -2136,6 +2156,14 @@ _SOKOL_PRIVATE GLenum _sg_gl_teximage_format(sg_pixel_format fmt) {
             return GL_COMPRESSED_RGB8_ETC2;
         case SG_PIXELFORMAT_ETC2_RGB8A1:
             return GL_COMPRESSED_RGBA8_ETC2_EAC;
+        case SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA:
+            return GL_COMPRESSED_RGBA_ASTC_4X4_KHR;
+        case SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB:
+            return GL_COMPRESSED_SRGB_ALPHA8_ASTC_4X4_KHR;
+        case SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA:
+            return GL_COMPRESSED_RGBA_ASTC_8X8_KHR;
+        case SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB:
+            return GL_COMPRESSED_SRGB_ALPHA8_ASTC_8X8_KHR;
         default:
             SOKOL_UNREACHABLE; return 0;
     }
@@ -2181,7 +2209,7 @@ _SOKOL_PRIVATE GLenum _sg_gl_teximage_internal_format(sg_pixel_format fmt) {
             case SG_PIXELFORMAT_RGBA8SI:    return GL_RGBA8I;
             case SG_PIXELFORMAT_RGB10A2:    return GL_RGB10_A2;
             case SG_PIXELFORMAT_RG11B10F:   return GL_R11F_G11F_B10F;
-			case SG_PIXELFORMAT_BQQ_SRGBA8: return GL_SRGB8_ALPHA8;
+            case SG_PIXELFORMAT_BQQ_SRGBA8: return GL_SRGB8_ALPHA8;
             case SG_PIXELFORMAT_RG32UI:     return GL_RG32UI;
             case SG_PIXELFORMAT_RG32SI:     return GL_RG32I;
             case SG_PIXELFORMAT_RG32F:      return GL_RG32F;
@@ -2215,6 +2243,10 @@ _SOKOL_PRIVATE GLenum _sg_gl_teximage_internal_format(sg_pixel_format fmt) {
             case SG_PIXELFORMAT_PVRTC_RGBA_4BPP:    return GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG;
             case SG_PIXELFORMAT_ETC2_RGB8:          return GL_COMPRESSED_RGB8_ETC2;
             case SG_PIXELFORMAT_ETC2_RGB8A1:        return GL_COMPRESSED_RGBA8_ETC2_EAC;
+            case SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA:  return GL_COMPRESSED_RGBA_ASTC_4X4_KHR;
+            case SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB:  return GL_COMPRESSED_SRGB_ALPHA8_ASTC_4X4_KHR;
+            case SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA:  return GL_COMPRESSED_RGBA_ASTC_8X8_KHR;
+            case SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB:  return GL_COMPRESSED_SRGB_ALPHA8_ASTC_8X8_KHR;
             default: SOKOL_UNREACHABLE; return 0;
         }
     }
@@ -2503,6 +2535,13 @@ _SOKOL_PRIVATE void _sg_gl_init_pixelformats_etc2(void) {
     _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_ETC2_RGB8A1]);
 }
 
+_SOKOL_PRIVATE void _sg_gl_init_pixelformats_astc(void) {
+    _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA]);
+    _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB]);
+    _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA]);
+    _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB]);
+}
+
 _SOKOL_PRIVATE void _sg_gl_init_limits(void) {
     _SG_GL_CHECK_ERROR();
     GLint gl_int;
@@ -2560,6 +2599,7 @@ _SOKOL_PRIVATE void _sg_gl_init_caps_glcore33(void) {
     bool has_bptc = false;  /* BC6H and BC7 */
     bool has_pvrtc = false;
     bool has_etc2 = false;
+    bool has_astc = false;
     GLint num_ext = 0;
     glGetIntegerv(GL_NUM_EXTENSIONS, &num_ext);
     for (int i = 0; i < num_ext; i++) {
@@ -2579,6 +2619,9 @@ _SOKOL_PRIVATE void _sg_gl_init_caps_glcore33(void) {
             }
             else if (strstr(ext, "_ES3_compatibility")) {
                 has_etc2 = true;
+            }
+            else if (strstr(ext, "_texture_compression_astc_ldr")) {
+                has_astc = true;
             }
             else if (strstr(ext, "_texture_filter_anisotropic")) {
                 _sg.gl.ext_anisotropic = true;
@@ -2614,6 +2657,9 @@ _SOKOL_PRIVATE void _sg_gl_init_caps_glcore33(void) {
     if (has_etc2) {
         _sg_gl_init_pixelformats_etc2();
     }
+    if (has_astc) {
+        _sg_gl_init_pixelformats_astc();
+    }
 }
 #endif
 
@@ -2638,6 +2684,7 @@ _SOKOL_PRIVATE void _sg_gl_init_caps_gles3(void) {
     #else
         bool has_etc2 = true;
     #endif
+    bool has_astc = false;
     bool has_colorbuffer_float = false;
     bool has_colorbuffer_half_float = false;
     bool has_texture_float_linear = false;
@@ -2664,6 +2711,9 @@ _SOKOL_PRIVATE void _sg_gl_init_caps_gles3(void) {
             }
             else if (strstr(ext, "_compressed_texture_etc")) {
                 has_etc2 = true;
+            }
+            else if (strstr(ext, "_texture_compression_astc_ldr")) {
+                has_astc = true;
             }
             else if (strstr(ext, "_color_buffer_float")) {
                 has_colorbuffer_float = true;
@@ -2708,6 +2758,9 @@ _SOKOL_PRIVATE void _sg_gl_init_caps_gles3(void) {
     if (has_etc2) {
         _sg_gl_init_pixelformats_etc2();
     }
+    if (has_astc) {
+        _sg_gl_init_pixelformats_astc();
+    }
 }
 #endif
 
@@ -2720,6 +2773,7 @@ _SOKOL_PRIVATE void _sg_gl_init_caps_gles2(void) {
     bool has_bptc = false;  /* BC6H and BC7 */
     bool has_pvrtc = false;
     bool has_etc2 = false;
+    bool has_astc = false;
     bool has_texture_float = false;
     bool has_texture_float_linear = false;
     bool has_colorbuffer_float = false;
@@ -2732,6 +2786,7 @@ _SOKOL_PRIVATE void _sg_gl_init_caps_gles2(void) {
         has_bptc = strstr(ext, "_texture_compression_bptc");
         has_pvrtc = strstr(ext, "_texture_compression_pvrtc");
         has_etc2 = strstr(ext, "_compressed_texture_etc");
+        has_astc = strstr(ext, "_texture_compression_astc_ldr");
         has_texture_float = strstr(ext, "_texture_float");
         has_texture_float_linear = strstr(ext, "_texture_float_linear");
         has_colorbuffer_float = strstr(ext, "_color_buffer_float");
@@ -2784,6 +2839,9 @@ _SOKOL_PRIVATE void _sg_gl_init_caps_gles2(void) {
     }
     if (has_etc2) {
         _sg_gl_init_pixelformats_etc2();
+    }
+    if (has_astc) {
+        _sg_gl_init_pixelformats_astc();
     }
     /* GLES2 doesn't allow multi-sampled render targets at all */
     for (int i = 0; i < _SG_PIXELFORMAT_NUM; i++) {
@@ -3226,7 +3284,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
                     glTexParameterf(img->gl_target, GL_TEXTURE_MAX_LOD, max_lod);
                 }
                 #endif
-				_SG_GL_CHECK_ERROR();
+                _SG_GL_CHECK_ERROR();
                 const int num_faces = img->type == SG_IMAGETYPE_CUBE ? 6 : 1;
                 int data_index = 0;
                 for (int face_index = 0; face_index < num_faces; face_index++) {
@@ -3248,12 +3306,12 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
                         if ((SG_IMAGETYPE_2D == img->type) || (SG_IMAGETYPE_CUBE == img->type)) {
                             if (is_compressed) {
                                 if (data_size > 0) {
-									glCompressedTexImage2D(gl_img_target, mip_index, gl_internal_format,
-										mip_width, mip_height, 0, data_size, data_ptr);
+                                    glCompressedTexImage2D(gl_img_target, mip_index, gl_internal_format,
+                                        mip_width, mip_height, 0, data_size, data_ptr);
                                 } else {
-									glTexImage2D(gl_img_target, mip_index, gl_internal_format,
-										mip_width, mip_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-									_SG_GL_CHECK_ERROR();
+                                    glTexImage2D(gl_img_target, mip_index, gl_internal_format,
+                                        mip_width, mip_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+                                    _SG_GL_CHECK_ERROR();
                                 }
                             }
                             else {
@@ -4319,30 +4377,30 @@ _SOKOL_PRIVATE void _sg_update_image(_sg_image_t* img, const sg_image_content* d
 _SOKOL_PRIVATE void _sg_bqq_update_subimage(_sg_image_t *dst_img, const sg_image_desc *desc, int dst_x, int dst_y)
 {
     GLuint dst_tex = dst_img->gl_tex[dst_img->active_slot];
-	_sg_gl_bind_texture(0, dst_img->gl_target, dst_tex);
+    _sg_gl_bind_texture(0, dst_img->gl_target, dst_tex);
 
     GLenum format = _sg_gl_teximage_format(dst_img->pixel_format);
 
-	for (int mip_index = 0; mip_index < desc->num_mipmaps; mip_index++) {
-		int x = dst_x >> mip_index;
-		int y = dst_y >> mip_index;
-		int w = desc->width >> mip_index;
-		int h = desc->height >> mip_index;
-		const sg_subimage_content *sub = &desc->content.subimage[0][mip_index];
-		if (_sg_is_compressed_pixel_format(dst_img->pixel_format)) {
-			glCompressedTexSubImage2D(dst_img->gl_target, mip_index, x, y, w, h, format, sub->size, sub->ptr);
-		} else {
-			GLenum type = _sg_gl_teximage_type(dst_img->pixel_format);
+    for (int mip_index = 0; mip_index < desc->num_mipmaps; mip_index++) {
+        int x = dst_x >> mip_index;
+        int y = dst_y >> mip_index;
+        int w = desc->width >> mip_index;
+        int h = desc->height >> mip_index;
+        const sg_subimage_content *sub = &desc->content.subimage[0][mip_index];
+        if (_sg_is_compressed_pixel_format(dst_img->pixel_format)) {
+            glCompressedTexSubImage2D(dst_img->gl_target, mip_index, x, y, w, h, format, sub->size, sub->ptr);
+        } else {
+            GLenum type = _sg_gl_teximage_type(dst_img->pixel_format);
             glTexSubImage2D(dst_img->gl_target, mip_index, x, y, w, h, format, type, sub->ptr);
-		}
-	}
+        }
+    }
 
     _sg_gl_restore_texture_binding(0);
 }
 
 _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc, _sg_image_t *dst_img, const _sg_image_t *src_img)
 {
-	_SG_GL_CHECK_ERROR();
+    _SG_GL_CHECK_ERROR();
 
     // Push original state
     GLuint gl_orig_fb;
@@ -4351,50 +4409,50 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
 
     // Create temporary framebuffer to copy from
     GLuint temp_fb;
-	_SG_GL_CHECK_ERROR();
+    _SG_GL_CHECK_ERROR();
     glGenFramebuffers(1, &temp_fb);
-	_SG_GL_CHECK_ERROR();
+    _SG_GL_CHECK_ERROR();
     glBindFramebuffer(GL_FRAMEBUFFER, temp_fb);
-	_SG_GL_CHECK_ERROR();
+    _SG_GL_CHECK_ERROR();
 
     GLuint src_tex = src_img->gl_tex[src_img->active_slot];
     GLuint dst_tex = dst_img->gl_tex[dst_img->active_slot];
 
-	for (int mip_index = 0; mip_index < desc->num_mips; mip_index++) {
-		_sg_gl_bind_texture(0, src_img->gl_target, src_tex);
+    for (int mip_index = 0; mip_index < desc->num_mips; mip_index++) {
+        _sg_gl_bind_texture(0, src_img->gl_target, src_tex);
 
-		_SG_GL_CHECK_ERROR();
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, src_tex, mip_index);
-		_SG_GL_CHECK_ERROR();
+        _SG_GL_CHECK_ERROR();
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, src_tex, mip_index);
+        _SG_GL_CHECK_ERROR();
 
         for (int rect_index = 0; rect_index < desc->num_rects; rect_index++) {
 
             const sg_bqq_subimage_rect *rect = &desc->rects[rect_index];
-			int dst_x = rect->dst_x >> mip_index;
-			int dst_y = rect->dst_y >> mip_index;
-			int dst_z = rect->dst_z >> mip_index;
-			int src_x = rect->src_x >> mip_index;
-			int src_y = rect->src_y >> mip_index;
-			int width = rect->width >> mip_index;
-			int height = rect->height >> mip_index;
-			if (width == 0) width = 1;
-			if (height == 0) height = 1;
+            int dst_x = rect->dst_x >> mip_index;
+            int dst_y = rect->dst_y >> mip_index;
+            int dst_z = rect->dst_z >> mip_index;
+            int src_x = rect->src_x >> mip_index;
+            int src_y = rect->src_y >> mip_index;
+            int width = rect->width >> mip_index;
+            int height = rect->height >> mip_index;
+            if (width == 0) width = 1;
+            if (height == 0) height = 1;
 
-			_sg_gl_bind_texture(0, dst_img->gl_target, dst_tex);
+            _sg_gl_bind_texture(0, dst_img->gl_target, dst_tex);
 
-			_SG_GL_CHECK_ERROR();
+            _SG_GL_CHECK_ERROR();
             if (dst_img->gl_target == GL_TEXTURE_3D || dst_img->gl_target == GL_TEXTURE_2D_ARRAY) {
-				glCopyTexSubImage3D(dst_img->gl_target, mip_index, dst_x, dst_y, dst_z, src_x, src_y, width, height);
+                glCopyTexSubImage3D(dst_img->gl_target, mip_index, dst_x, dst_y, dst_z, src_x, src_y, width, height);
             } else {
-				glCopyTexSubImage2D(GL_TEXTURE_2D, mip_index, dst_x, dst_y, src_x, src_y, width, height);
+                glCopyTexSubImage2D(GL_TEXTURE_2D, mip_index, dst_x, dst_y, src_x, src_y, width, height);
             }
-			_SG_GL_CHECK_ERROR();
+            _SG_GL_CHECK_ERROR();
         }
     }
 
-	_SG_GL_CHECK_ERROR();
+    _SG_GL_CHECK_ERROR();
     glDeleteFramebuffers(1, &temp_fb);
-	_SG_GL_CHECK_ERROR();
+    _SG_GL_CHECK_ERROR();
 
     // Pop original state
     _sg_gl_restore_texture_binding(0);
@@ -4827,7 +4885,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_buffer(_sg_buffer_t* buf, const sg_b
         SOKOL_ASSERT(SUCCEEDED(hr) && buf->d3d11_buf);
 
         if (desc->label) {
-			ID3D11Buffer_SetPrivateData(buf->d3d11_buf, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
+            ID3D11Buffer_SetPrivateData(buf->d3d11_buf, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
         }
     }
     return SG_RESOURCESTATE_VALID;
@@ -4919,9 +4977,9 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
         hr = ID3D11Device_CreateTexture2D(_sg.d3d11.dev, &d3d11_desc, NULL, &img->d3d11_texds);
         SOKOL_ASSERT(SUCCEEDED(hr) && img->d3d11_texds);
 
-		if (desc->label) {
-			ID3D11Texture2D_SetPrivateData(img->d3d11_texds, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
-		}
+        if (desc->label) {
+            ID3D11Texture2D_SetPrivateData(img->d3d11_texds, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
+        }
     }
     else {
         /* create (or inject) color texture */
@@ -4930,8 +4988,8 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
         D3D11_SUBRESOURCE_DATA* init_data = 0;
         if (!injected && (img->usage == SG_USAGE_IMMUTABLE) && !img->render_target) {
             if (desc->content.subimage[0][0].size > 0) {
-				_sg_d3d11_fill_subres_data(img, &desc->content);
-				init_data = _sg.d3d11.subres_data;
+                _sg_d3d11_fill_subres_data(img, &desc->content);
+                init_data = _sg.d3d11.subres_data;
             }
         }
         if (img->type != SG_IMAGETYPE_3D) {
@@ -4979,9 +5037,9 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
                 hr = ID3D11Device_CreateTexture2D(_sg.d3d11.dev, &d3d11_tex_desc, init_data, &img->d3d11_tex2d);
                 SOKOL_ASSERT(SUCCEEDED(hr) && img->d3d11_tex2d);
 
-				if (desc->label) {
-					ID3D11Texture2D_SetPrivateData(img->d3d11_tex2d, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
-				}
+                if (desc->label) {
+                    ID3D11Texture2D_SetPrivateData(img->d3d11_tex2d, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
+                }
             }
 
             /* shader-resource-view */
@@ -5044,9 +5102,9 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
             else {
                 hr = ID3D11Device_CreateTexture3D(_sg.d3d11.dev, &d3d11_tex_desc, init_data, &img->d3d11_tex3d);
                 SOKOL_ASSERT(SUCCEEDED(hr) && img->d3d11_tex3d);
-				if (desc->label) {
-					ID3D11Texture3D_SetPrivateData(img->d3d11_tex3d, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
-				}
+                if (desc->label) {
+                    ID3D11Texture3D_SetPrivateData(img->d3d11_tex3d, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
+                }
             }
 
             /* shader resource view for 3d texture */
@@ -5076,9 +5134,9 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
             hr = ID3D11Device_CreateTexture2D(_sg.d3d11.dev, &d3d11_tex_desc, NULL, &img->d3d11_texmsaa);
             SOKOL_ASSERT(SUCCEEDED(hr) && img->d3d11_texmsaa);
 
-			if (desc->label) {
-				ID3D11Texture2D_SetPrivateData(img->d3d11_texmsaa, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
-			}
+            if (desc->label) {
+                ID3D11Texture2D_SetPrivateData(img->d3d11_texmsaa, &WKPDID_D3DDebugObjectName, (UINT)strlen(desc->label), desc->label);
+            }
         }
 
         /* sampler state object, note D3D11 implements an internal shared-pool for sampler objects */
@@ -5563,11 +5621,11 @@ _SOKOL_PRIVATE void _sg_begin_pass(_sg_pass_t* pass, const sg_pass_action* actio
     SOKOL_ASSERT(!_sg.d3d11.in_pass);
 
     if (_sg.d3d11.annotation) {
-		if (pass) {
-			ID3DUserDefinedAnnotation_BeginEvent(_sg.d3d11.annotation, pass->label);
-		} else {
-			ID3DUserDefinedAnnotation_BeginEvent(_sg.d3d11.annotation, L"Default pass");
-		}
+        if (pass) {
+            ID3DUserDefinedAnnotation_BeginEvent(_sg.d3d11.annotation, pass->label);
+        } else {
+            ID3DUserDefinedAnnotation_BeginEvent(_sg.d3d11.annotation, L"Default pass");
+        }
     }
 
     _sg.d3d11.in_pass = true;
@@ -5673,7 +5731,7 @@ _SOKOL_PRIVATE void _sg_end_pass(void) {
     _sg_d3d11_clear_state();
 
     if (_sg.d3d11.annotation) {
-		ID3DUserDefinedAnnotation_EndEvent(_sg.d3d11.annotation);
+        ID3DUserDefinedAnnotation_EndEvent(_sg.d3d11.annotation);
     }
 }
 
@@ -5903,7 +5961,7 @@ _SOKOL_PRIVATE void _sg_bqq_update_subimage(_sg_image_t *dst_img, const sg_image
     ID3D11Resource *dst_res = (ID3D11Resource*)dst_img->d3d11_tex2d;
     if (!dst_res) dst_res = (ID3D11Resource*)dst_img->d3d11_tex3d;
 
-	for (int mip_index = 0; mip_index < desc->num_mipmaps; mip_index++) {
+    for (int mip_index = 0; mip_index < desc->num_mipmaps; mip_index++) {
         D3D11_BOX box;
         box.left = dst_x >> mip_index;
         box.top = dst_y >> mip_index;
@@ -5911,9 +5969,9 @@ _SOKOL_PRIVATE void _sg_bqq_update_subimage(_sg_image_t *dst_img, const sg_image
         box.bottom = box.top + (desc->height >> mip_index);
         box.front = 0;
         box.back = 1;
-		const sg_subimage_content *sub = &desc->content.subimage[0][mip_index];
-		int pitch = _sg_row_pitch(dst_img->pixel_format, box.right - box.left);
-		ID3D11DeviceContext_UpdateSubresource(_sg.d3d11.ctx, dst_res, mip_index, &box, sub->ptr, pitch, 0);
+        const sg_subimage_content *sub = &desc->content.subimage[0][mip_index];
+        int pitch = _sg_row_pitch(dst_img->pixel_format, box.right - box.left);
+        ID3D11DeviceContext_UpdateSubresource(_sg.d3d11.ctx, dst_res, mip_index, &box, sub->ptr, pitch, 0);
     }
 }
 
@@ -5923,19 +5981,19 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
     ID3D11Resource *dst_res = (ID3D11Resource*)dst_img->d3d11_tex2d;
     if (!dst_res) dst_res = (ID3D11Resource*)dst_img->d3d11_tex3d;
 
-	for (int mip_index = 0; mip_index < desc->num_mips; mip_index++) {
+    for (int mip_index = 0; mip_index < desc->num_mips; mip_index++) {
 
         for (int rect_index = 0; rect_index < desc->num_rects; rect_index++) {
             const sg_bqq_subimage_rect *rect = &desc->rects[rect_index];
-			int dst_x = rect->dst_x >> mip_index;
-			int dst_y = rect->dst_y >> mip_index;
-			int dst_z = rect->dst_z >> mip_index;
-			int src_x = rect->src_x >> mip_index;
-			int src_y = rect->src_y >> mip_index;
-			int width = rect->width >> mip_index;
-			int height = rect->height >> mip_index;
-			if (width == 0) width = 1;
-			if (height == 0) height = 1;
+            int dst_x = rect->dst_x >> mip_index;
+            int dst_y = rect->dst_y >> mip_index;
+            int dst_z = rect->dst_z >> mip_index;
+            int src_x = rect->src_x >> mip_index;
+            int src_y = rect->src_y >> mip_index;
+            int width = rect->width >> mip_index;
+            int height = rect->height >> mip_index;
+            if (width == 0) width = 1;
+            if (height == 0) height = 1;
 
             int subres_index = mip_index;
 
@@ -5948,10 +6006,10 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
             box.back = 1;
 
             if (dst_img->d3d11_tex3d) {
-				ID3D11DeviceContext_CopySubresourceRegion(_sg.d3d11.ctx, dst_res, subres_index, dst_x, dst_y, dst_z, src_res, subres_index, &box);
+                ID3D11DeviceContext_CopySubresourceRegion(_sg.d3d11.ctx, dst_res, subres_index, dst_x, dst_y, dst_z, src_res, subres_index, &box);
             } else {
                 int dst_subres_index = subres_index * dst_img->depth + dst_z;
-				ID3D11DeviceContext_CopySubresourceRegion(_sg.d3d11.ctx, dst_res, dst_subres_index, dst_x, dst_y, 0, src_res, subres_index, &box);
+                ID3D11DeviceContext_CopySubresourceRegion(_sg.d3d11.ctx, dst_res, dst_subres_index, dst_x, dst_y, 0, src_res, subres_index, &box);
             }
         }
     }
@@ -6096,6 +6154,10 @@ _SOKOL_PRIVATE MTLPixelFormat _sg_mtl_pixel_format(sg_pixel_format fmt) {
         case SG_PIXELFORMAT_PVRTC_RGBA_4BPP:        return MTLPixelFormatPVRTC_RGBA_4BPP;
         case SG_PIXELFORMAT_ETC2_RGB8:              return MTLPixelFormatETC2_RGB8;
         case SG_PIXELFORMAT_ETC2_RGB8A1:            return MTLPixelFormatETC2_RGB8A1;
+        case SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA:      return MTLPixelFormatASTC_4x4_LDR;
+        case SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB:      return MTLPixelFormatASTC_4x4_sRGB;
+        case SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA:      return MTLPixelFormatASTC_8x8_LDR;
+        case SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB:      return MTLPixelFormatASTC_8x8_sRGB;
         #endif
         default: return MTLPixelFormatInvalid;
     }
@@ -6641,6 +6703,10 @@ _SOKOL_PRIVATE void _sg_mtl_init_caps(void) {
         _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_PVRTC_RGBA_4BPP]);
         _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_ETC2_RGB8]);
         _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_ETC2_RGB8A1]);
+        _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA]);
+        _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB]);
+        _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA]);
+        _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB]);
     #endif
 }
 
@@ -6742,7 +6808,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_buffer(_sg_buffer_t* buf, const sg_b
             else {
                 mtl_buf = [_sg_mtl_device newBufferWithLength:buf->size options:mtl_options];
             }
-			if (desc->label) mtl_buf.label = [NSString stringWithUTF8String:desc->label];
+            if (desc->label) mtl_buf.label = [NSString stringWithUTF8String:desc->label];
         }
         buf->mtl_buf[slot] = _sg_mtl_add_resource(mtl_buf);
     }
@@ -6872,10 +6938,10 @@ _SOKOL_PRIVATE void _sg_mtl_init_texdesc_rt_msaa(MTLTextureDescriptor* mtl_desc,
     /* render targets are only visible to the GPU */
     mtl_desc.resourceOptions = MTLResourceStorageModePrivate;
     #if defined(_SG_TARGET_MACOS)
-    	mtl_desc.storageMode = MTLStorageModePrivate;
-	#else
-    	mtl_desc.storageMode = MTLStorageModeMemoryless;
-	#endif
+        mtl_desc.storageMode = MTLStorageModePrivate;
+    #else
+        mtl_desc.storageMode = MTLStorageModeMemoryless;
+    #endif
     /* MSAA render targets are not shader-readable (instead they are resolved) */
     mtl_desc.usage = MTLTextureUsageRenderTarget;
     mtl_desc.textureType = MTLTextureType2DMultisample;
@@ -6937,7 +7003,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
             _sg_mtl_init_texdesc_rt(mtl_desc, img);
         }
         id<MTLTexture> tex = [_sg_mtl_device newTextureWithDescriptor:mtl_desc];
-		if (desc->label) tex.label = [NSString stringWithUTF8String:desc->label];
+        if (desc->label) tex.label = [NSString stringWithUTF8String:desc->label];
         SOKOL_ASSERT(nil != tex);
         img->mtl_depth_tex = _sg_mtl_add_resource(tex);
     }
@@ -6961,7 +7027,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
             }
             else {
                 tex = [_sg_mtl_device newTextureWithDescriptor:mtl_desc];
-				if (desc->label) tex.label = [NSString stringWithUTF8String:desc->label];
+                if (desc->label) tex.label = [NSString stringWithUTF8String:desc->label];
                 if ((img->usage == SG_USAGE_IMMUTABLE) && !img->render_target && !img->bqq_copy_target) {
                     _sg_mtl_copy_image_content(img, tex, &desc->content);
                 }
@@ -6973,7 +7039,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
         if (img->render_target && msaa) {
             _sg_mtl_init_texdesc_rt_msaa(mtl_desc, img);
             id<MTLTexture> tex = [_sg_mtl_device newTextureWithDescriptor:mtl_desc];
-			if (desc->label) tex.label = [NSString stringWithUTF8String:desc->label];
+            if (desc->label) tex.label = [NSString stringWithUTF8String:desc->label];
             img->mtl_msaa_tex = _sg_mtl_add_resource(tex);
         }
 
@@ -7266,23 +7332,23 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_pass(_sg_pass_t* pass, _sg_image_t**
         att->slice = att_desc->slice;
     }
 
-	if (desc->label) {
+    if (desc->label) {
         size_t len = strlen(desc->label);
         if (len > sizeof(pass->label) - 1) len = sizeof(pass->label) - 1;
         memcpy(pass->label, desc->label, len);
         pass->label[len] = '\0';
-	} else {
+    } else {
         pass->label[0] = '\0';
-	}
+    }
 
     return SG_RESOURCESTATE_VALID;
 }
 
 _SOKOL_PRIVATE void _sg_destroy_pass(_sg_pass_t* pass) {
     SOKOL_ASSERT(pass);
-	if (pass->label) {
+    if (pass->label) {
         pass->label[0] = '\0';
-	}
+    }
 }
 
 _SOKOL_PRIVATE void _sg_begin_pass(_sg_pass_t* pass, const sg_pass_action* action, int w, int h) {
@@ -7715,7 +7781,7 @@ _SOKOL_PRIVATE void _sg_bqq_update_subimage(_sg_image_t *dst_img, const sg_image
     
     for (int mip_index = 0; mip_index < desc->num_mipmaps; mip_index++) {
         MTLRegion region = MTLRegionMake2D(dst_x >> mip_index, dst_y >> mip_index,
-                                           dst_img->width >> mip_index, dst_img->height >> mip_index);
+                                           desc->width >> mip_index, desc->height >> mip_index);
         const sg_subimage_content *sub = &desc->content.subimage[0][mip_index];
         int pitch = _sg_row_pitch(dst_img->pixel_format, region.size.width);
         int slice_pitch = _sg_surface_pitch(dst_img->pixel_format, region.size.width, region.size.height);
@@ -7731,9 +7797,9 @@ _SOKOL_PRIVATE void _sg_bqq_update_subimage(_sg_image_t *dst_img, const sg_image
 
 _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc, _sg_image_t *dst_img, const _sg_image_t *src_img)
 {
-	if (nil == _sg_mtl_cmd_buffer) {
-		_sg_mtl_cmd_buffer = [_sg_mtl_cmd_queue commandBufferWithUnretainedReferences];
-	}
+    if (nil == _sg_mtl_cmd_buffer) {
+        _sg_mtl_cmd_buffer = [_sg_mtl_cmd_queue commandBufferWithUnretainedReferences];
+    }
 
     SOKOL_ASSERT(nil == _sg_mtl_cmd_encoder);
     id<MTLBlitCommandEncoder> blit_encoder = [_sg_mtl_cmd_buffer blitCommandEncoder];
@@ -7741,12 +7807,12 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
     id<MTLTexture> src_tex = _sg_mtl_idpool[src_img->mtl_tex[src_img->active_slot]];
     id<MTLTexture> dst_tex = _sg_mtl_idpool[dst_img->mtl_tex[dst_img->active_slot]];
 
-	for (int mip_index = 0; mip_index < desc->num_mips; mip_index++) {
-		for (int rect_index = 0; rect_index < desc->num_rects; rect_index++) {
-			const sg_bqq_subimage_rect *rect = &desc->rects[rect_index];
-			MTLOrigin src_origin = { rect->src_x >> mip_index, rect->src_y >> mip_index, 0 };
+    for (int mip_index = 0; mip_index < desc->num_mips; mip_index++) {
+        for (int rect_index = 0; rect_index < desc->num_rects; rect_index++) {
+            const sg_bqq_subimage_rect *rect = &desc->rects[rect_index];
+            MTLOrigin src_origin = { rect->src_x >> mip_index, rect->src_y >> mip_index, 0 };
             MTLOrigin dst_origin = { rect->dst_x >> mip_index, rect->dst_y >> mip_index, 0 };
-			MTLSize size = { rect->width >> mip_index, rect->height >> mip_index, 1 };
+            MTLSize size = { rect->width >> mip_index, rect->height >> mip_index, 1 };
             if (dst_img->type == SG_IMAGETYPE_3D) {
                 dst_origin.x = rect->dst_z >> mip_index;
                 [blit_encoder
@@ -7773,10 +7839,10 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
                  destinationOrigin: dst_origin
                  ];
             }
-		}
-	}
+        }
+    }
 
-	[blit_encoder endEncoding];
+    [blit_encoder endEncoding];
 }
 
 _SOKOL_PRIVATE void _sg_bqq_generate_mipmaps(_sg_image_t *img)
@@ -8546,11 +8612,11 @@ _SOKOL_PRIVATE bool _sg_validate_pass_desc(const sg_pass_desc* desc) {
         if (desc->depth_stencil_attachment.image.id != SG_INVALID_ID) {
             const sg_attachment_desc* att = &desc->depth_stencil_attachment;
             const _sg_image_t* img = _sg_lookup_image(&_sg.pools, att->image.id);
-			if (width < 0 && height < 0) {
-				width = img->width >> att->mip_level;
-				height = img->height >> att->mip_level;
+            if (width < 0 && height < 0) {
+                width = img->width >> att->mip_level;
+                height = img->height >> att->mip_level;
                 sample_count = img->sample_count;
-			}
+            }
             SOKOL_VALIDATE(img && img->slot.state == SG_RESOURCESTATE_VALID, _SG_VALIDATE_PASSDESC_IMAGE);
             SOKOL_VALIDATE(att->mip_level < img->num_mipmaps, _SG_VALIDATE_PASSDESC_MIPLEVEL);
             if (img->type == SG_IMAGETYPE_CUBE) {
@@ -8618,9 +8684,9 @@ _SOKOL_PRIVATE bool _sg_validate_apply_pipeline(sg_pipeline pip_id) {
         if (pass) {
             /* an offscreen pass */
             if (pass->color_atts[0].image) {
-				SOKOL_VALIDATE(pip->color_attachment_count == pass->num_color_atts, _SG_VALIDATE_APIP_ATT_COUNT);
-				SOKOL_VALIDATE(pip->color_format == pass->color_atts[0].image->pixel_format, _SG_VALIDATE_APIP_COLOR_FORMAT);
-				SOKOL_VALIDATE(pip->sample_count == pass->color_atts[0].image->sample_count, _SG_VALIDATE_APIP_SAMPLE_COUNT);
+                SOKOL_VALIDATE(pip->color_attachment_count == pass->num_color_atts, _SG_VALIDATE_APIP_ATT_COUNT);
+                SOKOL_VALIDATE(pip->color_format == pass->color_atts[0].image->pixel_format, _SG_VALIDATE_APIP_COLOR_FORMAT);
+                SOKOL_VALIDATE(pip->sample_count == pass->color_atts[0].image->sample_count, _SG_VALIDATE_APIP_SAMPLE_COUNT);
             }
             if (pass->ds_att.image) {
                 SOKOL_VALIDATE(pip->depth_format == pass->ds_att.image->pixel_format, _SG_VALIDATE_APIP_DEPTH_FORMAT);
@@ -9591,11 +9657,11 @@ SOKOL_API_IMPL void sg_begin_pass(sg_pass pass_id, const sg_pass_action* pass_ac
         _sg_resolve_default_pass_action(pass_action, &pa);
         int w, h;
         if (pass->color_atts[0].image) {
-			w = pass->color_atts[0].image->width;
-			h = pass->color_atts[0].image->height;
+            w = pass->color_atts[0].image->width;
+            h = pass->color_atts[0].image->height;
         } else {
-			w = pass->ds_att.image->width;
-			h = pass->ds_att.image->height;
+            w = pass->ds_att.image->width;
+            h = pass->ds_att.image->height;
         }
         _sg_begin_pass(pass, &pa, w, h);
         _SG_TRACE_ARGS(begin_pass, pass_id, pass_action);
@@ -9987,7 +10053,7 @@ SOKOL_API_DECL void sg_bqq_update_subimage(sg_image img, const sg_image_desc *de
     _sg_image_t* dst_img = _sg_lookup_image(&_sg.pools, img.id);
     SOKOL_ASSERT(dst_img->bqq_copy_target);
     if (dst_img && dst_img->slot.state == SG_RESOURCESTATE_VALID) {
-		_sg_bqq_update_subimage(dst_img, desc, dst_x, dst_y);
+        _sg_bqq_update_subimage(dst_img, desc, dst_x, dst_y);
     }
 }
 
@@ -9998,14 +10064,14 @@ SOKOL_API_DECL void sg_bqq_copy_subimages(const sg_bqq_subimage_copy_desc *desc)
     SOKOL_ASSERT(dst_img->bqq_copy_target);
     if (src_img && src_img->slot.state == SG_RESOURCESTATE_VALID
         && dst_img && dst_img->slot.state == SG_RESOURCESTATE_VALID) {
-		_sg_bqq_copy_subimage(desc, dst_img, src_img);
+        _sg_bqq_copy_subimage(desc, dst_img, src_img);
     }
 }
 
 SOKOL_API_DECL void sg_bqq_generate_mipmaps(sg_image image)
 {
     _sg_image_t* img = _sg_lookup_image(&_sg.pools, image.id);
-	_sg_bqq_generate_mipmaps(img);
+    _sg_bqq_generate_mipmaps(img);
 }
 
 #ifdef _MSC_VER
