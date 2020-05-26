@@ -72,7 +72,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
         sf::SmallStringBuf<128> url;
 
 #if defined(GAME_WEBSOCKET_URL)
-        url = GAME_WEBSOKCET_URL;
+        url = GAME_WEBSOCKET_URL;
 #else
         url.format("ws://localhost:%d", port);
 #endif
