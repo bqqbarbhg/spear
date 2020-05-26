@@ -2013,7 +2013,7 @@ _SOKOL_PRIVATE void _sfetch_curl_setup(_sfetch_channel_t *chn) { }
 _SOKOL_PRIVATE void _sfetch_curl_add_request(_sfetch_channel_t *chn, _sfetch_item_t *item) {
     NSString *dataUrl = [NSString stringWithUTF8String: item->path.buf];
     NSURL *url = [NSURL URLWithString:dataUrl];
-    NSURLSessionDownloadTask *task =[[NSURLSession sharedSession]
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession]
         dataTaskWithURL: url
         completionHandler: ^(NSData *data, NSURLResponse *response, NSError *error) {
             item->thread.finished = true;
