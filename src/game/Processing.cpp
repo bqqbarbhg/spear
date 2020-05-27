@@ -1,3 +1,5 @@
+#include "Processing.h"
+
 #include "sf/Process.h"
 
 #include <stdarg.h>
@@ -886,7 +888,7 @@ static void findResourcesImp(Processor &p, sf::String root, sf::StringBuf &prefi
 	}
 }
 
-void initializeProcessing()
+void initializeProcessing(const ProcessingDesc &desc)
 {
 	Processor &p = g_processor;
 
@@ -896,6 +898,10 @@ void initializeProcessing()
 	#else
 		p.maxActiveJobs = sf::max(1u, (uint32_t)std::thread::hardware_concurrency() / 4);
 	#endif
+
+	if (desc.threads > 0) p.maxActiveJobs = (uint32_t)desc.threads;
+
+	p.level = desc.level;
 
 	sf::appendPath(p.dataRoot, "Assets");
 	sf::appendPath(p.tempRoot, "Temp");
