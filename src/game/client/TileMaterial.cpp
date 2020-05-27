@@ -32,11 +32,14 @@ struct TileMaterialAtlasTexture
 	uint32_t textureExtent;
 	uint32_t resolutionX, resolutionY;
 	uint32_t numMips = 0;
+	uint32_t numAllocatedMips = 0;
 	sg_pixel_format pixelFormat = SG_PIXELFORMAT_NONE;
 
 	void init(uint32_t numSlotsX, uint32_t numSlotsY, uint32_t extent, sg_pixel_format format, const char *label)
 	{
 		numMips = 0;
+		numAllocatedMips = 0;
+
 		for (uint32_t e = extent; e >= 8; e /= 2) {
 			numMips++;
 		}
@@ -46,15 +49,22 @@ struct TileMaterialAtlasTexture
 		resolutionX = numSlotsX * extent;
 		resolutionY = numSlotsY * extent;
 
+		for (uint32_t e = sf::max(resolutionX, resolutionY); e >= 1; e /= 2) {
+			numAllocatedMips++;
+		}
+
 		sg_image_desc desc = { };
 		desc.label = label;
 		desc.pixel_format = format;
 		desc.width = (int)resolutionX;
 		desc.height = (int)resolutionY;
-		desc.num_mipmaps = (int)numMips;
+		desc.num_mipmaps = (int)numAllocatedMips;
 		desc.bqq_copy_target = true;
 		desc.mag_filter = SG_FILTER_LINEAR;
 		desc.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
+		desc.max_lod = (float)(numMips - 1);
+		// TODO: Config
+		desc.max_anisotropy = 4;
 		texture.init(desc);
 	}
 };
