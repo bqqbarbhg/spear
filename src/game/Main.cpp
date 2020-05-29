@@ -16,6 +16,10 @@
 
 #include "Processing.h"
 
+#if SF_OS_EMSCRIPTEN
+	#include <emscripten/html5.h>
+#endif
+
 void spConfig(sp::MainConfig &config)
 {
 	config.sappDesc.window_title = "Spear";
@@ -71,7 +75,17 @@ int port;
 
 void spInit()
 {
-    port = 4004;
+    port = -1;
+
+	#if SF_OS_EMSCRIPTEN
+	{
+		EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
+		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_s3tc");
+		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_s3tc_srgb");
+		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_rgtc");
+		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_bptc");
+	}
+	#endif
     
     font.load(sf::Symbol("sp://OpenSans-Ascii.ttf"));
 	gameShaders.load();

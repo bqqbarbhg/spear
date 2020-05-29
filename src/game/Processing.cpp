@@ -840,7 +840,7 @@ struct TileModelTask : Task
 		args.push().format("%d", p.level);
 
 		args.push("--vertex");
-		args.push("pos_rgb32f,nrm_rgb32f,tan_rgb32f,uv_rg32f");
+		args.push("pos_rgb32f,nrm_rgb32f,tan_rgba32f,uv_rg32f");
 
 		args.push("--transform-to-root");
 		args.push("--mesh");

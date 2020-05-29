@@ -45,7 +45,7 @@ static bqws_timestamp bqws_get_timestamp()
 
 static size_t bqws_timestamp_delta_to_ms(bqws_timestamp begin, bqws_timestamp end)
 {
-	return (end - begin) * 1000 / CLOCKS_PER_SEC;
+	return (size_t)((double)(end - begin) * 1000.0 / (double)CLOCKS_PER_SEC);
 }
 
 typedef struct {
@@ -3067,6 +3067,11 @@ void bqws_direct_set_override_state(bqws_socket *ws, bqws_state state)
 	bqws_mutex_lock(&ws->state.mutex);
 	ws->state.override_state = state;
 	bqws_mutex_unlock(&ws->state.mutex);
+}
+
+void bqws_direct_fail(bqws_socket *ws, bqws_error err)
+{
+	ws_fail(ws, err);
 }
 
 bool bqws_parse_url(bqws_url *url, const char *str)

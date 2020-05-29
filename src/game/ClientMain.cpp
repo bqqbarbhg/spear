@@ -2,6 +2,7 @@
 #include "game/server/Message.h"
 
 #include "MessageTransport.h"
+#include "LocalServer.h"
 
 #include "ext/bq_websocket.h"
 #include "ext/bq_websocket_platform.h"
@@ -20,6 +21,7 @@
 #include "game/shader/TestMesh.h"
 #include "game/shader/TestSkin.h"
 #include "ext/sokol/sokol_time.h"
+#include "game/shader2/GameShaders2.h"
 
 static sf::Symbol serverName { "Server" };
 
@@ -47,6 +49,8 @@ struct ClientMain
 	sp::RenderPass tonemapPass;
 	sp::RenderPass fxaaPass;
 
+	Shader2 testMeshShader;
+
 	sp::Pipeline tempMeshPipe;
 	sp::Pipeline tempSkinnedMeshPipe;
 };
@@ -59,6 +63,23 @@ void clientGlobalInit()
 void clientGlobalCleanup()
 {
 	cl::TileMaterial::globalCleanup();
+}
+
+static bool useNormalRemap(sg_pixel_format format)
+{
+	switch (format) {
+	case SG_PIXELFORMAT_RG8:
+	case SG_PIXELFORMAT_RGBA8:
+	case SG_PIXELFORMAT_BC5_RG:
+		return false;
+	case SG_PIXELFORMAT_BC3_RGBA:
+	case SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA:
+	case SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA:
+		return true;
+	default:
+		sf_failf("Unexpected format: %u", format);
+		return false;
+	}
 }
 
 ClientMain *clientInit(int port, const sf::Symbol &name)
@@ -79,7 +100,11 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
         
 		bqws_opts opts = { };
 		opts.name = name.data;
-        c->ws = bqws_pt_connect(url.data, NULL, &opts, NULL);
+		if (port > 0) {
+			c->ws = bqws_pt_connect(url.data, NULL, &opts, NULL);
+		} else {
+			c->ws = localServerConnect(port, &opts, NULL);
+		}
 	}
 
 	{
@@ -94,12 +119,23 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
 	c->tonemapPipe.init(gameShaders.postprocess, sp::PipeVertexFloat2);
 	c->fxaaPipe.init(gameShaders.fxaa, sp::PipeVertexFloat2);
 
+	sg_pixel_format normalFormat = (sg_pixel_format)cl::TileMaterial::getAtlasPixelFormat(cl::MaterialTexture::Normal);
+
+	uint8_t permutation[SP_NUM_PERMUTATIONS] = { };
+	#if SF_OS_WASM
+		permutation[SP_SHADOWGRID_USE_ARRAY] = 1;
+	#else
+		permutation[SP_SHADOWGRID_USE_ARRAY] = 0;
+	#endif
+	permutation[SP_NORMALMAP_REMAP] = useNormalRemap(normalFormat);
+	c->testMeshShader = getShader2(SpShader_TestMesh, permutation);
+
 	{
 		uint32_t flags = sp::PipeDepthWrite|sp::PipeIndex16|sp::PipeCullCCW;
-		auto &d = c->tempMeshPipe.init(gameShaders.testMesh, flags);
+		auto &d = c->tempMeshPipe.init(c->testMeshShader.handle, flags);
 		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
 		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
-		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT4;
 		d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2;
 	}
 
@@ -209,6 +245,7 @@ bool clientUpdate(ClientMain *c)
 
 void clientFree(ClientMain *client)
 {
+	bqws_free_socket(client->ws);
 	delete client;
 }
 
@@ -258,6 +295,8 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 
 			c->tempMeshPipe.bind();
 
+#if 0
+
 			TestMesh_Transform_t transform;
 			viewProj.writeColMajor44(transform.transform);
 			sf::Mat44().writeColMajor44(transform.normalTransform);
@@ -297,9 +336,55 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 			bindings.fs_images[SLOT_TestMesh_maskAtlas] = cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Mask);
 			sg_apply_bindings(&bindings);
 
+#endif
+
+			UBO_Transform tu = { };
+			tu.transform = viewProj;
+			tu.normalTransform = sf::Mat44();
+
+			UBO_Pixel pu = { };
+			pu.numLightsF = (float)c->clientState.pointLights.size;
+			pu.cameraPosition = cameraPosition;
+			sf::Vec4 *dst = pu.pointLightData;
+			for (cl::PointLight &light : c->clientState.pointLights) {
+				dst[0].x = light.position.x;
+				dst[0].y = light.position.y;
+				dst[0].z = light.position.z;
+				dst[0].w = light.radius;
+				dst[1].x = light.color.x;
+				dst[1].y = light.color.y;
+				dst[1].z = light.color.z;
+				dst[1].w = 0.0f;
+				dst[2].x = light.shadowMul.x;
+				dst[2].y = light.shadowMul.y;
+				dst[2].z = light.shadowMul.z;
+				dst[2].w = 0.0f;
+				dst[3].x = light.shadowBias.x;
+				dst[3].y = light.shadowBias.y;
+				dst[3].z = light.shadowBias.z;
+				dst[3].w = 0.0f;
+				dst += 4;
+			}
+
+			bindUniformVS(c->testMeshShader, tu);
+			bindUniformFS(c->testMeshShader, pu);
+
+			sg_bindings bindings = { };
+			bindings.vertex_buffers[0] = chunkGeo.main.vertexBuffer.buffer;
+			bindings.index_buffer = chunkGeo.main.indexBuffer.buffer;
+
+			bindImageFS(c->testMeshShader, bindings, CL_SHADOWCACHE_TEX, c->clientState.shadowCache.shadowCache.image);
+
+			bindImageFS(c->testMeshShader, bindings, TEX_albedoAtlas, cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Albedo));
+			bindImageFS(c->testMeshShader, bindings, TEX_normalAtlas, cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Normal));
+			bindImageFS(c->testMeshShader, bindings, TEX_maskAtlas, cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Mask));
+
+			sg_apply_bindings(&bindings);
+
 			sg_draw(0, chunkGeo.main.numInidces, 1);
 		}
 
+		if (false)
 		for (cl::Entity *entity : c->clientState.entities) {
 			if (!entity) continue;
 

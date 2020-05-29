@@ -1621,7 +1621,7 @@ _SOKOL_PRIVATE uint32_t _sfetch_thread_dequeue_incoming(_sfetch_thread_t* thread
     while (_sfetch_ring_empty(incoming) && !thread->stop_requested) {
         LeaveCriticalSection(&thread->incoming_critsec);
         WaitForSingleObject(&thread->incoming_event, INFINITE);
-        EnterCriticalSection(&thread->incoming_critsec);
+       EnterCriticalSection(&thread->incoming_critsec);
     }
     uint32_t item = 0;
     if (!thread->stop_requested) {

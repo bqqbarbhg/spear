@@ -18,6 +18,8 @@ static const char *getPixelFormatSuffix(sg_pixel_format format)
     case SG_PIXELFORMAT_BQQ_BC1_SRGB: return "bc1";
     case SG_PIXELFORMAT_BC3_RGBA: return "bc3";
     case SG_PIXELFORMAT_BQQ_BC3_SRGB: return "bc3";
+    case SG_PIXELFORMAT_BC5_RG: return "bc5";
+    case SG_PIXELFORMAT_BC5_RGSN: return "bc5";
     case SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA: return "astc4x4";
     case SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB: return "astc4x4";
     case SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA: return "astc8x8";
@@ -212,11 +214,18 @@ sg_image TileMaterial::getAtlasImage(MaterialTexture texture)
 	return ctx.atlases[(uint32_t)texture].texture.image;
 }
 
+uint32_t TileMaterial::getAtlasPixelFormat(MaterialTexture texture)
+{
+	TileMaterialContext &ctx = g_tileMaterialContext;
+	return (uint32_t)ctx.atlases[(uint32_t)texture].pixelFormat;
+}
+
 void TileMaterial::globalInit()
 {
 	TileMaterialContext &ctx = g_tileMaterialContext;
-    
+
     sg_pixel_format albedoFormats[] = {
+        // SG_PIXELFORMAT_BQQ_BC7_SRGB, Broken atm
         SG_PIXELFORMAT_BQQ_BC1_SRGB,
         SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB,
         SG_PIXELFORMAT_BQQ_SRGBA8,

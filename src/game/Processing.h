@@ -9,3 +9,4 @@ struct ProcessingDesc
 void initializeProcessing(const ProcessingDesc &desc = ProcessingDesc());
 void closeProcessing();
 bool updateProcessing();
+

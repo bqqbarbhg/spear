@@ -187,6 +187,12 @@
     #ifndef GL_LUMINANCE
     #define GL_LUMINANCE 0x1909
     #endif
+	#ifndef GL_UNIFORM_BUFFER
+	#define GL_UNIFORM_BUFFER 0x8A11 
+    #endif
+    #ifndef GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT
+    #define GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT 0x8A34
+    #endif
 
     #ifdef SOKOL_GLES2
     #   ifdef GL_ANGLE_instanced_arrays
@@ -442,6 +448,7 @@ typedef struct {
 } _sg_uniform_t;
 
 typedef struct {
+    GLuint binding;
     int size;
     int num_uniforms;
     _sg_uniform_t uniforms[SG_MAX_UB_MEMBERS];
@@ -564,6 +571,10 @@ typedef struct {
     bool ext_anisotropic;
     GLint max_anisotropy;
     GLint max_combined_texture_image_units;
+    GLuint uniform_buffers[SG_NUM_INFLIGHT_FRAMES];
+    GLint cur_ub_offset;
+    GLint ub_align_mask;
+    int ub_slot;
 } _sg_gl_backend_t;
 
 /*== D3D11 BACKEND DECLARATIONS ==============================================*/
@@ -1196,6 +1207,7 @@ _SOKOL_PRIVATE bool _sg_is_compressed_pixel_format(sg_pixel_format fmt) {
         case SG_PIXELFORMAT_BC6H_RGBF:
         case SG_PIXELFORMAT_BC6H_RGBUF:
         case SG_PIXELFORMAT_BC7_RGBA:
+        case SG_PIXELFORMAT_BQQ_BC7_SRGB:
         case SG_PIXELFORMAT_PVRTC_RGB_2BPP:
         case SG_PIXELFORMAT_PVRTC_RGB_4BPP:
         case SG_PIXELFORMAT_PVRTC_RGBA_2BPP:
@@ -1313,6 +1325,7 @@ _SOKOL_PRIVATE int _sg_row_pitch(sg_pixel_format fmt, int width) {
         case SG_PIXELFORMAT_BC6H_RGBF:
         case SG_PIXELFORMAT_BC6H_RGBUF:
         case SG_PIXELFORMAT_BC7_RGBA:
+        case SG_PIXELFORMAT_BQQ_BC7_SRGB:
             pitch = ((width + 3) / 4) * 16;
             pitch = pitch < 16 ? 16 : pitch;
             break;
@@ -1373,6 +1386,7 @@ _SOKOL_PRIVATE int _sg_surface_pitch(sg_pixel_format fmt, int width, int height)
         case SG_PIXELFORMAT_BC6H_RGBF:
         case SG_PIXELFORMAT_BC6H_RGBUF:
         case SG_PIXELFORMAT_BC7_RGBA:
+        case SG_PIXELFORMAT_BQQ_BC7_SRGB:
         case SG_PIXELFORMAT_PVRTC_RGB_4BPP:
         case SG_PIXELFORMAT_PVRTC_RGBA_4BPP:
         case SG_PIXELFORMAT_PVRTC_RGB_2BPP:
@@ -2156,6 +2170,8 @@ _SOKOL_PRIVATE GLenum _sg_gl_teximage_format(sg_pixel_format fmt) {
             return GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB;
         case SG_PIXELFORMAT_BC7_RGBA:
             return GL_COMPRESSED_RGBA_BPTC_UNORM_ARB;
+        case SG_PIXELFORMAT_BQQ_BC7_SRGB:
+            return GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB;
         case SG_PIXELFORMAT_PVRTC_RGB_2BPP:
             return GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG;
         case SG_PIXELFORMAT_PVRTC_RGB_4BPP:
@@ -2249,6 +2265,7 @@ _SOKOL_PRIVATE GLenum _sg_gl_teximage_internal_format(sg_pixel_format fmt) {
             case SG_PIXELFORMAT_BC6H_RGBF:          return GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB;
             case SG_PIXELFORMAT_BC6H_RGBUF:         return GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB;
             case SG_PIXELFORMAT_BC7_RGBA:           return GL_COMPRESSED_RGBA_BPTC_UNORM_ARB;
+            case SG_PIXELFORMAT_BQQ_BC7_SRGB:       return GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB;
             case SG_PIXELFORMAT_PVRTC_RGB_2BPP:     return GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG;
             case SG_PIXELFORMAT_PVRTC_RGB_4BPP:     return GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG;
             case SG_PIXELFORMAT_PVRTC_RGBA_2BPP:    return GL_COMPRESSED_RGBA_PVRTC_2BPPV1_IMG;
@@ -2533,6 +2550,7 @@ _SOKOL_PRIVATE void _sg_gl_init_pixelformats_bptc(void) {
     _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BC6H_RGBF]);
     _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BC6H_RGBUF]);
     _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BC7_RGBA]);
+    _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BQQ_BC7_SRGB]);
 }
 
 _SOKOL_PRIVATE void _sg_gl_init_pixelformats_pvrtc(void) {
@@ -3039,6 +3057,17 @@ _SOKOL_PRIVATE void _sg_setup_backend(const sg_desc* desc) {
     #else
         _sg_gl_init_caps_gles2();
     #endif
+
+    glGenBuffers(SG_NUM_INFLIGHT_FRAMES, _sg.gl.uniform_buffers);
+    for (int i = 0; i < SG_NUM_INFLIGHT_FRAMES; i++) {
+        glBindBuffer(GL_UNIFORM_BUFFER, _sg.gl.uniform_buffers[i]);
+        glBufferData(GL_UNIFORM_BUFFER, desc->mtl_global_uniform_buffer_size, NULL, GL_DYNAMIC_DRAW);
+    }
+    _SG_GL_CHECK_ERROR();
+
+    GLint ub_align;
+    glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &ub_align);
+	_sg.gl.ub_align_mask = ub_align - 1;
 }
 
 _SOKOL_PRIVATE void _sg_discard_backend(void) {
@@ -3306,7 +3335,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
                             gl_img_target = _sg_gl_cubeface_target(face_index);
                         }
                         const GLvoid* data_ptr = desc->content.subimage[face_index][mip_index].ptr;
-                        const int data_size = desc->content.subimage[face_index][mip_index].size;
+                        int data_size = desc->content.subimage[face_index][mip_index].size;
                         int mip_width = img->width >> mip_index;
                         if (mip_width == 0) {
                             mip_width = 1;
@@ -3317,13 +3346,18 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
                         }
                         if ((SG_IMAGETYPE_2D == img->type) || (SG_IMAGETYPE_CUBE == img->type)) {
                             if (is_compressed) {
-                                if (data_size > 0) {
-                                    glCompressedTexImage2D(gl_img_target, mip_index, gl_internal_format,
-                                        mip_width, mip_height, 0, data_size, data_ptr);
-                                } else {
-                                    glTexImage2D(gl_img_target, mip_index, gl_internal_format,
-                                        mip_width, mip_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-                                    _SG_GL_CHECK_ERROR();
+                                GLvoid *data_to_free = NULL;
+                                if (data_size == 0) {
+                                    data_size = _sg_surface_pitch(img->pixel_format, mip_width, mip_height);
+                                    data_to_free = SOKOL_MALLOC(data_size);
+                                    data_ptr = data_to_free;
+                                }
+
+								glCompressedTexImage2D(gl_img_target, mip_index, gl_internal_format,
+									mip_width, mip_height, 0, data_size, data_ptr);
+
+                                if (data_to_free) {
+                                    SOKOL_FREE(data_to_free);
                                 }
                             }
                             else {
@@ -3446,6 +3480,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_shader(_sg_shader_t* shd, const sg_s
     shd->gl_prog = gl_prog;
 
     /* resolve uniforms */
+    GLuint binding_ix = 0;
     _SG_GL_CHECK_ERROR();
     for (int stage_index = 0; stage_index < SG_NUM_SHADER_STAGES; stage_index++) {
         const sg_shader_stage_desc* stage_desc = (stage_index == SG_SHADERSTAGE_VS)? &desc->vs : &desc->fs;
@@ -3458,27 +3493,33 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_shader(_sg_shader_t* shd, const sg_s
             }
             _sg_uniform_block_t* ub = &stage->uniform_blocks[ub_index];
             ub->size = ub_desc->size;
-            SOKOL_ASSERT(ub->num_uniforms == 0);
-            int cur_uniform_offset = 0;
-            for (int u_index = 0; u_index < SG_MAX_UB_MEMBERS; u_index++) {
-                const sg_shader_uniform_desc* u_desc = &ub_desc->uniforms[u_index];
-                if (u_desc->type == SG_UNIFORMTYPE_INVALID) {
-                    break;
-                }
-                _sg_uniform_t* u = &ub->uniforms[u_index];
-                u->type = u_desc->type;
-                u->count = (uint8_t) u_desc->array_count;
-                u->offset = (uint16_t) cur_uniform_offset;
-                cur_uniform_offset += _sg_uniform_size(u->type, u->count);
-                if (u_desc->name) {
-                    u->gl_loc = glGetUniformLocation(gl_prog, u_desc->name);
-                }
-                else {
-                    u->gl_loc = u_index;
-                }
-                ub->num_uniforms++;
+            if (ub_desc->uniforms[0].type == 0x214f4255) {
+                GLuint index = glGetUniformBlockIndex(gl_prog, ub_desc->uniforms[0].name);
+                glUniformBlockBinding(gl_prog, index, binding_ix);
+                ub->binding = binding_ix++;
+            } else {
+				SOKOL_ASSERT(ub->num_uniforms == 0);
+				int cur_uniform_offset = 0;
+				for (int u_index = 0; u_index < SG_MAX_UB_MEMBERS; u_index++) {
+					const sg_shader_uniform_desc* u_desc = &ub_desc->uniforms[u_index];
+					if (u_desc->type == SG_UNIFORMTYPE_INVALID) {
+						break;
+					}
+					_sg_uniform_t* u = &ub->uniforms[u_index];
+					u->type = u_desc->type;
+					u->count = (uint8_t) u_desc->array_count;
+					u->offset = (uint16_t) cur_uniform_offset;
+					cur_uniform_offset += _sg_uniform_size(u->type, u->count);
+					if (u_desc->name) {
+						u->gl_loc = glGetUniformLocation(gl_prog, u_desc->name);
+					}
+					else {
+						u->gl_loc = u_index;
+					}
+					ub->num_uniforms++;
+				}
+				SOKOL_ASSERT(ub_desc->size == cur_uniform_offset);
             }
-            SOKOL_ASSERT(ub_desc->size == cur_uniform_offset);
             stage->num_uniform_blocks++;
         }
     }
@@ -4223,6 +4264,19 @@ _SOKOL_PRIVATE void _sg_apply_uniforms(sg_shader_stage stage_index, int ub_index
     SOKOL_ASSERT(ub_index < stage->num_uniform_blocks);
     _sg_uniform_block_t* ub = &stage->uniform_blocks[ub_index];
     SOKOL_ASSERT(ub->size == num_bytes);
+
+    if (ub->num_uniforms == 0) {
+        GLint ub_offset = _sg.gl.cur_ub_offset;
+
+        glBufferSubData(GL_UNIFORM_BUFFER, ub_offset, num_bytes, data);
+        glBindBufferRange(GL_UNIFORM_BUFFER, ub->binding, _sg.gl.uniform_buffers[_sg.gl.ub_slot], ub_offset, num_bytes);
+
+        ub_offset += num_bytes;
+        ub_offset += -ub_offset & _sg.gl.ub_align_mask;
+        _sg.gl.cur_ub_offset = ub_offset;
+        return;
+    }
+
     for (int u_index = 0; u_index < ub->num_uniforms; u_index++) {
         _sg_uniform_t* u = &ub->uniforms[u_index];
         SOKOL_ASSERT(u->type != SG_UNIFORMTYPE_INVALID);
@@ -4290,6 +4344,8 @@ _SOKOL_PRIVATE void _sg_commit(void) {
     /* "soft" clear bindings (only those that are actually bound) */
     _sg_gl_clear_buffer_bindings(false);
     _sg_gl_clear_texture_bindings(false);
+    _sg.gl.cur_ub_offset = 0;
+    _sg.gl.ub_slot = (_sg.gl.ub_slot + 1) % SG_NUM_INFLIGHT_FRAMES;
 }
 
 _SOKOL_PRIVATE void _sg_update_buffer(_sg_buffer_t* buf, const void* data_ptr, int data_size) {
@@ -4571,6 +4627,7 @@ _SOKOL_PRIVATE DXGI_FORMAT _sg_d3d11_pixel_format(sg_pixel_format fmt) {
         case SG_PIXELFORMAT_BC6H_RGBF:      return DXGI_FORMAT_BC6H_SF16;
         case SG_PIXELFORMAT_BC6H_RGBUF:     return DXGI_FORMAT_BC6H_UF16;
         case SG_PIXELFORMAT_BC7_RGBA:       return DXGI_FORMAT_BC7_UNORM;
+        case SG_PIXELFORMAT_BQQ_BC7_SRGB:   return DXGI_FORMAT_BC7_UNORM_SRGB;
         default:                            return DXGI_FORMAT_UNKNOWN;
     };
 }
@@ -6159,6 +6216,7 @@ _SOKOL_PRIVATE MTLPixelFormat _sg_mtl_pixel_format(sg_pixel_format fmt) {
         case SG_PIXELFORMAT_BC6H_RGBF:              return MTLPixelFormatBC6H_RGBFloat;
         case SG_PIXELFORMAT_BC6H_RGBUF:             return MTLPixelFormatBC6H_RGBUfloat;
         case SG_PIXELFORMAT_BC7_RGBA:               return MTLPixelFormatBC7_RGBAUnorm;
+        case SG_PIXELFORMAT_BQQ_BC7_SRGB:           return MTLPixelFormatBC7_RGBA_sRGB;
         #else
         case SG_PIXELFORMAT_PVRTC_RGB_2BPP:         return MTLPixelFormatPVRTC_RGB_2BPP;
         case SG_PIXELFORMAT_PVRTC_RGB_4BPP:         return MTLPixelFormatPVRTC_RGB_4BPP;
@@ -6708,6 +6766,7 @@ _SOKOL_PRIVATE void _sg_mtl_init_caps(void) {
         _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BC6H_RGBF]);
         _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BC6H_RGBUF]);
         _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BC7_RGBA]);
+        _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_BQQ_BC7_SRGB]);
     #else
         _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_PVRTC_RGB_2BPP]);
         _sg_pixelformat_sf(&_sg.formats[SG_PIXELFORMAT_PVRTC_RGB_4BPP]);
@@ -8489,10 +8548,15 @@ _SOKOL_PRIVATE bool _sg_validate_shader_desc(const sg_shader_desc* desc) {
                 if (ub_desc->size > 0) {
                     SOKOL_VALIDATE(uniform_blocks_continuous, _SG_VALIDATE_SHADERDESC_NO_CONT_UBS);
                     bool uniforms_continuous = true;
+                    bool use_block = false;
                     int uniform_offset = 0;
                     int num_uniforms = 0;
                     for (int u_index = 0; u_index < SG_MAX_UB_MEMBERS; u_index++) {
                         const sg_shader_uniform_desc* u_desc = &ub_desc->uniforms[u_index];
+                        if ((uint32_t)u_desc->type == 0x214f4255) {
+                            use_block = true;
+                            break;
+                        }
                         if (u_desc->type != SG_UNIFORMTYPE_INVALID) {
                             SOKOL_VALIDATE(uniforms_continuous, _SG_VALIDATE_SHADERDESC_NO_CONT_UB_MEMBERS);
                             #if defined(SOKOL_GLES2) || defined(SOKOL_GLES3)
@@ -8507,8 +8571,10 @@ _SOKOL_PRIVATE bool _sg_validate_shader_desc(const sg_shader_desc* desc) {
                         }
                     }
                     #if defined(SOKOL_GLCORE33) || defined(SOKOL_GLES2) || defined(SOKOL_GLES3)
-                    SOKOL_VALIDATE(uniform_offset == ub_desc->size, _SG_VALIDATE_SHADERDESC_UB_SIZE_MISMATCH);
-                    SOKOL_VALIDATE(num_uniforms > 0, _SG_VALIDATE_SHADERDESC_NO_UB_MEMBERS);
+                    if (!use_block) {
+						SOKOL_VALIDATE(uniform_offset == ub_desc->size, _SG_VALIDATE_SHADERDESC_UB_SIZE_MISMATCH);
+						SOKOL_VALIDATE(num_uniforms > 0, _SG_VALIDATE_SHADERDESC_NO_UB_MEMBERS);
+                    }
                     #endif
                 }
                 else {

@@ -400,6 +400,7 @@ size_t bqws_write_to(bqws_socket *ws, void *data, size_t size);
 // Direct control
 void bqws_direct_push_msg(bqws_socket *ws, bqws_msg *msg);
 void bqws_direct_set_override_state(bqws_socket *ws, bqws_state state);
+void bqws_direct_fail(bqws_socket *ws, bqws_error err);
 
 // -- Utility
 

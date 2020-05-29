@@ -3,6 +3,14 @@
 #include "sp/Renderer.h"
 #include "sf/HashMap.h"
 
+#if SF_OS_WASM
+	#define CL_SHADOWCACHE_USE_ARRAY 1
+	#define CL_SHADOWCACHE_TEX TEX_shadowGridArray
+#else
+	#define CL_SHADOWCACHE_USE_ARRAY 0 
+	#define CL_SHADOWCACHE_TEX TEX_shadowGrid3D
+#endif
+
 namespace cl {
 
 struct State;

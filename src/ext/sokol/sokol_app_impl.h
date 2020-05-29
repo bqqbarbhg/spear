@@ -3199,6 +3199,12 @@ typedef void (GL_APIENTRY *PFN_glGenerateMipmap)(GLenum target);
 static PFN_glGenerateMipmap _sapp_glGenerateMipmap;
 typedef void (GL_APIENTRY *PFN_glCompressedTexSubImage2D)(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void * data);
 static PFN_glCompressedTexSubImage2D _sapp_glCompressedTexSubImage2D;
+typedef void (GL_APIENTRY *PFN_glBindBufferRange)(GLenum target, GLuint index, GLuint buffer, GLintptr offset, GLsizeiptr size);
+static PFN_glBindBufferRange _sapp_glBindBufferRange;
+typedef GLuint (GL_APIENTRY *PFN_glGetUniformBlockIndex)(GLuint program, const GLchar *uniformBlockName);
+static PFN_glGetUniformBlockIndex _sapp_glGetUniformBlockIndex;
+typedef void (GL_APIENTRY *PFN_glUniformBlockBinding)(GLuint program, GLuint uniformBlockIndex, GLuint uniformBlockBinding);
+static PFN_glUniformBlockBinding _sapp_glUniformBlockBinding;
 
 _SOKOL_PRIVATE void* _sapp_win32_glgetprocaddr(const char* name) {
     void* proc_addr = (void*) _sapp_wglGetProcAddress(name);
@@ -3314,6 +3320,9 @@ _SOKOL_PRIVATE  void _sapp_win32_gl_loadfuncs(void) {
     _SAPP_GLPROC(glCopyTexSubImage3D);
     _SAPP_GLPROC(glGenerateMipmap);
     _SAPP_GLPROC(glCompressedTexSubImage2D);
+    _SAPP_GLPROC(glBindBufferRange);
+    _SAPP_GLPROC(glGetUniformBlockIndex);
+    _SAPP_GLPROC(glUniformBlockBinding);
 }
 #define glBindVertexArray _sapp_glBindVertexArray
 #define glFramebufferTextureLayer _sapp_glFramebufferTextureLayer
@@ -3413,6 +3422,9 @@ _SOKOL_PRIVATE  void _sapp_win32_gl_loadfuncs(void) {
 #define glCopyTexSubImage3D _sapp_glCopyTexSubImage3D
 #define glGenerateMipmap _sapp_glGenerateMipmap
 #define glCompressedTexSubImage2D _sapp_glCompressedTexSubImage2D
+#define glBindBufferRange _sapp_glBindBufferRange
+#define glGetUniformBlockIndex _sapp_glGetUniformBlockIndex
+#define glUniformBlockBinding _sapp_glUniformBlockBinding
 
 #endif /* SOKOL_WIN32_NO_GL_LOADER */
 

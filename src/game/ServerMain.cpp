@@ -7,6 +7,7 @@
 #include "sf/Array.h"
 
 #include "MessageTransport.h"
+#include "LocalServer.h"
 
 static sf::Symbol serverName { "Server" };
 
@@ -48,6 +49,7 @@ struct Session
 struct ServerMain
 {
 	bqws_pt_server *server;
+	LocalServer *localServer;
 	sf::HashMap<uint32_t, Session> sessions;
 	sf::Array<bqws_socket*> pendingClients;
 	uint32_t clientCounter = 0;
@@ -57,11 +59,20 @@ ServerMain *serverInit(int port)
 {
 	bqws_pt_listen_opts opts = { };
 	opts.port = (uint16_t)port;
-	bqws_pt_server *server = bqws_pt_listen(&opts);
-	if (!server) return nullptr;
+
+	bqws_pt_server *server = NULL;
+	LocalServer *localServer = NULL;
+	
+	if (port > 0) {
+		server = bqws_pt_listen(&opts);
+		if (!server) return nullptr;
+	} else {
+		localServer = localServerInit(port);
+	}
 
 	ServerMain *s = new ServerMain();
 	s->server = server;
+	s->localServer = localServer;
 
 	{
 		Session &session = s->sessions[1u];
@@ -132,6 +143,11 @@ static void wsLog(void *user, bqws_socket *ws, const char *line)
 	sf::debugPrintLine("%p (%s): %s", ws, addr_str, line);
 }
 
+static void wsLogLocal(void *user, bqws_socket *ws, const char *line)
+{
+	sf::debugPrintLine("%p : %s", ws, line);
+}
+
 void serverUpdate(ServerMain *s)
 {
 	// Accept new clients
@@ -142,8 +158,14 @@ void serverUpdate(ServerMain *s)
 
 		bqws_opts opts = { };
 		opts.name = name.data;
-		opts.log_fn = &wsLog;
-		bqws_socket *ws = bqws_pt_accept(s->server, &opts, NULL);
+		bqws_socket *ws = NULL;
+		if (s->server) {
+			opts.log_fn = &wsLog;
+			ws = bqws_pt_accept(s->server, &opts, NULL);
+		} else if (s->localServer) {
+			opts.log_fn = &wsLogLocal;
+			ws = localServerAccept(s->localServer, &opts, NULL);
+		}
 		if (ws) {
 			bqws_server_accept(ws, "spear");
 			s->pendingClients.push(ws);

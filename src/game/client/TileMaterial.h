@@ -27,6 +27,7 @@ struct TileMaterial : sp::Asset
 	// -- Static API
 
 	static sg_image getAtlasImage(MaterialTexture texture);
+	static uint32_t getAtlasPixelFormat(MaterialTexture texture);
 
 	// Lifecycle
 	static void globalInit();

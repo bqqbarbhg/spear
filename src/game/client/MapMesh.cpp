@@ -117,7 +117,7 @@ void MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 					MapVertex &dst = *vertexDst++;
 					dst.position = sf::transformPoint(transform, vertex.position);
 					dst.normal = sf::normalizeOrZero(sf::transformPoint(normalTransform, vertex.normal));
-					dst.tangent = sf::normalizeOrZero(sf::transformPoint(tangentTransform, vertex.tangent));
+					dst.tangent = sf::Vec4(sf::normalizeOrZero(sf::transformPoint(tangentTransform, sf::Vec3(vertex.tangent.v))), vertex.tangent.w);
 					dst.uv = vertex.uv * material->uvScale + material->uvBase;
 					mainBuilder.updateBounds(dst.position);
 				}

@@ -43,6 +43,7 @@ def compile_file(path):
 for root,dirs,files in os.walk(src_dir):
     for f in files:
         f = os.path.join(root, f)
+        if "shader2" in f: continue
         if f.endswith(".glsl") and not f.endswith(".inc.glsl"):
             compile_file(f)
 

@@ -12,7 +12,7 @@ struct MapVertex
 {
 	sf::Vec3 position;
 	sf::Vec3 normal;
-	sf::Vec3 tangent;
+	sf::Vec4 tangent;
 	sf::Vec2 uv;
 };
 
