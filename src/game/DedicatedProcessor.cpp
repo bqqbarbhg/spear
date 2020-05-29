@@ -11,21 +11,21 @@
 
 int main(int argc, char **argv)
 {
-	sargs_desc desc = { argc, cargv };
+	sargs_desc desc = { argc, argv };
 	sargs_setup(&desc);
 
-	ProcessingDesc desc;
+	ProcessingDesc procDesc;
 
 	if (int arg = sargs_find("level")) {
-		desc.level = atoi(sargs_value_at(arg));
+		procDesc.level = atoi(sargs_value_at(arg));
 	}
 	if (int arg = sargs_find("threads")) {
-		desc.threads = atoi(sargs_value_at(arg));
+		procDesc.threads = atoi(sargs_value_at(arg));
 	}
 
 	stm_setup();
 
-	initializeProcessing(level);
+	initializeProcessing(procDesc);
 
 	while (updateProcessing()) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
