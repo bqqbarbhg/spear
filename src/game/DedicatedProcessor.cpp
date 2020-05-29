@@ -12,14 +12,19 @@
 int main(int argc, char **argv)
 {
 	sargs_desc desc = { argc, argv };
+	desc.max_args = 16;
+	desc.buf_size = 16*4096;
 	sargs_setup(&desc);
 
 	ProcessingDesc procDesc;
 
-	if (int arg = sargs_find("level")) {
+	int arg;
+	arg = sargs_find("level");
+	if (arg >= 0) {
 		procDesc.level = atoi(sargs_value_at(arg));
 	}
-	if (int arg = sargs_find("threads")) {
+	arg = sargs_find("threads");
+	if (arg >= 0) {
 		procDesc.threads = atoi(sargs_value_at(arg));
 	}
 
