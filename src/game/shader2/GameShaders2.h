@@ -5,7 +5,7 @@
 #include "ext/sokol/sokol_config.h"
 #include "ext/sokol/sokol_defs.h"
 
-#if defined(SOKOL_GLCORE33)
+#if defined(SOKOL_GLCORE33) || defined(SOKOL_DUMMY_BACKEND)
 	#include "GameShaders_glsl.h"
 #elif defined(SOKOL_GLES3)
 	#include "GameShaders_gles.h"
