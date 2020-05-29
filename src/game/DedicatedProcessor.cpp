@@ -1,6 +1,7 @@
 #if defined(SP_DEDICATED_PROCESSOR)
 
 #include "Processing.h"
+#include "sf/Base.h"
 
 #include "ext/sokol/sokol_time.h"
 #include "ext/sokol/sokol_args.h"
@@ -29,6 +30,8 @@ int main(int argc, char **argv)
 	}
 
 	stm_setup();
+
+	sf::debugPrintLine("Processing with level=%d, threads=%d", procDesc.level, procDesc.threads);
 
 	initializeProcessing(procDesc);
 
