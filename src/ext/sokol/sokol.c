@@ -20,6 +20,7 @@
 #include "sokol_gl.h"
 #include "sokol_time.h"
 #include "sokol_fetch.h"
+#include "sokol_args.h"
 
 #include "sokol_gl_impl.h"
 #include "sokol_time_impl.h"
