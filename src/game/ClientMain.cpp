@@ -34,6 +34,7 @@ struct ClientMain
 
 	sf::Box<sv::State> serverState;
 	cl::State clientState;
+	uint32_t reloadCount = 0;
 
 	sf::Vec2i resolution;
 
@@ -221,6 +222,14 @@ bool clientUpdate(ClientMain *c)
 	}
 
 	bqws_update(c->ws);
+
+	{
+		uint32_t reloadCount = sp::Asset::getReloadCount();
+		if (reloadCount != c->reloadCount) {
+			c->reloadCount = reloadCount;
+			c->clientState.assetsReloaded();
+		}
+	}
 
 	c->clientState.updateMapChunks(*c->serverState);
 

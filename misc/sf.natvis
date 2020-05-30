@@ -62,6 +62,16 @@
     </Expand>
   </Type>
 
+  <Type Name="sf::HashSet&lt;*&gt;">
+    <DisplayString>{{ size={map.size} capacity={map.capacity} }}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>map.size</Size>
+        <ValuePointer>data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
   <Type Name="sf::Type">
     <DisplayString>{{ name={name} }}</DisplayString>
     <Expand>

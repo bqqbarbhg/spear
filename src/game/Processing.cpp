@@ -9,7 +9,10 @@
 #include "sf/File.h"
 #include "sf/Symbol.h"
 #include "sf/HashMap.h"
+#include "sf/HashSet.h"
 #include "sf/Box.h"
+
+#include "sp/Asset.h"
 
 #include "ext/sokol/sokol_time.h"
 
@@ -198,6 +201,13 @@ struct Task
 	~Task() { }
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) = 0;
 	virtual void process(Processor &p, TaskInstance &ti) = 0;
+	virtual void getAssetNames(TaskInstance &ti, sf::HashSet<sf::Symbol> &names)
+	{
+		if (ti.key) names.insert(ti.key);
+		for (const auto &pair : ti.outputs) {
+			names.insert(pair.val);
+		}
+	}
 };
 
 struct TaskInstanceKey
@@ -229,6 +239,8 @@ struct Processor
 	sf::StringBuf tempRoot;
 	sf::StringBuf buildRoot;
 	sf::StringBuf toolRoot;
+
+	sf::HashSet<sf::Symbol> assetsToReload;
 
 	sf::DirectoryMonitor dataMonitor;
 
@@ -295,6 +307,7 @@ void Processor::updateTasks()
 
 		ti->dirty = false;
 		ti->processing = true;
+		ti->task->getAssetNames(*ti, assetsToReload);
 		ti->task->process(*this, *ti);
 		dirtyTaskInstances.removeSwap(i--);
 	}
@@ -1015,6 +1028,27 @@ bool updateProcessing()
 		}
 	}
 
-	return p.dirtyTaskInstances.size > 0 || p.activeJobs.size > 0;
+	if (p.dirtyTaskInstances.size > 0 || p.activeJobs.size > 0) {
+		return true;
+	}
+
+	if (p.assetsToReload.size() > 0) {
+		sf::Array<sf::Symbol> fixedNames;
+		sf::SmallStringBuf<1024> fixed;
+		for (const sf::Symbol &name : p.assetsToReload) {
+			fixed.clear();
+			fixed.append("Assets/");
+			for (size_t i = 0; i < name.size(); i++) {
+				char c = name.data[i];
+				fixed.append(c == '\\' ? '/' : c);
+			}
+			fixedNames.push(sf::Symbol(fixed));
+		}
+
+		sp::Asset::reloadAssetsByName(fixedNames);
+		p.assetsToReload.clear();
+	}
+
+	return false;
 }
 

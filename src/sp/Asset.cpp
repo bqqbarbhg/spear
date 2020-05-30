@@ -4,6 +4,7 @@
 #include "sf/HashMap.h"
 #include "sf/Array.h"
 #include "sf/Mutex.h"
+#include "sf/HashSet.h"
 
 namespace sp {
 
@@ -48,6 +49,7 @@ uint32_t hash(const AssetKey &key) {
 // NOTE: This is zero-initialized!
 struct AssetTypeImp
 {
+	bool inList;
 
 	// Mapping from name+props to assets
 	sf::HashMap<AssetKey, Asset*> assetMap;
@@ -66,10 +68,25 @@ struct AssetContext
 {
 	sf::Mutex mutex;
 	sf::Array<PendingAsset> assetsToFree;
+	sf::Array<AssetTypeImp*> types;
 	uint32_t frameIndex = 0;
+	uint32_t reloadCount = 0;
 
 	// Number of assets loading at the moment
 	uint32_t numAssetsLoading = 0;
+
+	void reloadByName(const sf::HashSet<sf::Symbol> &names)
+	{
+		sf::MutexGuard mg(mutex);
+		mxa_inc32_rel(&reloadCount);
+		for (AssetTypeImp *type : types) {
+			for (auto &pair : type->assetMap) {
+				if (names.find(pair.val->name)) {
+					pair.val->startReloading();
+				}
+			}
+		}
+	}
 
 	Asset *findAsset(AssetType *type, const sf::Symbol &name, const AssetProps &props)
 	{
@@ -94,6 +111,11 @@ struct AssetContext
 	{
 		sf::MutexGuard mg(mutex);
 		AssetTypeImp *typeImp = (AssetTypeImp*)type->impData;
+
+		if (!typeImp->inList) {
+			typeImp->inList = true;
+			types.push(typeImp);
+		}
 
 		// Insert the asset to the type's asset map
 		// NOTE: The inserted `AssetKey` will refer to local data,
@@ -292,6 +314,40 @@ void Asset::startLoading()
 	assetStartLoading();
 }
 
+static void resetAssetImp(Asset *asset)
+{
+	alignas(Asset) char copyData[sizeof(Asset)];
+	memcpy(copyData, asset, sizeof(Asset));
+	Asset *copy = (Asset*)copyData;
+
+	asset->~Asset();
+	copy->type->ctorFn(asset);
+	asset->type = copy->type;
+	asset->name = copy->name;
+	asset->props = copy->props;
+	asset->refcount = copy->refcount;
+	asset->impState = copy->impState;
+	asset->impFlags = copy->impFlags;
+}
+
+void Asset::startReloading()
+{
+	// Transition from Loaded -> Loading
+	if (mxa_cas32_acq(&impState, (uint32_t)LoadState::Loaded, (uint32_t)LoadState::Loading)) {
+		assetUnload();
+		resetAssetImp(this);
+		assetStartLoading();
+		return;
+	}
+
+	// Transition from Failed -> Loading
+	if (mxa_cas32_acq(&impState, (uint32_t)LoadState::Failed, (uint32_t)LoadState::Loading)) {
+		resetAssetImp(this);
+		assetStartLoading();
+		return;
+	}
+}
+
 void Asset::assetFinishLoading()
 {
 	// Transition from Loading -> Loaded (must succeed)
@@ -323,6 +379,18 @@ void Asset::globalCleanup()
 void Asset::globalUpdate()
 {
 	g_assetContext.update();
+}
+
+void Asset::reloadAssetsByName(sf::Slice<const sf::Symbol> names)
+{
+	sf::HashSet<sf::Symbol> set;
+	for (const sf::Symbol &name : names) set.insert(name);
+	g_assetContext.reloadByName(set);
+}
+
+uint32_t Asset::getReloadCount()
+{
+	return mxa_load32_rel(&g_assetContext.reloadCount);
 }
 
 Asset *Asset::impFind(AssetType *type, const sf::Symbol &name, const AssetProps &props)

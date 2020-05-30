@@ -168,6 +168,13 @@ sf_inline void impSwap(T &a, T &b)
 	b.~T(); new (&b) T(std::move(tmp));
 }
 
+template <typename T>
+sf_inline void reset(T &t)
+{
+	t.~T();
+	new (&t) T();
+}
+
 // -- Type traits
 
 // Can the type be initialized by calling `memset(0)`
@@ -324,6 +331,13 @@ static T *find(Slice<T> arr, const U &t)
 	}
 	return nullptr;
 }
+
+template <typename T>
+struct InsertResult
+{
+	T &entry;
+	bool inserted;
+};
 
 enum UninitType { Uninit };
 enum ConstType { Const };

@@ -193,7 +193,7 @@ project "spear"
 	language "C++"
     files { "src/**.h", "src/**.cpp", "src/**.c" }
     files { "misc/*.natvis" }
-	debugdir "."
+	debugdir "../dealers-dungeon"
 	filter { "action:xcode4" }
 		symbolspath "build/%{cfg.configuration}"
 		files { "src/**.m" }

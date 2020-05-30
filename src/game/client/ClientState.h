@@ -19,6 +19,7 @@ struct MapChunk
 {
 	sf::Array<MapMesh> meshes;
 	MapChunkGeometry geometry;
+	bool meshesDirty = false;
 	bool dirty = false;
 };
 
@@ -92,6 +93,7 @@ struct State
 	void updateMapChunks(sv::State &svState);
 
 	void recreateTargets();
+	void assetsReloaded();
 };
 
 }

@@ -11,8 +11,10 @@ namespace sp {
 
 struct AnimationImp : Animation
 {
+	using ContextType = acl::uniformly_sampled::DecompressionContext<acl::uniformly_sampled::DefaultDecompressionSettings>;
+
 	sf::Array<char> data;
-	acl::uniformly_sampled::DecompressionContext<acl::uniformly_sampled::DefaultDecompressionSettings> decompressionContext;
+	ContextType decompressionContext;
 
 	virtual void assetStartLoading() final;
 	virtual void assetUnload() final;
@@ -73,6 +75,8 @@ void AnimationImp::assetStartLoading()
 
 void AnimationImp::assetUnload()
 {
+	sf::reset(data);
+	sf::reset(decompressionContext);
 }
 
 struct AclOutputWriter final : public acl::OutputWriter

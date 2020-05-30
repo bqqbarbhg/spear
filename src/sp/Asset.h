@@ -18,7 +18,7 @@ struct AssetType
 	CtorFn ctorFn;       // < Call the instance constructor with properties
 
 	// Implementation
-	alignas(void*) char impData[32];
+	alignas(void*) char impData[64];
 };
 
 // Base class for asset properties
@@ -71,6 +71,9 @@ struct Asset
 	// Request the asset to start loading
 	void startLoading();
 
+	// Request the asset to start reloading
+	void startReloading();
+
 	// -- API for Asset implementations
 
 	// Start loading the asset asynchronously, call
@@ -84,6 +87,9 @@ struct Asset
 	void assetFailLoading();
 
 	// -- Static API
+
+	static void reloadAssetsByName(sf::Slice<const sf::Symbol> names);
+	static uint32_t getReloadCount();
 
 	// Find asset by name/props but don't create one if it doesn't exist
 	template <typename T>

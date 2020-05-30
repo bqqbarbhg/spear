@@ -5,41 +5,34 @@
 
 namespace sf {
 
-template <typename K, typename V>
-struct KeyVal
-{
-	K key;
-	V val;
-};
-
-struct HashMapBase
+struct HashSetBase
 {
 	rhmap map;
 	void *data;
 };
 
-template <typename K, typename V>
-struct HashMap
+template <typename T>
+struct HashSet
 {
-	typedef KeyVal<K, V> Entry;
+	typedef T Entry;
 	rhmap map;
 	Entry *data;
 
-	HashMap()
+	HashSet()
 	{
-		memset(this, 0, sizeof(HashMap));
+		memset(this, 0, sizeof(HashSet));
 	}
 
-	HashMap(const HashMap &rhs)
+	HashSet(const HashSet &rhs)
 	{
-		memset(this, 0, sizeof(HashMap));
+		memset(this, 0, sizeof(HashSet));
 		reserve(rhs.map.size);
 		for (Entry &entry : rhs) {
-			insert(entry.key, entry.val);
+			insert(entry);
 		}
 	}
 
-	HashMap(HashMap &&rhs)
+	HashSet(HashSet &&rhs)
 	{
 		data = rhs.data;
 		map = rhs.map;
@@ -47,7 +40,7 @@ struct HashMap
 		rhs.data = nullptr;
 	}
 
-	~HashMap()
+	~HashSet()
 	{
 		destructRangeImp<Entry>(data, map.size);
 		void *oldAlloc = rhmap_reset(&map);
@@ -74,22 +67,12 @@ struct HashMap
 	}
 
 	template <typename KT>
-	V &operator[](const KT &key)
-	{
-		uint32_t index;
-		if (insertImp(key, index)) {
-			new (&data[index].val) V();
-		}
-		return data[index].val;
-	}
-
-	template <typename KT>
 	Entry *find(const KT &key)
 	{
 		uint32_t index;
 		uint32_t h = hash(key), scan = 0;
 		while (rhmap_find(&map, h, &scan, &index)) {
-			if (key == data[index].key) {
+			if (key == data[index]) {
 				return &data[index];
 			}
 		}
@@ -99,7 +82,7 @@ struct HashMap
 	template <typename KT>
 	sf_forceinline const Entry *find(const KT &key) const
 	{
-		return const_cast<HashMap<K, V>*>(this)->find(key);
+		return const_cast<HashSet<T>*>(this)->find(key);
 	}
 
 	template <typename KT>
@@ -108,35 +91,7 @@ struct HashMap
 		uint32_t index;
 		bool inserted = insertImp(key, index);
 		Entry *entry = &data[index];
-		if (inserted) {
-			new (&entry->val) V();
-		}
 		return { *entry, inserted };
-	}
-
-	template <typename KT>
-	InsertResult<Entry> insert(const KT &key, const V &value)
-	{
-		uint32_t index;
-		bool inserted = insertImp(key, index);
-		Entry *entry = &data[index];
-		if (inserted) {
-			new (&entry->val) V(value);
-		}
-		return { *entry, inserted };
-	}
-
-	template <typename KT>
-	InsertResult<Entry> insertOrAssign(const KT &key, const V &value)
-	{
-		uint32_t index;
-		bool inserted = insertImp(key, index);
-		Entry *entry = &data[index];
-		if (!inserted) {
-			entry->val.~V();
-		}
-		new (&entry->val) V(value);
-		return { entry, inserted };
 	}
 
 	template <typename KT>
@@ -145,11 +100,11 @@ struct HashMap
 		uint32_t index;
 		uint32_t h = hash(key), scan = 0;
 		while (rhmap_find(&map, h, &scan, &index)) {
-			if (key == data[index].key) {
+			if (key == data[index]) {
 				rhmap_remove(&map, h, scan);
 				if (index < map.size) {
 					Entry &swap = data[map.size];
-					rhmap_update_value(&map, hash(swap.key), map.size, index);
+					rhmap_update_value(&map, hash(swap), map.size, index);
 					data[index].~Entry();
 					new (&data[index]) Entry(std::move(swap));
 				}
@@ -167,6 +122,9 @@ struct HashMap
 		return it;
 	}
 
+	sf::Slice<T> slice() { return sf::Slice<T>(data, map.size); }
+	sf::Slice<const T> slice() const { return sf::Slice<const T>(data, map.size); }
+
 protected:
 
 	template <typename KT>
@@ -178,13 +136,13 @@ protected:
 
 		uint32_t h = hash(key), scan = 0;
 		while (rhmap_find(&map, h, &scan, &index)) {
-			if (key == data[index].key) {
+			if (key == data[index]) {
 				return false;
 			}
 		}
 
 		index = map.size;
-		new (&data[index].key) K(key);
+		new (&data[index]) T(key);
 		rhmap_insert(&map, h, scan, index);
 		return true;
 	}
@@ -204,24 +162,15 @@ protected:
 	}
 };
 
-template <typename K, typename V> struct IsZeroInitializable<HashMap<K, V>> { enum { value = 1 }; };
+template <typename T> struct IsZeroInitializable<HashSet<T>> { enum { value = 1 }; };
 
-void initKeyValType(Type *t, const TypeInfo &info, Type *keyType, Type *valType, size_t valOffset);
-void initHashMapType(Type *t, const TypeInfo &info, Type *kvType, uint32_t (*hashFn)(void *inst));
+void initHashSetType(Type *t, const TypeInfo &info, Type *kvType, uint32_t (*hashFn)(void *inst));
 
-template <typename K, typename V>
-struct InitType<KeyVal<K, V>> {
+template <typename T>
+struct InitType<HashSet<T>> {
 	static void init(Type *t) {
-		using KV = KeyVal<K, V>;
-		initKeyValType(t, getTypeInfo<KV>(), typeOfRecursive<K>(), typeOfRecursive<V>(), offsetof(KV, val));
-	}
-};
-
-template <typename K, typename V>
-struct InitType<HashMap<K, V>> {
-	static void init(Type *t) {
-		return initHashMapType(t, getTypeInfo<HashMap<K, V>>(), typeOfRecursive<KeyVal<K, V>>(),
-		[](void *inst) { return hash(*(K*)inst); });
+		return initHashSetType(t, getTypeInfo<HashSet<T>>(), typeOfRecursive<T>(),
+		[](void *inst) { return hash(*(T*)inst); });
 	}
 };
 

@@ -10,10 +10,15 @@ struct MapGeometryBuilder
 	uint16_t *indicesDst16 = nullptr;
 	uint32_t *indicesDst32 = nullptr;
 	sf::Vec3 aabbMin = sf::Vec3(+HUGE_VALF), aabbMax = sf::Vec3(-HUGE_VALF);
+	bool loading = false;
 
 	void count(sp::Model *model) {
 		if (!model) return;
-		sf_assert(model->isLoaded());
+		if (!model->shouldBeLoaded()) {
+			if (!model->isFailed()) loading = true;
+			return;
+		}
+
 		for (sp::Mesh &mesh : model->meshes) {
 			numVertices += mesh.numVertices;
 			numIndices += mesh.numIndices;
@@ -79,17 +84,19 @@ void MapChunkGeometry::reset()
 	shadow.reset();
 }
 
-void MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPos)
+bool MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPos)
 {
-	reset();
-	if (meshes.size == 0) return;
-
 	MapGeometryBuilder mainBuilder, shadowBuilder;
-
 	for (MapMesh &mapMesh : meshes) {
 		mainBuilder.count(mapMesh.model);
 		shadowBuilder.count(mapMesh.shadowModel);
+		if (mapMesh.material.isLoading()) return false;
 	}
+
+	if (mainBuilder.loading || shadowBuilder.loading) return false;
+
+	reset();
+	if (meshes.size == 0) return true;
 
 	mainBuilder.finishCount();
 	shadowBuilder.finishCount();
@@ -107,8 +114,7 @@ void MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 		sf::Mat33 tangentTransform = transform.get33();
 		sf::Mat33 normalTransform = transform.get33();
 
-		if (mapMesh.model) {
-			sf_assert(mapMesh.material.isLoaded());
+		if (mapMesh.model.isLoaded() && mapMesh.material.isLoaded()) {
 			cl::TileMaterial *material = mapMesh.material;
 			for (sp::Mesh &mesh : mapMesh.model->meshes) {
 				sf_assert(mesh.streams[0].stride == sizeof(MapVertex));
@@ -124,7 +130,7 @@ void MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 			}
 		}
 
-		if (mapMesh.shadowModel) {
+		if (mapMesh.shadowModel.isLoaded()) {
 			for (sp::Mesh &mesh : mapMesh.shadowModel->meshes) {
 				shadowBuilder.appendIndices(sf::slice(mesh.cpuIndexData16, mesh.numIndices), (uint32_t)(shadowVertexDst - shadowVertices.data));
 				for (MapVertex &vertex : sf::slice((MapVertex*)mesh.streams[0].cpuData, mesh.numVertices)) {
@@ -155,6 +161,8 @@ void MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 
 	name.resize(prefixLen); name.append(" shadow indices");
 	shadowBuilder.finish(name.data, shadow);
+
+	return true;
 }
 
 }

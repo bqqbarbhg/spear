@@ -34,14 +34,6 @@ static bool generateMapMesh(sf::Array<cl::MapMesh> &meshes, sf::Random &tileRng,
 	TileInfo &info = tileRef->data;
 	TileVariantInfo &variant = info.getVariant(tileRng.nextFloat());
 
-	if (variant.modelRef.isLoading()) return false;
-	if (variant.shadowModelRef.isLoading()) return false;
-	if (variant.materialRef.isLoading()) return false;
-
-	if (variant.modelRef && !variant.modelRef.isLoaded()) return true;
-	if (variant.shadowModelRef && !variant.shadowModelRef.isLoaded()) return true;
-	if (!variant.materialRef.isLoaded()) return true;
-
 	float rotation = (float)(tileRng.nextU32() & 3) * (sf::F_2PI * 0.25f);
 	MapMesh &mesh = meshes.push();
 	if (variant.modelRef) mesh.model = variant.modelRef;
@@ -120,6 +112,7 @@ void State::reset(sv::State *svState)
 
 	for (auto &pair : svState->map.chunks) {
 		chunks[pair.key].dirty = true;
+		chunks[pair.key].meshesDirty = true;
 		dirtyChunks.push(pair.key);
 	}
 }
@@ -158,7 +151,7 @@ void State::applyEvent(sv::Event *event)
 		entities[e->entity].reset();
 
 	} else {
-		sf_failf("Unhandled event type: %u", e->type);
+		sf_failf("Unhandled event type: %u", event->type);
 	}
 }
 
@@ -194,17 +187,21 @@ void State::renderShadows(const RenderShadowArgs &args)
 
 void State::updateMapChunks(sv::State &svState)
 {
-
 	for (uint32_t i = 0; i < dirtyChunks.size; i++) {
 		sf::Vec2i chunkPos = dirtyChunks[i];
 		MapChunk &chunk = chunks[chunkPos];
 		sf_assert(chunk.dirty);
 
-		if (!generateMapMeshes(chunk.meshes, *this, svState.map, chunkPos)) {
-			continue;
+		if (chunk.meshesDirty) {
+			if (!generateMapMeshes(chunk.meshes, *this, svState.map, chunkPos)) {
+				continue;
+			}
+			chunk.meshesDirty = false;
 		}
 
-		chunk.geometry.build(chunk.meshes, chunkPos);
+		if (!chunk.geometry.build(chunk.meshes, chunkPos)) {
+			continue;
+		}
 
 		dirtyChunks.removeSwap(i--);
 		chunk.dirty = false;
@@ -214,6 +211,17 @@ void State::updateMapChunks(sv::State &svState)
 void State::recreateTargets()
 {
 	shadowCache.recreateTargets();
+}
+
+void State::assetsReloaded()
+{
+	for (auto &pair : chunks) {
+		cl::MapChunk &chunk = chunks[pair.key];
+		chunk.meshesDirty = true;
+		if (chunk.dirty) continue;
+		chunk.dirty = true;
+		dirtyChunks.push(pair.key);
+	}
 }
 
 }

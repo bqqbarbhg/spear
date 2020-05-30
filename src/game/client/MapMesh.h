@@ -41,7 +41,7 @@ struct MapChunkGeometry
 	MapGeometry shadow;
 
 	void reset();
-	void build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPos);
+	bool build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPos);
 };
 
 }
