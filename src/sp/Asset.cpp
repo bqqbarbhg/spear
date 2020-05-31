@@ -78,7 +78,6 @@ struct AssetContext
 	void reloadByName(const sf::HashSet<sf::Symbol> &names)
 	{
 		sf::MutexGuard mg(mutex);
-		mxa_inc32_rel(&reloadCount);
 		for (AssetTypeImp *type : types) {
 			for (auto &pair : type->assetMap) {
 				if (names.find(pair.val->name)) {
@@ -86,6 +85,7 @@ struct AssetContext
 				}
 			}
 		}
+		mxa_inc32_rel(&reloadCount);
 	}
 
 	Asset *findAsset(AssetType *type, const sf::Symbol &name, const AssetProps &props)
@@ -390,7 +390,7 @@ void Asset::reloadAssetsByName(sf::Slice<const sf::Symbol> names)
 
 uint32_t Asset::getReloadCount()
 {
-	return mxa_load32_rel(&g_assetContext.reloadCount);
+	return mxa_load32_acq(&g_assetContext.reloadCount);
 }
 
 Asset *Asset::impFind(AssetType *type, const sf::Symbol &name, const AssetProps &props)
