@@ -10,6 +10,10 @@
 	#include "GameShadersImp_gles.h"
 #elif defined(SOKOL_D3D11)
 	#include "GameShadersImp_hlsl.h"
+#elif defined(SOKOL_METAL) && (defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
+	#include "GameShadersImp_ios.h"
+#elif defined(SOKOL_METAL)
+	#include "GameShadersImp_macos.h"
 #endif
 
 static_assert(SP_MAX_UNIFORMS_PER_SHADER <= SG_MAX_SHADERSTAGE_UBS, "Too many uniforms");

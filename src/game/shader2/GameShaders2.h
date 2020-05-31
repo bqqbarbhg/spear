@@ -11,6 +11,10 @@
 	#include "GameShaders_gles.h"
 #elif defined(SOKOL_D3D11)
 	#include "GameShaders_hlsl.h"
+#elif defined(SOKOL_METAL) && (defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
+	#include "GameShaders_ios.h"
+#elif defined(SOKOL_METAL)
+	#include "GameShaders_macos.h"
 #endif
 
 struct Shader2

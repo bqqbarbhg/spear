@@ -4,6 +4,8 @@ import re
 from collections import namedtuple
 import io
 import os
+import subprocess
+import sys
 
 tmp_name = "__sp__temp__"
 tmp_include = "__sp__temp__include__"
@@ -112,12 +114,18 @@ class GLSL:
         if c.samplers:
             lines.append("")
 
-        for s in c.samplers:
-            lines.append("uniform {} {};".format(s.type, s.name))
+        for ix, s in enumerate(c.samplers):
+            if self.version == "450":
+                lines.append("layout(binding={}) uniform {} {};".format(ix, s.type, s.name))
+            else:
+                lines.append("uniform {} {};".format(s.type, s.name))
 
-        for block in c.uniform_blocks:
+        for ix, block in enumerate(c.uniform_blocks):
             lines.append("")
-            lines.append("layout(std140) uniform {} {{".format(block.name))
+            if self.version == "450":
+                lines.append("layout(binding={}) layout(std140) uniform {} {{".format(ix, block.name))
+            else:
+                lines.append("layout(std140) uniform {} {{".format(block.name))
             offset = 0
             pad = 0
             for u in block.uniforms:
@@ -425,6 +433,12 @@ def preprocess(src, name=None, defines={}, includes=[], ignore_unknown=False):
 self_path = os.path.dirname(os.path.abspath(__file__))
 g_root = os.path.join(self_path, "..", "src", "game", "shader2")
 g_temp = os.path.join(self_path, "..", "temp", "shaders")
+if sys.platform == "win32":
+    g_tool_root = os.path.join(self_path, "..", "tool", "win32")
+elif sys.platform == "darwin":
+    g_tool_root = os.path.join(self_path, "..", "tool", "macos")
+else:
+    g_tool_root = os.path.join(self_path, "..", "tool", "linux")
 
 re_permutation = re.compile(r"\s*#pragma\s+permutation\s+(\w+)\s+(\w+)\s*")
 
@@ -519,12 +533,52 @@ def compile_permutations(shader, lang, frag, perms_left, permutations=tuple()):
             result += compile_permutations(shader, lang, frag, perms_left[1:], new_p)
         return result
 
+Config = namedtuple("Config", "name lang translate")
 
-langs = {
-    "gles": GLSL("300 es"),
-    "glsl": GLSL("330"),
-    "hlsl": HLSL("5"),
-}
+def run(exe, args):
+    if sys.platform == "win32":
+        exe += ".exe"
+    exe_path = os.path.join(g_tool_root, exe)
+    subprocess.check_call([exe_path] + args)
+
+def translate_metal(frag, src_path, ios):
+    dst_path = os.path.splitext(src_path)[0] + ".metal"
+
+    temp_path = src_path + ".spv"
+
+    args = []
+    args += ["-V"]
+    args += ["-e", "main"]
+    args += ["-o", temp_path]
+    args += ["-S", ["vert", "frag"][frag]]
+    args += [src_path]
+    run("glslangValidator", args)
+
+    args = []
+    args += ["--msl"]
+    if ios:
+        args += ["--msl-ios"]
+    args += ["--entry", "main"]
+    args += ["--output", dst_path]
+    args += ["--stage", ["vert", "frag"][frag]]
+    args += [temp_path]
+    run("spirv-cross", args)
+
+    return dst_path
+
+def translate_metal_ios(frag, src_path):
+    return translate_metal(frag, src_path, True)
+
+def translate_metal_macos(frag, src_path):
+    return translate_metal(frag, src_path, False)
+
+configs = [
+    Config("gles", GLSL("300 es"), None),
+    Config("glsl", GLSL("300"), None),
+    Config("hlsl", HLSL("5"), None),
+    Config("macos", GLSL("450"), translate_metal_macos),
+    Config("ios", GLSL("450"), translate_metal_ios),
+]
 
 shader_root = os.path.join(g_root, "shader")
 
@@ -538,14 +592,15 @@ for root,dirs,files in os.walk(shader_root):
 ShaderInfo = namedtuple("ShaderInfo", "name permutations base num")
 PermutationInfo = namedtuple("PermutationInfo", "permutation offset size uniforms samplers attribs")
 
-for name, lang in langs.items():
+for config in configs:
+    lang = config.lang
     shader_infos = []
     permutation_infos = []
     shader_datas = []
     shader_data_offset = 0
 
-    header_name = "GameShaders_{}.h".format(name)
-    source_name = "GameShadersImp_{}.h".format(name)
+    header_name = "GameShaders_{}.h".format(config.name)
+    source_name = "GameShadersImp_{}.h".format(config.name)
 
     perm_index = { }
     permutations = []
@@ -601,16 +656,22 @@ for name, lang in langs.items():
 
             result = compile_permutations(shader, lang, frag, perms)
 
-            for ix, (_, (source, _, _, _)) in enumerate(result):
+            infos[int(frag)] = ShaderInfo(shader.name, perms, len(permutation_infos), len(result))
+            for ix, (permutation, (source, ubos, smps, atts)) in enumerate(result):
+
                 suffix = ["vs", "fs"][frag]
                 temp_name = "{}_{}_{}.{}".format(shader.name, suffix, ix, lang.get_extension())
-                temp_dir = os.path.join(g_temp, name)
+                temp_dir = os.path.join(g_temp, config.name)
                 os.makedirs(temp_dir, exist_ok=True)
-                with open(os.path.join(temp_dir, temp_name), "w") as f:
+                temp_path = os.path.join(temp_dir, temp_name)
+                with open(temp_path, "w") as f:
                     f.write(source)
 
-            infos[int(frag)] = ShaderInfo(shader.name, perms, len(permutation_infos), len(result))
-            for permutation, (source, ubos, smps, atts) in result:
+                if config.translate:
+                    src_path = config.translate(frag, temp_path)
+                    with open(temp_path, "r") as f:
+                        source = f.read()
+
                 data = source.encode("utf-8") + b"\0"
                 ubos = tuple(add_uniform(u) for u in ubos)
                 smps = tuple(add_sampler(s) for s in smps)
