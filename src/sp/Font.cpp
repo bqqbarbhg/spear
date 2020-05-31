@@ -429,6 +429,8 @@ sf::Vec2 Font::measureText(sf::String text, float height)
 	sf::MutexGuard mg(ctx.mutex);
 	sf::MutexGuard mg2(imp->mutex);
 
+	if (!imp->isLoaded()) return sf::Vec2(0.0f);
+
 	float scale = stbtt_ScaleForPixelHeight(&imp->info, height);
 
 	sf::Vec2 nextOrigin;
