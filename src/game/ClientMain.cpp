@@ -519,7 +519,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				if (relMouse.x >= -5.0f && relMouse.x <= cardWidth + 5.0f && relMouse.y >= -5.0f && relMouse.y <= cardHeight + 5.0f && !hasBigCard) {
 					hasBigCard = true;
 
-					sf::Mat23 bigTrasnform = sf::mat2D::translate(sf::Vec2(20.0f, 300.0f)) * sf::mat2D::scale(200.0f / 100.0f);
+					sf::Mat23 bigTrasnform = sf::mat2D::translate(sf::Vec2(20.0f, 260.0f)) * sf::mat2D::scale(230.0f / 100.0f);
 
 					canvas.pushTransform(bigTrasnform);
 					drawCard(c, canvas, card);

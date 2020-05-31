@@ -171,6 +171,7 @@ static void loadImp(void *user, const ContentFile &file)
 		imp->index = index;
 	}
 
+#if 0
 	sf::Array<stbtt_kerningentry> kern;
 	kern.resizeUninit(stbtt_GetKerningTableLength(&imp->info));
 	stbtt_GetKerningTable(&imp->info, kern.data, kern.size);
@@ -179,6 +180,7 @@ static void loadImp(void *user, const ContentFile &file)
 		GlyphPair pair = { entry.glyph1, entry.glyph2 };
 		imp->kerningPairs[pair] = entry.advance;
 	}
+#endif
 
 	imp->assetFinishLoading();
 }
@@ -339,13 +341,12 @@ void Font::getQuads(sf::Array<FontQuad> &quads, const sp::TextDraw &draw, uint32
 		}
 
 		if (prevTttfGlyph >= 0) {
-			int kern = 0;
 			GlyphPair pair = { prevTttfGlyph, glyph.ttfGlyph };
-			auto it = imp->kerningPairs.find(pair);
-			if (it != nullptr) {
-				kern = it->val;
+			auto res = imp->kerningPairs.insert(pair);
+			if (res.inserted) {
+				res.entry.val = stbtt_GetGlyphKernAdvance(&imp->info, prevTttfGlyph, glyph.ttfGlyph);
 			}
-			nextOrigin.x += (float)kern * scale;
+			nextOrigin.x += (float)res.entry.val * scale;
 		}
 
 		prevTttfGlyph = glyph.ttfGlyph;
@@ -356,7 +357,7 @@ void Font::getQuads(sf::Array<FontQuad> &quads, const sp::TextDraw &draw, uint32
 			float scaleRatio = scale / glyph.rasterScale;
 
 			sf::Vec2 origin = nextOrigin;
-			origin.x += (float)glyph.bearing * scale;
+			// origin.x += (float)glyph.bearing * scale;
 
 			float radius = 0.45f;
 			float width = AtlasSize * (SdfStepsPerPixel / 255.0f) * 1.0f;
