@@ -14,6 +14,8 @@
 #include "ext/sokol/sokol_gfx.h"
 #include "sf/ext/mx/mx_platform.h"
 
+#include "ext/sp_tools_common.h"
+
 namespace sp {
 
 // -- Misc utility
@@ -95,7 +97,7 @@ static CropRect cropAlpha(const uint8_t *data, uint32_t width, uint32_t height)
 
 static const uint32_t AtlasDeleteQueueFrames = 3;
 static const uint32_t MinAtlasExtent = 32;
-static const uint32_t AtlasLevels = 3;
+static const uint32_t AtlasLevels = 4;
 static const uint32_t AtlasPadding = 1 << (AtlasLevels - 1);
 static const uint32_t FramesBetweenReassign = 60;
 static const uint32_t MinAtlasesToForceReassign = 32;
@@ -197,47 +199,30 @@ static void loadImp(void *user, const ContentFile &file)
 		return;
 	}
 
-	int width, height;
-	stbi_uc *pixels = stbi_load_from_memory((const stbi_uc*)file.data, (int)file.size, &width, &height, NULL, 4);
-	if (!pixels) {
-		imp->assetFailLoading();
-		return;
-	}
+	sptex_util su;
+	sptex_util_init(&su, file.data, file.size);
+	sptex_header header = sptex_decode_header(&su);
 
-	if (width > (int)ctx.maxSpriteExtent || height > (int)ctx.maxSpriteExtent) {
-		uint32_t srcWidth = width, srcHeight = height;
-		double aspect = (double)width / (double)height;
-		if (width >= height) {
-			width = ctx.maxSpriteExtent;
-			height = (uint32_t)(ctx.maxSpriteExtent / aspect);
-		} else {
-			height = ctx.maxSpriteExtent;
-			width = (uint32_t)(ctx.maxSpriteExtent * aspect);
-		}
+	uint32_t width = header.info.width;
+	uint32_t height = header.info.height;
 
-		stbi_uc *newPixels = (stbi_uc*)malloc(width * height * 4);
-		stbir_resize_uint8_srgb(
-			pixels, srcWidth, srcHeight, 0,
-			newPixels, width, height, 0,
-			4, 3, 0);
+	CropRect rect;
+	rect.minX = header.info.crop_min_x;
+	rect.minY = header.info.crop_min_y;
+	rect.maxX = header.info.crop_max_x;
+	rect.maxY = header.info.crop_max_y;
 
-		free(pixels);
-		pixels = newPixels;
-	}
-
-	CropRect rect = cropAlpha(pixels, width, height);
 	uint32_t stride = width * 4;
 
-	imp->minVert.x = (float)rect.minX / (float)width;
-	imp->minVert.y = (float)rect.minY / (float)height;
-	imp->maxVert.x = (float)rect.maxX / (float)width;
-	imp->maxVert.y = (float)rect.maxY / (float)height;
-
-	uint32_t originalWidth = width;
-	uint32_t originalHeight = height;
+	imp->minVert.x = (float)rect.minX / (float)header.info.uncropped_width;
+	imp->minVert.y = (float)rect.minY / (float)header.info.uncropped_height;
+	imp->maxVert.x = (float)rect.maxX / (float)header.info.uncropped_width;
+	imp->maxVert.y = (float)rect.maxY / (float)header.info.uncropped_height;
 
 	width = rect.maxX - rect.minX;
 	height = rect.maxY - rect.minY;
+
+	imp->aspect = (float)header.info.width / (float)header.info.height;
 
 	imp->x = AtlasPadding;
 	imp->y = AtlasPadding;
@@ -254,63 +239,41 @@ static void loadImp(void *user, const ContentFile &file)
 	uint32_t padRight = paddedWidth - (width + AtlasPadding);
 	uint32_t padBottom = paddedHeight - (height + AtlasPadding);
 
-	// TODO: Skip this for non-WebGL1 backends?
-	uint32_t atlasWidth = sf::roundToPow2(paddedWidth);
-	uint32_t atlasHeight = sf::roundToPow2(paddedHeight);
+	uint32_t atlasWidth = paddedWidth;
+	uint32_t atlasHeight = paddedHeight;
 	if (atlasWidth < MinAtlasExtent) atlasWidth = MinAtlasExtent;
 	if (atlasHeight < MinAtlasExtent) atlasHeight = MinAtlasExtent;
 
 	MipImage image(atlasWidth, atlasHeight);
 
-	stbi_uc *basePixels = pixels + rect.minY * stride + rect.minX * 4;
+	uint32_t pad = AtlasPadding;
+	uint32_t w = width;
+	uint32_t h = height;
+	uint32_t atlasW = atlasWidth;
+	uint32_t atlasH = atlasHeight;
+	for (uint32_t level = 0; level < AtlasLevels; level++) {
+		if (level >= header.info.num_mips) continue;
 
-	image.clear();
-	image.levels[0].blit(AtlasPadding, AtlasPadding, width, height, basePixels, stride);
+		void *data = sptex_decode_mip(&su, level);
 
-	SpriteProps *props = (SpriteProps*)imp->props;
-
-	// Smear the edge pixels if they are not transparent
-	{
-		// TODO: Threshold to consider edge transparent?
-		bool smearMinX = rect.minX == 0;
-		bool smearMinY = rect.minY == 0;
-		bool smearMaxX = rect.maxX == originalWidth;
-		bool smearMaxY = rect.maxY == originalWidth;
-		bool tileX = props->tileX;
-		bool tileY = props->tileY;
-
-		if (smearMinX | smearMaxX | smearMinY | smearMaxY | tileX | tileY) {
-			CropRect rects[4] = {
-				{ 0, 0, paddedWidth, AtlasPadding },
-				{ 0, height + AtlasPadding, paddedWidth, paddedHeight },
-				{ 0, AtlasPadding, AtlasPadding, AtlasPadding + height },
-				{ width + AtlasPadding, AtlasPadding, paddedWidth, AtlasPadding + height },
-			};
-
-			const uint32_t *src = (const uint32_t*)basePixels;
-			uint32_t *dst = (uint32_t*)image.levels[0].data;
-
-			for (CropRect rect : rects)
-			for (int32_t y = (int32_t)rect.minY; y < (int32_t)rect.maxY; y++)
-			for (int32_t x = (int32_t)rect.minX; x < (int32_t)rect.maxX; x++) {
-				int32_t sx = x - AtlasPadding, sy = y - AtlasPadding;
-				if (tileX) sx = (sx + width) % width;
-				if (tileY) sy = (sy + height) % height;
-				if (smearMinX & (sx < 0)) sx = 0;
-				if (smearMaxX & (sx >= width)) sx = width - 1;
-				if (smearMinY & (sy < 0)) sy = 0;
-				if (smearMaxY & (sy >= height)) sy = height - 1;
-				if (((uint32_t)sx < (uint32_t)width) & ((uint32_t)sy < (uint32_t)height)) {
-					dst[y*atlasWidth + x] = src[sy*originalWidth + sx];
-				}
-			}
+		if (spfile_util_failed(&su.file)) {
+			spfile_util_free(&su.file);
+			imp->assetFailLoading();
+			return;
 		}
+
+		image.levels[level].clear(0, 0, atlasW, pad);
+		image.levels[level].clear(0, pad + h, atlasW, pad);
+		image.levels[level].clear(0, pad, pad, h);
+		image.levels[level].clear(pad + w, pad, atlasW - (pad + w), h);
+		image.levels[level].blit(pad, pad, w, h, data);
+
+		pad /= 2;
+		w = w > 1 ? w / 2 : w;
+		h = h > 1 ? h / 2 : h;
+		atlasW = atlasW > 1 ? atlasW / 2 : 1;
+		atlasH = atlasH > 1 ? atlasH / 2 : 1;
 	}
-
-	image.levels[0].premultiply();
-
-	image.calculateMips(AtlasLevels, 0, 0, paddedWidth, paddedHeight);
-	free(pixels);
 
 	{
 		sf::MutexGuard mg(ctx.mutex);
@@ -363,7 +326,12 @@ static void finishLoad(SpriteContext &ctx, SpriteToCreate &create)
 
 void SpriteImp::assetStartLoading()
 {
-	ContentFile::loadAsync(name, &loadImp, this);
+	sf::SmallStringBuf<256> assetName;
+
+	// TODO: Compressed?
+	assetName.append(name, ".rgba8.sptex");
+
+	ContentFile::loadAsync(assetName, &loadImp, this);
 }
 
 void SpriteImp::assetUnload()

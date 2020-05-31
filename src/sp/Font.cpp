@@ -421,6 +421,52 @@ void Font::getQuads(sf::Array<FontQuad> &quads, const sp::TextDraw &draw, uint32
 	}
 }
 
+sf::Vec2 Font::measureText(sf::String text, float height)
+{
+	FontContext &ctx = g_fontContext;
+	FontImp *imp = (FontImp*)this;
+
+	sf::MutexGuard mg(ctx.mutex);
+	sf::MutexGuard mg2(imp->mutex);
+
+	float scale = stbtt_ScaleForPixelHeight(&imp->info, height);
+
+	sf::Vec2 nextOrigin;
+
+	int prevTttfGlyph = -1;
+
+	size_t pos = 0;
+	while (pos < text.size) {
+		uint32_t code = (unsigned char)text.data[pos++];
+		if (code >= 0x80) {
+			code = decodeUtf8Trail(text.data, text.size, pos, code);
+			if (code == ~0u) continue;
+		}
+
+		Glyph &glyph = imp->glyphs[code];
+		if (glyph.ttfGlyph < 0) {
+			initGlyph(imp, glyph, code);
+		}
+
+		if (prevTttfGlyph >= 0) {
+			int kern = 0;
+			GlyphPair pair = { prevTttfGlyph, glyph.ttfGlyph };
+			auto it = imp->kerningPairs.find(pair);
+			if (it != nullptr) {
+				kern = it->val;
+			}
+			nextOrigin.x += (float)kern * scale;
+		}
+
+		prevTttfGlyph = glyph.ttfGlyph;
+		nextOrigin.x += (float)glyph.advance * scale;
+	}
+
+	nextOrigin.y += height;
+
+	return nextOrigin;
+}
+
 struct AtlasUpdate
 {
 	FontImp *font;

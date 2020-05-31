@@ -1,3 +1,5 @@
+#include "ClientMain.h"
+
 #include "game/client/ClientState.h"
 #include "game/server/Message.h"
 
@@ -22,10 +24,18 @@
 #include "game/shader/TestSkin.h"
 #include "ext/sokol/sokol_time.h"
 #include "game/shader2/GameShaders2.h"
+#include "sp/Canvas.h"
+#include "sp/Sprite.h"
+#include "sp/Font.h"
 
 static sf::Symbol serverName { "Server" };
 
 static uint32_t playerIdCounter = 100;
+
+struct CardGuiState
+{
+	float hover = 0.0f;
+};
 
 struct ClientMain
 {
@@ -49,6 +59,12 @@ struct ClientMain
 	sp::RenderPass mainPass;
 	sp::RenderPass tonemapPass;
 	sp::RenderPass fxaaPass;
+
+	sf::Vec2 uiResolution;
+	sp::Canvas testCanvas;
+	sp::FontRef cardFont { sf::Symbol("sp://OpenSans-Ascii.ttf") };
+	sp::SpriteRef cardBackground { sf::Symbol("Assets/Gui/Card/Background_Base.png") };
+	sf::Array<CardGuiState> cardGuiState;
 
 	Shader2 testMeshShader;
 
@@ -155,7 +171,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
 		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
-		l.color = sf::Vec3(4.0f, 0.0f, 0.0f);
+		l.color = sf::Vec3(4.0f, 0.0f, 0.0f) * 2.0f;
 		l.radius = 16.0f;
 		l.shadowIndex = 0;
 	}
@@ -163,7 +179,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
 		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
-		l.color = sf::Vec3(0.0f, 3.0f, 0.0f);
+		l.color = sf::Vec3(0.0f, 3.0f, 0.0f) * 2.0f;
 		l.radius = 16.0f;
 		l.shadowIndex = 1;
 	}
@@ -171,7 +187,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
 		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
-		l.color = sf::Vec3(0.0f, 0.0f, 6.0f);
+		l.color = sf::Vec3(0.0f, 0.0f, 6.0f) * 2.0f;
 		l.radius = 16.0f;
 		l.shadowIndex = 2;
 	}
@@ -179,7 +195,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
 		l.position = sf::Vec3(0.0f, 2.0f, 0.0f);
-		l.color = sf::Vec3(4.0f, 4.0f, 4.0f);
+		l.color = sf::Vec3(4.0f, 4.0f, 4.0f) * 2.0f;
 		l.radius = 16.0f;
 		l.shadowIndex = 3;
 	}
@@ -215,11 +231,62 @@ static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
 	c->clientState.recreateTargets();
 }
 
-bool clientUpdate(ClientMain *c)
+static void drawCard(ClientMain *c, sp::Canvas &canvas, const cl::Card &card)
 {
+	sf::Vec2 size = { 100.0f, 100.0f / cl::Card::Aspect };
+
+	canvas.draw(c->cardBackground, sf::Vec2(0.0f, 0.0f), size);
+
+	{
+		sf::Vec2 imageOffset = { 8.0f, 8.0f };
+		sf::Vec2 imageSize = { 100.0f - 2.0f * 8.0f, 60.0f };
+		sf::Vec2 spriteSize;
+		if (card.imageSprite->aspect > imageSize.x / imageSize.y) {
+			spriteSize.x = imageSize.x;
+			spriteSize.y = imageSize.x / card.imageSprite->aspect;
+		} else {
+			spriteSize.y = imageSize.y;
+			spriteSize.x = imageSize.y * card.imageSprite->aspect;
+		}
+
+		canvas.draw(card.imageSprite, imageOffset + imageSize * 0.5f - spriteSize * 0.5f, spriteSize);
+	}
+
+	{
+		float height = 10.0f;
+		sf::Vec2 measure = c->cardFont->measureText(card.svCard.type->name, height);
+
+		sp::TextDraw draw;
+		draw.transform = sf::mat2D::translate(50.0f - measure.x/2.0f, 78.0f);
+		draw.font = c->cardFont;
+		draw.string = card.svCard.type->name;
+		draw.height = height;
+		draw.color = sf::Vec4(1.0f);
+		canvas.drawText(draw);
+	}
+
+}
+
+static void lerpExp(float &state, float target, float exponential, float linear, float dt)
+{
+	state = sf::lerp(target, state, exp2f(dt*-exponential));
+
+	float speed = linear * dt;
+	state += sf::clamp(target - state, -speed, speed);
+}
+
+bool clientUpdate(ClientMain *c, const ClientInput &input)
+{
+	float dt = input.dt;
 	if (bqws_is_closed(c->ws)) {
 		return true;
 	}
+	if (input.resolution != c->resolution) {
+		recreateTargets(c, input.resolution);
+	}
+
+	c->uiResolution.y = 720.0f;
+	c->uiResolution.x = c->uiResolution.y * ((float)input.resolution.x / (float)input.resolution.y);
 
 	bqws_update(c->ws);
 
@@ -249,6 +316,65 @@ bool clientUpdate(ClientMain *c)
 		}
 	}
 
+	{
+		sp::Canvas &canvas = c->testCanvas;
+		canvas.clear();
+
+		sf::Vec2 uiMouse = input.mousePosition * c->uiResolution;
+
+		float cardHeight = 80.0f;
+		float cardWidth = cardHeight * cl::Card::Aspect;
+		sf::Vec2 pos = { 20.0f, 700.0f - cardHeight };
+
+		// HACK: Take the first character
+		cl::Character *character = nullptr;
+		for (sf::Box<cl::Entity> &entity : c->clientState.entities) {
+			if (!entity) continue;
+			if (auto chr = entity->as<cl::Character>()) {
+				character = chr;
+			}
+		}
+
+		bool hasBigCard = false;
+		if (character) {
+			uint32_t ix = 0;
+			for (cl::Card &card : character->cards) {
+				while (ix >= c->cardGuiState.size) c->cardGuiState.push();
+				CardGuiState &guiState = c->cardGuiState[ix];
+
+				float hoverTarget = 0.0f;
+
+				sf::Vec2 relMouse = uiMouse - pos;
+				if (relMouse.x >= -5.0f && relMouse.x <= cardWidth + 5.0f && relMouse.y >= -5.0f && relMouse.y <= cardHeight + 5.0f & !hasBigCard) {
+					hasBigCard = true;
+
+					sf::Mat23 bigTrasnform = sf::mat2D::translate(sf::Vec2(20.0f, 300.0f)) * sf::mat2D::scale(200.0f / 100.0f);
+
+					canvas.pushTransform(bigTrasnform);
+					drawCard(c, canvas, card);
+					canvas.popTransform();
+
+					hoverTarget = 5.0f;
+				}
+
+				lerpExp(guiState.hover, hoverTarget, 20.0f, 5.0f, dt);
+
+				sf::Vec2 cardPos = pos;
+				cardPos.y -= guiState.hover;
+				sf::Mat23 transform = sf::mat2D::translate(cardPos) * sf::mat2D::scale(cardWidth / 100.0f);
+				canvas.pushTransform(transform);
+				drawCard(c, canvas, card);
+				canvas.popTransform();
+
+				pos.x += cardWidth + 5.0f;
+
+				ix++;
+			}
+		}
+
+		canvas.prepareForRendering();
+	}
+
 	return false;
 }
 
@@ -258,11 +384,8 @@ void clientFree(ClientMain *client)
 	delete client;
 }
 
-sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
+sg_image clientRender(ClientMain *c)
 {
-	if (resolution != c->resolution) {
-		recreateTargets(c, resolution);
-	}
 
 	// HACK HACK
 	{
@@ -293,7 +416,7 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 
 		sf::Vec3 cameraPosition = sf::Vec3(0.0f, 10.0f, 6.0f);
 		sf::Mat44 view = sf::mat::look(cameraPosition, sf::Vec3(0.0f, -1.0f, -0.5f));
-		sf::Mat44 proj = sf::mat::perspectiveD3D(1.0f, (float)resolution.x/(float)resolution.y, 0.1f, 20.0f);
+		sf::Mat44 proj = sf::mat::perspectiveD3D(1.0f, (float)c->resolution.x/(float)c->resolution.y, 0.1f, 20.0f);
 		sf::Mat44 viewProj = proj * view;
 
 		sf::Frustum frustum { viewProj, sg_query_features().origin_top_left ? 0.0f : -1.0f };
@@ -495,7 +618,6 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 		sp::endPass();
 	}
 
-
 #if 0
 	{
 		sp::beginPass(c->tonemapPass, nullptr);
@@ -537,6 +659,12 @@ sg_image clientRender(ClientMain *c, const sf::Vec2i &resolution)
 #endif
 
 	return c->mainTarget.image;
+}
+
+void clientRenderGui(ClientMain *c)
+{
+	sp::CanvasRenderOpts opts = sp::CanvasRenderOpts::pixels(c->uiResolution);
+	c->testCanvas.render(opts);
 }
 
 void clientDoMoveTemp(ClientMain *c)

@@ -82,7 +82,9 @@ struct CanvasImp
 	sf::Array<SpriteDrawImp> spriteDraws;
 	sf::Array<TextDrawImp> textDraws;
 	sf::Array<CanvasDrawImp> canvasDraws;
+	sf::Array<sf::Mat23> transformStack;
 	uint32_t nextDrawIndex = 0;
+	sf::Mat23 transform;
 
 	bool spriteDrawsSorted = true;
 	bool textDrawsSorted = true;
@@ -99,18 +101,23 @@ CanvasRenderOpts CanvasRenderOpts::windowPixels()
 #if defined(SP_NO_APP)
 	return CanvasRenderOpts::pixels(800, 600);
 #else
-	return CanvasRenderOpts::pixels((uint32_t)sapp_width(), (uint32_t)sapp_height());
+	return CanvasRenderOpts::pixels((double)sapp_width(), (double)sapp_height());
 #endif
 }
 
-CanvasRenderOpts CanvasRenderOpts::pixels(uint32_t width, uint32_t height)
+CanvasRenderOpts CanvasRenderOpts::pixels(double width, double height)
 {
 	CanvasRenderOpts opts;
-	opts.transform.m00 = +1.0f / (float)width;
-	opts.transform.m11 = -1.0f / (float)height;
+	opts.transform.m00 = +2.0f / (float)width;
+	opts.transform.m11 = -2.0f / (float)height;
 	opts.transform.m03 = -1.0f;
 	opts.transform.m13 = +1.0f;
 	return opts;
+}
+
+CanvasRenderOpts CanvasRenderOpts::pixels(const sf::Vec2 &resolution)
+{
+	return pixels(resolution.x, resolution.y);
 }
 
 Canvas::Canvas()
@@ -153,6 +160,8 @@ void Canvas::clear()
 	imp->nextDrawIndex = 0;
 
 	imp->textData.clear();
+
+	imp->transformStack.clear();
 }
 
 static uint64_t makeSortKey(float depth, uint32_t index)
@@ -181,6 +190,7 @@ void Canvas::draw(const SpriteDraw &draw)
 	}
 	SpriteDrawImp &drawImp = imp->spriteDraws.pushUninit();
 	drawImp.draw = draw;
+	drawImp.draw.transform = imp->transform * draw.transform;
 	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
 }
 
@@ -199,6 +209,7 @@ void Canvas::drawText(const TextDraw &draw)
 
 	TextDrawImp &drawImp = imp->textDraws.pushUninit();
 	drawImp.draw = draw;
+	drawImp.draw.transform = imp->transform * draw.transform;
 	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
 
 	// Copy string data
@@ -217,6 +228,7 @@ void Canvas::drawCanvas(const CanvasDraw &draw)
 	}
 	CanvasDrawImp &drawImp = imp->canvasDraws.pushUninit();
 	drawImp.draw = draw;
+	drawImp.draw.transform = imp->transform * draw.transform;
 	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
 }
 
@@ -241,6 +253,19 @@ void Canvas::draw(Sprite *sprite, const sf::Vec2 &pos, const sf::Vec2 &size, con
 	d.transform.m12 = pos.y;
 	d.color = color;
 	draw(d);
+}
+
+void Canvas::pushTransform(const sf::Mat23 &transform)
+{
+	CanvasImp *imp = (CanvasImp*)impData;
+	imp->transformStack.push(imp->transform);
+	imp->transform = imp->transform * transform;
+}
+
+void Canvas::popTransform()
+{
+	CanvasImp *imp = (CanvasImp*)impData;
+	imp->transform = imp->transformStack.popValue();
 }
 
 static uint32_t packChannel(float f)

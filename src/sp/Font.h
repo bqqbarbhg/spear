@@ -32,6 +32,7 @@ struct Font : Asset
 	// Font must be loaded:
     void retainSlots(sf::String text);
 	void getQuads(sf::Array<FontQuad> &quads, const sp::TextDraw &draw, uint32_t color, sf::String text, size_t maxQuads);
+	sf::Vec2 measureText(sf::String text, float height);
 
 	// -- Static API
 

@@ -5,9 +5,13 @@
 #include "ext/bq_websocket_platform.h"
 
 #include "sf/Array.h"
+#include "sf/Mutex.h"
+#include "sp/Json.h"
 
 #include "MessageTransport.h"
 #include "LocalServer.h"
+
+#include "ext/json_input.h"
 
 static sf::Symbol serverName { "Server" };
 
@@ -53,7 +57,41 @@ struct ServerMain
 	sf::HashMap<uint32_t, Session> sessions;
 	sf::Array<bqws_socket*> pendingClients;
 	uint32_t clientCounter = 0;
+	sf::StringBuf dataRoot;
 };
+
+static sf::Mutex g_configMutex;
+
+template <typename T>
+static sf::Box<T> loadConfig(sf::String name)
+{
+	sf::Symbol path = sf::Symbol(name);
+
+	sf::MutexGuard mg(g_configMutex);
+
+	static sf::HashMap<sf::Symbol, sf::Box<T>> cache;
+	sf::Box<T> &entry = cache[path];
+	if (entry) return entry;
+
+	jsi_args args = { };
+	args.dialect.allow_bare_keys = true;
+	args.dialect.allow_comments = true;
+	args.dialect.allow_control_in_string = true;
+	args.dialect.allow_missing_comma = true;
+	args.dialect.allow_trailing_comma = true;
+	jsi_value *value = jsi_parse_file(path.data, &args);
+	if (!value) {
+		sf::debugPrint("Failed to parse %s:%u:%u: %s",
+			path.data, args.error.line, args.error.column, args.error.description);
+		return { };
+	}
+
+	if (!sp::readJson(value, entry)) return { };
+
+	entry->id = path;
+
+	return entry;
+}
 
 ServerMain *serverInit(int port)
 {
@@ -200,11 +238,16 @@ void serverUpdate(ServerMain *s)
 			}
 
 			{
+				sf::Box<sv::CardType> shortsword = loadConfig<sv::CardType>("Server/Cards/Weapon/Shortsword.js");
+				sf::Box<sv::CardType> club = loadConfig<sv::CardType>("Server/Cards/Weapon/Club.js");
+
 				auto player = sf::box<sv::Character>();
 				player->name = client.name;
 				player->model = sf::Symbol("Game/Characters/human-astro.js");
 				player->position = findSpawnPos(session.state, sf::Vec2i(1, -3));
 				player->players.push(client.playerId);
+				player->cards.push({ shortsword });
+				player->cards.push({ club });
 
 				auto spawn = sf::box<sv::EventSpawn>();
 				spawn->data = player;

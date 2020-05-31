@@ -47,6 +47,7 @@ struct Sprite : Asset
 	uint32_t x = 0, y = 0;
 	uint32_t width = 0, height = 0;
 	uint32_t paddedWidth = 0, paddedHeight = 0;
+	float aspect = 0.0f;
 
 	// Cropped quad vertices
 	sf::Vec2 minVert, maxVert;

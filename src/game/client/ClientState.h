@@ -6,6 +6,7 @@
 #include "game/client/MapMesh.h"
 #include "game/client/ShadowCache.h"
 #include "sf/Frustum.h"
+#include "sp/Sprite.h"
 
 namespace cl {
 
@@ -21,6 +22,14 @@ struct MapChunk
 	MapChunkGeometry geometry;
 	bool meshesDirty = false;
 	bool dirty = false;
+};
+
+struct Card
+{
+	static constexpr const float Aspect = 1.0f / 1.5f;
+
+	sv::Card svCard;
+	sp::SpriteRef imageSprite;
 };
 
 struct Entity
@@ -52,6 +61,8 @@ struct EntityBase : Entity
 struct Character : EntityBase<sv::Entity::Character>
 {
 	Character(sf::Box<sv::Entity> svEntity) : EntityBase(std::move(svEntity)) { }
+
+	sf::Array<Card> cards;
 
 	ModelInfoRef model;
 	sf::Array<sv::Waypoint> waypoints;

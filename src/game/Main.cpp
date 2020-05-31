@@ -116,9 +116,12 @@ void spCleanup()
 	closeProcessing();
 }
 
+static bool g_showStats;
+static sf::Vec2 g_mousePos;
+
 void spEvent(const sapp_event *e)
 {
-	if (e->type == SAPP_EVENTTYPE_KEY_DOWN) {
+	if (e->type == SAPP_EVENTTYPE_KEY_DOWN && !e->key_repeat) {
 		if (e->key_code == SAPP_KEYCODE_C) {
 			sf::SmallStringBuf<64> name;
 			name.format("Client %u", clients.size + 1);
@@ -131,7 +134,12 @@ void spEvent(const sapp_event *e)
 		} else if (e->key_code == SAPP_KEYCODE_M) {
 			MainClient &client = clients.back();
 			clientDoMoveTemp(client.client);
+		} else if (e->key_code == SAPP_KEYCODE_F3) {
+			g_showStats = !g_showStats;
 		}
+	} else if (e->type == SAPP_EVENTTYPE_MOUSE_MOVE) {
+		g_mousePos.x = e->mouse_x;
+		g_mousePos.y = e->mouse_y;
 	} else if (e->type == SAPP_EVENTTYPE_RESIZED) {
 		updateLayout();
 	}
@@ -145,37 +153,44 @@ void spFrame(float dt)
 
 	for (uint32_t i = 0; i < clients.size; i++) {
 		MainClient &client = clients[i];
-		if (clientUpdate(client.client)) {
+
+		ClientInput input;
+		input.dt = dt;
+		input.mousePosition = (g_mousePos - sf::Vec2(client.offset)) / sf::Vec2(client.resolution);
+		input.resolution = client.resolution;
+
+		if (clientUpdate(client.client, input)) {
 			clientFree(client.client);
 			clients.removeSwap(i--);
 			updateLayout();
 		}
 	}
+    
+	canvas.clear();
+	if (g_showStats) {
+		float y = 100.0f;
+		for (const sp::PassTime &time : sp::getPassTimes()) {
+			sf::SmallStringBuf<128> text;
+			text.format("%s: %.2fms", time.name.data, time.time * 1000.0);
+			sp::TextDraw td;
+			td.font = font;
+			td.string = text;
+			td.transform.m02 = 100.0f;
+			td.transform.m12 = y; y += 60.0f;
+			td.height = 60.0f;
+			canvas.drawText(td);
+		}
+		
+		canvas.prepareForRendering();
+	}
+   
+    sp::Font::updateAtlasesForRendering();
 
 	sp::beginFrame();
 
 	for (MainClient &client : clients) {
-		client.image = clientRender(client.client, client.resolution);
+		client.image = clientRender(client.client);
 	}
-    
-    canvas.clear();
-    
-    float y = 100.0f;
-    for (const sp::PassTime &time : sp::getPassTimes()) {
-        sf::SmallStringBuf<128> text;
-        text.format("%s: %.2fms", time.name.data, time.time * 1000.0);
-        sp::TextDraw td;
-        td.font = font;
-        td.string = text;
-        td.transform.m02 = 100.0f;
-        td.transform.m12 = y; y += 60.0f;
-        td.height = 60.0f;
-        canvas.drawText(td);
-    }
-    
-    canvas.prepareForRendering();
-   
-    sp::Font::updateAtlasesForRendering();
 
 	{
 		sp::beginDefaultPass(sapp_width(), sapp_height(), nullptr);
@@ -192,8 +207,14 @@ void spFrame(float dt)
 			sg_apply_bindings(&bindings);
 
 			sg_draw(0, 3, 1);
+
+			clientRenderGui(client.client);
 		}
-        
+
+		if (clients.size > 1) {
+			sg_apply_viewport(0, 0, sapp_width(), sapp_height(), true);
+		}
+
         canvas.render(sp::CanvasRenderOpts::windowPixels());
 
 		sp::endPass();

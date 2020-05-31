@@ -442,18 +442,19 @@ struct GuiTextureTask : Task
 	sf::Symbol format;
 	int maxExtent;
 	sf::SmallStringBuf<32> maxExtentStr;
+	sf::StringBuf directory;
 
-	GuiTextureTask(sf::String format, int maxExtent)
-		: format(format), maxExtent(maxExtent)
+	GuiTextureTask(sf::String format, sf::String directory, int maxExtent)
+		: format(format), directory(directory), maxExtent(maxExtent)
 	{
-		name.format("GuiTextureTask %s %d", format.data, maxExtent);
+		name.format("GuiTextureTask (%s) %s %d", directory.data, format.data, maxExtent);
 		maxExtentStr.format("%d", maxExtent);
 		tools.push("sp-texcomp");
 	}
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
 	{
-		if (!sf::containsDirectory(path, "Gui")) return false;
+		if (!sf::containsDirectory(path, directory)) return false;
 		if (!sf::endsWith(path, ".png")) return false;
 		ti.outputs[s_dst] = symf("%s.%s.sptex", path.data, format.data);
 		ti.inputs[s_src] = path;
@@ -486,6 +487,9 @@ struct GuiTextureTask : Task
 
 		args.push("--output");
 		args.push(tempFile);
+
+		args.push("--premultiply");
+		args.push("--crop-alpha");
 
 		JobPriority priority = getPriorityForTextureFormat(format);
 
@@ -942,9 +946,9 @@ void initializeProcessing(const ProcessingDesc &desc)
 	p.tasks.push(sf::box<MaskTextureTask>("astc8x8", materialResolution));
 
 	int maxGuiExtent = 512;
-	p.tasks.push(sf::box<GuiTextureTask>("bc7", maxGuiExtent));
-	p.tasks.push(sf::box<GuiTextureTask>("rgba8", maxGuiExtent));
-	p.tasks.push(sf::box<GuiTextureTask>("astc4x4", maxGuiExtent));
+	int maxCardExtent = 256;
+	p.tasks.push(sf::box<GuiTextureTask>("rgba8", "Gui", maxGuiExtent));
+	p.tasks.push(sf::box<GuiTextureTask>("rgba8", "Cards", maxCardExtent));
 
 	p.tasks.push(sf::box<AnimationTask>());
 	p.tasks.push(sf::box<CharacterModelTask>());

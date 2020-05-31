@@ -17,7 +17,8 @@ struct CanvasRenderOpts
 	sf::Vec4 color = sf::Vec4(1.0f);
 
 	static CanvasRenderOpts windowPixels();
-	static CanvasRenderOpts pixels(uint32_t width, uint32_t height);
+	static CanvasRenderOpts pixels(double width, double height);
+	static CanvasRenderOpts pixels(const sf::Vec2 &resolution);
 };
 
 struct SpriteDraw
@@ -63,6 +64,9 @@ struct Canvas
 
 	void draw(Sprite *sprite, const sf::Vec2 &pos, const sf::Vec2 &size);
 	void draw(Sprite *sprite, const sf::Vec2 &pos, const sf::Vec2 &size, const sf::Vec4 &color);
+
+	void pushTransform(const sf::Mat23 &transform);
+	void popTransform();
 
     void prepareForRendering();
 

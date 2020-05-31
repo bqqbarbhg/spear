@@ -7,6 +7,16 @@
 
 namespace cl {
 
+static Card convertCard(const sv::Card &svCard)
+{
+	Card card;
+
+	card.svCard = svCard;
+	card.imageSprite.load(svCard.type->image);
+
+	return card;
+}
+
 static sf::Box<Entity> convertEntity(const sf::Box<sv::Entity> &svEntity)
 {
 	sf::Box<Entity> data;
@@ -15,6 +25,10 @@ static sf::Box<Entity> convertEntity(const sf::Box<sv::Entity> &svEntity)
 		data = chr;
 
 		chr->model.load(ent->model);
+		chr->cards.reserve(ent->cards.size);
+		for (sv::Card &svCard : ent->cards) {
+			chr->cards.push(convertCard(svCard));
+		}
 
 	} else {
 		sf_failf("Unhandled entity type: %u", svEntity->type);

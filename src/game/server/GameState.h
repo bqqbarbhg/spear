@@ -29,6 +29,21 @@ struct MapChunk
 	uint32_t numNonZeroTiles = 0;
 };
 
+struct CardType
+{
+	sf::Symbol id;
+	sf::Symbol image;
+	sf::Symbol name;
+	sf::Array<sf::Symbol> description;
+};
+
+struct Card
+{
+	sf::Box<CardType> type;
+
+	void refresh();
+};
+
 struct Entity
 {
 	#if SF_DEBUG
@@ -68,6 +83,7 @@ struct Character : EntityBase<Entity::Character>
 	sf::Symbol name;
 	sf::Symbol model;
 	sf::Array<uint32_t> players;
+	sf::Array<Card> cards;
 
 	Character()
 	{

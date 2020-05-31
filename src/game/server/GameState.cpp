@@ -4,7 +4,25 @@
 #include "game/server/Event.h"
 #include "game/server/Action.h"
 
+#include "sf/Mutex.h"
+
 namespace sv {
+
+struct CardTypeCache
+{
+	sf::HashMap<sf::Symbol, sf::Box<CardType>> map;
+	sf::Mutex mutex;
+};
+
+static CardTypeCache g_cardTypeCache;
+
+void Card::refresh()
+{
+	if (!type) return;
+	sf::MutexGuard mg(g_cardTypeCache.mutex);
+	auto res = g_cardTypeCache.map.insert(type->name, std::move(type));
+	type = res.entry.val;
+}
 
 sf_inline void resolveChunk(sf::Vec2i &chunkI, sf::Vec2i &tileI, const sf::Vec2i &pos)
 {
@@ -241,6 +259,29 @@ template<> void initType<sv::TileType>(Type *t)
 	sf_struct(t, sv::TileType, fields);
 }
 
+template<> void initType<sv::CardType>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::CardType, id),
+		sf_field(sv::CardType, image),
+		sf_field(sv::CardType, name),
+		sf_field(sv::CardType, description),
+	};
+	sf_struct(t, sv::CardType, fields);
+}
+
+template<> void initType<sv::Card>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::Card, type),
+	};
+	sf_struct(t, sv::Card, fields);
+
+	t->postSerializeFn = [](void *inst, sf::Type *) {
+		((sv::Card*)inst)->refresh();
+	};
+}
+
 template<> void initType<sv::MapChunk>(Type *t)
 {
 	static Field fields[] = {
@@ -278,6 +319,7 @@ template<> void initType<sv::Character>(Type *t)
 		sf_field(sv::Character, name),
 		sf_field(sv::Character, model),
 		sf_field(sv::Character, players),
+		sf_field(sv::Character, cards),
 	};
 	sf_struct_base(t, sv::Character, sv::Entity, fields);
 }
