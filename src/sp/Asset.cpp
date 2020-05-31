@@ -317,7 +317,7 @@ void Asset::startLoading()
 static void resetAssetImp(Asset *asset)
 {
 	alignas(Asset) char copyData[sizeof(Asset)];
-	memcpy(copyData, asset, sizeof(Asset));
+	memcpy(copyData, (void*)asset, sizeof(Asset));
 	Asset *copy = (Asset*)copyData;
 
 	asset->~Asset();
