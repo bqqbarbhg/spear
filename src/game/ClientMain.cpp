@@ -140,7 +140,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
 	sg_pixel_format normalFormat = (sg_pixel_format)cl::TileMaterial::getAtlasPixelFormat(cl::MaterialTexture::Normal);
 
 	uint8_t permutation[SP_NUM_PERMUTATIONS] = { };
-	#if SF_OS_WASM
+	#if CL_SHADOWCACHE_USE_ARRAY
 		permutation[SP_SHADOWGRID_USE_ARRAY] = 1;
 	#else
 		permutation[SP_SHADOWGRID_USE_ARRAY] = 0;
