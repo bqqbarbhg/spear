@@ -6216,7 +6216,7 @@ _SOKOL_PRIVATE MTLPixelFormat _sg_mtl_pixel_format(sg_pixel_format fmt) {
         case SG_PIXELFORMAT_BC6H_RGBF:              return MTLPixelFormatBC6H_RGBFloat;
         case SG_PIXELFORMAT_BC6H_RGBUF:             return MTLPixelFormatBC6H_RGBUfloat;
         case SG_PIXELFORMAT_BC7_RGBA:               return MTLPixelFormatBC7_RGBAUnorm;
-        case SG_PIXELFORMAT_BQQ_BC7_SRGB:           return MTLPixelFormatBC7_RGBA_sRGB;
+        case SG_PIXELFORMAT_BQQ_BC7_SRGB:           return MTLPixelFormatBC7_RGBAUnorm_sRGB;
         #else
         case SG_PIXELFORMAT_PVRTC_RGB_2BPP:         return MTLPixelFormatPVRTC_RGB_2BPP;
         case SG_PIXELFORMAT_PVRTC_RGB_4BPP:         return MTLPixelFormatPVRTC_RGB_4BPP;
