@@ -111,6 +111,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
 
 #if defined(GAME_WEBSOCKET_URL)
         url = GAME_WEBSOCKET_URL;
+		port = 1;
 #else
         url.format("ws://localhost:%d", port);
 #endif
