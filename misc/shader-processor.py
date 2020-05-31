@@ -668,8 +668,8 @@ for config in configs:
                     f.write(source)
 
                 if config.translate:
-                    src_path = config.translate(frag, temp_path)
-                    with open(temp_path, "r") as f:
+                    dst_path = config.translate(frag, temp_path)
+                    with open(dst_path, "r") as f:
                         source = f.read()
 
                 data = source.encode("utf-8") + b"\0"
