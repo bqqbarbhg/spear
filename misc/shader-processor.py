@@ -66,7 +66,7 @@ class GLSL:
         return "glsl"
 
     def get_defines(self):
-        return { "SP_GLSL": "1" }
+        return { "SP_LANG_GLSL": "1" }
 
     def do_header(self, c):
         lines = []
@@ -174,7 +174,7 @@ class HLSL:
         return "hlsl"
 
     def get_defines(self):
-        return { "SP_HLSL": "1" }
+        return { "SP_LANG_HLSL": "1" }
 
     def do_header(self, c):
         lines = []
@@ -458,14 +458,14 @@ class Shader:
         includes.append(g_root)
         return defines, includes
 
-    def get_permutations(self, lang, frag):
+    def get_permutations(self, lang, frag, defines):
         with open(self.path) as f:
             main_source = f.read()
 
         permutations = []
 
         defines, includes = self.base_defines_includes(lang, frag)
-        defines.update(lang.get_defines())
+        defines.update(defines)
         src = preprocess(main_source, self.path, defines=defines, includes=includes, ignore_unknown=True)
         for line in src.splitlines():
             m = re_permutation.match(line)
@@ -474,12 +474,12 @@ class Shader:
                 permutations.append(Permutation(name, int(eval(num))))
         return permutations
 
-    def compile(self, lang, frag, permutations):
+    def compile(self, lang, frag, defines, permutations):
         with open(self.path) as f:
             main_source = f.read()
         defines, includes = self.base_defines_includes(lang, frag)
         c = Compiler(lang, frag)
-        defines.update(c.lang.get_defines())
+        defines.update(defines)
         for perm in permutations:
             defines[perm.name] = str(perm.value)
 
@@ -522,18 +522,18 @@ class Shader:
         attribs = [] if frag else c.attribs
         return source, c.uniform_blocks, c.samplers, attribs
 
-def compile_permutations(shader, lang, frag, perms_left, permutations=tuple()):
+def compile_permutations(shader, lang, frag, defines, perms_left, permutations=tuple()):
     if not perms_left:
-        return [(permutations, shader.compile(lang, frag, permutations))]
+        return [(permutations, shader.compile(lang, frag, defines, permutations))]
     else:
         result = []
         perm = perms_left[0]
         for val in range(perm.value):
             new_p = permutations + (Permutation(perm.name, val),)
-            result += compile_permutations(shader, lang, frag, perms_left[1:], new_p)
+            result += compile_permutations(shader, lang, frag, defines, perms_left[1:], new_p)
         return result
 
-Config = namedtuple("Config", "name lang translate")
+Config = namedtuple("Config", "name lang defines translate")
 
 def run(exe, args):
     if sys.platform == "win32":
@@ -558,6 +558,7 @@ def translate_metal(frag, src_path, ios):
     args += ["--msl"]
     if ios:
         args += ["--msl-ios"]
+    args += ["--msl-decoration-binding"]
     args += ["--entry", "main"]
     args += ["--output", dst_path]
     args += ["--stage", ["vert", "frag"][frag]]
@@ -573,11 +574,11 @@ def translate_metal_macos(frag, src_path):
     return translate_metal(frag, src_path, False)
 
 configs = [
-    Config("gles", GLSL("300 es"), None),
-    Config("glsl", GLSL("300"), None),
-    Config("hlsl", HLSL("5"), None),
-    Config("macos", GLSL("450"), translate_metal_macos),
-    Config("ios", GLSL("450"), translate_metal_ios),
+    Config("gles", GLSL("300 es"), { "SP_GLES": 1, "SP_GLSL": 1 }, None),
+    Config("glsl", GLSL("300"), { "SP_GLSL": 1 }, None),
+    Config("hlsl", HLSL("5"), { "SP_HLSL": 1 }, None),
+    Config("macos", GLSL("450"), { "SP_METAL": 1 }, translate_metal_macos),
+    Config("ios", GLSL("450"), { "SP_METAL": 1 }, translate_metal_ios),
 ]
 
 shader_root = os.path.join(g_root, "shader")
@@ -614,6 +615,10 @@ for config in configs:
     attrib_index = { }
     attribs = []
 
+    defines = { }
+    defines.update(lang.get_defines())
+    defines.update(config.defines)
+
     def add_uniform(ubo):
         if ubo.name not in uniform_index:
             ix = len(uniforms)
@@ -647,14 +652,14 @@ for config in configs:
     for shader in shaders:
         infos = [None, None]
         for frag in [False, True]:
-            perms = shader.get_permutations(lang, frag)
+            perms = shader.get_permutations(lang, frag, defines)
 
             for perm in perms:
                 if perm.name not in perm_index:
                     perm_index[perm.name] = len(permutations)
                     permutations.append(perm.name)
 
-            result = compile_permutations(shader, lang, frag, perms)
+            result = compile_permutations(shader, lang, frag, defines, perms)
 
             infos[int(frag)] = ShaderInfo(shader.name, perms, len(permutation_infos), len(result))
             for ix, (permutation, (source, ubos, smps, atts)) in enumerate(result):
