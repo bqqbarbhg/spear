@@ -243,7 +243,7 @@ void serverUpdate(ServerMain *s)
 
 				auto player = sf::box<sv::Character>();
 				player->name = client.name;
-				player->model = sf::Symbol("Game/Characters/human-astro.js");
+				player->model = sf::Symbol("Game/Characters/goblin.js");
 				player->position = findSpawnPos(session.state, sf::Vec2i(1, -3));
 				player->players.push(client.playerId);
 				player->cards.push({ shortsword });

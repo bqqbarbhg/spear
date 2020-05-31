@@ -118,6 +118,12 @@ void bindImageFS(const Shader2 &shader, sg_bindings &bnd, uint32_t index, sg_ima
 	}
 }
 
+void bindImage(const Shader2 &shader, sg_bindings &bnd, uint32_t index, sg_image image)
+{
+	bindImageVS(shader, bnd, index, image);
+	bindImageFS(shader, bnd, index, image);
+}
+
 void bindUniformVS(const Shader2 &shader, uint32_t index, const void *data, size_t size)
 {
 	const SpPermutationInfo &info = spPermutations[shader.vsIndex];
@@ -144,4 +150,10 @@ void bindUniformFS(const Shader2 &shader, uint32_t index, const void *data, size
 		}
 		loc++;
 	}
+}
+
+void bindUniform(const Shader2 &shader, uint32_t index, const void *data, size_t size)
+{
+	bindUniformVS(shader, index, data, size);
+	bindUniformFS(shader, index, data, size);
 }

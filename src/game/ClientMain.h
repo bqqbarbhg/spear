@@ -3,6 +3,7 @@
 #include "sf/Symbol.h"
 #include "sf/Vector.h"
 #include "ext/sokol/sokol_defs.h"
+#include "ext/sokol/sokol_app.h"
 
 struct ClientMain;
 
@@ -11,6 +12,7 @@ struct ClientInput
 	float dt;
 	sf::Vec2 mousePosition;
 	sf::Vec2i resolution;
+	sf::Slice<sapp_event> events;
 };
 
 void clientGlobalInit();

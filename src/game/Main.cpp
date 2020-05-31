@@ -75,7 +75,7 @@ int port;
 
 void spInit()
 {
-    port = -1;
+    port = 4004;
 
 	#if SF_OS_EMSCRIPTEN
 	{
@@ -118,9 +118,14 @@ void spCleanup()
 
 static bool g_showStats;
 static sf::Vec2 g_mousePos;
+static sf::Array<sapp_event> g_events;
 
 void spEvent(const sapp_event *e)
 {
+	if (!e->key_repeat) {
+		g_events.push(*e);
+	}
+
 	if (e->type == SAPP_EVENTTYPE_KEY_DOWN && !e->key_repeat) {
 		if (e->key_code == SAPP_KEYCODE_C) {
 			sf::SmallStringBuf<64> name;
@@ -158,12 +163,15 @@ void spFrame(float dt)
 		input.dt = dt;
 		input.mousePosition = (g_mousePos - sf::Vec2(client.offset)) / sf::Vec2(client.resolution);
 		input.resolution = client.resolution;
+		input.events = g_events;
 
 		if (clientUpdate(client.client, input)) {
 			clientFree(client.client);
 			clients.removeSwap(i--);
 			updateLayout();
 		}
+
+		g_events.clear();
 	}
     
 	canvas.clear();

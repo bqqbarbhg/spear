@@ -4,7 +4,8 @@
 #include "sf/Matrix.h"
 
 #define SpShader_TestMesh 0
-#define SpShaderDataSize 15626
+#define SpShader_TestSkin 1
+#define SpShaderDataSize 31587
 
 #define SP_SHADOWGRID_USE_ARRAY 0
 #define SP_NORMALMAP_REMAP 1
@@ -27,6 +28,18 @@ struct UBO_Pixel {
 	sf::Vec4 pointLightData[64];
 };
 
+struct UBO_SkinTransform {
+	static const constexpr uint32_t UboIndex = 3;
+
+	sf::Mat44 worldToClip;
+};
+
+struct UBO_Bones {
+	static const constexpr uint32_t UboIndex = 4;
+
+	sf::Vec4 bones[192];
+};
+
 #define TEX_shadowGrid3D 1
 #define TEX_albedoAtlas 2
 #define TEX_normalAtlas 3
@@ -38,9 +51,9 @@ struct SpPermutationInfo;
 struct SpUniformBlockInfo;
 struct SpSamplerInfo;
 struct SpAttribInfo;
-extern const SpShaderInfo spShaders[1];
-extern const SpPermutationInfo spPermutations[5];
-extern const SpUniformBlockInfo spUniformBlock[3];
+extern const SpShaderInfo spShaders[2];
+extern const SpPermutationInfo spPermutations[10];
+extern const SpUniformBlockInfo spUniformBlock[5];
 extern const SpSamplerInfo spSamplers[6];
-extern const SpAttribInfo spAttribs[5];
-extern const char spShaderData[1637];
+extern const SpAttribInfo spAttribs[7];
+extern const char spShaderData[1967];

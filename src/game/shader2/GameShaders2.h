@@ -25,8 +25,10 @@ Shader2 getShader2(uint32_t index, sf::Slice<const uint8_t> permutations);
 struct sg_bindings;
 void bindImageVS(const Shader2 &shader, sg_bindings &bnd, uint32_t index, sg_image image);
 void bindImageFS(const Shader2 &shader, sg_bindings &bnd, uint32_t index, sg_image image);
+void bindImage(const Shader2 &shader, sg_bindings &bnd, uint32_t index, sg_image image);
 void bindUniformVS(const Shader2 &shader, uint32_t index, const void *data, size_t size);
 void bindUniformFS(const Shader2 &shader, uint32_t index, const void *data, size_t size);
+void bindUniform(const Shader2 &shader, uint32_t index, const void *data, size_t size);
 
 template <typename T>
 inline void bindUniformVS(const Shader2 &shader, const T &t)
@@ -38,5 +40,11 @@ template <typename T>
 inline void bindUniformFS(const Shader2 &shader, const T &t)
 {
 	bindUniformFS(shader, T::UboIndex, &t, sizeof(T));
+}
+
+template <typename T>
+inline void bindUniform(const Shader2 &shader, const T &t)
+{
+	bindUniform(shader, T::UboIndex, &t, sizeof(T));
 }
 

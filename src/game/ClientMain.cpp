@@ -20,8 +20,6 @@
 
 // TEMP
 #include "sf/Frustum.h"
-#include "game/shader/TestMesh.h"
-#include "game/shader/TestSkin.h"
 #include "ext/sokol/sokol_time.h"
 #include "game/shader2/GameShaders2.h"
 #include "sp/Canvas.h"
@@ -67,6 +65,7 @@ struct ClientMain
 	sf::Array<CardGuiState> cardGuiState;
 
 	Shader2 testMeshShader;
+	Shader2 testSkinShader;
 
 	sp::Pipeline tempMeshPipe;
 	sp::Pipeline tempSkinnedMeshPipe;
@@ -147,6 +146,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
 	#endif
 	permutation[SP_NORMALMAP_REMAP] = useNormalRemap(normalFormat);
 	c->testMeshShader = getShader2(SpShader_TestMesh, permutation);
+	c->testSkinShader = getShader2(SpShader_TestSkin, permutation);
 
 	{
 		uint32_t flags = sp::PipeDepthWrite|sp::PipeIndex16|sp::PipeCullCCW;
@@ -159,7 +159,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name)
 
 	{
 		uint32_t flags = sp::PipeDepthWrite|sp::PipeIndex16|sp::PipeCullCCW;
-		auto &d = c->tempSkinnedMeshPipe.init(gameShaders.skinnedMesh, flags);
+		auto &d = c->tempSkinnedMeshPipe.init(c->testSkinShader.handle, flags);
 		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
 		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT2;
 		d.layout.attrs[2].format = SG_VERTEXFORMAT_SHORT4N;
@@ -517,7 +517,6 @@ sg_image clientRender(ClientMain *c)
 			sg_draw(0, chunkGeo.main.numInidces, 1);
 		}
 
-		if (false)
 		for (cl::Entity *entity : c->clientState.entities) {
 			if (!entity) continue;
 
@@ -554,61 +553,58 @@ sg_image clientRender(ClientMain *c)
 
 				sp::boneTransformToWorld(model, boneWorld, boneTransforms, world);
 
-				TestSkin_Pixel_t pu = { };
+				UBO_Pixel pu = { };
 				pu.numLightsF = (float)c->clientState.pointLights.size;
-				float (*dst)[4] = pu.lightData;
+				pu.cameraPosition = cameraPosition;
+				sf::Vec4 *dst = pu.pointLightData;
 				for (cl::PointLight &light : c->clientState.pointLights) {
-					dst[0][0] = light.position.x;
-					dst[0][1] = light.position.y;
-					dst[0][2] = light.position.z;
-					dst[0][3] = light.radius;
-					dst[1][0] = light.color.x;
-					dst[1][1] = light.color.y;
-					dst[1][2] = light.color.z;
-					dst[1][3] = 0.0f;
-					dst[2][0] = light.shadowMul.x;
-					dst[2][1] = light.shadowMul.y;
-					dst[2][2] = light.shadowMul.z;
-					dst[2][3] = 0.0f;
-					dst[3][0] = light.shadowBias.x;
-					dst[3][1] = light.shadowBias.y;
-					dst[3][2] = light.shadowBias.z;
-					dst[3][3] = 0.0f;
+					dst[0].x = light.position.x;
+					dst[0].y = light.position.y;
+					dst[0].z = light.position.z;
+					dst[0].w = light.radius;
+					dst[1].x = light.color.x;
+					dst[1].y = light.color.y;
+					dst[1].z = light.color.z;
+					dst[1].w = 0.0f;
+					dst[2].x = light.shadowMul.x;
+					dst[2].y = light.shadowMul.y;
+					dst[2].z = light.shadowMul.z;
+					dst[2].w = 0.0f;
+					dst[3].x = light.shadowBias.x;
+					dst[3].y = light.shadowBias.y;
+					dst[3].z = light.shadowBias.z;
+					dst[3].w = 0.0f;
 					dst += 4;
 				}
 
-				sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestSkin_Pixel, &pu, sizeof(pu));
+				UBO_SkinTransform su = { };
+				su.worldToClip = viewProj;
 
-				TestSkin_VertexUniform_t vu = { };
-				vu.color[0] = 1.0f;
-				vu.color[1] = 1.0f;
-				vu.color[2] = 1.0f;
-				viewProj.writeColMajor44(vu.viewProj);
+				bindUniformVS(c->testSkinShader, su);
+				bindUniformFS(c->testSkinShader, pu);
 
 				// TestSkin_FragUniform_t fragUniform = { };
 
 				// sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestSkin_FragUniform, &fragUniform, sizeof(fragUniform));
 
 				for (sp::Mesh &mesh : model->meshes) {
-					TestSkin_Bones_t bones;
+					UBO_Bones bones;
 					for (uint32_t i = 0; i < mesh.bones.size; i++) {
 						sp::MeshBone &meshBone = mesh.bones[i];
 						sf::Mat34 transform = boneWorld[meshBone.boneIndex] * meshBone.meshToBone;
-						memcpy(bones.bones[i * 3 + 0], transform.getRow(0).v, sizeof(sf::Vec4));
-						memcpy(bones.bones[i * 3 + 1], transform.getRow(1).v, sizeof(sf::Vec4));
-						memcpy(bones.bones[i * 3 + 2], transform.getRow(2).v, sizeof(sf::Vec4));
+						memcpy(bones.bones[i * 3 + 0].v, transform.getRow(0).v, sizeof(sf::Vec4));
+						memcpy(bones.bones[i * 3 + 1].v, transform.getRow(1).v, sizeof(sf::Vec4));
+						memcpy(bones.bones[i * 3 + 2].v, transform.getRow(2).v, sizeof(sf::Vec4));
 					}
 
-					sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestSkin_VertexUniform, &vu, sizeof(vu));
-					sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_TestSkin_Bones, &bones, sizeof(bones));
+					bindUniformVS(c->testSkinShader, bones);
 
 					sg_bindings binds = { };
 					binds.vertex_buffers[0] = model->vertexBuffer.buffer;
 					binds.index_buffer = model->indexBuffer.buffer;
 					binds.index_buffer_offset = mesh.indexBufferOffset;
 					binds.vertex_buffer_offsets[0] = mesh.streams[0].offset;
-					// binds.fs_images[SLOT_TestSkin_albedo] = atlas->image;
-					binds.fs_images[SLOT_TestSkin_shadowGrid] = c->clientState.shadowCache.shadowCache.image;
+					bindImageFS(c->testMeshShader, binds, CL_SHADOWCACHE_TEX, c->clientState.shadowCache.shadowCache.image);
 					sg_apply_bindings(&binds);
 
 					sg_draw(0, mesh.numIndices, 1);
