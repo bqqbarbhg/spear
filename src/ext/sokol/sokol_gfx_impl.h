@@ -7885,7 +7885,7 @@ _SOKOL_PRIVATE void _sg_bqq_copy_subimage(const sg_bqq_subimage_copy_desc *desc,
             MTLOrigin dst_origin = { rect->dst_x >> mip_index, rect->dst_y >> mip_index, 0 };
             MTLSize size = { rect->width >> mip_index, rect->height >> mip_index, 1 };
             if (dst_img->type == SG_IMAGETYPE_3D) {
-                dst_origin.x = rect->dst_z >> mip_index;
+                dst_origin.z = rect->dst_z >> mip_index;
                 [blit_encoder
                  copyFromTexture: src_tex
                  sourceSlice: 0
