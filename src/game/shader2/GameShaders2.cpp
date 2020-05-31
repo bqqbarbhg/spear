@@ -35,7 +35,11 @@ static uint16_t getShaderStage2(sg_shader_stage_desc &d, const SpShaderStageInfo
 	}
 
 	const SpPermutationInfo &permInfo = spPermutations[info.permutationOffset + permIndex];
-	d.entry = "main";
+    #if defined(SOKOL_METAL)
+    	d.entry = "main0";
+    #else
+        d.entry = "main";
+    #endif
 	d.source = uncompressedShaderData + permInfo.dataOffset;
 
 	for (uint32_t i = 0; i < SP_MAX_UNIFORMS_PER_SHADER; i++) {
