@@ -358,7 +358,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 					hoverTarget = 5.0f;
 				}
 
-				lerpExp(guiState.hover, hoverTarget, 20.0f, 5.0f, dt);
+				lerpExp(guiState.hover, hoverTarget, 40.0f, 5.0f, dt);
 
 				sf::Vec2 cardPos = pos;
 				cardPos.y -= guiState.hover;
