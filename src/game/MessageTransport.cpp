@@ -7,7 +7,7 @@
 
 sf::Box<sv::Message> readMessage(bqws_msg *wsMsg)
 {
-	// sf::debugPrintJson("Receive", sf::String((char*)wsMsg->data, wsMsg->size));
+	sf::debugPrintJson("Receive", sf::String((char*)wsMsg->data, wsMsg->size));
 
 	sf::Box<sv::Message> msg;
 	jsi_args args = { };
@@ -30,6 +30,6 @@ void writeMessage(bqws_socket *ws, sv::Message *msg, const sf::Symbol &from, con
 
 	sp::writeJson(s, msg);
 
-	// sf::debugPrintJson("Send", sf::String((char*)s.data, s.pos));
+	sf::debugPrintJson("Send", sf::String((char*)s.data, s.pos));
 	bqws_send_binary(ws, s.data, s.pos);
 }
