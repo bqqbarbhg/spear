@@ -60,7 +60,8 @@ struct ClientMain
 
 	sf::Vec2 uiResolution;
 	sp::Canvas testCanvas;
-	sp::FontRef cardFont { sf::Symbol("sp://OpenSans-Ascii.ttf") };
+	sp::FontRef cardFont { sf::Symbol("Assets/Gui/Font/NotoSans-Regular.ttf") };
+	sp::FontRef cardFontBold { sf::Symbol("Assets/Gui/Font/NotoSans-Bold.ttf") };
 	sp::SpriteRef cardBackground { sf::Symbol("Assets/Gui/Card/Background_Base.png") };
 	sf::Array<CardGuiState> cardGuiState;
 
@@ -232,6 +233,149 @@ static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
 	c->clientState.recreateTargets();
 }
 
+struct RichTextDesc
+{
+	float wrapWidth;
+	float fontHeight;
+	sp::Font *bodyFont;
+	sp::Font *boldFont;
+	sf::Vec4 bodyColor;
+	sf::Vec4 boldColor;
+};
+
+struct RichTextDraw
+{
+	bool newLine;
+	bool newParagraph;
+	sf::String text;
+	sp::Font *font;
+	sf::Vec4 color;
+	float fontHeight;
+};
+
+static float drawRichText(sp::Canvas &canvas, const RichTextDesc &desc, sf::Slice<const sf::String> paragraphs)
+{
+	sf::SmallArray<RichTextDraw, 64> draws;
+	for (sf::String text : paragraphs) {
+
+		bool newParagraph = true;
+		bool newLine = true;
+		bool isBold = false;
+		size_t begin = 0, end = 0;
+		bool reachedEnd = false;
+		while (!reachedEnd) {
+			bool flush = true;
+			bool nextNewLine = false;
+			bool nextIsBold = isBold;
+			switch (end < text.size ? text.data[end] : '\0') {
+
+			case '\0':
+				reachedEnd = true;
+				break;
+
+			case '*':
+				nextIsBold = !isBold;
+				break;
+
+			case '\n':
+				nextNewLine = true;
+				break;
+
+			default:
+				flush = false;
+				break;
+			}
+			end++;
+
+			if (flush) {
+				RichTextDraw &draw = draws.push();
+				draw.text = sf::String(text.data + begin, end - begin - 1);
+				draw.newLine = newLine;
+				draw.newParagraph = newParagraph;
+				draw.font = isBold ? desc.boldFont : desc.bodyFont;
+				draw.color = isBold ? desc.boldColor : desc.bodyColor;
+				draw.fontHeight = desc.fontHeight;
+
+				newParagraph = 0;
+				newLine = nextNewLine;
+				isBold = nextIsBold;
+				begin = end;
+			}
+
+		}
+	}
+
+	sf::Vec2 spaceSize = desc.bodyFont->measureText(" ", desc.fontHeight);
+
+	sf::Vec2 pos = sf::Vec2(0.0f);
+	for (const RichTextDraw &draw : draws) {
+
+		if (draw.newParagraph) {
+			pos.x = 0.0f;
+			pos.y += desc.fontHeight * 1.5f;
+		} else if (draw.newLine) {
+			pos.x = 0.0f;
+			pos.y += desc.fontHeight;
+		}
+
+		size_t begin = 0;
+		size_t prevEnd = 0;
+		size_t end = 0;
+
+		float currentWidth = 0.0f;
+		for (; end <= draw.text.size; end++) {
+
+			if (end >= begin && end == draw.text.size || draw.text.data[end] == ' ') {
+				sf::String piece { draw.text.data + prevEnd, end - prevEnd };
+				float width = draw.font->measureText(piece, draw.fontHeight).x;
+
+				if (pos.x + currentWidth + width < desc.wrapWidth) {
+					currentWidth += width;
+				} else {
+					sf::String prevPiece { draw.text.data + begin, prevEnd - begin };
+
+					sp::TextDraw td;
+					td.string = prevPiece;
+					td.transform.m02 = pos.x;
+					td.transform.m12 = pos.y;
+					td.font = draw.font;
+					td.height = draw.fontHeight;
+					td.color = draw.color;
+					canvas.drawText(td);
+
+					begin = prevEnd;
+					pos.x = 0.0f;
+					pos.y += desc.fontHeight;
+
+					while (begin < draw.text.size && draw.text.data[begin] == ' ') {
+						begin++;
+					}
+					sf::String nextPiece { draw.text.data + begin, end - begin };
+					currentWidth = draw.font->measureText(nextPiece, draw.fontHeight).x;
+				}
+				prevEnd = end;
+
+				if (end == draw.text.size && begin < end) {
+					sf::String lastPiece { draw.text.data + begin, end - begin };
+
+					sp::TextDraw td;
+					td.string = lastPiece;
+					td.transform.m02 = pos.x;
+					td.transform.m12 = pos.y;
+					td.font = draw.font;
+					td.height = draw.fontHeight;
+					td.color = draw.color;
+					canvas.drawText(td);
+
+					pos.x += currentWidth;
+				}
+			}
+		}
+	}
+
+	return 0.0f;
+}
+
 static void drawCard(ClientMain *c, sp::Canvas &canvas, const cl::Card &card)
 {
 	sf::Vec2 size = { 100.0f, 100.0f / cl::Card::Aspect };
@@ -254,16 +398,42 @@ static void drawCard(ClientMain *c, sp::Canvas &canvas, const cl::Card &card)
 	}
 
 	{
-		float height = 10.0f;
-		sf::Vec2 measure = c->cardFont->measureText(card.svCard.type->name, height);
+		float titleHeight = 10.0f;
+		{
+			sf::Vec2 measure = c->cardFont->measureText(card.svCard.type->name, titleHeight);
 
-		sp::TextDraw draw;
-		draw.transform = sf::mat2D::translate(50.0f - measure.x/2.0f, 78.0f);
-		draw.font = c->cardFont;
-		draw.string = card.svCard.type->name;
-		draw.height = height;
-		draw.color = sf::Vec4(1.0f);
-		canvas.drawText(draw);
+			sp::TextDraw draw;
+			draw.transform = sf::mat2D::translate(50.0f - measure.x/2.0f, 78.0f);
+			draw.font = c->cardFont;
+			draw.string = card.svCard.type->name;
+			draw.height = titleHeight;
+			draw.color = sf::Vec4(1.0f);
+			canvas.drawText(draw);
+		}
+
+		sf::SmallArray<sf::String, 32> paragraphs;
+		for (sf::Symbol &buf : card.svCard.type->description) {
+			paragraphs.push(buf);
+		}
+		
+		{
+			sf::Mat23 bodyTransform;
+			bodyTransform.m02 = 10.0f;
+			bodyTransform.m12 = 80.0f;
+
+			canvas.pushTransform(bodyTransform);
+
+			RichTextDesc desc;
+			desc.bodyFont = c->cardFont;
+			desc.boldFont = c->cardFontBold;
+			desc.wrapWidth = 80.0f;
+			desc.fontHeight = 7.5f;
+			desc.bodyColor = sf::Vec4(sf::Vec3(0.1f), 1.0f);
+			desc.boldColor = sf::Vec4(sf::Vec3(0.0f, 0.0f, 0.0f), 1.0f);
+			drawRichText(canvas, desc, paragraphs);
+
+			canvas.popTransform();
+		}
 	}
 
 }

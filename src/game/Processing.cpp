@@ -90,6 +90,25 @@ struct ExecJob : Job
 	virtual Status getStatus();
 };
 
+struct CopyJob : Job
+{
+	sf::StringBuf src, dst;
+
+	CopyJob(sf::String src, sf::String dst)
+		: src(src), dst(dst)
+	{
+	}
+
+	virtual Status begin(Processor &p)
+	{
+		description.format("cp %s %s", src.data, dst.data);
+		sf::Array<char> data;
+		if (!sf::readFile(data, src)) return Failed;
+		if (!sf::writeFile(dst, data)) return Failed;
+		return Succeeded;
+	}
+};
+
 struct MoveJob : Job
 {
 	sf::StringBuf src, dst;
@@ -140,6 +159,11 @@ struct JobQueue
 	void exec(sf::String exeName, sf::Array<sf::StringBuf> &&args)
 	{
 		jobs.push(sf::box<ExecJob>(exeName, std::move(args)));
+	}
+
+	void copy(sf::String src, sf::String dst)
+	{
+		jobs.push(sf::box<CopyJob>(src, dst));
 	}
 
 	void move(sf::String src, sf::String dst)
@@ -877,6 +901,42 @@ struct TileModelTask : Task
 	}
 };
 
+struct FontTask : Task
+{
+	FontTask()
+	{
+		name = "FontTask";
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (sf::endsWith(path, ".ttf")) {
+			ti.inputs[s_src] = path;
+		} else {
+			return false;
+		}
+		ti.outputs[s_dst] = ti.inputs[s_src];
+		return true;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		sf::Array<sf::StringBuf> args;
+
+		sf::StringBuf srcFile, tempFile, dstFile;
+		sf::appendPath(srcFile, p.dataRoot, ti.inputs[s_src]);
+		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+
+		JobQueue jq;
+		jq.mkdirsToFile(tempFile);
+		jq.mkdirsToFile(dstFile);
+		jq.copy(srcFile, tempFile);
+		jq.move(tempFile, dstFile);
+		p.addJobs(JobPriority::Normal, ti, jq);
+	}
+};
+
 Processor g_processor;
 
 static void findResourcesImp(Processor &p, sf::String root, sf::StringBuf &prefix)
@@ -953,6 +1013,8 @@ void initializeProcessing(const ProcessingDesc &desc)
 	p.tasks.push(sf::box<AnimationTask>());
 	p.tasks.push(sf::box<CharacterModelTask>());
 	p.tasks.push(sf::box<TileModelTask>());
+
+	p.tasks.push(sf::box<FontTask>());
 
 	p.dataMonitor.begin(p.dataRoot);
 
