@@ -422,7 +422,7 @@ class Preprocessor(pcpp.Preprocessor):
 def preprocess(src, name=None, defines={}, includes=[], ignore_unknown=False):
     pp = Preprocessor(ignore_unknown)
     for name, value in defines.items():
-        pp.define(name + " " + value)
+        pp.define(name + " " + str(value))
     for path in includes:
         pp.add_path(path)
     pp.parse(src)
@@ -458,14 +458,14 @@ class Shader:
         includes.append(g_root)
         return defines, includes
 
-    def get_permutations(self, lang, frag, defines):
+    def get_permutations(self, lang, frag, user_defines):
         with open(self.path) as f:
             main_source = f.read()
 
         permutations = []
 
         defines, includes = self.base_defines_includes(lang, frag)
-        defines.update(defines)
+        defines.update(user_defines)
         src = preprocess(main_source, self.path, defines=defines, includes=includes, ignore_unknown=True)
         for line in src.splitlines():
             m = re_permutation.match(line)
@@ -474,12 +474,12 @@ class Shader:
                 permutations.append(Permutation(name, int(eval(num))))
         return permutations
 
-    def compile(self, lang, frag, defines, permutations):
+    def compile(self, lang, frag, user_defines, permutations):
         with open(self.path) as f:
             main_source = f.read()
         defines, includes = self.base_defines_includes(lang, frag)
         c = Compiler(lang, frag)
-        defines.update(defines)
+        defines.update(user_defines)
         for perm in permutations:
             defines[perm.name] = str(perm.value)
 

@@ -20,7 +20,7 @@ layout(location=0) in vec3 position;
 layout(location=1) in vec2 uv;
 layout(location=2) in vec3 normal;
 layout(location=3) in vec4 tangent;
-#if SOKOL_GLSL
+#if SP_GLSL
 	layout(location=4) in vec4 indices;
 #else
 	layout(location=4) in uvec4 indices;
@@ -34,7 +34,7 @@ out vec2 v_uv;
 
 void main()
 {
-#if SOKOL_GLSL
+#if SP_GLSL
 	ivec4 ix = ivec4(indices * 3.0);
 #else
 	ivec4 ix = ivec4(indices) * 3;
