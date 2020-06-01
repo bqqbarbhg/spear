@@ -592,14 +592,18 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 						c->selectedCard = ix;
 					}
 				}
-			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_BEGAN || e.type == SAPP_EVENTTYPE_TOUCHES_MOVED) {
+			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {
 				for (sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
-					if (!touch.changed) continue;
 					sf::Vec2 uiTouch = sf::Vec2(touch.pos_x, touch.pos_y) / sf::Vec2(c->resolution) * c->uiResolution;
 					sf::Vec2 relTouch = uiTouch - cardOrigin;
 					if (character && character->cards.size > 0 && relTouch.x >= -5.0f && relTouch.x <= cardWidthPad * (float)character->cards.size + 5.0f && relTouch.y >= -5.0f && relTouch.y <= cardHeight + 5.0f) {
-						c->selectedCard = sf::clamp((int32_t)(relTouch.x / cardWidthPad), 0, (int32_t)character->cards.size - 1);
-					}
+						int32_t cardIx = sf::clamp((int32_t)(relTouch.x / cardWidthPad), 0, (int32_t)character->cards.size - 1);
+                        if (cardIx == c->selectedCard) {
+                            c->selectedCard = -1;
+                        } else {
+                            c->selectedCard = cardIx;
+                        }
+                    }
 				}
 			}
 		}
