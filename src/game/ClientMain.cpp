@@ -64,6 +64,9 @@ struct ClientMain
 	sp::FontRef cardFontBold { sf::Symbol("Assets/Gui/Font/NotoSans-Bold.ttf") };
 	sp::SpriteRef cardBackground { sf::Symbol("Assets/Gui/Card/Background_Base.png") };
 	sf::Array<CardGuiState> cardGuiState;
+	int32_t selectedCard = -1;
+	int32_t hoveredCard = -1;
+	float selectedOffset = 0.0f;
 
 	Shader2 testMeshShader;
 	Shader2 testSkinShader;
@@ -493,9 +496,12 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 		sf::Vec2 uiMouse = input.mousePosition * c->uiResolution;
 
-		float cardHeight = 100.0f;
+		float cardHeight = 125.0f;
 		float cardWidth = cardHeight * cl::Card::Aspect;
-		sf::Vec2 pos = { 20.0f, 700.0f - cardHeight };
+		float cardPad = 5.0f;
+		float cardWidthPad = cardWidth + cardPad;
+		sf::Vec2 cardOrigin = { 20.0f, 700.0f - cardHeight };
+		sf::Vec2 pos = cardOrigin;
 
 		// HACK: Take the first character
 		cl::Character *character = nullptr;
@@ -506,26 +512,25 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 			}
 		}
 
-		bool hasBigCard = false;
 		if (character) {
-			uint32_t ix = 0;
+			sf::Vec2 relMouse = uiMouse - cardOrigin;
+			if (character->cards.size > 0 && relMouse.x >= -5.0f && relMouse.x <= cardWidthPad * (float)character->cards.size + 5.0f && relMouse.y >= -5.0f && relMouse.y <= cardHeight + 5.0f) {
+				c->hoveredCard = sf::clamp((int32_t)(relMouse.x / cardWidthPad), 0, (int32_t)character->cards.size - 1);
+			} else {
+				c->hoveredCard = -1;
+			}
+
+			int32_t ix = 0;
 			for (cl::Card &card : character->cards) {
 				while (ix >= c->cardGuiState.size) c->cardGuiState.push();
 				CardGuiState &guiState = c->cardGuiState[ix];
 
 				float hoverTarget = 0.0f;
 
-				sf::Vec2 relMouse = uiMouse - pos;
-				if (relMouse.x >= -5.0f && relMouse.x <= cardWidth + 5.0f && relMouse.y >= -5.0f && relMouse.y <= cardHeight + 5.0f && !hasBigCard) {
-					hasBigCard = true;
-
-					sf::Mat23 bigTrasnform = sf::mat2D::translate(sf::Vec2(20.0f, 240.0f)) * sf::mat2D::scale(230.0f / 100.0f);
-
-					canvas.pushTransform(bigTrasnform);
-					drawCard(c, canvas, card);
-					canvas.popTransform();
-
-					hoverTarget = 5.0f;
+				if (ix == c->selectedCard) {
+					hoverTarget = 6.0f;
+				} else if (ix == c->hoveredCard) {
+					hoverTarget = 3.0f;
 				}
 
 				lerpExp(guiState.hover, hoverTarget, 40.0f, 5.0f, dt);
@@ -537,9 +542,65 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				drawCard(c, canvas, card);
 				canvas.popTransform();
 
-				pos.x += cardWidth + 5.0f;
+				pos.x += cardWidthPad;
 
 				ix++;
+			}
+
+			if (c->selectedOffset != 0.0f) {
+				lerpExp(c->selectedOffset, 0.0f, 40.0f, 5.0f, dt);
+			}
+
+			if (c->selectedCard >= 0) {
+
+				cl::Card &card = character->cards[c->selectedCard];
+				sf::Mat23 bigTransform = sf::mat2D::translate(sf::Vec2(20.0f, 200.0f + c->selectedOffset)) * sf::mat2D::scale(230.0f / 100.0f);
+
+				canvas.pushTransform(bigTransform);
+				drawCard(c, canvas, card);
+				canvas.popTransform();
+			}
+
+			if (c->hoveredCard >= 0 && c->hoveredCard != c->selectedCard) {
+				cl::Card &card = character->cards[c->hoveredCard];
+				sf::Mat23 bigTransform = sf::mat2D::translate(sf::Vec2(20.0f, 190.0f)) * sf::mat2D::scale(230.0f / 100.0f);
+
+				canvas.pushTransform(bigTransform);
+				drawCard(c, canvas, card);
+				canvas.popTransform();
+			}
+
+		}
+
+		for (sapp_event &e : input.events) {
+			if (e.type == SAPP_EVENTTYPE_MOUSE_DOWN) {
+				if (e.mouse_button == 0) {
+					if (c->selectedCard != c->hoveredCard) {
+						c->selectedCard = c->hoveredCard;
+						c->selectedOffset = -10.0f;
+					} else {
+						c->selectedCard = -1;
+					}
+				}
+			} else if (e.type == SAPP_EVENTTYPE_KEY_DOWN && !e.key_repeat) {
+				if (e.key_code >= '1' && e.key_code <= '9' && character) {
+					int32_t ix = (int32_t)(e.key_code - '1');
+					if (ix == c->selectedCard) {
+						c->selectedCard = -1;
+					} else if (ix < character->cards.size) {
+						c->selectedOffset = -10.0f;
+						c->selectedCard = ix;
+					}
+				}
+			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_BEGAN || e.type == SAPP_EVENTTYPE_TOUCHES_MOVED) {
+				for (sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
+					if (!touch.changed) continue;
+					sf::Vec2 uiTouch = sf::Vec2(touch.pos_x, touch.pos_y) / sf::Vec2(c->resolution) * c->uiResolution;
+					sf::Vec2 relTouch = uiTouch - cardOrigin;
+					if (character && character->cards.size > 0 && relTouch.x >= -5.0f && relTouch.x <= cardWidthPad * (float)character->cards.size + 5.0f && relTouch.y >= -5.0f && relTouch.y <= cardHeight + 5.0f) {
+						c->selectedCard = sf::clamp((int32_t)(relTouch.x / cardWidthPad), 0, (int32_t)character->cards.size - 1);
+					}
+				}
 			}
 		}
 
