@@ -197,7 +197,7 @@ static void wsLogLocal(void *user, bqws_socket *ws, const char *line)
 static sv::TileId resolveTileId(Session &se, const sv::TileType &type)
 {
 	sv::State *state = se.state;
-	auto &res = se.tileTypes.insert(type);
+	auto res = se.tileTypes.insert(type);
 	if (res.inserted) {
 		uint32_t index = state->map.tileTypes.size;
 		state->map.tileTypes.push(type);
