@@ -11,6 +11,8 @@
 #include "sp/Canvas.h"
 #include "game/shader/GameShaders.h"
 #include "game/shader/Upscale.h"
+#include "ext/sokol/sokol_imgui.h"
+#include "ext/imgui/imgui.h"
 
 #include "bq_websocket_platform.h"
 
@@ -103,6 +105,13 @@ void spInit()
 	MainClient &client = clients.push();
 	client.client = clientInit(port, sf::Symbol("Client 1"));
 
+	{
+		simgui_desc_t d = { };
+		d.ini_filename = "";
+		d.dpi_scale = sapp_dpi_scale();
+		simgui_setup(&d);
+	}
+
 	updateLayout();
 
 	upscalePipe.init(gameShaders.upscaleFast, sp::PipeVertexFloat2);
@@ -112,6 +121,7 @@ void spInit()
 
 void spCleanup()
 {
+	simgui_shutdown();
 	clientGlobalCleanup();
 	closeProcessing();
 }
@@ -122,6 +132,10 @@ static sf::Array<sapp_event> g_events;
 
 void spEvent(const sapp_event *e)
 {
+	if (simgui_handle_event(e)) {
+		return;
+	}
+
 	if (!e->key_repeat) {
 		g_events.push(*e);
 	}
@@ -152,6 +166,8 @@ void spEvent(const sapp_event *e)
 
 void spFrame(float dt)
 {
+	simgui_new_frame(sapp_width(), sapp_height(), dt);
+
 	updateProcessing();
 
 	if (server) serverUpdate(server);
@@ -224,6 +240,8 @@ void spFrame(float dt)
 		}
 
         canvas.render(sp::CanvasRenderOpts::windowPixels());
+
+		simgui_render();
 
 		sp::endPass();
 	}

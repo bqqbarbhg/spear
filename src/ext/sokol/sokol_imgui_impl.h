@@ -516,7 +516,7 @@ SOKOL_API_IMPL void simgui_setup(const simgui_desc_t* desc) {
         io->KeyMap[ImGuiKey_Z] = SAPP_KEYCODE_Z;
     #endif
 
-	io->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+	// io->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     /* create sokol-gfx resources */
     sg_push_debug_group("sokol-imgui");

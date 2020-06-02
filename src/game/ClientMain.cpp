@@ -18,6 +18,8 @@
 
 #include "GameConfig.h"
 
+#include "ext/imgui/imgui.h"
+
 // TEMP
 #include "sf/Frustum.h"
 #include "ext/sokol/sokol_time.h"
@@ -73,6 +75,9 @@ struct ClientMain
 
 	sp::Pipeline tempMeshPipe;
 	sp::Pipeline tempSkinnedMeshPipe;
+
+	sf::Mat44 worldToClip;
+	sf::Mat44 clipToWorld;
 };
 
 void clientGlobalInit()
@@ -503,6 +508,16 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		sf::Vec2 cardOrigin = { 20.0f, 700.0f - cardHeight };
 		sf::Vec2 pos = cardOrigin;
 
+		sf::Vec2 clipMouse = input.mousePosition * sf::Vec2(+2.0f, -2.0f) + sf::Vec2(-1.0f, +1.0f);
+		sf::Vec4 rayBegin = c->clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 0.0f, 1.0f);
+		sf::Vec4 rayEnd = c->clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 1.0f, 1.0f);
+		sf::Vec3 rayOrigin = sf::Vec3(rayBegin.v) / rayBegin.w;
+		sf::Vec3 rayDirection = sf::normalize(sf::Vec3(rayEnd.v) / rayEnd.w - rayOrigin);
+
+		float rayT = rayOrigin.y / -rayDirection.y;
+		sf::Vec3 rayPos = rayOrigin + rayDirection * rayT;
+		sf::Vec2 mouseTile = sf::Vec2(rayPos.x, rayPos.z);
+
 		// HACK: Take the first character
 		cl::Character *character = nullptr;
 		for (sf::Box<cl::Entity> &entity : c->clientState.entities) {
@@ -522,7 +537,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 			int32_t ix = 0;
 			for (cl::Card &card : character->cards) {
-				while (ix >= c->cardGuiState.size) c->cardGuiState.push();
+				while (ix >= (int32_t)c->cardGuiState.size) c->cardGuiState.push();
 				CardGuiState &guiState = c->cardGuiState[ix];
 
 				float hoverTarget = 0.0f;
@@ -572,22 +587,71 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 		}
 
+		if (ImGui::BeginMainMenuBar()) {
+
+			if (ImGui::BeginMenu("Edit")) {
+				if (ImGui::MenuItem("Undo", "CTRL+Z")) {
+					sv::MessageCommand msg;
+					msg.command = sf::box<sv::CommandUndo>();
+					writeMessage(c->ws, &msg, c->name, serverName);
+				}
+
+				if (ImGui::MenuItem("Redo", "CTRL+Y")) {
+					sv::MessageCommand msg;
+					msg.command = sf::box<sv::CommandRedo>();
+					writeMessage(c->ws, &msg, c->name, serverName);
+				}
+
+				ImGui::EndMenu();
+			}
+
+			ImGui::EndMainMenuBar();
+		}
+
 		for (sapp_event &e : input.events) {
-			if (e.type == SAPP_EVENTTYPE_MOUSE_DOWN) {
+			if (e.type == SAPP_EVENTTYPE_MOUSE_DOWN && !ImGui::GetIO().WantCaptureMouse) {
 				if (e.mouse_button == 0) {
 					if (c->selectedCard != c->hoveredCard) {
 						c->selectedCard = c->hoveredCard;
 						c->selectedOffset = -10.0f;
 					} else {
 						c->selectedCard = -1;
+
+						// HACK
+						{
+							sf::Box<sv::CommandSetTiles> cmd = sf::box<sv::CommandSetTiles>();
+
+							cmd->tileType.floorName = sf::Symbol("Game/Tiles/floor.js");
+							cmd->tileType.floor = true;
+
+							cmd->tiles.push(sf::Vec2i(sf::floor(mouseTile + sf::Vec2(0.5f))));
+
+							sv::MessageCommand msg;
+							msg.command = std::move(cmd);
+							writeMessage(c->ws, &msg, c->name, serverName);
+						}
+
 					}
 				}
 			} else if (e.type == SAPP_EVENTTYPE_KEY_DOWN && !e.key_repeat) {
+
+				if ((e.modifiers & SAPP_MODIFIER_CTRL) != 0) {
+					if (e.key_code == SAPP_KEYCODE_Y || ((e.modifiers & SAPP_MODIFIER_SHIFT) != 0 && e.key_code == SAPP_KEYCODE_Z)) {
+						sv::MessageCommand msg;
+						msg.command = sf::box<sv::CommandRedo>();
+						writeMessage(c->ws, &msg, c->name, serverName);
+					} else if (e.key_code == SAPP_KEYCODE_Z) {
+						sv::MessageCommand msg;
+						msg.command = sf::box<sv::CommandUndo>();
+						writeMessage(c->ws, &msg, c->name, serverName);
+					}
+				}
+
 				if (e.key_code >= '1' && e.key_code <= '9' && character) {
 					int32_t ix = (int32_t)(e.key_code - '1');
 					if (ix == c->selectedCard) {
 						c->selectedCard = -1;
-					} else if (ix < character->cards.size) {
+					} else if (ix < (int32_t)character->cards.size) {
 						c->selectedOffset = -10.0f;
 						c->selectedCard = ix;
 					}
@@ -618,7 +682,6 @@ void clientFree(ClientMain *client)
 
 sg_image clientRender(ClientMain *c)
 {
-
 	// HACK HACK
 	{
 		float t = (float)stm_sec(stm_now())*0.5f;
@@ -632,7 +695,6 @@ sg_image clientRender(ClientMain *c)
 			t += sf::F_2PI / 3.0f;
 		}
 	}
-
 
 	{
 		sg_pass_action action = { };
@@ -650,6 +712,10 @@ sg_image clientRender(ClientMain *c)
 		sf::Mat44 view = sf::mat::look(cameraPosition, sf::Vec3(0.0f, -1.0f, -0.5f));
 		sf::Mat44 proj = sf::mat::perspectiveD3D(1.0f, (float)c->resolution.x/(float)c->resolution.y, 0.1f, 20.0f);
 		sf::Mat44 viewProj = proj * view;
+
+		c->worldToClip = viewProj;
+		c->clipToWorld = sf::inverse(viewProj);
+		sf::Mat44 m = c->worldToClip * c->clipToWorld;
 
 		sf::Frustum frustum { viewProj, sg_query_features().origin_top_left ? 0.0f : -1.0f };
 		for (auto &pair : c->clientState.chunks) {

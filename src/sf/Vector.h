@@ -55,6 +55,7 @@ sf_inline Vec2 normalizeOrZero(const Vec2 &a) {
 sf_inline Vec2 min(const Vec2 &a, const Vec2 &b) { return Vec2(min(a.x, b.x), min(a.y, b.y)); }
 sf_inline Vec2 max(const Vec2 &a, const Vec2 &b) { return Vec2(max(a.x, b.x), max(a.y, b.y)); }
 sf_inline Vec2 lerp(const Vec2 &a, const Vec2 &b, float t) { return a * (1.0f - t) + b * t; }
+sf_inline Vec2 floor(const Vec2 &a) { return { floorf(a.x), floorf(a.y) }; }
 
 struct Vec3
 {
@@ -104,6 +105,7 @@ sf_inline Vec3 normalizeOrZero(const Vec3 &a) {
 sf_inline Vec3 min(const Vec3 &a, const Vec3 &b) { return Vec3(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z)); }
 sf_inline Vec3 max(const Vec3 &a, const Vec3 &b) { return Vec3(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z)); }
 sf_inline Vec3 lerp(const Vec3 &a, const Vec3 &b, float t) { return a * (1.0f - t) + b * t; }
+sf_inline Vec3 floor(const Vec3 &a) { return { floorf(a.x), floorf(a.y), floorf(a.z) }; }
 
 sf_inline Vec3 cross(const Vec3 &a, const Vec3 &b) {
 	return Vec3(
@@ -161,6 +163,7 @@ sf_inline Vec4 normalizeOrZero(const Vec4 &a) {
 sf_inline Vec4 min(const Vec4 &a, const Vec4 &b) { return Vec4(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z), min(a.w, b.w)); }
 sf_inline Vec4 max(const Vec4 &a, const Vec4 &b) { return Vec4(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z), max(a.w, b.w)); }
 sf_inline Vec4 lerp(const Vec4 &a, const Vec4 &b, float t) { return a * (1.0f - t) + b * t; }
+sf_inline Vec4 floor(const Vec4 &a) { return { floorf(a.x), floorf(a.y), floorf(a.z), floorf(a.w) }; }
 
 sf_inline Vec3 divideW(const Vec4 &v) {
 	return Vec3(v.x, v.y, v.z) * (1.0f / v.w);

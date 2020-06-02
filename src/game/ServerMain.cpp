@@ -7,6 +7,8 @@
 #include "sf/Array.h"
 #include "sf/Mutex.h"
 #include "sp/Json.h"
+#include "sf/HashMap.h"
+#include "sf/HashSet.h"
 
 #include "MessageTransport.h"
 #include "LocalServer.h"
@@ -15,12 +17,17 @@
 
 static sf::Symbol serverName { "Server" };
 
+using UndoChunk = sf::SmallArray<sf::Box<sv::Command>, 4>;
+
 struct Client
 {
 	sf::Symbol name;
 	bqws_socket *ws = nullptr;
 	sv::EntityId playerEntity;
 	uint32_t playerId;
+
+	sf::Array<UndoChunk> undoList;
+	sf::Array<UndoChunk> redoList;
 };
 
 struct Session
@@ -33,6 +40,7 @@ struct Session
 	sf::Array<sf::Box<sv::Event>> pendingEvents;
 
 	sf::Array<sv::EntityId> freeEntityIds;
+	sf::HashMap<sv::TileType, uint32_t> tileTypes;
 	uint32_t entityIdCounter = 0;
 
 	sv::EntityId allocateEntityId()
@@ -186,6 +194,82 @@ static void wsLogLocal(void *user, bqws_socket *ws, const char *line)
 	sf::debugPrintLine("%p : %s", ws, line);
 }
 
+static sv::TileId resolveTileId(Session &se, const sv::TileType &type)
+{
+	sv::State *state = se.state;
+	auto &res = se.tileTypes.insert(type);
+	if (res.inserted) {
+		uint32_t index = state->map.tileTypes.size;
+		state->map.tileTypes.push(type);
+		res.entry.val = index;
+
+		sf::Box<sv::EventUpdateTileType> ev = sf::box<sv::EventUpdateTileType>();
+		ev->tileType = type;
+		ev->index = index;
+		se.pendingEvents.push(ev);
+	}
+	return res.entry.val;
+}
+
+static void applyCommand(Session &se, sf::Box<sv::Command> command, sf::Array<sf::Box<sv::Command>> &undoList)
+{
+	sv::State *state = se.state;
+	if (sv::CommandSetTiles *cmd = command->as<sv::CommandSetTiles>()) {
+		sv::TileId id = resolveTileId(se, cmd->tileType);
+
+		sf::Box<sv::CommandSetTilesRaw> undoCmd = sf::box<sv::CommandSetTilesRaw>();
+
+		for (const sf::Vec2i &tile : cmd->tiles) {
+			sv::RawTileInfo &info = undoCmd->tiles.push();
+			info.position = tile;
+			info.tileId = state->map.getTile(tile);
+		}
+
+		undoList.push(undoCmd);
+
+		sf::HashSet<sf::Vec2i> updatedChunks;
+		for (const sf::Vec2i &tile : cmd->tiles) {
+			sf::Vec2i chunk = state->map.setTile(tile, id);
+			updatedChunks.insert(chunk);
+		}
+
+		for (const sf::Vec2i &chunk : updatedChunks) {
+			sf::Box<sv::EventUpdateChunk> ev = sf::box<sv::EventUpdateChunk>();
+			ev->position = chunk;
+			ev->chunk = state->map.chunks[chunk];
+			se.pendingEvents.push(ev);
+		}
+
+	} else if (sv::CommandSetTilesRaw *cmd = command->as<sv::CommandSetTilesRaw>()) {
+
+		sf::Box<sv::CommandSetTilesRaw> undoCmd = sf::box<sv::CommandSetTilesRaw>();
+
+		for (const sv::RawTileInfo &tile : cmd->tiles) {
+			sv::RawTileInfo &info = undoCmd->tiles.push();
+			info.position = tile.position;
+			info.tileId = state->map.getTile(tile.position);
+		}
+
+		undoList.push(undoCmd);
+
+		sf::HashSet<sf::Vec2i> updatedChunks;
+		for (const sv::RawTileInfo &tile : cmd->tiles) {
+			sf::Vec2i chunk = state->map.setTile(tile.position, tile.tileId);
+			updatedChunks.insert(chunk);
+		}
+
+		for (const sf::Vec2i &chunk : updatedChunks) {
+			sf::Box<sv::EventUpdateChunk> ev = sf::box<sv::EventUpdateChunk>();
+			ev->position = chunk;
+			ev->chunk = state->map.chunks[chunk];
+			se.pendingEvents.push(ev);
+		}
+
+	} else {
+		sf_failf("Unknown command: %u", command->type);
+	}
+}
+
 void serverUpdate(ServerMain *s)
 {
 	// Accept new clients
@@ -244,7 +328,7 @@ void serverUpdate(ServerMain *s)
 				auto player = sf::box<sv::Character>();
 				player->name = client.name;
 				player->model = sf::Symbol("Game/Characters/goblin.js");
-				player->position = findSpawnPos(session.state, sf::Vec2i(1, -3));
+				player->position = findSpawnPos(session.state, sf::Vec2i(0, 0));
 				player->players.push(client.playerId);
 				player->cards.push({ shortsword });
 				player->cards.push({ club });
@@ -315,6 +399,31 @@ void serverUpdate(ServerMain *s)
 						fail.description.format("Player %u cannot control entity %u", client.playerId, action->entity);
 						writeMessage(client.ws, &fail, serverName, client.name);
 					}
+				} else if (auto m = msg->as<sv::MessageCommand>()) {
+
+					if (m->command->type == sv::Command::Undo) {
+						if (client.undoList.size > 0) {
+							UndoChunk undo;
+							for (sf::Box<sv::Command> &cmd : client.undoList.popValue()) {
+								applyCommand(session, cmd, undo);
+							}
+							client.redoList.push(std::move(undo));
+						}
+					} else if (m->command->type == sv::Command::Redo) {
+						if (client.redoList.size > 0) {
+							UndoChunk undo;
+							for (sf::Box<sv::Command> &cmd : client.redoList.popValue()) {
+								applyCommand(session, cmd, undo);
+							}
+							client.undoList.push(std::move(undo));
+						}
+					} else {
+						UndoChunk undo;
+						applyCommand(session, std::move(m->command), undo);
+						client.undoList.push(std::move(undo));
+						client.redoList.clear();
+					}
+
 				}
 
 			}

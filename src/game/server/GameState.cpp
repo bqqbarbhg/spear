@@ -8,6 +8,25 @@
 
 namespace sv {
 
+bool TileType::operator==(const TileType &rhs) const
+{
+	if (floorName != rhs.floorName) return false;
+	if (tileName != rhs.tileName) return false;
+	if (floor != rhs.floor) return false;
+	if (wall != rhs.wall) return false;
+	return true;
+}
+
+uint32_t hash(const TileType &t)
+{
+	uint32_t h = 0;
+	h = sf::hashCombine(h, sf::hash(t.floorName));
+	h = sf::hashCombine(h, sf::hash(t.tileName));
+	h = sf::hashCombine(h, sf::hash(t.floor));
+	h = sf::hashCombine(h, sf::hash(t.wall));
+	return h;
+}
+
 struct CardTypeCache
 {
 	sf::HashMap<sf::Symbol, sf::Box<CardType>> map;
@@ -30,7 +49,7 @@ sf_inline void resolveChunk(sf::Vec2i &chunkI, sf::Vec2i &tileI, const sf::Vec2i
 	tileI = { pos.x & ((int32_t)MapChunk::Size - 1), pos.y & ((int32_t)MapChunk::Size - 1) };
 }
 
-void Map::setTile(const sf::Vec2i &pos, TileId tileId)
+sf::Vec2i Map::setTile(const sf::Vec2i &pos, TileId tileId)
 {
 	sf::Vec2i chunkI, tileI;
 	resolveChunk(chunkI, tileI, pos);
@@ -43,6 +62,7 @@ void Map::setTile(const sf::Vec2i &pos, TileId tileId)
 	if (chunk.numNonZeroTiles == 0) {
 		chunks.removeAt(&result.entry);
 	}
+	return chunkI;
 }
 
 bool Map::canStandOn(const sf::Vec2i &pos) const
@@ -220,6 +240,11 @@ void State::applyEvent(Event *event)
 		initEntity(e->data->id, e->data);
 	} else if (auto e = event->as<EventDestroy>()) {
 		destroyEntity(e->entity);
+	} else if (auto e = event->as<EventUpdateTileType>()) {
+		while (map.tileTypes.size <= e->index) map.tileTypes.push();
+		map.tileTypes[e->index] = e->tileType;
+	} else if (auto e = event->as<EventUpdateChunk>()) {
+		map.chunks[e->position] = e->chunk;
 	}
 }
 

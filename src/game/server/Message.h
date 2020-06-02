@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Action.h"
+#include "Command.h"
 #include "Event.h"
 #include "GameState.h"
 #include "sf/Box.h"
@@ -15,6 +16,7 @@ struct Message
 		Error,
 		Join,
 		Action,
+		Command,
 		ActionSuccess,
 		ActionFailure,
 		Update,
@@ -50,6 +52,11 @@ struct MessageJoin : MessageBase<Message::Join>
 struct MessageAction : MessageBase<Message::Action>
 {
 	sf::Box<sv::Action> action;
+};
+
+struct MessageCommand : MessageBase<Message::Command>
+{
+	sf::Box<sv::Command> command;
 };
 
 struct MessageActionSuccess : MessageBase<Message::ActionSuccess>

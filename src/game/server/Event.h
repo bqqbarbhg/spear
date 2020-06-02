@@ -16,6 +16,8 @@ struct Event
 		Move,
 		Spawn,
 		Destroy,
+		UpdateChunk,
+		UpdateTileType,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -65,6 +67,18 @@ struct EventSpawn : EventBase<Event::Spawn>
 struct EventDestroy : EventBase<Event::Destroy>
 {
 	EntityId entity;
+};
+
+struct EventUpdateChunk : EventBase<Event::UpdateChunk>
+{
+	sf::Vec2i position;
+	MapChunk chunk;
+};
+
+struct EventUpdateTileType : EventBase<Event::UpdateTileType>
+{
+	uint32_t index;
+	TileType tileType;
 };
 
 }

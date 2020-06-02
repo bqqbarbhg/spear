@@ -19,7 +19,12 @@ struct TileType
 	sf::Symbol tileName;
 	bool floor = false;
 	bool wall = false;
+
+	bool operator==(const TileType &rhs) const;
+	bool operator!=(const TileType &rhs) const { return !(*this == rhs); }
 };
+
+uint32_t hash(const TileType &t);
 
 struct MapChunk
 {
@@ -96,7 +101,7 @@ struct Map
 	sf::Array<TileType> tileTypes;
 	sf::HashMap<sf::Vec2i, MapChunk> chunks;
 
-	void setTile(const sf::Vec2i &pos, TileId tileId);
+	sf::Vec2i setTile(const sf::Vec2i &pos, TileId tileId);
 	TileId getTile(const sf::Vec2i &pos) const;
 
 	bool canStandOn(const sf::Vec2i &pos) const;

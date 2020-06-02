@@ -93,6 +93,12 @@ static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, 
 	return true;
 }
 
+static void setTileType(TileType &type, sv::TileType svType)
+{
+	if (svType.floorName) type.floor.load(svType.floorName);
+	if (svType.tileName) type.tile.load(svType.tileName);
+}
+
 void State::reset(sv::State *svState)
 {
 	entities.clear();
@@ -114,8 +120,7 @@ void State::reset(sv::State *svState)
 	{
 		for (sv::TileType &tileType : svState->map.tileTypes) {
 			cl::TileType &dst = tileTypes.push();
-			if (tileType.floorName) dst.floor.load(tileType.floorName);
-			if (tileType.tileName) dst.tile.load(tileType.tileName);
+			setTileType(dst, tileType);
 		}
 	}
 
@@ -164,6 +169,18 @@ void State::applyEvent(sv::Event *event)
 
 		entities[e->entity].reset();
 
+	} else if (auto e = event->as<sv::EventUpdateTileType>()) {
+
+		while (tileTypes.size <= e->index) tileTypes.push();
+		setTileType(tileTypes[e->index], e->tileType);
+
+	} else if (auto e = event->as<sv::EventUpdateChunk>()) {
+		MapChunk &chunk = chunks[e->position];
+		chunk.meshesDirty = true;
+		if (!chunk.dirty) {
+			chunk.dirty = true;
+			dirtyChunks.push(e->position);
+		}
 	} else {
 		sf_failf("Unhandled event type: %u", event->type);
 	}
