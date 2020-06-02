@@ -97,6 +97,9 @@ typedef struct bqws_pt_listen_opts {
 	// default: 128
 	size_t backlog;
 
+	// Attempt to share a port with other processes ie. `SO_REUSEPORT`
+	bool reuse_port;
+
 } bqws_pt_listen_opts;
 
 // -- Global initialization

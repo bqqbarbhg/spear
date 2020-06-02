@@ -755,6 +755,11 @@ static os_socket os_socket_listen(const bqws_pt_listen_opts *pt_opts)
 		res = setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, &ipv6_flag, sizeof(ipv6_flag));
 		if (res != 0) { pt_fail_posix("setsockopt(IPPROTO_IPV6)"); break; }
 
+		if (pt_opts->reuse_port) {
+			int reuse_flag = 1;
+			setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &reuse_flag, sizeof(reuse_flag));
+		}
+
 		// Set the socket to be non-blocking
 		int nb_flag = 1;
 		res = ioctl(s, FIONBIO, &nb_flag);

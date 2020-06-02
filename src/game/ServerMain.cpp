@@ -105,6 +105,7 @@ ServerMain *serverInit(int port)
 {
 	bqws_pt_listen_opts opts = { };
 	opts.port = (uint16_t)port;
+	opts.reuse_port = true;
 
 	bqws_pt_server *server = NULL;
 	LocalServer *localServer = NULL;
