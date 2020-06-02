@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 		}
 		sf::debugPrintLine("Failed to setup server: %s", desc);
 
-		return NULL;
+		return 1;
 	}
 
 	for (;;) {
