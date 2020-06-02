@@ -285,6 +285,7 @@ static Session *setupSession(ServerMain *s, uint32_t id, uint32_t secret)
 
 	auto it = s->sessions.find(id);
 	if (it && it->val.secret == secret) return &it->val;
+	return nullptr;
 }
 
 void serverUpdate(ServerMain *s)
