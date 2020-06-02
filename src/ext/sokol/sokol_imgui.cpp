@@ -8,6 +8,8 @@
 #include "ext/imgui/imgui.h"
 #include "sokol_gfx.h"
 #include "sokol_app.h"
-#include "sokol_imgui.h"
 
-#include "sokol_imgui_impl.h"
+#if !defined(SP_NO_APP)
+	#include "sokol_imgui.h"
+	#include "sokol_imgui_impl.h"
+#endif
