@@ -147,8 +147,8 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 	{
 		sv::MessageJoin join;
 		join.name = name;
-		join.sessionId = 1;
-		join.sessionSecret = 10;
+		join.sessionId = sessionId;
+		join.sessionSecret = sessionSecret;
 		join.playerId = ++playerIdCounter;
 		writeMessage(c->ws, &join, c->name, serverName);
 	}

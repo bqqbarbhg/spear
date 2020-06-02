@@ -328,7 +328,6 @@ void serverUpdate(ServerMain *s)
 
 			if (maybeSession) {
 				Session &session = *maybeSession;
-				sf_assert(session.secret == m->sessionSecret);
 				Client &client = session.clients.push();
 				client.ws = ws;
 				client.name = m->name;
