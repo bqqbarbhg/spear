@@ -69,6 +69,8 @@ template<> void initType<sv::MessageLoad>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(sv::MessageLoad, state),
+		sf_field(sv::MessageLoad, sessionId),
+		sf_field(sv::MessageLoad, sessionSecret),
 	};
 	sf_struct_base(t, sv::MessageLoad, sv::Message, fields);
 }

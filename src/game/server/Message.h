@@ -76,6 +76,8 @@ struct MessageUpdate : MessageBase<Message::Update>
 struct MessageLoad : MessageBase<Message::Load>
 {
 	sf::Box<sv::State> state;
+	uint32_t sessionId;
+	uint32_t sessionSecret;
 };
 
 }

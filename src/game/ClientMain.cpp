@@ -19,6 +19,10 @@
 #include "GameConfig.h"
 
 #include "ext/imgui/imgui.h"
+#if SF_OS_EMSCRIPTEN
+	#include <emscripten/emscripten.h>
+	#include <emscripten/html5.h>
+#endif
 
 // TEMP
 #include "sf/Frustum.h"
@@ -27,6 +31,13 @@
 #include "sp/Canvas.h"
 #include "sp/Sprite.h"
 #include "sp/Font.h"
+
+#if SF_OS_EMSCRIPTEN
+EM_JS(int, sp_emUpdateUrl, (int id, int secret), {
+	var state = { id: id.toString(), secret: secret.toString() };
+	history.replaceState(state, "", "?id=" + state.id + "&secret=" + state.secret);
+});
+#endif
 
 static sf::Symbol serverName { "Server" };
 
@@ -107,7 +118,7 @@ static bool useNormalRemap(sg_pixel_format format)
 	}
 }
 
-ClientMain *clientInit(int port, const sf::Symbol &name)
+ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uint32_t sessionSecret)
 {
 	ClientMain *c = new ClientMain();
 	c->name = name;
@@ -487,6 +498,11 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 			m->state->refreshEntityTileMap();
 			c->serverState = m->state;
 			c->clientState.reset(m->state);
+
+			#if SF_OS_EMSCRIPTEN
+				sp_emUpdateUrl((int)m->sessionId, (int)m->sessionSecret);
+			#endif
+
 		} else if (auto m = msg->as<sv::MessageUpdate>()) {
 			for (auto &event : m->events) {
 				c->serverState->applyEvent(event);

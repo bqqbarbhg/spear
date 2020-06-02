@@ -32,6 +32,7 @@ struct Client
 
 struct Session
 {
+	uint32_t id;
 	uint32_t secret;
 
 	sf::Box<sv::State> state;
@@ -120,43 +121,6 @@ ServerMain *serverInit(int port)
 	ServerMain *s = new ServerMain();
 	s->server = server;
 	s->localServer = localServer;
-
-	{
-		Session &session = s->sessions[1u];
-		session.secret = 10;
-
-		session.state = sf::box<sv::State>();
-
-		sv::Map &map = session.state->map;
-		map.tileTypes.push();
-
-		{
-			sv::TileType &tile = map.tileTypes.push();
-			tile.floorName = sf::Symbol("Game/Tiles/Tile_Test.js");
-			tile.floor = true;
-		}
-
-		{
-			sv::TileType &tile = map.tileTypes.push();
-			tile.floorName = sf::Symbol("Game/Tiles/floor.js");
-			tile.tileName = sf::Symbol("Game/Tiles/wall.js");
-			tile.wall = true;
-		}
-
-		for (int32_t y = -10; y <= 10; y++)
-		for (int32_t x = -10; x <= 10; x++)
-		{
-			sf::Vec2i v = { x, y };
-			map.setTile(v, (rand() % 15 == 0) ? 2 : 1);
-		}
-
-		for (int32_t i = -10; i <= 10; i++) {
-			map.setTile(sf::Vec2i(i, -10), 2);
-			map.setTile(sf::Vec2i(i, +10), 2);
-			map.setTile(sf::Vec2i(-10, i), 2);
-			map.setTile(sf::Vec2i(+10, i), 2);
-		}
-	}
 
 	return s;
 }
@@ -271,6 +235,58 @@ static void applyCommand(Session &se, sf::Box<sv::Command> command, sf::Array<sf
 	}
 }
 
+static Session *setupSession(ServerMain *s, uint32_t id, uint32_t secret)
+{
+	if (id == 0) {
+
+		// TODO: Real random
+		do {
+			id = rand();
+		} while (s->sessions.find(id));
+
+		Session &session = s->sessions[id];
+		session.id = id;
+		session.secret = rand();
+
+		session.state = sf::box<sv::State>();
+
+		sv::Map &map = session.state->map;
+		map.tileTypes.push();
+
+		{
+			sv::TileType &tile = map.tileTypes.push();
+			tile.floorName = sf::Symbol("Game/Tiles/Tile_Test.js");
+			tile.floor = true;
+		}
+
+		{
+			sv::TileType &tile = map.tileTypes.push();
+			tile.floorName = sf::Symbol("Game/Tiles/floor.js");
+			tile.tileName = sf::Symbol("Game/Tiles/wall.js");
+			tile.wall = true;
+		}
+
+		for (int32_t y = -10; y <= 10; y++)
+		for (int32_t x = -10; x <= 10; x++)
+		{
+			sf::Vec2i v = { x, y };
+			map.setTile(v, (rand() % 15 == 0) ? 2 : 1);
+		}
+
+		for (int32_t i = -10; i <= 10; i++) {
+			map.setTile(sf::Vec2i(i, -10), 2);
+			map.setTile(sf::Vec2i(i, +10), 2);
+			map.setTile(sf::Vec2i(-10, i), 2);
+			map.setTile(sf::Vec2i(+10, i), 2);
+		}
+
+		return &session;
+	}
+
+	auto it = s->sessions.find(id);
+	if (it && it->val.secret == secret) return &it->val;
+}
+
 void serverUpdate(ServerMain *s)
 {
 	// Accept new clients
@@ -307,45 +323,56 @@ void serverUpdate(ServerMain *s)
 		sf_assert(msg);
 
 		if (auto m = msg->as<sv::MessageJoin>()) {
-			auto it = s->sessions.find(m->sessionId);
-			Session &session = it->val;
-			sf_assert(session.secret == m->sessionSecret);
-			Client &client = session.clients.push();
-			client.ws = ws;
-			client.name = m->name;
-			client.playerEntity = session.allocateEntityId();
-			client.playerId = m->playerId;
+			Session *maybeSession = setupSession(s, m->sessionId, m->sessionSecret);
 
-			{
-				sv::MessageLoad load;
-				load.state = session.state;
-				writeMessage(ws, &load, serverName, client.name);
-			}
+			if (maybeSession) {
+				Session &session = *maybeSession;
+				sf_assert(session.secret == m->sessionSecret);
+				Client &client = session.clients.push();
+				client.ws = ws;
+				client.name = m->name;
+				client.playerEntity = session.allocateEntityId();
+				client.playerId = m->playerId;
 
-			{
-				sf::Box<sv::CardType> shortsword = loadConfig<sv::CardType>("Server/Cards/Weapon/Shortsword.js");
-				sf::Box<sv::CardType> club = loadConfig<sv::CardType>("Server/Cards/Weapon/Club.js");
-
-				auto player = sf::box<sv::Character>();
-				player->name = client.name;
-				if (rand() % 2 == 0) {
-					player->model = sf::Symbol("Game/Characters/goblin.js");
-				} else {
-					player->model = sf::Symbol("Game/Characters/dwarf.js");
+				{
+					sv::MessageLoad load;
+					load.state = session.state;
+					load.sessionId = session.id;
+					load.sessionSecret = session.secret;
+					writeMessage(ws, &load, serverName, client.name);
 				}
-				player->position = findSpawnPos(session.state, sf::Vec2i(0, 0));
-				player->players.push(client.playerId);
-				player->cards.push({ shortsword });
-				player->cards.push({ club });
 
-				auto spawn = sf::box<sv::EventSpawn>();
-				spawn->data = player;
-				spawn->data->id = client.playerEntity;
-				session.pendingEvents.push(spawn);
+				{
+					sf::Box<sv::CardType> shortsword = loadConfig<sv::CardType>("Server/Cards/Weapon/Shortsword.js");
+					sf::Box<sv::CardType> club = loadConfig<sv::CardType>("Server/Cards/Weapon/Club.js");
+
+					auto player = sf::box<sv::Character>();
+					player->name = client.name;
+					if (rand() % 2 == 0) {
+						player->model = sf::Symbol("Game/Characters/goblin.js");
+					} else {
+						player->model = sf::Symbol("Game/Characters/dwarf.js");
+					}
+					player->position = findSpawnPos(session.state, sf::Vec2i(0, 0));
+					player->players.push(client.playerId);
+					player->cards.push({ shortsword });
+					player->cards.push({ club });
+
+					auto spawn = sf::box<sv::EventSpawn>();
+					spawn->data = player;
+					spawn->data->id = client.playerEntity;
+					session.pendingEvents.push(spawn);
+				}
+
+				ws = nullptr;
 			}
-
-			s->pendingClients.removeSwap(i--);
 		}
+
+		if (ws) {
+			bqws_free_socket(ws);
+		}
+
+		s->pendingClients.removeSwap(i--);
 	}
 
 	for (auto &pair : s->sessions) {

@@ -12,6 +12,7 @@
 #include "game/shader/GameShaders.h"
 #include "game/shader/Upscale.h"
 #include "ext/sokol/sokol_imgui.h"
+#include "ext/sokol/sokol_args.h"
 #include "ext/imgui/imgui.h"
 
 #include "bq_websocket_platform.h"
@@ -19,6 +20,7 @@
 #include "Processing.h"
 
 #if SF_OS_EMSCRIPTEN
+	#include <emscripten/emscripten.h>
 	#include <emscripten/html5.h>
 #endif
 
@@ -73,11 +75,20 @@ static void updateLayout()
 	}
 }
 
-int port;
+static int port;
+static uint32_t sessionId;
+static uint32_t sessionSecret;
 
 void spInit()
 {
+	{
+		sargs_desc d = { };
+		sargs_setup(&d);
+	}
+
     port = 4004;
+	sessionId = (uint32_t)atoi(sargs_value_def("id", "0"));
+	sessionSecret = (uint32_t)atoi(sargs_value_def("secret", "0"));
 
 	#if SF_OS_EMSCRIPTEN
 	{
@@ -103,7 +114,7 @@ void spInit()
 	sf::debugPrintLine("Server: %p", server);
 
 	MainClient &client = clients.push();
-	client.client = clientInit(port, sf::Symbol("Client 1"));
+	client.client = clientInit(port, sf::Symbol("Client 1"), sessionId, sessionSecret);
 
 	{
 		simgui_desc_t d = { };
@@ -145,7 +156,7 @@ void spEvent(const sapp_event *e)
 			sf::SmallStringBuf<64> name;
 			name.format("Client %u", clients.size + 1);
 			MainClient &client = clients.push();
-			client.client = clientInit(port, sf::Symbol(name));
+			client.client = clientInit(port, sf::Symbol(name), sessionId, sessionSecret);
 			updateLayout();
 		} else if (e->key_code == SAPP_KEYCODE_Q) {
 			MainClient &client = clients.back();
