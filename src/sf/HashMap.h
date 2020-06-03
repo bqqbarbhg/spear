@@ -103,6 +103,18 @@ struct HashMap
 	}
 
 	template <typename KT>
+	V *findValue(const KT &key) {
+		Entry *entry = find(key);
+		return entry ? &entry->val : NULL;
+	}
+
+	template <typename KT>
+	const V *findValue(const KT &key) const {
+		Entry *entry = find(key);
+		return entry ? &entry->val : NULL;
+	}
+
+	template <typename KT>
 	InsertResult<Entry> insert(const KT &key)
 	{
 		uint32_t index;

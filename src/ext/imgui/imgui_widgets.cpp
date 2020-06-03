@@ -3466,6 +3466,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
 
     IM_ASSERT(!((flags & ImGuiInputTextFlags_CallbackHistory) && (flags & ImGuiInputTextFlags_Multiline)));        // Can't use both together (they both use up/down keys)
     IM_ASSERT(!((flags & ImGuiInputTextFlags_CallbackCompletion) && (flags & ImGuiInputTextFlags_AllowTabInput))); // Can't use both together (they both use tab key)
+    IM_ASSERT(!((flags & ImGuiInputTextFlags_AlignRight) && (flags & ImGuiInputTextFlags_Multiline))); // Multiline will not work with the right alignment mod.
 
     ImGuiContext& g = *GImGui;
     ImGuiIO& io = g.IO;
@@ -4205,10 +4206,19 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         else if (!is_displaying_hint)
             buf_display_end = buf_display + strlen(buf_display);
 
+        //Find render position for right alignment if flag is set.
+        //draw_pos could be updated directly, but create a temp ImVec2 to hold the new position just in case.
+        ImVec2 text_pos = draw_pos;
+        if (flags & ImGuiInputTextFlags_AlignRight)
+        {
+        	const ImVec2 text_size = CalcTextSize(buf_display, NULL, true, 0);
+        	text_pos = ImVec2(frame_bb.Max.x - text_size.x - style.FramePadding.x, draw_pos.y);
+        }
+
         if (is_multiline || (buf_display_end - buf_display) < buf_display_max_length)
         {
             ImU32 col = GetColorU32(is_displaying_hint ? ImGuiCol_TextDisabled : ImGuiCol_Text);
-            draw_window->DrawList->AddText(g.Font, g.FontSize, draw_pos, col, buf_display, buf_display_end, 0.0f, is_multiline ? NULL : &clip_rect);
+            draw_window->DrawList->AddText(g.Font, g.FontSize, text_pos, col, buf_display, buf_display_end, 0.0f, is_multiline ? NULL : &clip_rect);
         }
     }
 

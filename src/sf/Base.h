@@ -298,7 +298,7 @@ struct Slice
 
 	Slice<T> dropRight(size_t num) const {
 		sf_assert(num <= size);
-		return { data + size - num, size - num };
+		return { data, size - num };
 	}
 
 	T &operator[](size_t index) const {

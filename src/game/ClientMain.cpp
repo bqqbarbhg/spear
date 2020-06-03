@@ -15,6 +15,10 @@
 #include "game/shader/Postprocess.h"
 #include "game/shader/Fxaa.h"
 #include "game/client/TileMaterial.h"
+#include "game/server/GameComponent.h"
+#include "game/ImguiSerialization.h"
+#include "sf/Reflection.h"
+#include "sf/HashSet.h"
 
 #include "GameConfig.h"
 
@@ -31,6 +35,9 @@
 #include "sp/Canvas.h"
 #include "sp/Sprite.h"
 #include "sp/Font.h"
+#include "sf/File.h"
+#include "ext/json_output.h"
+#include "sp/Json.h"
 
 #if SF_OS_EMSCRIPTEN
 EM_JS(int, sp_emUpdateUrl, (int id, int secret), {
@@ -118,12 +125,180 @@ static bool useNormalRemap(sg_pixel_format format)
 	}
 }
 
+static sf::Symbol g_selectedObject;
+
+struct FileFile
+{
+	sf::Symbol path;
+	sf::CString name;
+
+	FileFile(sf::String prefix, sf::String fileName)
+	{
+		sf::SmallStringBuf<512> localPath;
+		localPath.append(prefix, "/", fileName);
+		path = sf::Symbol(localPath);
+		name = sf::CString(sf::String(path).slice().drop(prefix.size + 1));
+	}
+};
+
+struct FileDir
+{
+	sf::Array<FileDir> dirs;
+	sf::StringBuf name;
+	sf::StringBuf prefix;
+	sf::Array<FileFile> files;
+};
+
+struct LoadedObject
+{
+	sf::Box<sv::GameObject> object;
+	bool modified = false;
+};
+
+static FileDir g_assets;
+static FileDir g_objects;
+static sf::HashMap<sf::Symbol, LoadedObject> g_loadedObjects;
+
+const sf::String materialSuffixes[] = {
+	"_BaseColor.png",
+	"_Height.png",
+	"_Metallic.png",
+	"_Normal.png",
+	"_Roughness.png",
+};
+
+void setupFileDir(FileDir &dir, sf::StringBuf prefix)
+{
+	sf::Array<sf::FileInfo> files;
+	sf::listFiles(prefix, files);
+	uint32_t prefixSize = prefix.size;
+
+	sf::HashSet<sf::StringBuf> materials;
+
+	for (sf::FileInfo &info : files) {
+		if (info.isDirectory) {
+			FileDir &child = dir.dirs.push();
+			prefix.append("/", info.name);
+			child.name = info.name;
+			child.prefix = prefix;
+			setupFileDir(child, prefix);
+			prefix.resize(prefixSize);
+		} else {
+			bool addFile = true;
+			for (sf::String suffix : materialSuffixes) {
+				if (sf::endsWith(info.name, suffix)) {
+					sf::String baseName = info.name.slice().dropRight(suffix.size);
+					if (materials.insert(baseName).inserted) {
+						dir.files.push(FileFile(prefix, baseName));
+					}
+					addFile = false;
+					break;
+				}
+			}
+
+			if (addFile) {
+				dir.files.push(FileFile(prefix, info.name));
+			}
+		}
+	}
+}
+
+void handleImguiAssetDir(const FileDir &dir)
+{
+	for (const FileDir &d : dir.dirs) {
+		sf::SmallStringBuf<128> nameCopy;
+		nameCopy.append(d.name, "/");
+		if (ImGui::TreeNode(nameCopy.data)) {
+			handleImguiAssetDir(d);
+			ImGui::TreePop();
+		}
+	}
+
+	for (const FileFile &f : dir.files) {
+
+		ImGui::Button(f.name.data);
+		if (ImGui::BeginDragDropSource(0)) {
+			ImGui::Text(f.path.data);
+			ImGui::SetDragDropPayload("asset", f.path.data, f.path.size());
+			ImGui::EndDragDropSource();
+		}
+	}
+}
+
+void handleImguiObjectDir(const FileDir &dir)
+{
+	for (const FileDir &d : dir.dirs) {
+		sf::SmallStringBuf<128> nameCopy;
+		nameCopy.append(d.name, "/");
+		if (ImGui::TreeNode(nameCopy.data)) {
+			handleImguiObjectDir(d);
+			ImGui::TreePop();
+		}
+	}
+
+	for (const FileFile &f : dir.files) {
+
+		sf::String buttonText = f.name;
+		sf::SmallStringBuf<128> localButtonText;
+
+		LoadedObject *obj = g_loadedObjects.findValue(f.path);
+		if (obj && obj->modified) {
+			localButtonText.append(f.name, "*");
+			buttonText = localButtonText;
+		}
+
+		if (ImGui::Button(buttonText.data)) {
+			LoadedObject &object = g_loadedObjects[f.path];
+			g_selectedObject = f.path;
+
+			if (!object.object) {
+				jsi_args args = { };
+				args.dialect.allow_bare_keys = true;
+				args.dialect.allow_comments = true;
+				args.dialect.allow_control_in_string = true;
+				args.dialect.allow_missing_comma = true;
+				args.dialect.allow_trailing_comma = true;
+				jsi_value *value = jsi_parse_file(f.path.data, &args);
+				if (value) {
+					sf::Box<sv::GameObject> clean;
+					if (sp::readJson(value, clean)) {
+						object.object = std::move(clean);
+					}
+					jsi_free(value);
+				}
+
+				if (!object.object) {
+					object.object = sf::box<sv::GameObject>();
+				}
+			}
+		}
+
+		if (ImGui::BeginDragDropSource(0)) {
+			ImGui::Text(f.path.data);
+			ImGui::SetDragDropPayload("object", f.path.data, f.path.size());
+			ImGui::EndDragDropSource();
+
+		}
+	}
+}
+
+
 ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uint32_t sessionSecret)
 {
 	ClientMain *c = new ClientMain();
 	c->name = name;
 
 	gameShaders.load();
+
+	{
+		sf::StringBuf prefix = "Assets";
+		setupFileDir(g_assets, prefix);
+	}
+
+	{
+		sf::StringBuf prefix = "Game/Objects";
+		setupFileDir(g_objects, prefix);
+	}
 
 	{
         sf::SmallStringBuf<128> url;
@@ -465,6 +640,156 @@ static void lerpExp(float &state, float target, float exponential, float linear,
 	state += sf::clamp(target - state, -speed, speed);
 }
 
+static bool imguiCallback(void *user, bool &changed, void *inst, sf::Type *type, const sf::CString &label)
+{
+	if (type == sf::typeOf<sf::Vec3>()) {
+		sf::Vec3 *vec = (sf::Vec3*)inst;
+
+		if (label == sf::String("position")) {
+			ImGui::SliderFloat3(label.data, vec->v, -1.0f, +1.0f);
+			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			return true;
+		} else if (label == sf::String("stretch")) {
+			ImGui::SliderFloat3(label.data, vec->v, -2.0f, +2.0f);
+			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			return true;
+		} else if (label == sf::String("rotation")) {
+			ImGui::SliderFloat3(label.data, vec->v, -180.0f, 180.0f);
+			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			return true;
+		} else if (label == sf::String("color")) {
+			ImGui::ColorEdit3(label.data, vec->v, 0);
+			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			return true;
+		}
+
+	} else if (type == sf::typeOf<float>()) {
+		float *v = (float*)inst;
+
+		if (label == sf::String("intensity")) {
+			ImGui::SliderFloat(label.data, v, 0.0f, 10.0f);
+			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			return true;
+		} else if (label == sf::String("radius")) {
+			ImGui::SliderFloat(label.data, v, 0.0f, 10.0f);
+			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			return true;
+		} else if (label == sf::String("scale")) {
+			ImGui::SliderFloat(label.data, v, 0.0f, 5.0f);
+			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			return true;
+		}
+
+	} else if (type == sf::typeOf<sf::Symbol>()) {
+		sf::Symbol *sym = (sf::Symbol*)inst;
+
+		bool isModel = label == sf::String("model");
+		bool isMaterial = label == sf::String("material");
+
+		if (isModel || isMaterial) {
+			sf::SmallStringBuf<4096> textBuf;
+			textBuf.append(*sym);
+			if (ImGui::InputText(label.data, textBuf.data, textBuf.capacity, ImGuiInputTextFlags_AlignRight | ImGuiInputTextFlags_AutoSelectAll)) {
+				textBuf.resize(strlen(textBuf.data));
+				if (ImGui::IsItemDeactivatedAfterEdit()) {
+					*sym = sf::Symbol(textBuf);
+					changed = true;
+				}
+			}
+
+			if (ImGui::BeginDragDropTarget()) {
+				const ImGuiPayload *payload = ImGui::AcceptDragDropPayload("asset");
+				if (payload) {
+					*sym = sf::Symbol((const char*)payload->Data, payload->DataSize);
+					changed = true;
+				}
+
+				ImGui::EndDragDropTarget();
+			}
+
+			return true;
+		}
+
+	}
+
+	return false;
+}
+
+struct ComponentType
+{
+	const char *name;
+	sf::Box<sv::Component> (*createFn)();
+};
+
+template <typename T>
+static sf::Box<sv::Component> createComponent() { return sf::box<T>(); }
+
+static const ComponentType componentTypes[] = {
+	{ "Model", &createComponent<sv::ModelComponent> },
+	{ "PointLight", &createComponent<sv::PointLightComponent> },
+};
+
+static void saveObject(sv::GameObject &obj, const sf::Symbol &path)
+{
+	jso_stream s = { };
+	jso_init_file(&s, path.data);
+	s.pretty = true;
+
+	sp::writeJson(s, obj);
+
+	jso_close(&s);
+}
+
+bool handleObjectImgui(sv::GameObject &obj, const sf::Symbol &path)
+{
+	bool changed = false;
+
+	ImGui::Text(path.data);
+	changed |= handleImgui(obj.name, "name");
+
+	sf::Type *componentType = sf::typeOf<sv::Component>();
+
+	for (uint32_t compI = 0; compI < obj.components.size; compI++) {
+		ImGui::PushID(obj.components[compI].ptr);
+
+		sf::PolymorphInstance poly = componentType->instGetPolymorph(obj.components[compI].ptr);
+
+		if (!ImGui::CollapsingHeader(poly.type->name.data, ImGuiTreeNodeFlags_DefaultOpen)) {
+			ImGui::PopID();
+			continue;
+		}
+
+		bool doDelete = ImGui::Button("Delete");
+
+		changed |= handleFieldsImgui(poly.inst, poly.type->type, imguiCallback, NULL);
+
+		ImGui::PopID();
+
+		if (doDelete) {
+			obj.components.removeOrdered(compI--);
+			changed = true;
+		}
+	}
+
+	sf::SmallArray<const char*, 32> itemNames;
+
+	itemNames.push("Add component");
+	for (const ComponentType &type : componentTypes) {
+		itemNames.push(type.name);
+	}
+
+	int selected = 0;
+	if (ImGui::Combo("##add", &selected, itemNames.data, itemNames.size)) {
+		if (selected > 0) {
+			const ComponentType &type = componentTypes[selected - 1];
+			obj.components.push(type.createFn());
+			changed = true;
+		}
+	}
+
+	return changed;
+}
+
 bool clientUpdate(ClientMain *c, const ClientInput &input)
 {
 	float dt = input.dt;
@@ -473,6 +798,33 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 	}
 	if (input.resolution != c->resolution) {
 		recreateTargets(c, input.resolution);
+	}
+
+	LoadedObject *obj = g_loadedObjects.findValue(g_selectedObject);
+	if (obj) {
+		if (handleObjectImgui(*obj->object, g_selectedObject)) {
+			obj->modified = true;
+		}
+	}
+
+	if (ImGui::Begin("Assets")) {
+		handleImguiAssetDir(g_assets);
+		ImGui::End();
+	}
+
+	if (ImGui::Begin("Objects")) {
+
+		if (ImGui::Button("Save all")) {
+			for (auto &pair : g_loadedObjects) {
+				if (pair.val.modified) {
+					saveObject(*pair.val.object, pair.key);
+					pair.val.modified = false;
+				}
+			}
+		}
+
+		handleImguiObjectDir(g_objects);
+		ImGui::End();
 	}
 
 	c->uiResolution.y = 720.0f;

@@ -49,6 +49,8 @@ struct CString : String
 		sf_assert(N > 0 && arr[N - 1] == '\0');
 	}
 	constexpr CString(ConstType, const char *data, size_t size) : String(data, size) { }
+	CString(sf::Slice<char> slice) : CString(slice.data, slice.size) { }
+	CString(sf::Slice<const char> slice) : CString(slice.data, slice.size) { }
 };
 
 struct StringBuf
