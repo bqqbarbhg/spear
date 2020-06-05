@@ -577,6 +577,8 @@ void serverUpdate(ServerMain *s)
 				auto destroy = sf::box<sv::EventDestroy>();
 				destroy->entity = client.playerEntity;
 				pushEvent(session, std::move(destroy));
+				bqws_free_socket(client.ws);
+				session.clients.removeSwap(i);
 			}
 		}
 	}

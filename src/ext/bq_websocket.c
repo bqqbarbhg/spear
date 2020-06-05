@@ -2432,11 +2432,11 @@ void bqws_free_socket(bqws_socket *ws)
 {
 	bqws_assert(ws && ws->magic == BQWS_SOCKET_MAGIC);
 
+	ws_log(ws, "Freed");
+
 	if (ws->user_io.close_fn && !ws->state.io_closed) {
 		ws->user_io.close_fn(ws->user_io.user, ws);
 	}
-
-	ws_log(ws, "Freed");
 
 	// Free everything, as the socket may have errored it can
 	// be in almost any state
@@ -2596,6 +2596,13 @@ void *bqws_get_io_user(const bqws_socket *ws)
 	bqws_assert(ws && ws->magic == BQWS_SOCKET_MAGIC);
 
 	return ws->user_io.user;
+}
+
+bool bqws_get_io_closed(const bqws_socket *ws)
+{
+	bqws_assert(ws && ws->magic == BQWS_SOCKET_MAGIC);
+
+	return ws->state.io_closed;
 }
 
 bqws_limits bqws_get_limits(const bqws_socket *ws)

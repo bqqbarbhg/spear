@@ -1651,6 +1651,10 @@ bqws_socket *bqws_pt_accept(bqws_pt_server *sv, const bqws_opts *opts, const bqw
 bqws_pt_address bqws_pt_get_address(const bqws_socket *ws)
 {
 	bqws_assert(ws);
+	if (bqws_get_io_closed(ws)) {
+		bqws_pt_address null_addr = { 0 };
+		return null_addr;
+	}
 	return pt_get_address(ws);
 }
 
