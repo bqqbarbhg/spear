@@ -106,6 +106,14 @@ struct ClientMain
 	sf::StringBuf addInput;
 	bool addFolder = false;
 	bool addObject = false;
+
+	bool windowAssets = false;
+	bool windowObjects = false;
+	bool windowMessages = false;
+	bool windowProperties = false;
+
+	sf::Vec2 cameraPos;
+	sf::Vec2 cameraVel;
 };
 
 void clientGlobalInit()
@@ -226,7 +234,7 @@ void handleImguiAssetDir(const FileDir &dir)
 
 		ImGui::Button(f.name.data);
 		if (ImGui::BeginDragDropSource(0)) {
-			ImGui::Text(f.path.data);
+			ImGui::Text("%s", f.path.data);
 			ImGui::SetDragDropPayload("asset", f.path.data, f.path.size());
 			ImGui::EndDragDropSource();
 		}
@@ -357,7 +365,7 @@ void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 
 		if (ImGui::BeginDragDropSource(0)) {
 			loadObject(f.path);
-			ImGui::Text(f.path.data);
+			ImGui::Text("%s", f.path.data);
 			ImGui::SetDragDropPayload("object", f.path.data, f.path.size());
 			ImGui::EndDragDropSource();
 
@@ -450,7 +458,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
 		l.position = sf::Vec3(0.0f, 8.0f, 0.0f);
-		l.color = sf::Vec3(4.0f, 4.0f, 4.0f) * 2.0f;
+		l.color = sf::Vec3(4.0f, 4.0f, 4.0f) * 5.0f;
 		l.radius = 24.0f;
 		l.shadowIndex = 0;
 	}
@@ -819,7 +827,7 @@ static const ComponentType componentTypes[] = {
 
 void handleObjectImgui(ImguiStatus &status, sv::GameObject &obj, const sf::Symbol &path)
 {
-	ImGui::Text(path.data);
+	ImGui::Text("%s", path.data);
 	handleImgui(status, obj.name, "name");
 
 	sf::Type *componentType = sf::typeOf<sv::Component>();
@@ -865,6 +873,17 @@ void handleObjectImgui(ImguiStatus &status, sv::GameObject &obj, const sf::Symbo
 	}
 }
 
+static bool keyDown(sapp_keycode code)
+{
+	return ImGui::GetIO().KeysDown[code] != 0;
+}
+
+static float keyDownDuration(sapp_keycode code)
+{
+	const ImGuiIO &io = ImGui::GetIO();
+	return io.KeysDown[code] != 0 ? io.KeysDownDuration[code] : HUGE_VALF;
+}
+
 bool clientUpdate(ClientMain *c, const ClientInput &input)
 {
 	float dt = input.dt;
@@ -877,48 +896,50 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 	LoadedObject *obj = g_loadedObjects.findValue(c->selectedObjectType);
 	if (obj) {
-		ImguiStatus status;
-		handleObjectImgui(status, *obj->object, c->selectedObjectType);
-		if (status.modified) {
+		if (c->windowProperties && ImGui::Begin("Properties", &c->windowProperties)) {
+			ImguiStatus status;
+			handleObjectImgui(status, *obj->object, c->selectedObjectType);
+			if (status.modified) {
 
-			if (c->selectedObjectTypeIndex == 0) {
-				uint32_t ix = 0;
-				for (sv::GameObject &type : c->serverState->objectTypes) {
-					if (type.id == c->selectedObjectType) {
-						c->selectedObjectTypeIndex = ix;
-						break;
+				if (c->selectedObjectTypeIndex == 0) {
+					uint32_t ix = 0;
+					for (sv::GameObject &type : c->serverState->objectTypes) {
+						if (type.id == c->selectedObjectType) {
+							c->selectedObjectTypeIndex = ix;
+							break;
+						}
+						ix++;
 					}
-					ix++;
 				}
+
+				if (c->selectedObjectTypeIndex != 0) {
+					sv::EventUpdateObjectType event;
+					event.index = c->selectedObjectTypeIndex;
+					event.object = *obj->object;
+					c->clientState.applyEvent(&event);
+				}
+
 			}
+			if (status.changed) {
+				obj->modified = true;
 
-			if (c->selectedObjectTypeIndex != 0) {
-				sv::EventUpdateObjectType event;
-				event.index = c->selectedObjectTypeIndex;
-				event.object = *obj->object;
-				c->clientState.applyEvent(&event);
+				sf::Box<sv::CommandUpdateObjectType> cmd = sf::box<sv::CommandUpdateObjectType>();
+				cmd->typePath = c->selectedObjectType;
+				cmd->objectType = *obj->object;
+
+				sv::MessageCommand msg;
+				msg.command = cmd;
+				writeMessage(c->ws, &msg, c->name, serverName);
 			}
-
-		}
-		if (status.changed) {
-			obj->modified = true;
-
-			sf::Box<sv::CommandUpdateObjectType> cmd = sf::box<sv::CommandUpdateObjectType>();
-			cmd->typePath = c->selectedObjectType;
-			cmd->objectType = *obj->object;
-
-			sv::MessageCommand msg;
-			msg.command = cmd;
-			writeMessage(c->ws, &msg, c->name, serverName);
 		}
 	}
 
-	if (ImGui::Begin("Assets")) {
+	if (c->windowAssets && ImGui::Begin("Assets", &c->windowAssets)) {
 		handleImguiAssetDir(g_assets);
 		ImGui::End();
 	}
 
-	if (ImGui::Begin("Objects")) {
+	if (c->windowObjects && ImGui::Begin("Objects", &c->windowObjects)) {
 
 		if (ImGui::Button("Save all")) {
 			for (auto &pair : g_loadedObjects) {
@@ -934,7 +955,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 	}
 
 	#if SF_DEBUG
-	if (ImGui::Begin("Messages")) {
+	if (c->windowMessages && ImGui::Begin("Messages", &c->windowMessages)) {
 		uint32_t index = 0;
 		sf::Type *messageType = sf::typeOf<sv::Message>();
 		for (sf::Box<sv::Message> &msg : c->debugMessages) {
@@ -1006,6 +1027,35 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				}
 			}
 		}
+	}
+
+	static bool useLatestMove = false;
+	ImGui::Checkbox("Use latest move", &useLatestMove);
+
+	if (!ImGui::GetIO().WantCaptureKeyboard) {
+		sf::Vec2 cameraMove;
+		float left = sf::min(keyDownDuration(SAPP_KEYCODE_A), keyDownDuration(SAPP_KEYCODE_LEFT));
+		float right = sf::min(keyDownDuration(SAPP_KEYCODE_D), keyDownDuration(SAPP_KEYCODE_RIGHT));
+		float up = sf::min(keyDownDuration(SAPP_KEYCODE_W), keyDownDuration(SAPP_KEYCODE_UP));
+		float down = sf::min(keyDownDuration(SAPP_KEYCODE_S), keyDownDuration(SAPP_KEYCODE_DOWN));
+
+		if (useLatestMove) {
+			if (left <= right && left < HUGE_VALF) cameraMove.x -= 1.0f;
+			if (right <= left && right < HUGE_VALF) cameraMove.x += 1.0f;
+			if (up <= down && up < HUGE_VALF) cameraMove.y -= 1.0f;
+			if (down <= up && down < HUGE_VALF) cameraMove.y += 1.0f;
+		} else {
+			if (left < HUGE_VALF) cameraMove.x -= 1.0f;
+			if (right < HUGE_VALF) cameraMove.x += 1.0f;
+			if (up < HUGE_VALF) cameraMove.y -= 1.0f;
+			if (down < HUGE_VALF) cameraMove.y += 1.0f;
+		}
+
+		cameraMove = sf::normalizeOrZero(cameraMove);
+
+		c->cameraVel += cameraMove * dt * 100.0f;
+		c->cameraPos += c->cameraVel * dt;
+		c->cameraVel *= powf(0.7f, dt*60.0f);
 	}
 
 	{
@@ -1118,6 +1168,15 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 				ImGui::EndMenu();
 			}
+
+			if (ImGui::BeginMenu("Window")) {
+				if (ImGui::MenuItem("Assets")) c->windowAssets = true;
+				if (ImGui::MenuItem("Objects")) c->windowObjects = true;
+				if (ImGui::MenuItem("Properties")) c->windowProperties = true;
+				if (ImGui::MenuItem("Messages")) c->windowMessages = true;
+				ImGui::EndMenu();
+			}
+
 
 			ImGui::EndMainMenuBar();
 		}
@@ -1247,7 +1306,7 @@ sg_image clientRender(ClientMain *c)
 
 		sp::beginPass(c->mainPass, &action);
 
-		sf::Vec3 cameraPosition = sf::Vec3(0.0f, 10.0f, 6.0f);
+		sf::Vec3 cameraPosition = sf::Vec3(c->cameraPos.x, 0.0f, c->cameraPos.y) + sf::Vec3(0.0f, 10.0f, 6.0f);
 		sf::Mat44 view = sf::mat::look(cameraPosition, sf::Vec3(0.0f, -1.0f, -0.5f));
 		sf::Mat44 proj = sf::mat::perspectiveD3D(1.0f, (float)c->resolution.x/(float)c->resolution.y, 0.1f, 20.0f);
 		sf::Mat44 viewProj = proj * view;

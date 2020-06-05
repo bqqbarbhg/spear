@@ -575,7 +575,7 @@ def translate_metal_macos(frag, src_path):
 
 configs = [
     Config("gles", GLSL("300 es"), { "SP_GLES": 1, "SP_GLSL": 1 }, None),
-    Config("glsl", GLSL("300"), { "SP_GLSL": 1 }, None),
+    Config("glsl", GLSL("330"), { "SP_GLSL": 1 }, None),
     Config("hlsl", HLSL("5"), { "SP_HLSL": 1 }, None),
     Config("macos", GLSL("450"), { "SP_METAL": 1 }, translate_metal_macos),
     Config("ios", GLSL("450"), { "SP_METAL": 1 }, translate_metal_ios),

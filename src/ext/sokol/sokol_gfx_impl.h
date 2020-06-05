@@ -4268,6 +4268,7 @@ _SOKOL_PRIVATE void _sg_apply_uniforms(sg_shader_stage stage_index, int ub_index
     if (ub->num_uniforms == 0) {
         GLint ub_offset = _sg.gl.cur_ub_offset;
 
+        glBindBuffer(GL_UNIFORM_BUFFER, _sg.gl.uniform_buffers[_sg.gl.ub_slot]);
         glBufferSubData(GL_UNIFORM_BUFFER, ub_offset, num_bytes, data);
         glBindBufferRange(GL_UNIFORM_BUFFER, ub->binding, _sg.gl.uniform_buffers[_sg.gl.ub_slot], ub_offset, num_bytes);
 

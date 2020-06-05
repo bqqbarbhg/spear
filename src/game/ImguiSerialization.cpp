@@ -1,5 +1,3 @@
-#pragma once
-
 #include "ImguiSerialization.h"
 
 #include "ext/imgui/imgui.h"
