@@ -27,7 +27,7 @@ struct HashSet
 	{
 		memset(this, 0, sizeof(HashSet));
 		reserve(rhs.map.size);
-		for (Entry &entry : rhs) {
+		for (const Entry &entry : rhs) {
 			insert(entry);
 		}
 	}

@@ -202,27 +202,27 @@ void State::reset(sv::State *svState)
 	}
 }
 
-static void updateObjectImp(State &state, uint32_t id, const Object &prev, const sv::Object &next)
+static void updateObjectImp(State &state, uint32_t id, const ObjectType &prevType, const Object &prev, const sv::Object &next)
 {
 	bool added = (prev.svObject.type == 0);
 	bool removed = (next.type == 0);
-	ObjectType &type = state.objectTypes[added ? next.type : prev.svObject.type];
+	ObjectType &nextType = state.objectTypes[next.type];
 	sf::Vec2i tile = sf::Vec2i(next.x, next.y);
 	sf::Vec2i chunkI = sv::Map::getChunk(tile);
 
 	if (!added) {
 		sf::Vec2i oldTile = sf::Vec2i(prev.svObject.x, prev.svObject.y);
 		sf::Vec2i oldChunkI = sv::Map::getChunk(oldTile);
-		if (type.mapMeshes.size > 0 && (chunkI != oldChunkI || removed)) {
-			MapChunk &chunk = state.chunks[chunkI];
+		if (prevType.mapMeshes.size > 0 && (chunkI != oldChunkI || removed)) {
+			MapChunk &chunk = state.chunks[oldChunkI];
 			chunk.meshesDirty = true;
 			chunk.meshObjects.remove(id);
 			if (!chunk.dirty) {
 				chunk.dirty = true;
-				state.dirtyChunks.push(chunkI);
+				state.dirtyChunks.push(oldChunkI);
 			}
 		}
-		if (type.pointLights.size > 0 && removed) {
+		if (prevType.pointLights.size > 0 && removed) {
 			sf::Array<uint32_t> &lightIndices = state.pointLightMapping[id];
 			for (uint32_t index : lightIndices) {
 				state.pointLights.removeSwap(index);
@@ -241,7 +241,7 @@ static void updateObjectImp(State &state, uint32_t id, const Object &prev, const
 		}
 	}
 
-	if (type.mapMeshes.size > 0) {
+	if (nextType.mapMeshes.size > 0) {
 		MapChunk &chunk = state.chunks[chunkI];
 		chunk.meshesDirty = true;
 		chunk.meshObjects.insert(id);
@@ -251,13 +251,13 @@ static void updateObjectImp(State &state, uint32_t id, const Object &prev, const
 		}
 	}
 
-	if (type.pointLights.size > 0) {
+	if (nextType.pointLights.size > 0) {
 		sf::Vec3 pos = state.getObjectPosition(next);
 		sf::Array<uint32_t> &lightIndices = state.pointLightMapping[id];
-		lightIndices.reserve(type.pointLights.size);
-		while (lightIndices.size < type.pointLights.size) lightIndices.push(~0u);
+		lightIndices.reserve(nextType.pointLights.size);
+		while (lightIndices.size < nextType.pointLights.size) lightIndices.push(~0u);
 		uint32_t *pLightIndex = lightIndices.data;
-		for (const PointLight &src : type.pointLights) {
+		for (const PointLight &src : nextType.pointLights) {
 			if (*pLightIndex == ~0u) {
 				*pLightIndex = state.pointLights.size;
 				state.pointLights.push();
@@ -324,6 +324,9 @@ void State::applyEvent(sv::Event *event)
 		while (objectTypes.size <= e->index) objectTypes.push();
 		ObjectType &type = objectTypes[e->index];
 
+		ObjectType prevType = type;
+		convertObjectType(objectTypes[e->index], e->object);
+
 		sf::Array<sv::Object> storedObjects;
 		if (type.objects.size() > 0) {
 			storedObjects.reserve(type.objects.size());
@@ -331,20 +334,7 @@ void State::applyEvent(sv::Event *event)
 			for (uint32_t id : type.objects) {
 				Object &object = objects[id];
 				storedObjects.push(object.svObject);
-				updateObjectImp(*this, id, object, emptySvObject);
-				object = Object();
-			}
-		}
-
-		convertObjectType(objectTypes[e->index], e->object);
-
-		if (type.objects.size() > 0) {
-			sv::Object *storedObj = storedObjects.data;
-			for (uint32_t id : type.objects) {
-				Object &object = objects[id];
-				updateObjectImp(*this, id, object, *storedObj);
-				object.svObject = *storedObj;
-				storedObj++;
+				updateObjectImp(*this, id, prevType, object, object.svObject);
 			}
 		}
 
@@ -353,7 +343,7 @@ void State::applyEvent(sv::Event *event)
 		ObjectType &type = objectTypes[e->object.type];
 
 		type.objects.insert(e->id);
-		updateObjectImp(*this, e->id, object, e->object);
+		updateObjectImp(*this, e->id, type, object, e->object);
 		object.svObject = e->object;
 
 	} else if (auto e = event->as<sv::EventRemoveObject>()) {
@@ -361,7 +351,7 @@ void State::applyEvent(sv::Event *event)
 		if (!object.svObject.type) return;
 		ObjectType &type = objectTypes[object.svObject.type];
 
-		updateObjectImp(*this, e->id, object, sv::Object());
+		updateObjectImp(*this, e->id, type, object, sv::Object());
 
 		object = Object();
 		type.objects.remove(e->id);

@@ -114,6 +114,8 @@ struct ClientMain
 
 	sf::Vec2 cameraPos;
 	sf::Vec2 cameraVel;
+
+	uint32_t tempShadowUpdateIndex = 0;
 };
 
 void clientGlobalInit()
@@ -361,6 +363,7 @@ void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 			loadObject(f.path);
 			c->selectedObjectType = f.path;
 			c->selectedObjectTypeIndex = 0;
+			c->windowProperties = true;
 		}
 
 		if (ImGui::BeginDragDropSource(0)) {
@@ -833,7 +836,7 @@ void handleObjectImgui(ImguiStatus &status, sv::GameObject &obj, const sf::Symbo
 	sf::Type *componentType = sf::typeOf<sv::Component>();
 
 	for (uint32_t compI = 0; compI < obj.components.size; compI++) {
-		ImGui::PushID(obj.components[compI].ptr);
+		ImGui::PushID(compI);
 
 		sf::PolymorphInstance poly = componentType->instGetPolymorph(obj.components[compI].ptr);
 
@@ -931,6 +934,8 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				msg.command = cmd;
 				writeMessage(c->ws, &msg, c->name, serverName);
 			}
+
+			ImGui::End();
 		}
 	}
 
@@ -1279,19 +1284,24 @@ void clientFree(ClientMain *client)
 sg_image clientRender(ClientMain *c)
 {
 	// HACK HACK
+#if 0
 	{
 		float t = (float)stm_sec(stm_now())*0.5f;
 		uint32_t ix = 0;
 		for (cl::PointLight &light : c->clientState.pointLights) {
-#if 0
 			if (ix++ < 3) {
 				light.position.x = sinf(t) * 5.0f;
 				light.position.z = cosf(t) * 5.0f;
 			}
-#endif
 			c->clientState.shadowCache.updatePointLight(c->clientState, light);
 			t += sf::F_2PI / 3.0f;
 		}
+	}
+#endif
+	{
+		uint32_t index = c->tempShadowUpdateIndex++;
+		cl::PointLight &light = c->clientState.pointLights[index % c->clientState.pointLights.size];
+		c->clientState.shadowCache.updatePointLight(c->clientState, light);
 	}
 
 	{

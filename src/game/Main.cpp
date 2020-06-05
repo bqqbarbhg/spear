@@ -201,7 +201,7 @@ void spFrame(float dt)
     
 	canvas.clear();
 	if (g_showStats) {
-		float y = 100.0f;
+		float y = 50.0f;
 		for (const sp::PassTime &time : sp::getPassTimes()) {
 			sf::SmallStringBuf<128> text;
 			text.format("%s: %.2fms", time.name.data, time.time * 1000.0);
@@ -209,8 +209,8 @@ void spFrame(float dt)
 			td.font = font;
 			td.string = text;
 			td.transform.m02 = 100.0f;
-			td.transform.m12 = y; y += 60.0f;
-			td.height = 60.0f;
+			td.transform.m12 = y; y += 30.0f;
+			td.height = 30.0f;
 			canvas.drawText(td);
 		}
 		

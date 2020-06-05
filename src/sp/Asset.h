@@ -132,7 +132,7 @@ struct Ref
 {
 	T *ptr;
 	Ref() : ptr(nullptr) { }
-	Ref(const Ref &r) : ptr(r.ptr) { ptr->retain(); }
+	Ref(const Ref &r) : ptr(r.ptr) { if (r.ptr) r.ptr->retain(); }
 	Ref(Ref &&r) : ptr(r.ptr) { r.ptr = nullptr; }
 	~Ref() { if (ptr) ptr->release(); }
 
