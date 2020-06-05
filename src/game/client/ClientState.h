@@ -6,6 +6,7 @@
 #include "game/client/MapMesh.h"
 #include "game/client/ShadowCache.h"
 #include "sf/Frustum.h"
+#include "sf/HashSet.h"
 #include "sp/Sprite.h"
 
 namespace cl {
@@ -18,6 +19,7 @@ struct TileType
 
 struct MapChunk
 {
+	sf::HashSet<uint32_t> meshObjects;
 	sf::Array<MapMesh> meshes;
 	MapChunkGeometry geometry;
 	bool meshesDirty = false;
@@ -73,10 +75,12 @@ struct PointLight
 	sf::Vec3 position;
 	sf::Vec3 color;
 	float radius;
-	uint32_t shadowIndex;
+	uint32_t shadowIndex = ~0u;
 
 	sf::Vec3 shadowMul;
 	sf::Vec3 shadowBias;
+
+	uint32_t objectId;
 };
 
 struct RenderShadowArgs
@@ -86,6 +90,36 @@ struct RenderShadowArgs
 	sf::Mat44 worldToClip;
 };
 
+struct Component
+{
+	using Type = sv::Component::Type;
+
+	#if SF_DEBUG
+		virtual void debugForceVtable() { }
+	#endif
+
+	Type type;
+
+	Component() { }
+	Component(Type type) : type(type) { }
+
+	template <typename T> T *as() { return type == T::ComponentType ? (T*)this : nullptr; }
+	template <typename T> const T *as() const { return type == T::ComponentType ? (T*)this : nullptr; }
+};
+
+struct ObjectType
+{
+	sv::GameObject svType;
+	sf::Array<MapMesh> mapMeshes;
+	sf::Array<PointLight> pointLights;
+	sf::HashSet<uint32_t> objects;
+};
+
+struct Object
+{
+	sv::Object svObject;
+};
+
 struct State
 {
 	sf::Array<TileType> tileTypes;
@@ -93,7 +127,12 @@ struct State
 	sf::HashMap<sf::Vec2i, MapChunk> chunks;
 	sf::Array<sf::Vec2i> dirtyChunks;
 	sf::Array<PointLight> pointLights;
+	sf::Array<ObjectType> objectTypes;
+	sf::HashMap<uint32_t, Object> objects;
+	sf::HashMap<uint32_t, sf::SmallArray<uint32_t, 1>> pointLightMapping;
 	ShadowCache shadowCache;
+
+	sf::Vec3 getObjectPosition(const sv::Object &object);
 
 	void reset(sv::State *svState);
 

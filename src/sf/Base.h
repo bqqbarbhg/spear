@@ -387,7 +387,7 @@ inline Type *typeOfRecursive() {
 
 template <typename T>
 inline Type *typeOf() {
-	Type *t = typeOfRecursive<T>();
+	Type *t = typeOfRecursive<std::remove_const<T>::type>();
 	waitForTypeInit();
 	return t;
 }

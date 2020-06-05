@@ -49,6 +49,11 @@ sf_inline void resolveChunk(sf::Vec2i &chunkI, sf::Vec2i &tileI, const sf::Vec2i
 	tileI = { pos.x & ((int32_t)MapChunk::Size - 1), pos.y & ((int32_t)MapChunk::Size - 1) };
 }
 
+sf::Vec2i Map::getChunk(const sf::Vec2i &pos)
+{
+	return { pos.x >> (int32_t)MapChunk::SizeLog2, pos.y >> (int32_t)MapChunk::SizeLog2 };
+}
+
 sf::Vec2i Map::setTile(const sf::Vec2i &pos, TileId tileId)
 {
 	sf::Vec2i chunkI, tileI;
@@ -245,6 +250,15 @@ void State::applyEvent(Event *event)
 		map.tileTypes[e->index] = e->tileType;
 	} else if (auto e = event->as<EventUpdateChunk>()) {
 		map.chunks[e->position] = e->chunk;
+	} else if (auto e = event->as<sv::EventUpdateObjectType>()) {
+		while (objectTypes.size <= e->index) objectTypes.push();
+		objectTypes[e->index] = e->object;
+	} else if (auto e = event->as<sv::EventUpdateObject>()) {
+		objects[e->id] = e->object;
+	} else if (auto e = event->as<sv::EventRemoveObject>()) {
+		objects.remove(e->id);
+	} else {
+		sf_failf("Unhandled event type: %u", event->type);
 	}
 }
 
@@ -349,6 +363,18 @@ template<> void initType<sv::Character>(Type *t)
 	sf_struct_base(t, sv::Character, sv::Entity, fields);
 }
 
+template<> void initType<sv::Object>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::Object, type),
+		sf_field(sv::Object, x),
+		sf_field(sv::Object, y),
+		sf_field(sv::Object, offset),
+		sf_field(sv::Object, rotation),
+	};
+	sf_struct(t, sv::Object, fields);
+}
+
 template<> void initType<sv::Map>(Type *t)
 {
 	static Field fields[] = {
@@ -363,6 +389,8 @@ template<> void initType<sv::State>(Type *t)
 	static Field fields[] = {
 		sf_field(sv::State, map),
 		sf_field(sv::State, entities),
+		sf_field(sv::State, objectTypes),
+		sf_field(sv::State, objects),
 	};
 	sf_struct(t, sv::State, fields);
 }

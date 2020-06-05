@@ -146,8 +146,8 @@ struct Ref
 	Ref &operator=(const Ref &r) {
 		if (&r == this) return *this;
 		if (ptr) ptr->release();
+		if (r.ptr) r.ptr->retain();
 		ptr = r.ptr;
-		ptr->retain();
 		return *this;
 	}
 

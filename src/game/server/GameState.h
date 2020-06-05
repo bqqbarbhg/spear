@@ -6,6 +6,8 @@
 #include "sf/Symbol.h"
 #include "sf/Box.h"
 
+#include "GameComponent.h"
+
 namespace sv {
 
 typedef uint16_t TileId;
@@ -101,6 +103,8 @@ struct Map
 	sf::Array<TileType> tileTypes;
 	sf::HashMap<sf::Vec2i, MapChunk> chunks;
 
+	static sf::Vec2i getChunk(const sf::Vec2i &pos);
+
 	sf::Vec2i setTile(const sf::Vec2i &pos, TileId tileId);
 	TileId getTile(const sf::Vec2i &pos) const;
 
@@ -127,10 +131,20 @@ struct EntityTileMap
 	void impGrow(size_t minSize);
 };
 
+struct Object
+{
+	uint32_t type;
+	int16_t x, y;
+	uint8_t offset[3];
+	uint8_t rotation;
+};
+
 struct State
 {
 	Map map;
 	sf::Array<sf::Box<Entity>> entities;
+	sf::Array<sv::GameObject> objectTypes;
+	sf::HashMap<uint32_t, Object> objects;
 	EntityTileMap entityTileMap;
 
 	void refreshEntityTileMap();

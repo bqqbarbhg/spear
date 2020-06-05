@@ -18,6 +18,9 @@ struct Event
 		Destroy,
 		UpdateChunk,
 		UpdateTileType,
+		UpdateObject,
+		UpdateObjectType,
+		RemoveObject,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -79,6 +82,23 @@ struct EventUpdateTileType : EventBase<Event::UpdateTileType>
 {
 	uint32_t index;
 	TileType tileType;
+};
+
+struct EventUpdateObject : EventBase<Event::UpdateObject>
+{
+	uint32_t id;
+	sv::Object object;
+};
+
+struct EventUpdateObjectType : EventBase<Event::UpdateObjectType>
+{
+	uint32_t index;
+	sv::GameObject object;
+};
+
+struct EventRemoveObject : EventBase<Event::RemoveObject>
+{
+	uint32_t id;
 };
 
 }

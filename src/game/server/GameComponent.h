@@ -29,8 +29,8 @@ struct Component
 	Component() { }
 	Component(Type type) : type(type) { }
 
-	template <typename T> T *as() { return type == T::EventType ? (T*)this : nullptr; }
-	template <typename T> const T *as() const { return type == T::EventType ? (T*)this : nullptr; }
+	template <typename T> T *as() { return type == T::ComponentType ? (T*)this : nullptr; }
+	template <typename T> const T *as() const { return type == T::ComponentType ? (T*)this : nullptr; }
 };
 
 template <Component::Type SelfType>
@@ -43,6 +43,7 @@ struct ComponentBase : Component
 struct ModelComponent : ComponentBase<Component::Model>
 {
 	sf::Symbol model;
+	sf::Symbol shadowModel;
 	sf::Symbol material;
 	sf::Vec3 position;
 	sf::Vec3 rotation;
@@ -61,6 +62,7 @@ struct PointLightComponent : ComponentBase<Component::PointLight>
 
 struct GameObject
 {
+	sf::Symbol id;
 	sf::Symbol name;
 	sf::Array<sf::Box<Component>> components;
 };

@@ -108,7 +108,7 @@ void ShadowCache::updatePointLight(State &cs, PointLight &light)
 	}
 
 	float radius = light.radius;
-	float height = 4.0f;
+	float height = 8.0f;
 
 	sf::Vec3 f = sf::Vec3((float)cacheTileExtent, (float)cacheTileSlices, (float)cacheTileExtent) / (light.radius*2.0f);
 	// f = sf::Vec3(1.0f);

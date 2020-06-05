@@ -143,15 +143,13 @@ static sf::Array<sapp_event> g_events;
 
 void spEvent(const sapp_event *e)
 {
-	if (simgui_handle_event(e)) {
-		return;
-	}
+	simgui_handle_event(e);
 
 	if (!e->key_repeat) {
 		g_events.push(*e);
 	}
 
-	if (e->type == SAPP_EVENTTYPE_KEY_DOWN && !e->key_repeat) {
+	if (e->type == SAPP_EVENTTYPE_KEY_DOWN && !e->key_repeat && !ImGui::GetIO().WantCaptureKeyboard) {
 		if (e->key_code == SAPP_KEYCODE_C) {
 			sf::SmallStringBuf<64> name;
 			name.format("Client %u", clients.size + 1);

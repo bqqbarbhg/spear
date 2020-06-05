@@ -5,24 +5,21 @@
 #include "ext/imgui/imgui.h"
 #include "sf/Reflection.h"
 
-bool handleFieldsImgui(void *inst, sf::Type *type, ImguiCallback callback, void *user)
+void handleFieldsImgui(ImguiStatus &status, void *inst, sf::Type *type, ImguiCallback callback, void *user)
 {
 	char *base = (char*)inst;
-	bool changed = false;
 	for (const sf::Field &field : type->fields) {
-		changed |= handleInstImgui(base + field.offset, field.type, field.name, callback, user);
+		handleInstImgui(status, base + field.offset, field.type, field.name, callback, user);
 	}
-	return changed;
 }
 
-bool handleInstImgui(void *inst, sf::Type *type, const sf::CString &label, ImguiCallback callback, void *user)
+void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label, ImguiCallback callback, void *user)
 {
 	uint32_t flags = type->flags;
 	char *base = (char*)inst;
-	bool changed = false;
 
-	if (callback && callback(user, changed, inst, type, label)) {
-		return changed;
+	if (callback && callback(user, status, inst, type, label)) {
+		return;
 	}
 
 	if (flags & sf::Type::HasString) {
@@ -36,7 +33,7 @@ bool handleInstImgui(void *inst, sf::Type *type, const sf::CString &label, Imgui
 			textBuf.resize(strlen(textBuf.data));
 			if (ImGui::IsItemDeactivatedAfterEdit() && (flags & sf::Type::HasSetString) != 0) {
 				type->instSetString(inst , textBuf);
-				changed = true;
+				status.changed = true;
 			}
 		}
 
@@ -48,7 +45,7 @@ bool handleInstImgui(void *inst, sf::Type *type, const sf::CString &label, Imgui
 			typeLabel.append(label, " (", poly.type->name, ")");
 			if (ImGui::TreeNode(typeLabel.data)) {
 				char *polyBase = (char*)poly.inst;
-				changed |= handleFieldsImgui(polyBase, poly.type->type, callback, user);
+				handleFieldsImgui(status, polyBase, poly.type->type, callback, user);
 				ImGui::TreePop();
 			}
 		} else {
@@ -57,13 +54,13 @@ bool handleInstImgui(void *inst, sf::Type *type, const sf::CString &label, Imgui
 
 	} else if (flags & sf::Type::HasFields) {
 		if (ImGui::TreeNode(label.data)) {
-			changed |= handleFieldsImgui(base, type, callback, user);
+			handleFieldsImgui(status, base, type, callback, user);
 			ImGui::TreePop();
 		}
 	} else if (flags & sf::Type::HasPointer) {
 		void *ptr = type->instGetPointer(inst);
 		if (ptr) {
-			handleInstImgui(ptr, type->elementType, label, callback, user);
+			handleInstImgui(status, ptr, type->elementType, label, callback, user);
 		} else {
 			ImGui::LabelText(label.data, "null");
 		}
@@ -79,7 +76,7 @@ bool handleInstImgui(void *inst, sf::Type *type, const sf::CString &label, Imgui
 			for (uint32_t i = 0; i < size; i++) {
 				indexLabel.clear();
 				indexLabel.format("%u", i);
-				changed |= handleInstImgui(ptr, elem, indexLabel, callback, user);
+				handleInstImgui(status, ptr, elem, indexLabel, callback, user);
 				ptr += elemSize;
 			}
 			ImGui::TreePop();
@@ -106,11 +103,9 @@ bool handleInstImgui(void *inst, sf::Type *type, const sf::CString &label, Imgui
 			ImGui::InputScalar(label.data, dataType, inst);
 		}
 
-		changed |= ImGui::IsItemDeactivatedAfterEdit();
+		status.changed |= ImGui::IsItemDeactivatedAfterEdit();
 
 	} else {
 		// TODO: Binary serialization
 	}
-
-	return changed;
 }

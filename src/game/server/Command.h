@@ -13,6 +13,10 @@ struct Command
 		SetTilesRaw,
 		Undo,
 		Redo,
+		AddObject,
+		UpdateObject,
+		RemoveObject,
+		UpdateObjectType,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -57,6 +61,29 @@ struct CommandUndo : CommandBase<Command::Undo>
 
 struct CommandRedo : CommandBase<Command::Redo>
 {
+};
+
+struct CommandAddObject : CommandBase<Command::AddObject>
+{
+	sf::Symbol typePath;
+	sv::Object object;
+};
+
+struct CommandUpdateObject : CommandBase<Command::UpdateObject>
+{
+	uint32_t id;
+	sv::Object object;
+};
+
+struct CommandRemoveObject : CommandBase<Command::RemoveObject>
+{
+	uint32_t id;
+};
+
+struct CommandUpdateObjectType : CommandBase<Command::UpdateObjectType>
+{
+	sf::Symbol typePath;
+	sv::GameObject objectType;
 };
 
 }

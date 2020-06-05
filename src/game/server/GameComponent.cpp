@@ -17,6 +17,7 @@ template<> void initType<sv::ModelComponent>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(sv::ModelComponent, model),
+		sf_field(sv::ModelComponent, shadowModel),
 		sf_field(sv::ModelComponent, material),
 		sf_field(sv::ModelComponent, position),
 		sf_field(sv::ModelComponent, rotation),
@@ -41,6 +42,7 @@ template<> void initType<sv::PointLightComponent>(Type *t)
 template<> void initType<sv::GameObject>(Type *t)
 {
 	static Field fields[] = {
+		sf_field(sv::GameObject, id),
 		sf_field(sv::GameObject, name),
 		sf_field(sv::GameObject, components),
 	};

@@ -96,6 +96,16 @@ struct ClientMain
 
 	sf::Mat44 worldToClip;
 	sf::Mat44 clipToWorld;
+
+	sf::Array<sf::Box<sv::Message>> debugMessages;
+
+	sf::Symbol selectedObjectType;
+	uint32_t selectedObjectTypeIndex;
+
+	sf::StringBuf addPath;
+	sf::StringBuf addInput;
+	bool addFolder = false;
+	bool addObject = false;
 };
 
 void clientGlobalInit()
@@ -124,8 +134,6 @@ static bool useNormalRemap(sg_pixel_format format)
 		return false;
 	}
 }
-
-static sf::Symbol g_selectedObject;
 
 struct FileFile
 {
@@ -225,15 +233,109 @@ void handleImguiAssetDir(const FileDir &dir)
 	}
 }
 
-void handleImguiObjectDir(const FileDir &dir)
+static LoadedObject &loadObject(const sf::Symbol &path)
 {
-	for (const FileDir &d : dir.dirs) {
+	LoadedObject &object = g_loadedObjects[path];
+
+	if (!object.object) {
+		jsi_args args = { };
+		args.dialect.allow_bare_keys = true;
+		args.dialect.allow_comments = true;
+		args.dialect.allow_control_in_string = true;
+		args.dialect.allow_missing_comma = true;
+		args.dialect.allow_trailing_comma = true;
+		jsi_value *value = jsi_parse_file(path.data, &args);
+		if (value) {
+			sf::Box<sv::GameObject> clean;
+			if (sp::readJson(value, clean)) {
+				object.object = std::move(clean);
+			}
+			jsi_free(value);
+		}
+
+		if (!object.object) {
+			object.object = sf::box<sv::GameObject>();
+		}
+	}
+
+	return object;
+}
+
+static void saveObject(const sv::GameObject &obj, const sf::Symbol &path)
+{
+	jso_stream s = { };
+	jso_init_file(&s, path.data);
+	s.pretty = true;
+
+	sp::writeJson(s, obj);
+
+	jso_close(&s);
+}
+
+void handleImguiObjectDir(ClientMain *c, FileDir &dir)
+{
+	sf::SmallArray<FileDir, 1> dirsToAdd;
+
+	for (FileDir &d : dir.dirs) {
 		sf::SmallStringBuf<128> nameCopy;
 		nameCopy.append(d.name, "/");
-		if (ImGui::TreeNode(nameCopy.data)) {
-			handleImguiObjectDir(d);
+
+		if (c->addPath.size > 0 && sf::beginsWith(d.prefix, c->addPath)) {
+			ImGui::SetNextItemOpen(true);
+		}
+
+		bool open = ImGui::TreeNode(nameCopy.data);
+
+		if (ImGui::BeginPopupContextItem()) {
+			if (ImGui::MenuItem("New Object")) {
+				c->addPath = d.prefix;
+				c->addInput.clear();
+				c->addObject = true;
+			}
+			if (ImGui::MenuItem("New Folder")) {
+				c->addPath = d.prefix;
+				c->addInput.clear();
+				c->addFolder = true;
+			}
+			ImGui::EndPopup();
+		}
+
+		if (open) {
+			if (c->addPath.size > 0 && c->addPath == d.prefix) {
+				c->addInput.reserve(256);
+				if (ImGui::InputText("##Name", c->addInput.data, c->addInput.capacity, ImGuiInputTextFlags_EnterReturnsTrue)) {
+					c->addInput.resize(strlen(c->addInput.data));
+
+					if (c->addObject) {
+						sf::SmallStringBuf<128> fileName;
+						fileName.append(c->addInput);
+						if (!sf::endsWith(fileName, ".json")) {
+							fileName.append(".json");
+						}
+
+						d.files.push(FileFile(d.prefix, fileName));
+						saveObject(sv::GameObject(), d.files.back().path);
+					} else if (c->addFolder) {
+						FileDir &newD = dirsToAdd.push();
+						newD.name = c->addInput;
+						newD.prefix.append(d.prefix, "/", c->addInput);
+					}
+
+					c->addPath.clear();
+					c->addObject = false;
+					c->addFolder = false;
+					c->addInput.clear();
+				}
+				ImGui::SetKeyboardFocusHere(-1);
+			}
+
+			handleImguiObjectDir(c, d);
 			ImGui::TreePop();
 		}
+	}
+
+	for (FileDir &fd : dirsToAdd) {
+		dir.dirs.push(std::move(fd));
 	}
 
 	for (const FileFile &f : dir.files) {
@@ -248,32 +350,13 @@ void handleImguiObjectDir(const FileDir &dir)
 		}
 
 		if (ImGui::Button(buttonText.data)) {
-			LoadedObject &object = g_loadedObjects[f.path];
-			g_selectedObject = f.path;
-
-			if (!object.object) {
-				jsi_args args = { };
-				args.dialect.allow_bare_keys = true;
-				args.dialect.allow_comments = true;
-				args.dialect.allow_control_in_string = true;
-				args.dialect.allow_missing_comma = true;
-				args.dialect.allow_trailing_comma = true;
-				jsi_value *value = jsi_parse_file(f.path.data, &args);
-				if (value) {
-					sf::Box<sv::GameObject> clean;
-					if (sp::readJson(value, clean)) {
-						object.object = std::move(clean);
-					}
-					jsi_free(value);
-				}
-
-				if (!object.object) {
-					object.object = sf::box<sv::GameObject>();
-				}
-			}
+			loadObject(f.path);
+			c->selectedObjectType = f.path;
+			c->selectedObjectTypeIndex = 0;
 		}
 
 		if (ImGui::BeginDragDropSource(0)) {
+			loadObject(f.path);
 			ImGui::Text(f.path.data);
 			ImGui::SetDragDropPayload("object", f.path.data, f.path.size());
 			ImGui::EndDragDropSource();
@@ -296,7 +379,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 	}
 
 	{
-		sf::StringBuf prefix = "Game/Objects";
+		sf::StringBuf prefix = "Server/Objects";
 		setupFileDir(g_objects, prefix);
 	}
 
@@ -366,12 +449,13 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 	// HACK
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
-		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
-		l.color = sf::Vec3(4.0f, 0.0f, 0.0f) * 2.0f;
-		l.radius = 16.0f;
+		l.position = sf::Vec3(0.0f, 8.0f, 0.0f);
+		l.color = sf::Vec3(4.0f, 4.0f, 4.0f) * 2.0f;
+		l.radius = 24.0f;
 		l.shadowIndex = 0;
 	}
 
+#if 0
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
 		l.position = sf::Vec3(0.0f, 4.0f, 0.0f);
@@ -395,6 +479,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 		l.radius = 16.0f;
 		l.shadowIndex = 3;
 	}
+#endif
 
 	return c;
 }
@@ -640,26 +725,26 @@ static void lerpExp(float &state, float target, float exponential, float linear,
 	state += sf::clamp(target - state, -speed, speed);
 }
 
-static bool imguiCallback(void *user, bool &changed, void *inst, sf::Type *type, const sf::CString &label)
+static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label)
 {
 	if (type == sf::typeOf<sf::Vec3>()) {
 		sf::Vec3 *vec = (sf::Vec3*)inst;
 
 		if (label == sf::String("position")) {
-			ImGui::SliderFloat3(label.data, vec->v, -1.0f, +1.0f);
-			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			status.modified |= ImGui::SliderFloat3(label.data, vec->v, -1.0f, +1.0f);
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
 			return true;
 		} else if (label == sf::String("stretch")) {
-			ImGui::SliderFloat3(label.data, vec->v, -2.0f, +2.0f);
-			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			status.modified |= ImGui::SliderFloat3(label.data, vec->v, -2.0f, +2.0f);
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
 			return true;
 		} else if (label == sf::String("rotation")) {
-			ImGui::SliderFloat3(label.data, vec->v, -180.0f, 180.0f);
-			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			status.modified |= ImGui::SliderFloat3(label.data, vec->v, -180.0f, 180.0f);
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
 			return true;
 		} else if (label == sf::String("color")) {
-			ImGui::ColorEdit3(label.data, vec->v, 0);
-			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			status.modified |= ImGui::ColorEdit3(label.data, vec->v, 0);
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
 			return true;
 		}
 
@@ -667,16 +752,16 @@ static bool imguiCallback(void *user, bool &changed, void *inst, sf::Type *type,
 		float *v = (float*)inst;
 
 		if (label == sf::String("intensity")) {
-			ImGui::SliderFloat(label.data, v, 0.0f, 10.0f);
-			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			status.modified |= ImGui::SliderFloat(label.data, v, 0.0f, 10.0f);
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
 			return true;
 		} else if (label == sf::String("radius")) {
-			ImGui::SliderFloat(label.data, v, 0.0f, 10.0f);
-			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			status.modified |= ImGui::SliderFloat(label.data, v, 0.0f, 10.0f);
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
 			return true;
 		} else if (label == sf::String("scale")) {
-			ImGui::SliderFloat(label.data, v, 0.0f, 5.0f);
-			changed |= ImGui::IsItemDeactivatedAfterEdit();
+			status.modified |= ImGui::SliderFloat(label.data, v, 0.0f, 5.0f);
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
 			return true;
 		}
 
@@ -684,16 +769,18 @@ static bool imguiCallback(void *user, bool &changed, void *inst, sf::Type *type,
 		sf::Symbol *sym = (sf::Symbol*)inst;
 
 		bool isModel = label == sf::String("model");
+		bool isShadowModel = label == sf::String("shadowModel");
 		bool isMaterial = label == sf::String("material");
 
-		if (isModel || isMaterial) {
+		if (isModel || isShadowModel || isMaterial) {
 			sf::SmallStringBuf<4096> textBuf;
 			textBuf.append(*sym);
 			if (ImGui::InputText(label.data, textBuf.data, textBuf.capacity, ImGuiInputTextFlags_AlignRight | ImGuiInputTextFlags_AutoSelectAll)) {
+				status.modified = true;
 				textBuf.resize(strlen(textBuf.data));
 				if (ImGui::IsItemDeactivatedAfterEdit()) {
 					*sym = sf::Symbol(textBuf);
-					changed = true;
+					status.changed = true;
 				}
 			}
 
@@ -701,7 +788,8 @@ static bool imguiCallback(void *user, bool &changed, void *inst, sf::Type *type,
 				const ImGuiPayload *payload = ImGui::AcceptDragDropPayload("asset");
 				if (payload) {
 					*sym = sf::Symbol((const char*)payload->Data, payload->DataSize);
-					changed = true;
+					status.modified = true;
+					status.changed = true;
 				}
 
 				ImGui::EndDragDropTarget();
@@ -729,23 +817,10 @@ static const ComponentType componentTypes[] = {
 	{ "PointLight", &createComponent<sv::PointLightComponent> },
 };
 
-static void saveObject(sv::GameObject &obj, const sf::Symbol &path)
+void handleObjectImgui(ImguiStatus &status, sv::GameObject &obj, const sf::Symbol &path)
 {
-	jso_stream s = { };
-	jso_init_file(&s, path.data);
-	s.pretty = true;
-
-	sp::writeJson(s, obj);
-
-	jso_close(&s);
-}
-
-bool handleObjectImgui(sv::GameObject &obj, const sf::Symbol &path)
-{
-	bool changed = false;
-
 	ImGui::Text(path.data);
-	changed |= handleImgui(obj.name, "name");
+	handleImgui(status, obj.name, "name");
 
 	sf::Type *componentType = sf::typeOf<sv::Component>();
 
@@ -761,13 +836,14 @@ bool handleObjectImgui(sv::GameObject &obj, const sf::Symbol &path)
 
 		bool doDelete = ImGui::Button("Delete");
 
-		changed |= handleFieldsImgui(poly.inst, poly.type->type, imguiCallback, NULL);
+		handleFieldsImgui(status, poly.inst, poly.type->type, imguiCallback, NULL);
 
 		ImGui::PopID();
 
 		if (doDelete) {
 			obj.components.removeOrdered(compI--);
-			changed = true;
+			status.changed = true;
+			status.modified = true;
 		}
 	}
 
@@ -783,11 +859,10 @@ bool handleObjectImgui(sv::GameObject &obj, const sf::Symbol &path)
 		if (selected > 0) {
 			const ComponentType &type = componentTypes[selected - 1];
 			obj.components.push(type.createFn());
-			changed = true;
+			status.changed = true;
+			status.modified = true;
 		}
 	}
-
-	return changed;
 }
 
 bool clientUpdate(ClientMain *c, const ClientInput &input)
@@ -800,10 +875,41 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		recreateTargets(c, input.resolution);
 	}
 
-	LoadedObject *obj = g_loadedObjects.findValue(g_selectedObject);
+	LoadedObject *obj = g_loadedObjects.findValue(c->selectedObjectType);
 	if (obj) {
-		if (handleObjectImgui(*obj->object, g_selectedObject)) {
+		ImguiStatus status;
+		handleObjectImgui(status, *obj->object, c->selectedObjectType);
+		if (status.modified) {
+
+			if (c->selectedObjectTypeIndex == 0) {
+				uint32_t ix = 0;
+				for (sv::GameObject &type : c->serverState->objectTypes) {
+					if (type.id == c->selectedObjectType) {
+						c->selectedObjectTypeIndex = ix;
+						break;
+					}
+					ix++;
+				}
+			}
+
+			if (c->selectedObjectTypeIndex != 0) {
+				sv::EventUpdateObjectType event;
+				event.index = c->selectedObjectTypeIndex;
+				event.object = *obj->object;
+				c->clientState.applyEvent(&event);
+			}
+
+		}
+		if (status.changed) {
 			obj->modified = true;
+
+			sf::Box<sv::CommandUpdateObjectType> cmd = sf::box<sv::CommandUpdateObjectType>();
+			cmd->typePath = c->selectedObjectType;
+			cmd->objectType = *obj->object;
+
+			sv::MessageCommand msg;
+			msg.command = cmd;
+			writeMessage(c->ws, &msg, c->name, serverName);
 		}
 	}
 
@@ -823,9 +929,36 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 			}
 		}
 
-		handleImguiObjectDir(g_objects);
+		handleImguiObjectDir(c, g_objects);
 		ImGui::End();
 	}
+
+	#if SF_DEBUG
+	if (ImGui::Begin("Messages")) {
+		uint32_t index = 0;
+		sf::Type *messageType = sf::typeOf<sv::Message>();
+		for (sf::Box<sv::Message> &msg : c->debugMessages) {
+			sf::StringBuf label;
+			label.format("%u", index);
+			sf::PolymorphInstance poly = messageType->instGetPolymorph(msg.ptr);
+
+			ImGui::PushID(msg.ptr);
+
+			if (!ImGui::CollapsingHeader(poly.type->name.data, 0)) {
+				ImGui::PopID();
+				continue;
+			}
+
+			ImguiStatus status;
+			handleFieldsImgui(status, poly.inst, poly.type->type, NULL, NULL);
+
+			ImGui::PopID();
+
+			index++;
+		}
+		ImGui::End();
+	}
+	#endif
 
 	c->uiResolution.y = 720.0f;
 	c->uiResolution.x = c->uiResolution.y * ((float)input.resolution.x / (float)input.resolution.y);
@@ -846,6 +979,10 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		sf::Box<sv::Message> msg = readMessage(wsMsg);
 		sf_assert(msg);
 
+		#if SF_DEBUG
+			c->debugMessages.push(msg);
+		#endif
+
 		if (auto m = msg->as<sv::MessageLoad>()) {
 			m->state->refreshEntityTileMap();
 			c->serverState = m->state;
@@ -859,6 +996,14 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 			for (auto &event : m->events) {
 				c->serverState->applyEvent(event);
 				c->clientState.applyEvent(event);
+
+				if (sv::EventUpdateObjectType *e = event->as<sv::EventUpdateObjectType>()) {
+					if (e->object.id) {
+						sf::Box<sv::GameObject> &box = g_loadedObjects[e->object.id].object;
+						if (!box) box = sf::box<sv::GameObject>();
+						*box = e->object;
+					}
+				}
 			}
 		}
 	}
@@ -885,6 +1030,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		float rayT = rayOrigin.y / -rayDirection.y;
 		sf::Vec3 rayPos = rayOrigin + rayDirection * rayT;
 		sf::Vec2 mouseTile = sf::Vec2(rayPos.x, rayPos.z);
+		sf::Vec2i mouseTileInt = sf::Vec2i(sf::floor(mouseTile + sf::Vec2(0.5f)));
 
 		// HACK: Take the first character
 		cl::Character *character = nullptr;
@@ -992,7 +1138,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 							cmd->tileType.floorName = sf::Symbol("Game/Tiles/floor.js");
 							cmd->tileType.floor = true;
 
-							cmd->tiles.push(sf::Vec2i(sf::floor(mouseTile + sf::Vec2(0.5f))));
+							cmd->tiles.push(mouseTileInt);
 
 							sv::MessageCommand msg;
 							msg.command = std::move(cmd);
@@ -1001,7 +1147,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 					}
 				}
-			} else if (e.type == SAPP_EVENTTYPE_KEY_DOWN && !e.key_repeat) {
+			} else if (e.type == SAPP_EVENTTYPE_KEY_DOWN && !e.key_repeat && !ImGui::GetIO().WantCaptureKeyboard) {
 
 				if ((e.modifiers & SAPP_MODIFIER_CTRL) != 0) {
 					if (e.key_code == SAPP_KEYCODE_Y || ((e.modifiers & SAPP_MODIFIER_SHIFT) != 0 && e.key_code == SAPP_KEYCODE_Z)) {
@@ -1022,6 +1168,25 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 					} else if (ix < (int32_t)character->cards.size) {
 						c->selectedOffset = -10.0f;
 						c->selectedCard = ix;
+					}
+				}
+			} else if (e.type == SAPP_EVENTTYPE_MOUSE_UP) {
+				if (!ImGui::GetIO().WantCaptureMouse) {
+					const ImGuiPayload *payload = ImGui::GetDragDropPayload();
+					if (payload && !strcmp(payload->DataType, "object")) {
+
+						sf::Box<sv::CommandAddObject> cmd = sf::box<sv::CommandAddObject>();
+						cmd->typePath = sf::Symbol((const char*)payload->Data, payload->DataSize);
+						cmd->object.x = (uint16_t)mouseTileInt.x;
+						cmd->object.y = (uint16_t)mouseTileInt.y;
+						cmd->object.rotation = 0;
+						cmd->object.offset[0] = 0;
+						cmd->object.offset[1] = 0;
+						cmd->object.offset[2] = 0;
+
+						sv::MessageCommand msg;
+						msg.command = cmd;
+						writeMessage(c->ws, &msg, c->name, serverName);
 					}
 				}
 			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {
@@ -1059,10 +1224,12 @@ sg_image clientRender(ClientMain *c)
 		float t = (float)stm_sec(stm_now())*0.5f;
 		uint32_t ix = 0;
 		for (cl::PointLight &light : c->clientState.pointLights) {
+#if 0
 			if (ix++ < 3) {
 				light.position.x = sinf(t) * 5.0f;
 				light.position.z = cosf(t) * 5.0f;
 			}
+#endif
 			c->clientState.shadowCache.updatePointLight(c->clientState, light);
 			t += sf::F_2PI / 3.0f;
 		}

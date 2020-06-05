@@ -42,7 +42,9 @@ struct Session
 
 	sf::Array<sv::EntityId> freeEntityIds;
 	sf::HashMap<sv::TileType, uint32_t> tileTypes;
+	sf::HashMap<sf::Symbol, uint32_t> objectTypes;
 	uint32_t entityIdCounter = 0;
+	uint32_t objectIdCounter = 0;
 
 	sv::EntityId allocateEntityId()
 	{
@@ -159,6 +161,21 @@ static void wsLogLocal(void *user, bqws_socket *ws, const char *line)
 	sf::debugPrintLine("%p : %s", ws, line);
 }
 
+static void pushEventRaw(Session &se, sf::Box<sv::Event> event)
+{
+	se.pendingEvents.push(std::move(event));
+}
+
+static void pushEvent(Session &se, sf::Box<sv::Event> event)
+{
+	se.state->applyEvent(event);
+	if (auto e = event->as<sv::EventDestroy>()) {
+		se.freeEntityId(e->entity);
+	}
+
+	se.pendingEvents.push(std::move(event));
+}
+
 static sv::TileId resolveTileId(Session &se, const sv::TileType &type)
 {
 	sv::State *state = se.state;
@@ -171,7 +188,32 @@ static sv::TileId resolveTileId(Session &se, const sv::TileType &type)
 		sf::Box<sv::EventUpdateTileType> ev = sf::box<sv::EventUpdateTileType>();
 		ev->tileType = type;
 		ev->index = index;
-		se.pendingEvents.push(ev);
+		pushEvent(se, std::move(ev));
+	}
+	return res.entry.val;
+}
+
+static uint32_t resolveObjectTypeId(Session &se, const sf::Symbol &path)
+{
+	sv::State *state = se.state;
+	auto res = se.objectTypes.insert(path);
+	if (res.inserted) {
+		sf::Box<sv::GameObject> object = loadConfig<sv::GameObject>(path);
+		if (!object) {
+			object = sf::box<sv::GameObject>();
+		}
+
+		uint32_t index = state->objectTypes.size;
+		res.entry.val = index;
+
+		// Share component pointers between instances
+		while (se.state->objectTypes.size <= index) se.state->objectTypes.push();
+		se.state->objectTypes[index] = *object;
+
+		sf::Box<sv::EventUpdateObjectType> ev = sf::box<sv::EventUpdateObjectType>();
+		ev->index = index;
+		ev->object = *object;
+		pushEventRaw(se, std::move(ev));
 	}
 	return res.entry.val;
 }
@@ -202,7 +244,7 @@ static void applyCommand(Session &se, sf::Box<sv::Command> command, sf::Array<sf
 			sf::Box<sv::EventUpdateChunk> ev = sf::box<sv::EventUpdateChunk>();
 			ev->position = chunk;
 			ev->chunk = state->map.chunks[chunk];
-			se.pendingEvents.push(ev);
+			pushEvent(se, std::move(ev));
 		}
 
 	} else if (sv::CommandSetTilesRaw *cmd = command->as<sv::CommandSetTilesRaw>()) {
@@ -227,7 +269,80 @@ static void applyCommand(Session &se, sf::Box<sv::Command> command, sf::Array<sf
 			sf::Box<sv::EventUpdateChunk> ev = sf::box<sv::EventUpdateChunk>();
 			ev->position = chunk;
 			ev->chunk = state->map.chunks[chunk];
-			se.pendingEvents.push(ev);
+			pushEvent(se, std::move(ev));
+		}
+
+	} else if (sv::CommandAddObject *cmd = command->as<sv::CommandAddObject>()) {
+
+		uint32_t id = ++se.objectIdCounter;
+		uint32_t typeId = resolveObjectTypeId(se, cmd->typePath);
+
+		sf::Box<sv::CommandRemoveObject> undoCmd = sf::box<sv::CommandRemoveObject>();
+		undoCmd->id = id;
+		undoList.push(undoCmd);
+
+		{
+			sf::Box<sv::EventUpdateObject> ev = sf::box<sv::EventUpdateObject>();
+			ev->id = id;
+			ev->object = cmd->object;
+			ev->object.type = typeId;
+			pushEvent(se, std::move(ev));
+		}
+
+	} else if (sv::CommandUpdateObject *cmd = command->as<sv::CommandUpdateObject>()) {
+
+		sv::Object *object = se.state->objects.findValue(cmd->id);
+		if (object) {
+			sf::Box<sv::CommandUpdateObject> undoCmd = sf::box<sv::CommandUpdateObject>();
+			undoCmd->id = cmd->id;
+			undoCmd->object = *object;
+			undoList.push(undoCmd);
+		} else {
+			sf::Box<sv::CommandRemoveObject> undoCmd = sf::box<sv::CommandRemoveObject>();
+			undoCmd->id = cmd->id;
+			undoList.push(undoCmd);
+		}
+
+		{
+			sf::Box<sv::EventUpdateObject> ev = sf::box<sv::EventUpdateObject>();
+			ev->id = cmd->id;
+			ev->object = cmd->object;
+			pushEvent(se, std::move(ev));
+		}
+
+	} else if (sv::CommandRemoveObject *cmd = command->as<sv::CommandRemoveObject>()) {
+
+		sv::Object *object = se.state->objects.findValue(cmd->id);
+		if (object) {
+			sf::Box<sv::CommandUpdateObject> undoCmd = sf::box<sv::CommandUpdateObject>();
+			undoCmd->id = cmd->id;
+			undoCmd->object = *object;
+			undoList.push(undoCmd);
+		}
+
+		{
+			sf::Box<sv::EventRemoveObject> ev = sf::box<sv::EventRemoveObject>();
+			ev->id = cmd->id;
+			pushEvent(se, std::move(ev));
+		}
+
+	} else if (sv::CommandUpdateObjectType *cmd = command->as<sv::CommandUpdateObjectType>()) {
+
+		uint32_t typeId = resolveObjectTypeId(se, cmd->typePath);
+
+		sv::GameObject &type = se.state->objectTypes[typeId];
+		{
+			sf::Box<sv::CommandUpdateObjectType> undoCmd = sf::box<sv::CommandUpdateObjectType>();
+			undoCmd->typePath = cmd->typePath;
+			undoCmd->objectType = type;
+			undoList.push(undoCmd);
+		}
+
+		{
+			sf::Box<sv::EventUpdateObjectType> ev = sf::box<sv::EventUpdateObjectType>();
+			ev->index = typeId;
+			ev->object = cmd->objectType;
+			pushEvent(se, std::move(ev));
 		}
 
 	} else {
@@ -249,6 +364,9 @@ static Session *setupSession(ServerMain *s, uint32_t id, uint32_t secret)
 		session.secret = rand();
 
 		session.state = sf::box<sv::State>();
+
+		// Reserve NULL object type
+		session.state->objectTypes.push();
 
 		sv::Map &map = session.state->map;
 		map.tileTypes.push();
@@ -361,7 +479,7 @@ void serverUpdate(ServerMain *s)
 					auto spawn = sf::box<sv::EventSpawn>();
 					spawn->data = player;
 					spawn->data->id = client.playerEntity;
-					session.pendingEvents.push(spawn);
+					pushEvent(session, std::move(spawn));
 				}
 
 				ws = nullptr;
@@ -379,14 +497,6 @@ void serverUpdate(ServerMain *s)
 		Session &session = pair.val;
 
 		if (session.pendingEvents.size) {
-
-			for (auto &event : session.pendingEvents) {
-				session.state->applyEvent(event);
-
-				if (auto e = event->as<sv::EventDestroy>()) {
-					session.freeEntityId(e->entity);
-				}
-			}
 
 			sv::MessageUpdate update;
 			update.events = std::move(session.pendingEvents);
@@ -419,7 +529,10 @@ void serverUpdate(ServerMain *s)
 						if (session.state->applyAction(action, events, error)) {
 							sv::MessageActionSuccess ok = { };
 							writeMessage(client.ws, &ok, serverName, client.name);
-							session.pendingEvents.push(events);
+
+							for (sf::Box<sv::Event> &event : events) {
+								pushEvent(session, std::move(event));
+							}
 						} else {
 							sv::MessageActionFailure fail = { };
 							fail.description = std::move(error);
@@ -463,8 +576,7 @@ void serverUpdate(ServerMain *s)
 			if (bqws_is_closed(client.ws)) {
 				auto destroy = sf::box<sv::EventDestroy>();
 				destroy->entity = client.playerEntity;
-				session.pendingEvents.push(destroy);
-				session.clients.removeSwap(i--);
+				pushEvent(session, std::move(destroy));
 			}
 		}
 	}

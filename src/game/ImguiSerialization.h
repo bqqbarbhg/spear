@@ -3,15 +3,29 @@
 #include "sf/Base.h"
 #include "sf/String.h"
 
-typedef bool (*ImguiCallback)(void *user, bool &changed, void *inst, sf::Type *type, const sf::CString &label);
+struct ImguiStatus
+{
+	bool modified = false;
+	bool changed = false;
+};
 
-bool handleFieldsImgui(void *inst, sf::Type *type, ImguiCallback callback, void *user);
-bool handleInstImgui(void *inst, sf::Type *type, const sf::CString &label, ImguiCallback callback, void *user);
+typedef bool (*ImguiCallback)(void *user, ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label);
+
+void handleFieldsImgui(ImguiStatus &status, void *inst, sf::Type *type, ImguiCallback callback, void *user);
+void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label, ImguiCallback callback, void *user);
 
 template <typename T>
-bool handleImgui(T &t, sf::String label, ImguiCallback callback=NULL, void *user=NULL)
+void handleImgui(ImguiStatus &status, T &t, sf::String label, ImguiCallback callback=NULL, void *user=NULL)
 {
 	sf::SmallStringBuf<128> localLabel;
 	localLabel.append(label);
-	return handleInstImgui(&t, sf::typeOf<T>(), localLabel, callback, user);
+	return handleInstImgui(status, &t, sf::typeOf<T>(), localLabel, callback, user);
+}
+
+template <typename T>
+ImguiStatus handleImgui(T &t, sf::String label, ImguiCallback callback=NULL, void *user=NULL)
+{
+	ImguiStatus s;
+	handleImgui(s, t, label, callback, user);
+	return s;
 }

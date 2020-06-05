@@ -7,6 +7,8 @@
 
 namespace cl {
 
+static const sf::Symbol g_defaultTileMaterial { "Assets/Tiles/Default_Material/TileDefault" };
+
 static Card convertCard(const sv::Card &svCard)
 {
 	Card card;
@@ -39,6 +41,51 @@ static sf::Box<Entity> convertEntity(const sf::Box<sv::Entity> &svEntity)
 	return data;
 }
 
+static void convertObjectType(ObjectType &type, const sv::GameObject &svType)
+{
+	type.svType = svType;
+	type.mapMeshes.clear();
+	type.pointLights.clear();
+
+	for (sv::Component *component : svType.components) {
+		if (sv::ModelComponent *c = component->as<sv::ModelComponent>()) {
+
+			MapMesh &mesh = type.mapMeshes.push();
+			mesh.material.load(c->material);
+
+			sp::ModelProps props;
+			props.cpuData = true;
+			if (c->model) mesh.model.load(c->model, props);
+			if (c->material) {
+				mesh.material.load(c->material);
+			} else {
+				mesh.material.load(g_defaultTileMaterial);
+			}
+
+			mesh.transform =
+				sf::mat::translate(c->position) * (
+				sf::mat::rotateZ(c->rotation.z * (sf::F_PI/180.0f)) *
+				sf::mat::rotateY(c->rotation.y * (sf::F_PI/180.0f)) *
+				sf::mat::rotateX(c->rotation.x * (sf::F_PI/180.0f)) *
+				sf::mat::scale(c->stretch * c->scale));
+
+			if (c->castShadows) {
+				if (c->shadowModel) {
+					mesh.shadowModel.load(c->shadowModel);
+				} else {
+					mesh.shadowModel = mesh.model;
+				}
+			}
+		} else if (sv::PointLightComponent *c = component->as<sv::PointLightComponent>()) {
+			PointLight &light = type.pointLights.push();
+			light.color = c->color * c->intensity;
+			light.radius = c->radius;
+			light.position = c->position;
+			light.shadowIndex = 0;
+		}
+	}
+}
+
 static bool generateMapMesh(sf::Array<cl::MapMesh> &meshes, sf::Random &tileRng, const TileInfoRef &tileRef, const sf::Vec2i &tilePos)
 {
 	if (!tileRef.isLoaded()) {
@@ -63,7 +110,7 @@ static bool generateMapMesh(sf::Array<cl::MapMesh> &meshes, sf::Random &tileRng,
 	return true;
 }
 
-static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, sv::Map &svMap, const sf::Vec2i &chunkPos)
+static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, sv::Map &svMap, MapChunk &chunk, const sf::Vec2i &chunkPos)
 {
 	meshes.clear();
 
@@ -90,6 +137,18 @@ static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, 
 		if (!generateMapMesh(meshes, tileRng, tileType.tile, tilePos)) return false;
 	}
 
+	for (uint32_t id : chunk.meshObjects) {
+		Object &object = state.objects[id];
+		ObjectType &type = state.objectTypes[object.svObject.type];
+
+		for (MapMesh &mesh : type.mapMeshes) {
+			MapMesh &dst = meshes.push();
+			sf::Vec3 pos = state.getObjectPosition(object.svObject);
+			dst = mesh;
+			dst.transform = sf::mat::translate(pos) * mesh.transform;
+		}
+	}
+
 	return true;
 }
 
@@ -97,6 +156,13 @@ static void setTileType(TileType &type, sv::TileType svType)
 {
 	if (svType.floorName) type.floor.load(svType.floorName);
 	if (svType.tileName) type.tile.load(svType.tileName);
+}
+
+sf::Vec3 State::getObjectPosition(const sv::Object &object)
+{
+	// TODO: Apply offset
+	sf::Vec3 pos = { (float)object.x, 0.0f, (float)object.y };
+	return pos;
 }
 
 void State::reset(sv::State *svState)
@@ -133,6 +199,79 @@ void State::reset(sv::State *svState)
 		chunks[pair.key].dirty = true;
 		chunks[pair.key].meshesDirty = true;
 		dirtyChunks.push(pair.key);
+	}
+}
+
+static void updateObjectImp(State &state, uint32_t id, const Object &prev, const sv::Object &next)
+{
+	bool added = (prev.svObject.type == 0);
+	bool removed = (next.type == 0);
+	ObjectType &type = state.objectTypes[added ? next.type : prev.svObject.type];
+	sf::Vec2i tile = sf::Vec2i(next.x, next.y);
+	sf::Vec2i chunkI = sv::Map::getChunk(tile);
+
+	if (!added) {
+		sf::Vec2i oldTile = sf::Vec2i(prev.svObject.x, prev.svObject.y);
+		sf::Vec2i oldChunkI = sv::Map::getChunk(oldTile);
+		if (type.mapMeshes.size > 0 && (chunkI != oldChunkI || removed)) {
+			MapChunk &chunk = state.chunks[chunkI];
+			chunk.meshesDirty = true;
+			chunk.meshObjects.remove(id);
+			if (!chunk.dirty) {
+				chunk.dirty = true;
+				state.dirtyChunks.push(chunkI);
+			}
+		}
+		if (type.pointLights.size > 0 && removed) {
+			sf::Array<uint32_t> &lightIndices = state.pointLightMapping[id];
+			for (uint32_t index : lightIndices) {
+				state.pointLights.removeSwap(index);
+				if (index < state.pointLights.size) {
+					PointLight &swapLight = state.pointLights[index];
+					sf::Array<uint32_t> &swapIndices = state.pointLightMapping[swapLight.objectId];
+					for (uint32_t &swapRef : swapIndices) {
+						if (swapRef == state.pointLights.size) {
+							swapRef = index;
+							break;
+						}
+					}
+				}
+			}
+			state.pointLightMapping.remove(id);
+		}
+	}
+
+	if (type.mapMeshes.size > 0) {
+		MapChunk &chunk = state.chunks[chunkI];
+		chunk.meshesDirty = true;
+		chunk.meshObjects.insert(id);
+		if (!chunk.dirty) {
+			chunk.dirty = true;
+			state.dirtyChunks.push(chunkI);
+		}
+	}
+
+	if (type.pointLights.size > 0) {
+		sf::Vec3 pos = state.getObjectPosition(next);
+		sf::Array<uint32_t> &lightIndices = state.pointLightMapping[id];
+		lightIndices.reserve(type.pointLights.size);
+		while (lightIndices.size < type.pointLights.size) lightIndices.push(~0u);
+		uint32_t *pLightIndex = lightIndices.data;
+		for (const PointLight &src : type.pointLights) {
+			if (*pLightIndex == ~0u) {
+				*pLightIndex = state.pointLights.size;
+				state.pointLights.push();
+			}
+
+			PointLight &dst = state.pointLights[*pLightIndex];
+			dst.position = pos + src.position;
+			dst.color = src.color;
+			dst.radius = src.radius;
+			dst.shadowIndex = *pLightIndex;
+			dst.objectId = id;
+			
+			pLightIndex++;
+		}
 	}
 }
 
@@ -181,6 +320,51 @@ void State::applyEvent(sv::Event *event)
 			chunk.dirty = true;
 			dirtyChunks.push(e->position);
 		}
+	} else if (auto e = event->as<sv::EventUpdateObjectType>()) {
+		while (objectTypes.size <= e->index) objectTypes.push();
+		ObjectType &type = objectTypes[e->index];
+
+		sf::Array<sv::Object> storedObjects;
+		if (type.objects.size() > 0) {
+			storedObjects.reserve(type.objects.size());
+			sv::Object emptySvObject = { };
+			for (uint32_t id : type.objects) {
+				Object &object = objects[id];
+				storedObjects.push(object.svObject);
+				updateObjectImp(*this, id, object, emptySvObject);
+				object = Object();
+			}
+		}
+
+		convertObjectType(objectTypes[e->index], e->object);
+
+		if (type.objects.size() > 0) {
+			sv::Object *storedObj = storedObjects.data;
+			for (uint32_t id : type.objects) {
+				Object &object = objects[id];
+				updateObjectImp(*this, id, object, *storedObj);
+				object.svObject = *storedObj;
+				storedObj++;
+			}
+		}
+
+	} else if (auto e = event->as<sv::EventUpdateObject>()) {
+		Object &object = objects[e->id];
+		ObjectType &type = objectTypes[e->object.type];
+
+		type.objects.insert(e->id);
+		updateObjectImp(*this, e->id, object, e->object);
+		object.svObject = e->object;
+
+	} else if (auto e = event->as<sv::EventRemoveObject>()) {
+		Object &object = objects[e->id];
+		if (!object.svObject.type) return;
+		ObjectType &type = objectTypes[object.svObject.type];
+
+		updateObjectImp(*this, e->id, object, sv::Object());
+
+		object = Object();
+		type.objects.remove(e->id);
 	} else {
 		sf_failf("Unhandled event type: %u", event->type);
 	}
@@ -224,7 +408,7 @@ void State::updateMapChunks(sv::State &svState)
 		sf_assert(chunk.dirty);
 
 		if (chunk.meshesDirty) {
-			if (!generateMapMeshes(chunk.meshes, *this, svState.map, chunkPos)) {
+			if (!generateMapMeshes(chunk.meshes, *this, svState.map, chunk, chunkPos)) {
 				continue;
 			}
 			chunk.meshesDirty = false;
