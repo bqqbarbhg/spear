@@ -165,43 +165,6 @@ sf::Vec3 State::getObjectPosition(const sv::Object &object)
 	return pos;
 }
 
-void State::reset(sv::State *svState)
-{
-	entities.clear();
-	entities.resize(svState->entities.size);
-
-	{
-		uint32_t ix = 0;
-		for (sf::Box<sv::Entity> &svEntity : svState->entities) {
-			if (svEntity) {
-				entities[ix] = convertEntity(svEntity);
-			}
-			ix++;
-		}
-	}
-
-	tileTypes.clear();
-	tileTypes.reserve(svState->map.tileTypes.size);
-
-	{
-		for (sv::TileType &tileType : svState->map.tileTypes) {
-			cl::TileType &dst = tileTypes.push();
-			setTileType(dst, tileType);
-		}
-	}
-
-	chunks.clear();
-	dirtyChunks.clear();
-	chunks.reserve(svState->map.chunks.size());
-	dirtyChunks.reserve(svState->map.chunks.size());
-
-	for (auto &pair : svState->map.chunks) {
-		chunks[pair.key].dirty = true;
-		chunks[pair.key].meshesDirty = true;
-		dirtyChunks.push(pair.key);
-	}
-}
-
 static void updateObjectImp(State &state, uint32_t id, const ObjectType &prevType, const Object &prev, const sv::Object &next)
 {
 	bool added = (prev.svObject.type == 0);
@@ -271,6 +234,71 @@ static void updateObjectImp(State &state, uint32_t id, const ObjectType &prevTyp
 			dst.objectId = id;
 			
 			pLightIndex++;
+		}
+	}
+}
+
+void State::reset(sv::State *svState)
+{
+	entities.clear();
+	entities.resize(svState->entities.size);
+
+	{
+		uint32_t ix = 0;
+		for (sf::Box<sv::Entity> &svEntity : svState->entities) {
+			if (svEntity) {
+				entities[ix] = convertEntity(svEntity);
+			}
+			ix++;
+		}
+	}
+
+	tileTypes.clear();
+	tileTypes.reserve(svState->map.tileTypes.size);
+
+	{
+		for (sv::TileType &tileType : svState->map.tileTypes) {
+			cl::TileType &dst = tileTypes.push();
+			setTileType(dst, tileType);
+		}
+	}
+
+	chunks.clear();
+	dirtyChunks.clear();
+	chunks.reserve(svState->map.chunks.size());
+	dirtyChunks.reserve(svState->map.chunks.size());
+
+	for (auto &pair : svState->map.chunks) {
+		chunks[pair.key].dirty = true;
+		chunks[pair.key].meshesDirty = true;
+		dirtyChunks.push(pair.key);
+	}
+
+	objectTypes.clear();
+	objectTypes.resize(svState->objectTypes.size);
+
+	{
+		uint32_t ix = 0;
+		for (sv::GameObject &objectType : svState->objectTypes) {
+			if (ix > 0) {
+				convertObjectType(objectTypes[ix], objectType);
+			}
+			ix++;
+		}
+	}
+
+	objects.clear();
+	objects.reserve(svState->objects.size());
+
+	{
+		uint32_t ix = 0;
+		for (auto &pair : svState->objects) {
+			Object &object = objects[pair.key];
+			ObjectType &type = objectTypes[pair.val.type];
+
+			type.objects.insert(pair.key);
+			updateObjectImp(*this, pair.key, type, object, pair.val);
+			object.svObject = pair.val;
 		}
 	}
 }
