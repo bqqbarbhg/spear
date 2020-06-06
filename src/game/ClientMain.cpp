@@ -238,7 +238,6 @@ void setupFileDir(FileDir &dir, sf::StringBuf &queryRoot, sv::QueryDir &queryDir
 	} else {
 		for (FileDir &child : dir.dirs) {
 			if (sf::beginsWith(queryRoot, child.prefix)) {
-				dir.prefix.append("/", child.name);
 				setupFileDir(child, queryRoot, queryDir);
 				return;
 			}

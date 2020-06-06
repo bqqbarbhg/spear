@@ -71,7 +71,7 @@ static void convertObjectType(ObjectType &type, const sv::GameObject &svType)
 
 			if (c->castShadows) {
 				if (c->shadowModel) {
-					mesh.shadowModel.load(c->shadowModel);
+					mesh.shadowModel.load(c->shadowModel, props);
 				} else {
 					mesh.shadowModel = mesh.model;
 				}
