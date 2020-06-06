@@ -497,6 +497,26 @@ Vec2 transformPoint(const Mat23 &l, const Vec2 &r)
 	};
 }
 
+// Transform direction
+
+Vec3 transformDirection(const Mat33 &l, const Vec3 &r)
+{
+	return {
+		l.m00*r.x + l.m01*r.y + l.m02*r.z,
+		l.m10*r.x + l.m11*r.y + l.m12*r.z,
+		l.m20*r.x + l.m21*r.y + l.m22*r.z,
+	};
+}
+
+Vec3 transformDirection(const Mat34 &l, const Vec3 &r)
+{
+	return {
+		l.m00*r.x + l.m01*r.y + l.m02*r.z,
+		l.m10*r.x + l.m11*r.y + l.m12*r.z,
+		l.m20*r.x + l.m21*r.y + l.m22*r.z,
+	};
+}
+
 // Determinant
 
 float determinant(const Mat34_3 &m) {
@@ -631,16 +651,18 @@ Mat34 inverse(const Mat34 &m) {
 	float invDet = 1.0f / determinant(m);
 	return {
 		( - m.m12*m.m21 + m.m11*m.m22) * invDet,
-		( + m.m12*m.m20 - m.m10*m.m22) * invDet,
-		( - m.m11*m.m20 + m.m10*m.m21) * invDet,
 		( + m.m02*m.m21 - m.m01*m.m22) * invDet,
-		( - m.m02*m.m20 + m.m00*m.m22) * invDet,
-		( + m.m01*m.m20 - m.m00*m.m21) * invDet,
 		( - m.m02*m.m11 + m.m01*m.m12) * invDet,
-		( + m.m02*m.m10 - m.m00*m.m12) * invDet,
-		( - m.m01*m.m10 + m.m00*m.m11) * invDet,
 		(m.m03*m.m12*m.m21 - m.m02*m.m13*m.m21 - m.m03*m.m11*m.m22 + m.m01*m.m13*m.m22 + m.m02*m.m11*m.m23 - m.m01*m.m12*m.m23) * invDet,
+
+		( + m.m12*m.m20 - m.m10*m.m22) * invDet,
+		( - m.m02*m.m20 + m.m00*m.m22) * invDet,
+		( + m.m02*m.m10 - m.m00*m.m12) * invDet,
 		(m.m02*m.m13*m.m20 - m.m03*m.m12*m.m20 + m.m03*m.m10*m.m22 - m.m00*m.m13*m.m22 - m.m02*m.m10*m.m23 + m.m00*m.m12*m.m23) * invDet,
+
+		( - m.m11*m.m20 + m.m10*m.m21) * invDet,
+		( + m.m01*m.m20 - m.m00*m.m21) * invDet,
+		( - m.m01*m.m10 + m.m00*m.m11) * invDet,
 		(m.m03*m.m11*m.m20 - m.m01*m.m13*m.m20 - m.m03*m.m10*m.m21 + m.m00*m.m13*m.m21 + m.m01*m.m10*m.m23 - m.m00*m.m11*m.m23) * invDet,
 	};
 }

@@ -253,6 +253,8 @@ typedef struct spmdl_mesh
 	uint32_t num_attribs;
 	uint32_t bone_offset;
 	uint32_t num_bones;
+	spmdl_vec3 aabb_min;
+	spmdl_vec3 aabb_max;
 	spmdl_buffer vertex_buffers[SPMDL_MAX_VERTEX_BUFFERS];
 	spmdl_buffer index_buffer;
 	spmdl_attrib attribs[SPMDL_MAX_VERTEX_ATTRIBS];

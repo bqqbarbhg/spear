@@ -18,6 +18,8 @@ struct GameShaders
 	sg_shader testMesh;
 	sg_shader skinnedMesh;
 	sg_shader shadowGrid;
+	sg_shader line;
+	sg_shader sphere;
 
 	sg_buffer fullscreenTriangleBuffer;
 

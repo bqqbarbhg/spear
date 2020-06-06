@@ -9,6 +9,7 @@
 #include "ext/sokol/sokol_defs.h"
 #include "ext/sp_tools_common.h"
 #include "sf/Symbol.h"
+#include "sf/Geometry.h"
 #include "sp/Renderer.h"
 
 namespace sp {
@@ -35,6 +36,7 @@ struct Mesh
 	sf::SmallArray<VertexStream, 2> streams;
 	sf::SmallArray<spmdl_attrib, 8> attribs;
 	sf::Array<MeshBone> bones;
+	sf::Bounds3 bounds;
 
 	uint32_t numIndices = 0;
 	uint32_t numVertices = 0;

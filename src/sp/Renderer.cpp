@@ -654,6 +654,21 @@ void Buffer::initVertex(const char *name, const void *data, size_t size)
 	buffer = sg_make_buffer(&d);
 }
 
+void Buffer::initDynamicVertex(const char *name, size_t size)
+{
+	if (buffer.id) {
+		sg_destroy_buffer(buffer);
+	}
+
+	sg_buffer_desc d = { };
+	d.type = SG_BUFFERTYPE_VERTEXBUFFER;
+	d.usage = SG_USAGE_STREAM;
+	d.content = nullptr;
+	d.size = (int)size;
+	d.label = name;
+	buffer = sg_make_buffer(&d);
+}
+
 void Buffer::initIndex(const char *name, const void *data, size_t size)
 {
 	if (buffer.id) {

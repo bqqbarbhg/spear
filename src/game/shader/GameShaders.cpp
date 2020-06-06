@@ -15,6 +15,8 @@
 #include "TestMesh.h"
 #include "TestSkin.h"
 #include "ShadowGrid.h"
+#include "Line.h"
+#include "Sphere.h"
 
 #include "GameShaders.h"
 
@@ -35,6 +37,8 @@ void GameShaders::load()
 	testMesh = sg_make_shader(TestMesh_TestMesh_shader_desc());
 	skinnedMesh = sg_make_shader(TestSkin_TestSkin_shader_desc());
 	shadowGrid = sg_make_shader(ShadowGrid_ShadowGrid_shader_desc());
+	line = sg_make_shader(Line_Line_shader_desc());
+	sphere = sg_make_shader(Sphere_Sphere_shader_desc());
 
 	{
 		sf::Vec2 verts[] = {

@@ -14,6 +14,8 @@
 #include "game/shader/GameShaders.h"
 #include "game/shader/Postprocess.h"
 #include "game/shader/Fxaa.h"
+#include "game/shader/Line.h"
+#include "game/shader/Sphere.h"
 #include "game/client/TileMaterial.h"
 #include "game/server/GameComponent.h"
 #include "game/ImguiSerialization.h"
@@ -27,6 +29,8 @@
 	#include <emscripten/emscripten.h>
 	#include <emscripten/html5.h>
 #endif
+
+#include "game/DebugDraw.h"
 
 // TEMP
 #include "sf/Frustum.h"
@@ -49,6 +53,9 @@ EM_JS(int, sp_emUpdateUrl, (int id, int secret), {
 static sf::Symbol serverName { "Server" };
 
 static uint32_t playerIdCounter = 100;
+
+static constexpr const uint32_t MaxLinesPerFrame = 4096;
+static constexpr const uint32_t MaxSpheresPerFrame = 1024;
 
 struct CardGuiState
 {
@@ -112,9 +119,17 @@ struct ClientMain
 	bool windowMessages = false;
 	bool windowProperties = false;
 
+	sp::Buffer lineBuffer;
+	sp::Buffer sphereVertexBuffer;
+	sp::Buffer sphereIndexBuffer;
+	sp::Buffer sphereInstanceBuffer;
+	sp::Pipeline linePipe;
+	sp::Pipeline spherePipe;
+
 	sf::Vec2 cameraPos;
 	sf::Vec2 cameraVel;
 
+	uint32_t selectedObject = 0;
 	uint32_t tempShadowUpdateIndex = 0;
 };
 
@@ -385,7 +400,6 @@ void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 	}
 }
 
-
 ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uint32_t sessionSecret)
 {
 	ClientMain *c = new ClientMain();
@@ -459,11 +473,56 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 		d.layout.attrs[5].format = SG_VERTEXFORMAT_UBYTE4N;
 	}
 
+	{
+		uint32_t flags = sp::PipeDepthWrite;
+		auto &d = c->linePipe.init(gameShaders.line, flags);
+		d.primitive_type = SG_PRIMITIVETYPE_LINES;
+		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+	}
+
+	{
+		uint32_t flags = sp::PipeDepthWrite | sp::PipeIndex16;
+		auto &d = c->spherePipe.init(gameShaders.sphere, flags);
+		d.primitive_type = SG_PRIMITIVETYPE_LINES;
+		d.layout.buffers[1].step_func = SG_VERTEXSTEP_PER_INSTANCE;
+		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+		for (uint32_t i = 1; i <= 4; i++) {
+			d.layout.attrs[i].format = SG_VERTEXFORMAT_FLOAT4;
+			d.layout.attrs[i].buffer_index = 1;
+		}
+	}
+
+	{
+		float phi = 1.61803398875f;
+		sf::Vec3 sphereVertices[] = {
+			{-1,phi,0}, {1,phi,0}, {-1,-phi,0}, {1,-phi,0}, 
+			{0,-1,phi}, {0,1,phi}, {0,-1,-phi}, {0,1,-phi},
+			{phi,0,-1}, {phi,0,1}, {-phi,0,-1}, {-phi,0,1},
+		};
+		uint16_t sphereIndices[] = {
+			0, 1, 0, 5, 0, 7, 0, 10, 0, 11, 1, 5, 1, 7, 1, 8,
+			1, 9, 2, 3, 2, 4, 2, 6, 2, 10, 2, 11, 3, 4, 3, 6,
+			3, 8, 3, 9, 4, 5, 4, 9, 4, 11, 5, 9, 5, 11, 6, 7,
+			6, 8, 6, 10, 7, 8, 7, 10, 8, 9, 10, 11
+		};
+
+		for (sf::Vec3 &v : sphereVertices) {
+			v = sf::normalize(v);
+		}
+
+		c->sphereVertexBuffer.initVertex("Sphere vertex buffer", sf::slice(sphereVertices));
+		c->sphereIndexBuffer.initIndex("Sphere index buffer", sf::slice(sphereIndices));
+	}
+
+	c->lineBuffer.initDynamicVertex("Line buffer", sizeof(sf::Vec3) * 2 * 2 * MaxLinesPerFrame);
+	c->sphereInstanceBuffer.initDynamicVertex("Sphere instance buffer", sizeof(sf::Vec4) * 4 * MaxSpheresPerFrame);
+
 	// HACK
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
 		l.position = sf::Vec3(0.0f, 8.0f, 0.0f);
-		l.color = sf::Vec3(4.0f, 4.0f, 4.0f) * 5.0f;
+		l.color = sf::Vec3(4.0f, 4.0f, 4.0f) * 1.0f;
 		l.radius = 24.0f;
 		l.shadowIndex = 0;
 	}
@@ -1092,6 +1151,8 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		sf::Vec3 rayOrigin = sf::Vec3(rayBegin.v) / rayBegin.w;
 		sf::Vec3 rayDirection = sf::normalize(sf::Vec3(rayEnd.v) / rayEnd.w - rayOrigin);
 
+		sf::Ray mouseRay = { rayOrigin, rayDirection };
+
 		float rayT = rayOrigin.y / -rayDirection.y;
 		sf::Vec3 rayPos = rayOrigin + rayDirection * rayT;
 		sf::Vec2 mouseTile = sf::Vec2(rayPos.x, rayPos.z);
@@ -1206,19 +1267,8 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 						c->selectedCard = -1;
 
 						// HACK
-						{
-							sf::Box<sv::CommandSetTiles> cmd = sf::box<sv::CommandSetTiles>();
-
-							cmd->tileType.floorName = sf::Symbol("Game/Tiles/floor.js");
-							cmd->tileType.floor = true;
-
-							cmd->tiles.push(mouseTileInt);
-
-							sv::MessageCommand msg;
-							msg.command = std::move(cmd);
-							writeMessage(c->ws, &msg, c->name, serverName);
-						}
-
+						uint32_t id = c->clientState.pickObject(mouseRay);
+						c->selectedObject = id;
 					}
 				}
 			} else if (e.type == SAPP_EVENTTYPE_KEY_DOWN && !e.key_repeat && !ImGui::GetIO().WantCaptureKeyboard) {
@@ -1244,6 +1294,19 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 						c->selectedCard = ix;
 					}
 				}
+
+				if (e.key_code == SAPP_KEYCODE_DELETE) {
+					if (c->selectedObject) {
+						sf::Box<sv::CommandRemoveObject> cmd = sf::box<sv::CommandRemoveObject>();
+						cmd->id = c->selectedObject;
+						c->selectedObject = 0;
+
+						sv::MessageCommand msg;
+						msg.command = cmd;
+						writeMessage(c->ws, &msg, c->name, serverName);
+					}
+				}
+
 			} else if (e.type == SAPP_EVENTTYPE_MOUSE_UP) {
 				if (!ImGui::GetIO().WantCaptureMouse) {
 					const ImGuiPayload *payload = ImGui::GetDragDropPayload();
@@ -1280,6 +1343,19 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		}
 
 		canvas.prepareForRendering();
+	}
+
+	if (c->selectedObject != 0) {
+		cl::Object *object = c->clientState.objects.findValue(c->selectedObject);
+		if (object) {
+			cl::ObjectType &type = c->clientState.objectTypes[object->svObject.type];
+			sf::Mat34 transform = c->clientState.getObjectTransform(object->svObject);
+			sf::SmallArray<sf::Mat34, 32> obbs;
+			c->clientState.getObjectBounds(type, transform, obbs);
+			for (const sf::Mat34 &obb : obbs) {
+				debugDrawBox(obb, sf::Vec3(1.0f, 0.8f, 0.8f));
+			}
+		}
 	}
 
 	return false;
@@ -1524,6 +1600,72 @@ sg_image clientRender(ClientMain *c)
 
 					sg_draw(0, mesh.numIndices, 1);
 				}
+			}
+		}
+
+		{
+			debugDrawFlipBuffers();
+			DebugDrawData data = debugDrawGetData();
+
+			sf::Slice<DebugLine> lines = data.lines.take(sf::min(MaxLinesPerFrame, (uint32_t)data.lines.size));
+			sf::Slice<DebugSphere> spheres = data.spheres.take(sf::min(MaxSpheresPerFrame, (uint32_t)data.spheres.size));
+
+			{
+				sf::Array<sf::Vec3> lineData;
+				lineData.resizeUninit(lines.size * 2 * 2);
+				sf::Vec3 *dst = lineData.data;
+				for (DebugLine &line : lines) {
+					dst[0] = line.a;
+					dst[1] = line.color;
+					dst[2] = line.b;
+					dst[3] = line.color;
+					dst += 4;
+				}
+				sg_update_buffer(c->lineBuffer.buffer, lineData.data, (int)lineData.byteSize());
+			}
+
+			{
+				sf::Array<sf::Vec4> sphereData;
+				sphereData.resizeUninit(spheres.size * 4);
+				sf::Vec4 *dst = sphereData.data;
+				for (DebugSphere &sphere : spheres) {
+					dst[0] = sf::Vec4(sphere.color, 0.0f);
+					dst[1] = sphere.transform.getRow(0);
+					dst[2] = sphere.transform.getRow(1);
+					dst[3] = sphere.transform.getRow(2);
+					dst += 4;
+				}
+				sg_update_buffer(c->sphereInstanceBuffer.buffer, sphereData.data, (int)sphereData.byteSize());
+			}
+
+			{
+				c->linePipe.bind();
+
+				Line_Vertex_t vu;
+				viewProj.writeColMajor44(vu.worldToClip);
+				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Line_Vertex, &vu, sizeof(vu));
+
+				sg_bindings binds = { };
+				binds.vertex_buffers[0] = c->lineBuffer.buffer;
+				sg_apply_bindings(&binds);
+
+				sg_draw(0, (int)lines.size * 2, 1);
+			}
+
+			{
+				c->spherePipe.bind();
+
+				Sphere_Vertex_t vu;
+				viewProj.writeColMajor44(vu.worldToClip);
+				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Sphere_Vertex, &vu, sizeof(vu));
+
+				sg_bindings binds = { };
+				binds.index_buffer = c->sphereIndexBuffer.buffer;
+				binds.vertex_buffers[0] = c->sphereVertexBuffer.buffer;
+				binds.vertex_buffers[1] = c->sphereInstanceBuffer.buffer;
+				sg_apply_bindings(&binds);
+
+				sg_draw(0, 60, (int)spheres.size);
 			}
 		}
 

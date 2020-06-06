@@ -112,6 +112,7 @@ struct Buffer
 
 	void reset();
 	void initVertex(const char *name, const void *data, size_t size);
+	void initDynamicVertex(const char *name, size_t size);
 	void initIndex(const char *name, const void *data, size_t size);
 
 	template <typename T>

@@ -107,6 +107,7 @@ static void loadImp(void *user, const ContentFile &file)
 		mesh.numIndices = sp_mesh.num_indices;
 		mesh.numVertices = sp_mesh.num_vertices;
 		mesh.indexBufferOffset = sp_mesh.index_buffer.offset;
+		mesh.bounds = sf::Bounds3::minMax(toSF(sp_mesh.aabb_min), toSF(sp_mesh.aabb_max));
 
 		mesh.attribs.reserve(sp_mesh.num_attribs);
 		for (uint32_t attrI = 0; attrI < sp_mesh.num_attribs; attrI++) {

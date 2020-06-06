@@ -6,6 +6,7 @@
 #include "game/client/MapMesh.h"
 #include "game/client/ShadowCache.h"
 #include "sf/Frustum.h"
+#include "sf/Geometry.h"
 #include "sf/HashSet.h"
 #include "sp/Sprite.h"
 
@@ -113,6 +114,8 @@ struct ObjectType
 	sf::Array<MapMesh> mapMeshes;
 	sf::Array<PointLight> pointLights;
 	sf::HashSet<uint32_t> objects;
+	bool hasValidBounds = false;
+	sf::Sphere bounds;
 };
 
 struct Object
@@ -132,7 +135,12 @@ struct State
 	sf::HashMap<uint32_t, sf::SmallArray<uint32_t, 1>> pointLightMapping;
 	ShadowCache shadowCache;
 
+	sf::Sphere getObjectTypeBounds(ObjectType &type);
 	sf::Vec3 getObjectPosition(const sv::Object &object);
+	sf::Mat34 getObjectTransform(const sv::Object &object);
+	void getObjectBounds(const ObjectType &type, const sf::Mat34 &transform, sf::Array<sf::Mat34> &bounds);
+
+	uint32_t pickObject(const sf::Ray &ray);
 
 	void reset(sv::State *svState);
 

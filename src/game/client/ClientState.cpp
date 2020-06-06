@@ -158,11 +158,119 @@ static void setTileType(TileType &type, sv::TileType svType)
 	if (svType.tileName) type.tile.load(svType.tileName);
 }
 
+sf::Sphere State::getObjectTypeBounds(ObjectType &type)
+{
+	if (type.hasValidBounds) return type.bounds;
+
+	sf::Sphere bounds = { { }, -1.0f };
+	float lightRadius = sf::length(sf::Vec3(0.1f));
+
+	bool loading = false;
+	for (MapMesh &mapMesh : type.mapMeshes) {
+		loading |= mapMesh.model.isLoading();
+		loading |= mapMesh.shadowModel.isLoading();
+
+		if (mapMesh.model.isLoaded()) {
+			for (const sp::Mesh &mesh : mapMesh.model->meshes) {
+				sf::Sphere sphere = sf::sphereFromBounds3(mesh.bounds, mapMesh.transform);
+				bounds = sf::sphereUnion(bounds, sphere);
+			}
+		}
+		if (mapMesh.shadowModel.isLoaded()) {
+			for (const sp::Mesh &mesh : mapMesh.shadowModel->meshes) {
+				sf::Sphere sphere = sf::sphereFromBounds3(mesh.bounds, mapMesh.transform);
+				bounds = sf::sphereUnion(bounds, sphere);
+			}
+		}
+	}
+
+	for (PointLight &light : type.pointLights) {
+		sf::Sphere sphere = { light.position, lightRadius };
+		bounds = sf::sphereUnion(bounds, sphere);
+	}
+
+	if (!loading) {
+		type.bounds = bounds;
+		type.hasValidBounds = true;
+	}
+
+	return bounds;
+}
+
 sf::Vec3 State::getObjectPosition(const sv::Object &object)
 {
 	// TODO: Apply offset
 	sf::Vec3 pos = { (float)object.x, 0.0f, (float)object.y };
 	return pos;
+}
+
+sf::Mat34 State::getObjectTransform(const sv::Object &object)
+{
+	sf::Vec3 pos = { (float)object.x, 0.0f, (float)object.y };
+	return sf::mat::translate(pos);
+}
+
+void State::getObjectBounds(const ObjectType &type, const sf::Mat34 &transform, sf::Array<sf::Mat34> &bounds)
+{
+	float lightRadius = 0.1f;
+	for (const MapMesh &mapMesh : type.mapMeshes) {
+		sf::Mat34 meshTransform = transform * mapMesh.transform;
+		if (mapMesh.model.isLoaded()) {
+			for (const sp::Mesh &mesh : mapMesh.model->meshes) {
+				bounds.push(meshTransform * sf::obbFromBounds3(mesh.bounds));
+			}
+		}
+		if (mapMesh.shadowModel.isLoaded()) {
+			for (const sp::Mesh &mesh : mapMesh.shadowModel->meshes) {
+				bounds.push(meshTransform * sf::obbFromBounds3(mesh.bounds));
+			}
+		}
+	}
+
+	for (const PointLight &light : type.pointLights) {
+		sf::Vec3 origin = sf::transformPoint(transform, light.position);
+		bounds.push(sf::mat::translate(origin) * sf::mat::scale(lightRadius));
+	}
+}
+
+uint32_t State::pickObject(const sf::Ray &ray)
+{
+	uint32_t minId = 0;
+	float minT = HUGE_VALF;
+
+	for (ObjectType &type : objectTypes) {
+		sf::Sphere bounds = getObjectTypeBounds(type);
+
+		for (uint32_t id : type.objects) {
+			Object &object = objects[id];
+			sf::Mat34 transform = getObjectTransform(object.svObject);
+
+			// TODO: Rotation
+			sf::Sphere objectBounds = { sf::transformPoint(transform, bounds.origin), bounds.radius };
+
+			float t;
+			if (sf::intesersectRay(t, ray, objectBounds) && t >= 0.0f) {
+				if (t < minT) {
+					sf::SmallArray<sf::Mat34, 32> obbs;
+					getObjectBounds(type, transform, obbs);
+
+					float realT = HUGE_VALF;
+					for (sf::Mat34 &obb : obbs) {
+						if (sf::intesersectRayObb(t, ray, obb) && t >= 0.0f) {
+							realT = sf::min(realT, t);
+						}
+					}
+
+					if (realT < minT) {
+						minT = realT;
+						minId = id;
+					}
+				}
+			}
+		}
+	}
+
+	return minId;
 }
 
 static void updateObjectImp(State &state, uint32_t id, const ObjectType &prevType, const Object &prev, const sv::Object &next)

@@ -321,6 +321,9 @@ struct VoidSlice
 template <typename T>
 sf_inline Slice<T> slice(T *data, size_t size) { return Slice<T>(data, size); }
 
+template <typename T, size_t N>
+sf_inline Slice<T> slice(T (&data)[N]) { return Slice<T>(data, N); }
+
 template <typename T, typename U>
 static T *find(Slice<T> arr, const U &t)
 {

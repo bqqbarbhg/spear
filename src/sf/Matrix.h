@@ -269,6 +269,11 @@ Vec3 transformPoint(const Mat34 &l, const Vec3 &r);
 
 Vec2 transformPoint(const Mat23 &l, const Vec2 &r);
 
+// Transform direction
+
+Vec3 transformDirection(const Mat33 &l, const Vec3 &r);
+Vec3 transformDirection(const Mat34 &l, const Vec3 &r);
+
 // Determinant
 
 float determinant(const Mat34_3 &m);
