@@ -17,6 +17,7 @@ struct Command
 		UpdateObject,
 		RemoveObject,
 		UpdateObjectType,
+		LoadObjectType,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -84,6 +85,11 @@ struct CommandUpdateObjectType : CommandBase<Command::UpdateObjectType>
 {
 	sf::Symbol typePath;
 	sv::GameObject objectType;
+};
+
+struct CommandLoadObjectType : CommandBase<Command::LoadObjectType>
+{
+	sf::Symbol typePath;
 };
 
 }

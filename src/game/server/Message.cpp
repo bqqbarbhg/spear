@@ -3,6 +3,24 @@
 
 namespace sf {
 
+template<> void initType<sv::QueryFile>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::QueryFile, name),
+	};
+	sf_struct(t, sv::QueryFile, fields);
+}
+
+template<> void initType<sv::QueryDir>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::QueryDir, name),
+		sf_field(sv::QueryDir, dirs),
+		sf_field(sv::QueryDir, files),
+	};
+	sf_struct(t, sv::QueryDir, fields);
+}
+
 template<> void initType<sv::Message>(Type *t)
 {
 	static PolymorphType polys[] = {
@@ -13,6 +31,8 @@ template<> void initType<sv::Message>(Type *t)
 		sf_poly(sv::Message, ActionFailure, sv::MessageActionFailure),
 		sf_poly(sv::Message, Update, sv::MessageUpdate),
 		sf_poly(sv::Message, Load, sv::MessageLoad),
+		sf_poly(sv::Message, QueryFiles, sv::MessageQueryFiles),
+		sf_poly(sv::Message, QueryFilesResult, sv::MessageQueryFilesResult),
 	};
 	sf_struct_poly(t, sv::Message, type, { }, polys);
 }
@@ -73,6 +93,23 @@ template<> void initType<sv::MessageLoad>(Type *t)
 		sf_field(sv::MessageLoad, sessionSecret),
 	};
 	sf_struct_base(t, sv::MessageLoad, sv::Message, fields);
+}
+
+template<> void initType<sv::MessageQueryFiles>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::MessageQueryFiles, root),
+	};
+	sf_struct_base(t, sv::MessageQueryFiles, sv::Message, fields);
+}
+
+template<> void initType<sv::MessageQueryFilesResult>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::MessageQueryFilesResult, root),
+		sf_field(sv::MessageQueryFilesResult, dir),
+	};
+	sf_struct_base(t, sv::MessageQueryFilesResult, sv::Message, fields);
 }
 
 }

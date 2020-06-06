@@ -10,6 +10,18 @@
 
 namespace sv {
 
+struct QueryFile
+{
+	sf::StringBuf name;
+};
+
+struct QueryDir
+{
+	sf::StringBuf name;
+	sf::Array<QueryDir> dirs;
+	sf::Array<QueryFile> files;
+};
+
 struct Message
 {
 	enum Type {
@@ -21,6 +33,8 @@ struct Message
 		ActionFailure,
 		Update,
 		Load,
+		QueryFiles,
+		QueryFilesResult,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -78,6 +92,17 @@ struct MessageLoad : MessageBase<Message::Load>
 	sf::Box<sv::State> state;
 	uint32_t sessionId;
 	uint32_t sessionSecret;
+};
+
+struct MessageQueryFiles : MessageBase<Message::QueryFiles>
+{
+	sf::StringBuf root;
+};
+
+struct MessageQueryFilesResult : MessageBase<Message::QueryFilesResult>
+{
+	sf::StringBuf root;
+	QueryDir dir;
 };
 
 }

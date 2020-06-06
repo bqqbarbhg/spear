@@ -161,6 +161,7 @@ struct FileFile
 
 struct FileDir
 {
+	bool expanded = false;
 	sf::Array<FileDir> dirs;
 	sf::StringBuf name;
 	sf::StringBuf prefix;
@@ -185,29 +186,18 @@ const sf::String materialSuffixes[] = {
 	"_Roughness.png",
 };
 
-void setupFileDir(FileDir &dir, sf::StringBuf prefix)
+void setupFileDir(FileDir &dir, sf::StringBuf &queryRoot, sv::QueryDir &queryDir)
 {
-	sf::Array<sf::FileInfo> files;
-	sf::listFiles(prefix, files);
-	uint32_t prefixSize = prefix.size;
+	if (queryRoot == dir.prefix) {
 
-	sf::HashSet<sf::StringBuf> materials;
-
-	for (sf::FileInfo &info : files) {
-		if (info.isDirectory) {
-			FileDir &child = dir.dirs.push();
-			prefix.append("/", info.name);
-			child.name = info.name;
-			child.prefix = prefix;
-			setupFileDir(child, prefix);
-			prefix.resize(prefixSize);
-		} else {
+		sf::HashSet<sf::StringBuf> materials;
+		for (sv::QueryFile &file : queryDir.files) {
 			bool addFile = true;
 			for (sf::String suffix : materialSuffixes) {
-				if (sf::endsWith(info.name, suffix)) {
-					sf::String baseName = info.name.slice().dropRight(suffix.size);
+				if (sf::endsWith(file.name, suffix)) {
+					sf::String baseName = file.name.slice().dropRight(suffix.size);
 					if (materials.insert(baseName).inserted) {
-						dir.files.push(FileFile(prefix, baseName));
+						dir.files.push(FileFile(dir.prefix, baseName));
 					}
 					addFile = false;
 					break;
@@ -215,19 +205,41 @@ void setupFileDir(FileDir &dir, sf::StringBuf prefix)
 			}
 
 			if (addFile) {
-				dir.files.push(FileFile(prefix, info.name));
+				dir.files.push(FileFile(dir.prefix, file.name));
+			}
+		}
+
+		for (sv::QueryDir &qdir : queryDir.dirs) {
+			FileDir &child = dir.dirs.push();
+			child.name = qdir.name;
+			child.prefix.append(dir.prefix, "/", child.name);
+		}
+
+	} else {
+		for (FileDir &child : dir.dirs) {
+			if (sf::beginsWith(queryRoot, child.prefix)) {
+				dir.prefix.append("/", child.name);
+				setupFileDir(child, queryRoot, queryDir);
+				return;
 			}
 		}
 	}
 }
 
-void handleImguiAssetDir(const FileDir &dir)
+void handleImguiAssetDir(ClientMain *c, FileDir &dir)
 {
-	for (const FileDir &d : dir.dirs) {
+	if (!dir.expanded) {
+		dir.expanded = true;
+		sv::MessageQueryFiles msg;
+		msg.root = dir.prefix;
+		writeMessage(c->ws, &msg, c->name, serverName);
+	}
+
+	for (FileDir &d : dir.dirs) {
 		sf::SmallStringBuf<128> nameCopy;
 		nameCopy.append(d.name, "/");
 		if (ImGui::TreeNode(nameCopy.data)) {
-			handleImguiAssetDir(d);
+			handleImguiAssetDir(c, d);
 			ImGui::TreePop();
 		}
 	}
@@ -243,32 +255,22 @@ void handleImguiAssetDir(const FileDir &dir)
 	}
 }
 
-static LoadedObject &loadObject(const sf::Symbol &path)
+static void loadObject(ClientMain *c, const sf::Symbol &path)
 {
-	LoadedObject &object = g_loadedObjects[path];
-
-	if (!object.object) {
-		jsi_args args = { };
-		args.dialect.allow_bare_keys = true;
-		args.dialect.allow_comments = true;
-		args.dialect.allow_control_in_string = true;
-		args.dialect.allow_missing_comma = true;
-		args.dialect.allow_trailing_comma = true;
-		jsi_value *value = jsi_parse_file(path.data, &args);
-		if (value) {
-			sf::Box<sv::GameObject> clean;
-			if (sp::readJson(value, clean)) {
-				object.object = std::move(clean);
-			}
-			jsi_free(value);
-		}
-
-		if (!object.object) {
-			object.object = sf::box<sv::GameObject>();
+	for (sv::GameObject &type : c->serverState->objectTypes) {
+		if (type.id == path) {
+			return;
 		}
 	}
 
-	return object;
+	{
+		sf::Box<sv::CommandLoadObjectType> cmd = sf::box<sv::CommandLoadObjectType>();
+		cmd->typePath = path;
+
+		sv::MessageCommand msg;
+		msg.command = cmd;
+		writeMessage(c->ws, &msg, c->name, serverName);
+	}
 }
 
 static void saveObject(const sv::GameObject &obj, const sf::Symbol &path)
@@ -285,6 +287,13 @@ static void saveObject(const sv::GameObject &obj, const sf::Symbol &path)
 void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 {
 	sf::SmallArray<FileDir, 1> dirsToAdd;
+
+	if (!dir.expanded) {
+		dir.expanded = true;
+		sv::MessageQueryFiles msg;
+		msg.root = dir.prefix;
+		writeMessage(c->ws, &msg, c->name, serverName);
+	}
 
 	for (FileDir &d : dir.dirs) {
 		sf::SmallStringBuf<128> nameCopy;
@@ -360,14 +369,14 @@ void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 		}
 
 		if (ImGui::Button(buttonText.data)) {
-			loadObject(f.path);
+			loadObject(c, f.path);
 			c->selectedObjectType = f.path;
 			c->selectedObjectTypeIndex = 0;
 			c->windowProperties = true;
 		}
 
 		if (ImGui::BeginDragDropSource(0)) {
-			loadObject(f.path);
+			loadObject(c, f.path);
 			ImGui::Text("%s", f.path.data);
 			ImGui::SetDragDropPayload("object", f.path.data, f.path.size());
 			ImGui::EndDragDropSource();
@@ -383,16 +392,6 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 	c->name = name;
 
 	gameShaders.load();
-
-	{
-		sf::StringBuf prefix = "Assets";
-		setupFileDir(g_assets, prefix);
-	}
-
-	{
-		sf::StringBuf prefix = "Server/Objects";
-		setupFileDir(g_objects, prefix);
-	}
 
 	{
         sf::SmallStringBuf<128> url;
@@ -421,6 +420,9 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 		join.playerId = ++playerIdCounter;
 		writeMessage(c->ws, &join, c->name, serverName);
 	}
+
+	g_assets.prefix = "Assets";
+	g_objects.prefix = "Server/Objects";
 
 	c->tonemapPipe.init(gameShaders.postprocess, sp::PipeVertexFloat2);
 	c->fxaaPipe.init(gameShaders.fxaa, sp::PipeVertexFloat2);
@@ -940,7 +942,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 	}
 
 	if (c->windowAssets && ImGui::Begin("Assets", &c->windowAssets)) {
-		handleImguiAssetDir(g_assets);
+		handleImguiAssetDir(c, g_assets);
 		ImGui::End();
 	}
 
@@ -1031,6 +1033,14 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 					}
 				}
 			}
+		} else if (auto m = msg->as<sv::MessageQueryFilesResult>()) {
+
+			if (sf::beginsWith(m->root, g_objects.prefix)) {
+				setupFileDir(g_objects, m->root, m->dir);
+			} else if (sf::beginsWith(m->root, g_assets.prefix)) {
+				setupFileDir(g_assets, m->root, m->dir);
+			}
+
 		}
 	}
 

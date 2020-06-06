@@ -9,6 +9,7 @@
 #include "sp/Json.h"
 #include "sf/HashMap.h"
 #include "sf/HashSet.h"
+#include "sf/File.h"
 
 #include "MessageTransport.h"
 #include "LocalServer.h"
@@ -345,6 +346,10 @@ static void applyCommand(Session &se, sf::Box<sv::Command> command, sf::Array<sf
 			pushEvent(se, std::move(ev));
 		}
 
+	} else if (sv::CommandLoadObjectType *cmd = command->as<sv::CommandLoadObjectType>()) {
+
+		resolveObjectTypeId(se, cmd->typePath);
+
 	} else {
 		sf_failf("Unknown command: %u", command->type);
 	}
@@ -567,6 +572,33 @@ void serverUpdate(ServerMain *s)
 						applyCommand(session, std::move(m->command), undo);
 						client.undoList.push(std::move(undo));
 						client.redoList.clear();
+					}
+
+				} else if (auto m = msg->as<sv::MessageQueryFiles>()) {
+
+					if (!sf::contains(m->root, ".")) {
+
+						sf::SmallArray<sf::FileInfo, 64> files;
+						sf::listFiles(m->root, files);
+
+						sv::MessageQueryFilesResult resMsg;
+						resMsg.root = m->root;
+						const char *begin = m->root.data;
+						for (const char &c : m->root) {
+							if (c == '/') begin = &c + 1;
+						}
+						resMsg.dir.name.append(sf::String(begin, m->root.size - (begin - m->root.data)));
+						for (sf::FileInfo &info : files) {
+							if (info.isDirectory) {
+								sv::QueryDir &dir = resMsg.dir.dirs.push();
+								dir.name = info.name;
+							} else {
+								sv::QueryFile &file = resMsg.dir.files.push();
+								file.name = info.name;
+							}
+						}
+
+						writeMessage(client.ws, &resMsg, serverName, client.name);
 					}
 
 				}

@@ -23,6 +23,7 @@ template<> void initType<sv::Command>(Type *t)
 		sf_poly(sv::Command, UpdateObject, sv::CommandUpdateObject),
 		sf_poly(sv::Command, RemoveObject, sv::CommandRemoveObject),
 		sf_poly(sv::Command, UpdateObjectType, sv::CommandUpdateObjectType),
+		sf_poly(sv::Command, LoadObjectType, sv::CommandLoadObjectType),
 	};
 	sf_struct_poly(t, sv::Command, type, { }, polys);
 }
@@ -87,6 +88,14 @@ template<> void initType<sv::CommandUpdateObjectType>(Type *t)
 		sf_field(sv::CommandUpdateObjectType, objectType),
 	};
 	sf_struct_base(t, sv::CommandUpdateObjectType, sv::Command, fields);
+}
+
+template<> void initType<sv::CommandLoadObjectType>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::CommandLoadObjectType, typePath),
+	};
+	sf_struct_base(t, sv::CommandLoadObjectType, sv::Command, fields);
 }
 
 }
