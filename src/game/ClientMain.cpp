@@ -130,7 +130,12 @@ struct ClientMain
 	sf::Vec2 cameraVel;
 
 	uint32_t selectedObject = 0;
+	uint32_t dragObject = 0;
 	uint32_t tempShadowUpdateIndex = 0;
+	sf::Vec2i dragBaseTile;
+	sf::Vec3 dragOrigin;
+	sf::Vec2i dragDstTile;
+	uint8_t dragDstRotation = 0;
 };
 
 void clientGlobalInit()
@@ -1158,6 +1163,28 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		sf::Vec2 mouseTile = sf::Vec2(rayPos.x, rayPos.z);
 		sf::Vec2i mouseTileInt = sf::Vec2i(sf::floor(mouseTile + sf::Vec2(0.5f)));
 
+		if (c->dragObject && ImGui::GetIO().MouseDown[0]) {
+			cl::Object *object = c->clientState.objects.findValue(c->dragObject);
+
+			if (object) {
+				float dragT = (c->dragOrigin.y - rayOrigin.y) / rayDirection.y;
+				sf::Vec3 dragPos = rayOrigin + rayDirection * dragT;
+				sf::Vec2 dragTile = sf::Vec2(dragPos.x, dragPos.z) - sf::Vec2(c->dragOrigin.x, c->dragOrigin.z);
+				c->dragDstTile = sf::Vec2i(sf::floor(dragTile + sf::Vec2(0.5f))) + c->dragBaseTile;
+
+				ImGui::InputFloat3("dragPos", dragPos.v);
+				ImGui::InputFloat3("dragOrigin", c->dragOrigin.v);
+
+				sv::EventUpdateObject event;
+				event.id = c->selectedObject;
+				event.object = object->svObject;
+				event.object.x = c->dragDstTile.x;
+				event.object.y = c->dragDstTile.y;
+				event.object.rotation = c->dragDstRotation;
+				c->clientState.applyEvent(&event);
+			}
+		}
+
 		// HACK: Take the first character
 		cl::Character *character = nullptr;
 		for (sf::Box<cl::Entity> &entity : c->clientState.entities) {
@@ -1257,6 +1284,8 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 			ImGui::EndMainMenuBar();
 		}
 
+		ImGui::Text("DOWN: %d", ImGui::GetIO().MouseDown[0]);
+
 		for (sapp_event &e : input.events) {
 			if (e.type == SAPP_EVENTTYPE_MOUSE_DOWN && !ImGui::GetIO().WantCaptureMouse) {
 				if (e.mouse_button == 0) {
@@ -1267,8 +1296,18 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 						c->selectedCard = -1;
 
 						// HACK
-						uint32_t id = c->clientState.pickObject(mouseRay);
+						float t;
+						uint32_t id = c->clientState.pickObject(t, mouseRay);
 						c->selectedObject = id;
+
+						if (id) {
+							c->dragObject = id;
+							c->dragOrigin = mouseRay.origin + mouseRay.direction * t;
+							if (cl::Object *object = c->clientState.objects.findValue(id)) {
+								c->dragBaseTile = sf::Vec2i(object->svObject.x, object->svObject.y);
+								c->dragDstRotation = object->svObject.rotation;
+							}
+						}
 					}
 				}
 			} else if (e.type == SAPP_EVENTTYPE_KEY_DOWN && !e.key_repeat && !ImGui::GetIO().WantCaptureKeyboard) {
@@ -1308,6 +1347,25 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				}
 
 			} else if (e.type == SAPP_EVENTTYPE_MOUSE_UP) {
+				if (c->dragObject && e.mouse_button == 0) {
+
+					if (cl::Object *object = c->clientState.objects.findValue(c->dragObject)) {
+						sf::Box<sv::CommandUpdateObject> cmd = sf::box<sv::CommandUpdateObject>();
+						cmd->id = c->dragObject;
+						cmd->object = object->svObject;
+
+						sv::MessageCommand msg;
+						msg.command = cmd;
+						writeMessage(c->ws, &msg, c->name, serverName);
+					}
+
+					c->dragObject = 0;
+				}
+
+				if (c->dragObject && e.mouse_button == 1) {
+					c->dragDstRotation -= 64;
+				}
+
 				if (!ImGui::GetIO().WantCaptureMouse) {
 					const ImGuiPayload *payload = ImGui::GetDragDropPayload();
 					if (payload && !strcmp(payload->DataType, "object")) {

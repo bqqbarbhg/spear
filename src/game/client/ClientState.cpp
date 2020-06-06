@@ -141,11 +141,11 @@ static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, 
 		Object &object = state.objects[id];
 		ObjectType &type = state.objectTypes[object.svObject.type];
 
+		sf::Mat34 transform = state.getObjectTransform(object.svObject);
 		for (MapMesh &mesh : type.mapMeshes) {
 			MapMesh &dst = meshes.push();
-			sf::Vec3 pos = state.getObjectPosition(object.svObject);
 			dst = mesh;
-			dst.transform = sf::mat::translate(pos) * mesh.transform;
+			dst.transform = transform * mesh.transform;
 		}
 	}
 
@@ -207,7 +207,7 @@ sf::Vec3 State::getObjectPosition(const sv::Object &object)
 sf::Mat34 State::getObjectTransform(const sv::Object &object)
 {
 	sf::Vec3 pos = { (float)object.x, 0.0f, (float)object.y };
-	return sf::mat::translate(pos);
+	return sf::mat::translate(pos) * sf::mat::rotateY((float)object.rotation * (sf::F_2PI / 256.0f));
 }
 
 void State::getObjectBounds(const ObjectType &type, const sf::Mat34 &transform, sf::Array<sf::Mat34> &bounds)
@@ -233,7 +233,7 @@ void State::getObjectBounds(const ObjectType &type, const sf::Mat34 &transform, 
 	}
 }
 
-uint32_t State::pickObject(const sf::Ray &ray)
+uint32_t State::pickObject(float &outT, const sf::Ray &ray)
 {
 	uint32_t minId = 0;
 	float minT = HUGE_VALF;
@@ -270,6 +270,7 @@ uint32_t State::pickObject(const sf::Ray &ray)
 		}
 	}
 
+	outT = minT;
 	return minId;
 }
 
@@ -323,7 +324,7 @@ static void updateObjectImp(State &state, uint32_t id, const ObjectType &prevTyp
 	}
 
 	if (nextType.pointLights.size > 0) {
-		sf::Vec3 pos = state.getObjectPosition(next);
+		sf::Mat34 transform = state.getObjectTransform(next);
 		sf::Array<uint32_t> &lightIndices = state.pointLightMapping[id];
 		lightIndices.reserve(nextType.pointLights.size);
 		while (lightIndices.size < nextType.pointLights.size) lightIndices.push(~0u);
@@ -335,7 +336,7 @@ static void updateObjectImp(State &state, uint32_t id, const ObjectType &prevTyp
 			}
 
 			PointLight &dst = state.pointLights[*pLightIndex];
-			dst.position = pos + src.position;
+			dst.position = sf::transformPoint(transform, src.position);
 			dst.color = src.color;
 			dst.radius = src.radius;
 			dst.shadowIndex = *pLightIndex;
