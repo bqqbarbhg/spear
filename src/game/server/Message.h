@@ -29,6 +29,7 @@ struct Message
 		Join,
 		Action,
 		Command,
+		MultiCommand,
 		ActionSuccess,
 		ActionFailure,
 		Update,
@@ -71,6 +72,11 @@ struct MessageAction : MessageBase<Message::Action>
 struct MessageCommand : MessageBase<Message::Command>
 {
 	sf::Box<sv::Command> command;
+};
+
+struct MessageMultiCommand : MessageBase<Message::MultiCommand>
+{
+	sf::Array<sf::Box<sv::Command>> commands;
 };
 
 struct MessageActionSuccess : MessageBase<Message::ActionSuccess>

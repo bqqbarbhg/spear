@@ -27,6 +27,7 @@ template<> void initType<sv::Message>(Type *t)
 		sf_poly(sv::Message, Join, sv::MessageJoin),
 		sf_poly(sv::Message, Action, sv::MessageAction),
 		sf_poly(sv::Message, Command, sv::MessageCommand),
+		sf_poly(sv::Message, MultiCommand, sv::MessageMultiCommand),
 		sf_poly(sv::Message, ActionSuccess, sv::MessageActionSuccess),
 		sf_poly(sv::Message, ActionFailure, sv::MessageActionFailure),
 		sf_poly(sv::Message, Update, sv::MessageUpdate),
@@ -62,6 +63,14 @@ template<> void initType<sv::MessageCommand>(Type *t)
 		sf_field(sv::MessageCommand, command),
 	};
 	sf_struct_base(t, sv::MessageCommand, sv::Message, fields);
+}
+
+template<> void initType<sv::MessageMultiCommand>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::MessageMultiCommand, commands),
+	};
+	sf_struct_base(t, sv::MessageMultiCommand, sv::Message, fields);
 }
 
 template<> void initType<sv::MessageActionSuccess>(Type *t)

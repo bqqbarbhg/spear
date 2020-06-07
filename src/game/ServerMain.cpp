@@ -574,6 +574,17 @@ void serverUpdate(ServerMain *s)
 						client.redoList.clear();
 					}
 
+				} else if (auto m = msg->as<sv::MessageMultiCommand>()) {
+
+					UndoChunk undo;
+					for (sf::Box<sv::Command> &cmd : m->commands) {
+						if (cmd->type != sv::Command::Undo && cmd->type != sv::Command::Redo) {
+							applyCommand(session, std::move(cmd), undo);
+						}
+					}
+					client.undoList.push(std::move(undo));
+					client.redoList.clear();
+
 				} else if (auto m = msg->as<sv::MessageQueryFiles>()) {
 
 					if (!sf::contains(m->root, ".")) {

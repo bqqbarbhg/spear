@@ -129,13 +129,18 @@ struct ClientMain
 	sf::Vec2 cameraPos;
 	sf::Vec2 cameraVel;
 
+	uint32_t clientObjectIdCounter = 0x80000000;
+
 	uint32_t selectedObject = 0;
 	uint32_t dragObject = 0;
 	uint32_t tempShadowUpdateIndex = 0;
 	sf::Vec2i dragBaseTile;
 	sf::Vec3 dragOrigin;
 	sf::Vec2i dragDstTile;
+	uint8_t dragBaseRotation = 0;
 	uint8_t dragDstRotation = 0;
+	sv::Object dragOriginalObject;
+	bool dragDoesClone = false;
 };
 
 void clientGlobalInit()
@@ -1162,6 +1167,14 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		sf::Vec2 mouseTile = sf::Vec2(rayPos.x, rayPos.z);
 		sf::Vec2i mouseTileInt = sf::Vec2i(sf::floor(mouseTile + sf::Vec2(0.5f)));
 
+		for (sapp_event &e : input.events) {
+			if (e.type == SAPP_EVENTTYPE_MOUSE_DOWN && !ImGui::GetIO().WantCaptureMouse) {
+				if (c->dragObject && e.mouse_button == 1) {
+					c->dragDstRotation -= 64;
+				}
+			}
+		}
+
 		if (c->dragObject && ImGui::GetIO().MouseDown[0]) {
 			cl::Object *object = c->clientState.objects.findValue(c->dragObject);
 
@@ -1175,7 +1188,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				ImGui::InputFloat3("dragOrigin", c->dragOrigin.v);
 
 				sv::EventUpdateObject event;
-				event.id = c->selectedObject;
+				event.id = c->dragObject;
 				event.object = object->svObject;
 				event.object.x = c->dragDstTile.x;
 				event.object.y = c->dragDstTile.y;
@@ -1300,11 +1313,26 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 						c->selectedObject = id;
 
 						if (id) {
-							c->dragObject = id;
 							c->dragOrigin = mouseRay.origin + mouseRay.direction * t;
 							if (cl::Object *object = c->clientState.objects.findValue(id)) {
-								c->dragBaseTile = sf::Vec2i(object->svObject.x, object->svObject.y);
-								c->dragDstRotation = object->svObject.rotation;
+								c->dragOriginalObject = object->svObject;
+								c->dragDstTile = c->dragBaseTile = sf::Vec2i(object->svObject.x, object->svObject.y);
+								c->dragDstRotation = c->dragBaseRotation = object->svObject.rotation;
+								if (keyDown(SAPP_KEYCODE_LEFT_CONTROL) || keyDown(SAPP_KEYCODE_RIGHT_CONTROL)) {
+									uint32_t cloneId = ++c->clientObjectIdCounter;
+									c->dragDoesClone = true;
+
+									sv::EventUpdateObject cloneObj;
+									cloneObj.id = cloneId;
+									cloneObj.object = object->svObject;
+									c->clientState.applyEvent(&cloneObj);
+
+									c->dragObject = cloneId;
+									c->selectedObject = cloneId;
+								} else {
+									c->dragObject = id;
+									c->dragDoesClone = false;
+								}
 							}
 						}
 					}
@@ -1349,20 +1377,36 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				if (c->dragObject && e.mouse_button == 0) {
 
 					if (cl::Object *object = c->clientState.objects.findValue(c->dragObject)) {
-						sf::Box<sv::CommandUpdateObject> cmd = sf::box<sv::CommandUpdateObject>();
-						cmd->id = c->dragObject;
-						cmd->object = object->svObject;
+						bool changed = false;
+						if (c->dragDstTile != c->dragBaseTile) changed = true;
+						if (c->dragDstRotation != c->dragBaseRotation) changed = true;
 
-						sv::MessageCommand msg;
-						msg.command = cmd;
-						writeMessage(c->ws, &msg, c->name, serverName);
+						if (changed) {
+							sv::MessageCommand msg;
+
+							if (c->dragDoesClone) {
+								sf::Box<sv::CommandAddObject> cmd = sf::box<sv::CommandAddObject>();
+								cmd->typePath = c->serverState->objectTypes[object->svObject.type].id;
+								cmd->object = object->svObject;
+								msg.command = cmd;
+
+								sv::EventUpdateObject event;
+								event.id = c->dragObject;
+								event.object = c->dragOriginalObject;
+								c->clientState.applyEvent(&event);
+
+							} else {
+								sf::Box<sv::CommandUpdateObject> cmd = sf::box<sv::CommandUpdateObject>();
+								cmd->id = c->dragObject;
+								cmd->object = object->svObject;
+								msg.command = cmd;
+							}
+
+							writeMessage(c->ws, &msg, c->name, serverName);
+						}
 					}
 
 					c->dragObject = 0;
-				}
-
-				if (c->dragObject && e.mouse_button == 1) {
-					c->dragDstRotation -= 64;
 				}
 
 				if (!ImGui::GetIO().WantCaptureMouse) {
