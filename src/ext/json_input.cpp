@@ -61,6 +61,7 @@ typedef struct {
 
 	unsigned temp_allocated : 1;
 	unsigned result_allocated : 1;
+	unsigned store_integers_as_int64 : 1;
 
 } jsi_parser;
 
@@ -1096,27 +1097,36 @@ jsi_parse_number(jsi_parser *p, const char *ptr, const char *end, jsi_value *val
 	}
 
 	char buf[64], *buf_ptr = buf, *buf_end = buf + sizeof(buf) - 1;
-	int int_val = 0;
-	if (end - ptr > 10) {
-		const char *int_end = ptr + 9;
+	int64_t int_val = 0;
+	if (end - ptr > 21) {
+		const char *int_end = ptr + 20;
 		while (ptr != int_end) {
 			char c = *ptr;
 			unsigned digit = (unsigned)c - '0';
 			if (digit > 10) break;
 			*buf_ptr++ = c;
 			ptr++;
-			int_val = int_val * 10 + (int)digit;
+			int_val = int_val * 10 + (int64_t)digit;
 		}
 		if (jsi_char_tab[*ptr] != jsi_char_number) {
-			value->number = (double)(int_val * sign);
-			value->flags |= jsi_flag_integer;
+			if (p->store_integers_as_int64) {
+				value->int64_storage = int_val * (int64_t)sign;
+				value->flags |= jsi_flag_integer | jsi_flag_stored_as_int64;
+			} else {
+				value->number = (double)int_val * (double)sign;
+				value->flags |= jsi_flag_integer;
+			}
 			p->ptr = ptr;
 			return 1;
 		}
 	}
 
+	unsigned all_decimal = 0;
 	do {
-		*buf_ptr++ = *ptr;
+		char c = *ptr;
+		// Overflows over 0x10 if any characters are outside of the range ['0','9']
+		all_decimal |= (unsigned)(*ptr - '0' - 6);
+		*buf_ptr++ = c;
 		jsi_advance(p, ptr, end);
 		if (buf_ptr == buf_end) {
 			return jsi_err(p, ptr, "Number is too long");
@@ -1125,7 +1135,14 @@ jsi_parse_number(jsi_parser *p, const char *ptr, const char *end, jsi_value *val
 
 	*buf_ptr = '\0';
 	char *conv_end;
-	value->number = strtod(buf, &conv_end) * (double)sign;
+
+	if (p->store_integers_as_int64 && all_decimal < 0x10) {
+		value->int64_storage = (int64_t)strtoull(buf, &conv_end, 10) * (int64_t)sign;
+		value->flags |= jsi_flag_stored_as_int64;
+	} else {
+		value->number = strtod(buf, &conv_end) * (double)sign;
+	}
+
 	if (conv_end != buf_ptr) {
 		return jsi_err(p, ptr, "Failed to parse number");
 	}
@@ -1259,6 +1276,7 @@ jsi_parse(jsi_parser *p, jsi_args *args)
 	p->max_depth = p->args->nesting_limit ? p->args->nesting_limit : INT_MAX;
 	if (p->max_depth < 1) p->max_depth = 1;
 	p->depth_left = p->max_depth;
+	p->store_integers_as_int64 = args->store_integers_as_int64;
 
 	if (p->ptr == p->end) {
 		jsi_refill(p);

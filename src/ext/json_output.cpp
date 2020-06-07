@@ -206,6 +206,24 @@ void jso_uint(jso_stream *s, unsigned value)
 	s->pos += snprintf(s->data + s->pos, s->capacity - s->pos, "%u", value);
 }
 
+void jso_int64(jso_stream *s, long long value)
+{
+	if (s->capacity - s->pos < JSO_BUFFER_MIN_SIZE) s->flush_fn(s);
+	if (s->add_comma) s->data[s->pos++] = ',';
+	if (s->pretty) jso_prettify(s);
+	s->add_comma = 1;
+	s->pos += snprintf(s->data + s->pos, s->capacity - s->pos, "%lld", value);
+}
+
+void jso_uint64(jso_stream *s, unsigned long long value)
+{
+	if (s->capacity - s->pos < JSO_BUFFER_MIN_SIZE) s->flush_fn(s);
+	if (s->add_comma) s->data[s->pos++] = ',';
+	if (s->pretty) jso_prettify(s);
+	s->add_comma = 1;
+	s->pos += snprintf(s->data + s->pos, s->capacity - s->pos, "%ulld", value);
+}
+
 void jso_double(jso_stream *s, double value)
 {
 	if (s->capacity - s->pos < JSO_BUFFER_MIN_SIZE) s->flush_fn(s);

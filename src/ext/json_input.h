@@ -63,6 +63,7 @@ typedef struct jsi_args {
 	unsigned no_allocation : 1;
 	unsigned implicit_root_object : 1;
 	unsigned implicit_root_array : 1;
+	unsigned store_integers_as_int64 : 1;
 	jsi_dialect dialect;
 
 } jsi_args;
@@ -77,14 +78,15 @@ typedef enum jsi_type {
 	jsi_type_array,
 } jsi_type;
 
-typedef enum jsi_flag {
-	jsi_flag_integer = 0x0001,
-	jsi_flag_multiline = 0x0002,
-} jsi_flag;
-
 typedef struct jsi_obj jsi_obj;
 typedef struct jsi_arr jsi_arr;
 typedef struct jsi_obj_map jsi_obj_map;
+
+typedef enum jsi_flag {
+	jsi_flag_integer = 0x0001,
+	jsi_flag_multiline = 0x0002,
+	jsi_flag_stored_as_int64 = 0x0004,
+} jsi_flag;
 
 typedef struct jsi_value {
 	jsi_type type;
@@ -93,6 +95,7 @@ typedef struct jsi_value {
 	union {
 		int boolean;
 		double number;
+		int64_t int64_storage;
 		const char *string;
 		jsi_obj *object;
 		jsi_arr *array;

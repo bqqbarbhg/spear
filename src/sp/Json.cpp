@@ -91,11 +91,11 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 		case sf::Type::I8: jso_int(&dst, *(int8_t*)inst); break;
 		case sf::Type::I16: jso_int(&dst, *(int16_t*)inst); break;
 		case sf::Type::I32: jso_int(&dst, *(int32_t*)inst); break;
-		case sf::Type::I64: jso_double(&dst, (double)*(int64_t*)inst); break; // TODO: String
+		case sf::Type::I64: jso_int64(&dst, *(int64_t*)inst); break;
 		case sf::Type::U8: jso_uint(&dst, *(uint8_t*)inst); break;
 		case sf::Type::U16: jso_uint(&dst, *(uint16_t*)inst); break;
 		case sf::Type::U32: jso_uint(&dst, *(uint32_t*)inst); break;
-		case sf::Type::U64: jso_double(&dst, (double)*(uint64_t*)inst); break; // TODO: String
+		case sf::Type::U64: jso_uint64(&dst, *(uint64_t*)inst); break;
 		case sf::Type::F32: jso_double(&dst, *(float*)inst); break;
 		case sf::Type::F64: jso_double(&dst, *(double*)inst); break;
 		}
@@ -215,20 +215,38 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 		}
 	} else if (flags & sf::Type::IsPrimitive) {
 		if (src->type == jsi_type_number) {
-			double num = src->number;
-			switch (type->primitive) {
-			case sf::Type::Bool: *(bool*)inst = (bool)num; break;
-			case sf::Type::Char: *(char*)inst = (char)(uint8_t)num; break;
-			case sf::Type::I8: *(int8_t*)inst = (int8_t)num; break;
-			case sf::Type::I16: *(int16_t*)inst = (int16_t)num; break;
-			case sf::Type::I32: *(int32_t*)inst = (int32_t)num; break;
-			case sf::Type::I64: *(int64_t*)inst = (int64_t)num; break;
-			case sf::Type::U8: *(uint8_t*)inst = (uint8_t)num; break;
-			case sf::Type::U16: *(uint16_t*)inst = (uint16_t)num; break;
-			case sf::Type::U32: *(uint32_t*)inst = (uint32_t)num; break;
-			case sf::Type::U64: *(uint64_t*)inst = (uint64_t)num; break;
-			case sf::Type::F32: *(float*)inst = (float)num; break;
-			case sf::Type::F64: *(double*)inst = (double)num; break;
+			if (src->flags & jsi_flag_stored_as_int64) {
+				int64_t num = src->int64_storage;
+				switch (type->primitive) {
+				case sf::Type::Bool: *(bool*)inst = (bool)num; break;
+				case sf::Type::Char: *(char*)inst = (char)(uint8_t)num; break;
+				case sf::Type::I8: *(int8_t*)inst = (int8_t)num; break;
+				case sf::Type::I16: *(int16_t*)inst = (int16_t)num; break;
+				case sf::Type::I32: *(int32_t*)inst = (int32_t)num; break;
+				case sf::Type::I64: *(int64_t*)inst = (int64_t)num; break;
+				case sf::Type::U8: *(uint8_t*)inst = (uint8_t)num; break;
+				case sf::Type::U16: *(uint16_t*)inst = (uint16_t)num; break;
+				case sf::Type::U32: *(uint32_t*)inst = (uint32_t)num; break;
+				case sf::Type::U64: *(uint64_t*)inst = (uint64_t)num; break;
+				case sf::Type::F32: *(float*)inst = (float)num; break;
+				case sf::Type::F64: *(double*)inst = (double)num; break;
+				}
+			} else {
+				double num = src->number;
+				switch (type->primitive) {
+				case sf::Type::Bool: *(bool*)inst = (bool)num; break;
+				case sf::Type::Char: *(char*)inst = (char)(uint8_t)num; break;
+				case sf::Type::I8: *(int8_t*)inst = (int8_t)num; break;
+				case sf::Type::I16: *(int16_t*)inst = (int16_t)num; break;
+				case sf::Type::I32: *(int32_t*)inst = (int32_t)num; break;
+				case sf::Type::I64: *(int64_t*)inst = (int64_t)num; break;
+				case sf::Type::U8: *(uint8_t*)inst = (uint8_t)num; break;
+				case sf::Type::U16: *(uint16_t*)inst = (uint16_t)num; break;
+				case sf::Type::U32: *(uint32_t*)inst = (uint32_t)num; break;
+				case sf::Type::U64: *(uint64_t*)inst = (uint64_t)num; break;
+				case sf::Type::F32: *(float*)inst = (float)num; break;
+				case sf::Type::F64: *(double*)inst = (double)num; break;
+				}
 			}
 		} else if (src->type == jsi_type_boolean) {
 			switch (type->primitive) {

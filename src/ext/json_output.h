@@ -49,6 +49,8 @@ void jso_null(jso_stream *s);
 void jso_boolean(jso_stream *s, int value);
 void jso_int(jso_stream *s, int value);
 void jso_uint(jso_stream *s, unsigned value);
+void jso_int64(jso_stream *s, long long value);
+void jso_uint64(jso_stream *s, unsigned long long value);
 void jso_double(jso_stream *s, double value);
 void jso_string(jso_stream *s, const char *value);
 void jso_string_len(jso_stream *s, const char *value, size_t length);
@@ -70,6 +72,9 @@ void jso_single_line(jso_stream *s);
 static void jso_prop_null(jso_stream *s, const char *key) { jso_prop(s, key); jso_null(s); }
 static void jso_prop_boolean(jso_stream *s, const char *key, int value) { jso_prop(s, key); jso_boolean(s, value); }
 static void jso_prop_int(jso_stream *s, const char *key, int value) { jso_prop(s, key); jso_int(s, value); }
+static void jso_prop_uint(jso_stream *s, const char *key, unsigned value) { jso_prop(s, key); jso_uint(s, value); }
+static void jso_prop_int64(jso_stream *s, const char *key, long long value) { jso_prop(s, key); jso_int64(s, value); }
+static void jso_prop_uint64(jso_stream *s, const char *key, unsigned long long value) { jso_prop(s, key); jso_uint64(s, value); }
 static void jso_prop_double(jso_stream *s, const char *key, double value) { jso_prop(s, key); jso_double(s, value); }
 static void jso_prop_string(jso_stream *s, const char *key, const char *value) { jso_prop(s, key); jso_string(s, value); }
 static void jso_prop_string_len(jso_stream *s, const char *key, const char *value, size_t length) { jso_prop(s, key); jso_string_len(s, value, length); }
