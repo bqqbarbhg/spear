@@ -20,9 +20,9 @@ struct DirtyList
 
 struct State
 {
-	IdMap<sf::Box<Component>> components;
-	IdMap<Proto> protos;
-	IdMap<Entity> entities;
+	IdMap<sf::Box<Component>, ComponentId> components;
+	IdMap<Proto, ProtoId> protos;
+	IdMap<Entity, EntityId> entities;
 
 	const Component *findComponent(ComponentId id) const;
 	const Proto *findProto(ProtoId id) const;

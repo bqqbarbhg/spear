@@ -278,4 +278,138 @@ bool readInstBinary(sf::Slice<char> &src, void *inst, Type *type)
 	return true;
 }
 
+uint32_t hashInstReflected(void *inst, Type *type)
+{
+	uint32_t flags = type->flags;
+	char *base = (char*)inst;
+	if (flags & Type::IsPod) {
+		return sf::hashBuffer(base, type->info.size);
+	} else if (flags & Type::Polymorph) {
+
+		sf::PolymorphInstance poly = type->instGetPolymorph(inst);
+		if (poly.type) {
+			uint32_t h = hash(poly.type->value);
+			return hashCombine(h, hashInstReflected(poly.inst, poly.type->type));
+		} else {
+			return 0;
+		}
+
+	} else if (flags & Type::HasFields) {
+		uint32_t h = 0;
+		for (const Field &field : type->fields) {
+			h = hashCombine(h, hashInstReflected(base + field.offset, field.type));
+		}
+		return h;
+	} else if (flags & Type::HasArray) {
+		Type *elem = type->elementType;
+		size_t elemSize = elem->info.size;
+		VoidSlice slice = type->instGetArray(inst);
+		uint32_t size = (uint32_t)slice.size;
+		uint32_t h = sf::hash(size);
+		if (elem->flags & Type::IsPod) {
+			h = sf::hashCombine(h, sf::hashBuffer(slice.data, slice.size * elemSize));
+		} else {
+			char *ptr = (char*)slice.data;
+			for (uint32_t i = 0; i < size; i++) {
+				h = sf::hashCombine(h, hashInstReflected(ptr, elem));
+				ptr += elemSize;
+			}
+		}
+		return h;
+	} else {
+		// TODO: Hash callback?
+		sf_assert(0 && "Cannot hash type");
+		return 0;
+	}
+}
+
+int compareInstReflected(void *a, void *b, Type *type)
+{
+	uint32_t flags = type->flags;
+	char *ba = (char*)a, *bb = (char*)b;
+	if (flags & Type::IsPod) {
+		return memcmp(ba, bb, type->info.size);
+	} else if (flags & Type::Polymorph) {
+
+		sf::PolymorphInstance pa = type->instGetPolymorph(a);
+		sf::PolymorphInstance pb = type->instGetPolymorph(b);
+		if (!pa.type || !pb.type) {
+			if (!pa.type && !pb.type) return 0;
+			return pa.type ? +1 : -1;
+		}
+		if (pa.type->value != pb.type->value) {
+			return pa.type->value < pb.type->value ? -1 : +1;
+		}
+
+		return compareInstReflected(pa.inst, pb.inst, pa.type->type);
+
+	} else if (flags & Type::HasFields) {
+		uint32_t h = 0;
+		for (const Field &field : type->fields) {
+			int cmp = compareInstReflected(ba + field.offset, bb + field.offset, field.type);
+			if (cmp != 0) return cmp;
+		}
+		return 0;
+	} else if (flags & Type::HasArray) {
+		Type *elem = type->elementType;
+		size_t elemSize = elem->info.size;
+		VoidSlice sa = type->instGetArray(a);
+		VoidSlice sb = type->instGetArray(b);
+		uint32_t size = (uint32_t)sa.size;
+		if (sb.size != size) {
+			return size < sb.size ? -1 : +1;
+		}
+		if (elem->flags & Type::IsPod) {
+			return memcmp(sa.data, sb.data, size * elemSize);
+		} else {
+			char *pa = (char*)sa.data, *pb = (char*)sb.data;
+			for (uint32_t i = 0; i < size; i++) {
+				int cmp = compareInstReflected(pa, pb, elem);
+				if (cmp != 0) return cmp;
+				pa += elemSize;
+				pb += elemSize;
+			}
+		}
+		return 0;
+	} else {
+		// TODO: Hash callback?
+		sf_assert(0 && "Cannot compare type");
+		return 0;
+	}
+}
+
+struct ReflectedType final : Type
+{
+	struct Data
+	{
+		Field fields[1];
+	};
+	Data *data;
+
+	ReflectedType(const TypeInfo &info, Data *data)
+		: Type("sf::Reflected", info, HasFields)
+		, data(data)
+	{
+		fields = data->fields;
+	}
+
+	virtual void getName(sf::StringBuf &buf)
+	{
+		buf.append("sf::Reflected<");
+		data->fields[0].type->getName(buf);
+		buf.append(">");
+	}
+};
+
+void initReflectedType(Type *t, const TypeInfo &info, Type *elemType)
+{
+	ReflectedType::Data *data = new ReflectedType::Data();
+	data->fields[0].name = "data";
+	data->fields[0].offset = 0;
+	data->fields[0].size = (uint32_t)elemType->info.size;
+	data->fields[0].type = elemType;
+	new (t) ReflectedType(info, data);
+	t->flags |= elemType->flags & (Type::IsPod|Type::CompactString);
+}
+
 }

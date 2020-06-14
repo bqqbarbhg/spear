@@ -17,9 +17,7 @@ struct HashSetType final : Type
 	virtual void getName(sf::StringBuf &buf)
 	{
 		buf.append("sf::HashSet<");
-		elementType->fields[0].type->getName(buf);
-		buf.append(", ");
-		elementType->fields[1].type->getName(buf);
+		elementType->getName(buf);
 		buf.append(">");
 	}
 

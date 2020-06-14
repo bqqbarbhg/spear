@@ -7,7 +7,7 @@ namespace sv {
 const Component *State::findComponent(ComponentId id) const
 {
 	const sf::Box<Component> *box = components.find(id);
-	return box ? *box : nullptr;
+	return box ? box->ptr : nullptr;
 }
 
 const Proto *State::findProto(ProtoId id) const
@@ -20,7 +20,7 @@ const Entity *State::findEntity(EntityId id) const
 	return entities.find(id);
 }
 
-void State::applyEvent(const Event *event, DirtyList &list)
+void State::applyEvent(const Event *event, DirtyList &dirty)
 {
 	switch (event->type) {
 
@@ -29,11 +29,9 @@ void State::applyEvent(const Event *event, DirtyList &list)
 		sf::InsertResult<Proto> res = protos.insertUninit(e->proto.id);
 		sf_assert(res.inserted);
 		new (&res.entry) Proto(e->proto);
-		list.dirtyProtos.insert(e->proto.id);
 
 		for (const sf::Box<sv::Component> &comp : e->proto.components) {
 			sf_assert(comp->protoId == e->proto.id);
-			list.dirtyProtos.insert(comp->protoId);
 			sf::InsertResult<sf::Box<Component>> cres = components.insertUninit(comp->id);
 			sf_assert(cres.inserted);
 			cres.entry = comp;
@@ -53,6 +51,14 @@ void State::applyEvent(const Event *event, DirtyList &list)
 		sf::InsertResult<Entity> res = entities.insertUninit(e->entity.id);
 		sf_assert(res.inserted);
 		new (&res.entry) Entity(e->entity);
+		uint32_t flags = D_Added;
+		Proto *proto = protos.find(e->entity.protoId);
+		proto->entities.push(e->entity.id);
+		sf_assert(proto);
+		for (const Component *c : proto->components) {
+			flags |= c->dirtyFlags;
+		}
+		dirty.entities[e->entity.id] |= flags;
 	} break;
 
 	case Event::UpdateEntity: {
@@ -60,6 +66,12 @@ void State::applyEvent(const Event *event, DirtyList &list)
 		Entity *entity = entities.find(e->entity.id);
 		sf_assert(entity->protoId == e->entity.protoId);
 		sf_assert(entity);
+		uint32_t flags = D_Updated;
+		if (entity->x != e->entity.x || entity->y != e->entity.y || entity->rotation != e->entity.rotation) {
+			flags |= D_Position;
+		}
+		dirty.entities[e->entity.id] |= flags;
+
 		*entity = e->entity;
 	} break;
 
@@ -68,6 +80,7 @@ void State::applyEvent(const Event *event, DirtyList &list)
 		bool removed = entities.remove(e->id);
 		(void)removed;
 		sf_assert(removed);
+		dirty.entities[e->id] |= D_Removed;
 	} break;
 
 	case Event::UpdateComponent: {
@@ -85,3 +98,4 @@ void State::applyEvent(const Event *event, DirtyList &list)
 }
 
 }
+

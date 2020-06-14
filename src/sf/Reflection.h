@@ -162,8 +162,35 @@ struct TypeEnum final : Type {
 
 void writeInstBinary(sf::Array<char> &dst, void *inst, Type *type);
 bool readInstBinary(sf::Slice<char> &src, void *inst, Type *type);
+uint32_t hashInstReflected(void *inst, Type *type);
+int compareInstReflected(void *a, void *b, Type *type);
 
 template <typename T> sf_inline void writeBinary(sf::Array<char> &dst, T &t) { writeInstBinary(dst, &t, typeOf<T>()); }
 template <typename T> sf_inline bool readBinary(sf::Slice<char> &src, T &t) { return readInstBinary(src, &t, typeOf<T>()); }
+template <typename T> sf_inline uint32_t hashReflected(T &t) { return hashInstReflected((void*)&t, typeOf<T>()); }
+template <typename T> sf_inline int compareReflected(T &a, T &b) { return compareInstReflected((void*)&a, (void*)&b, typeOf<T>()); }
+
+template <typename T>
+struct Reflected
+{
+	T data;
+
+	sf_forceinline bool operator==(const Reflected &rhs) const { return compareReflected(data, rhs.data) == 0; }
+	sf_forceinline bool operator!=(const Reflected &rhs) const { return compareReflected(data, rhs.data) != 0; }
+	sf_forceinline bool operator<(const Reflected &rhs) const { return compareReflected(data, rhs.data) < 0; }
+	sf_forceinline bool operator<=(const Reflected &rhs) const { return compareReflected(data, rhs.data) <= 0; }
+	sf_forceinline bool operator>(const Reflected &rhs) const { return compareReflected(data, rhs.data) > 0; }
+	sf_forceinline bool operator>=(const Reflected &rhs) const { return compareReflected(data, rhs.data) >= 0; }
+};
+
+template <typename T>
+sf_inline uint32_t hash(const Reflected<T> &t) { return hashReflected(t.data); }
+
+void initReflectedType(Type *t, const TypeInfo &info, Type *elemType);
+
+template <typename T>
+struct InitType<Reflected<T>> {
+	static void init(Type *t) { return initReflectedType(t, getTypeInfo<Reflected<T>>(), typeOfRecursive<T>()); }
+};
 
 }

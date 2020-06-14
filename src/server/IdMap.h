@@ -5,13 +5,12 @@
 
 namespace sv {
 
-template <typename T> inline sf_forceinline uint64_t getIdImp(T &t) { return t.id; }
+template <typename T> inline sf_forceinline uint64_t getIdImp(T &t) { return t.id.id; }
 
-template <typename T>
+template <typename T, typename Id>
 struct IdMap
 {
 	using Entry = T;
-	using Id = decltype(T::id);
 
 	rhmap map;
 	Entry *data;
@@ -53,7 +52,7 @@ struct IdMap
 	Entry *find(Id id)
 	{
 		uint32_t index;
-		uint32_t h = hash(id.id), scan = 0;
+		uint32_t h = sf::hash(id.id), scan = 0;
 		while (rhmap_find(&map, h, &scan, &index)) {
 			if (id.id == getIdImp(data[index])) {
 				return &data[index];
@@ -64,7 +63,7 @@ struct IdMap
 
 	sf_forceinline const Entry *find(Id id) const
 	{
-		return const_cast<IdMap<T>*>(this)->find(id);
+		return const_cast<IdMap<T, Id>*>(this)->find(id);
 	}
 
 	sf::InsertResult<Entry> insertUninit(const Id &id)
@@ -74,7 +73,7 @@ struct IdMap
 			growImp(128 / sizeof(Entry));
 		}
 
-		uint32_t h = hash(id.id), scan = 0;
+		uint32_t h = sf::hash(id.id), scan = 0;
 		while (rhmap_find(&map, h, &scan, &index)) {
 			if (id.id == getIdImp(data[index])) {
 				return { data[index], false };
@@ -84,19 +83,19 @@ struct IdMap
 		index = map.size;
 		rhmap_insert(&map, h, scan, index);
 		Entry &entry = data[index];
-		return { entry, inserted };
+		return { entry, true };
 	}
 
 	bool remove(Id id)
 	{
 		uint32_t index;
-		uint32_t h = hash(id.id), scan = 0;
+		uint32_t h = sf::hash(id.id), scan = 0;
 		while (rhmap_find(&map, h, &scan, &index)) {
 			if (id.id == getIdImp(data[index])) {
 				rhmap_remove(&map, h, scan);
 				if (index < map.size) {
 					Entry &swap = data[map.size];
-					rhmap_update_value(&map, hash(swap.key), map.size, index);
+					rhmap_update_value(&map, sf::hash(getIdImp(swap)), map.size, index);
 					data[index].~Entry();
 					new (&data[index]) Entry(std::move(swap));
 				}
@@ -114,13 +113,13 @@ protected:
 		size_t count, allocSize;
 		rhmap_grow(&map, &count, &allocSize, size, 0.8);
 
-		void *newAlloc = memAlloc(allocSize + count * sizeof(Entry));
+		void *newAlloc = sf::memAlloc(allocSize + count * sizeof(Entry));
 		Entry *newData = (Entry*)((char*)newAlloc + allocSize);
-		moveRangeImp<Entry>(newData, data, map.size);
+		sf::moveRangeImp<Entry>(newData, data, map.size);
 		data = newData;
 
 		void *oldAlloc = rhmap_rehash(&map, count, allocSize, newAlloc);
-		memFree(oldAlloc);
+		sf::memFree(oldAlloc);
 	}
 };
 

@@ -141,6 +141,8 @@ struct ClientMain
 	uint8_t dragDstRotation = 0;
 	sv::Object dragOriginalObject;
 	bool dragDoesClone = false;
+
+	sf::HashSet<sf::Reflected<sf::Box<sv::Component>>> TEST_SET;
 };
 
 void clientGlobalInit()
@@ -1003,11 +1005,18 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				sv::MessageCommand msg;
 				msg.command = cmd;
 				writeMessage(c->ws, &msg, c->name, serverName);
+
+				for (sf::Box<sv::Component> &comp : obj->object->components) {
+					sf::Reflected<sf::Box<sv::Component>> ref = { comp };
+					c->TEST_SET.insert(ref);
+				}
 			}
 
 			ImGui::End();
 		}
 	}
+
+	handleImgui(c->TEST_SET, "TEST_SET");
 
 	if (c->windowAssets && ImGui::Begin("Assets", &c->windowAssets)) {
 		handleImguiAssetDir(c, g_assets);

@@ -9,8 +9,11 @@ namespace sv {
 
 enum DirtyFlags
 {
-	D_Position = 0x1,
-	D_TileChunk = 0x2,
+	D_Added = 0x1,
+	D_Updated = 0x2,
+	D_Removed = 0x4,
+	D_Position = 0x8,
+	D_TileChunk = 0x10,
 };
 
 struct EntityId
@@ -39,6 +42,10 @@ struct ComponentId
 	sf_forceinline bool operator==(const ComponentId &rhs) const { return id == rhs.id; }
 	sf_forceinline bool operator!=(const ComponentId &rhs) const { return id == rhs.id; }
 };
+
+sf_inline uint32_t hash(EntityId id) { return sf::hash(id.id); }
+sf_inline uint32_t hash(ProtoId id) { return sf::hash(id.id); }
+sf_inline uint32_t hash(ComponentId id) { return sf::hash(id.id); }
 
 struct Component
 {

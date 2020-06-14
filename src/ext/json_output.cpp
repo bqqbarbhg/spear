@@ -221,7 +221,7 @@ void jso_uint64(jso_stream *s, unsigned long long value)
 	if (s->add_comma) s->data[s->pos++] = ',';
 	if (s->pretty) jso_prettify(s);
 	s->add_comma = 1;
-	s->pos += snprintf(s->data + s->pos, s->capacity - s->pos, "%ulld", value);
+	s->pos += snprintf(s->data + s->pos, s->capacity - s->pos, "%llud", value);
 }
 
 void jso_double(jso_stream *s, double value)
