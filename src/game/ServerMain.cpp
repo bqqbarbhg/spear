@@ -16,6 +16,8 @@
 
 #include "ext/json_input.h"
 
+#include <time.h>
+
 static sf::Symbol serverName { "Server" };
 
 using UndoChunk = sf::SmallArray<sf::Box<sv::Command>, 4>;
@@ -471,7 +473,7 @@ void serverUpdate(ServerMain *s)
 
 					auto player = sf::box<sv::Character>();
 					player->name = client.name;
-					if (rand() % 2 == 0) {
+					if (time(NULL) % 2 == 0) {
 						player->model = sf::Symbol("Game/Characters/goblin.js");
 					} else {
 						player->model = sf::Symbol("Game/Characters/dwarf.js");
