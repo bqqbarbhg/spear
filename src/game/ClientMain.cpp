@@ -1529,10 +1529,10 @@ sg_image clientRender(ClientMain *c)
 
 		sp::beginPass(c->mainPass, &action);
 
-		static float cameraAngleBase = 3.4f;
-		static float cameraZoomAngle = 0.18f;
+		static float cameraAngleBase = 3.76f;
+		static float cameraZoomAngle = 0.26f;
 		static float cameraBaseY = 2.0f;
-		static float cameraZoomY = 7.0f;
+		static float cameraZoomY = 10.0f;
 		static float cameraBaseZ = 1.0f;
 		static float cameraZoomZ = 1.3f;
 
@@ -1547,10 +1547,11 @@ sg_image clientRender(ClientMain *c)
 			ImGui::TreePop();
 		}
 
-		float zoomAngle = c->cameraZoom * -cameraZoomAngle + cameraAngleBase;
+		float zoom = log2f(c->cameraZoom + 1.0f);
+		float zoomAngle = zoom * -cameraZoomAngle + cameraAngleBase;
 		float zoomC = cosf(zoomAngle);
 		float zoomS = sinf(zoomAngle);
-		sf::Vec3 cameraPosition = sf::Vec3(c->cameraPos.x, 0.0f, c->cameraPos.y) + sf::Vec3(0.0f, c->cameraZoom * cameraZoomY + cameraBaseY, c->cameraZoom * cameraZoomZ + cameraBaseZ);
+		sf::Vec3 cameraPosition = sf::Vec3(c->cameraPos.x, 0.0f, c->cameraPos.y) + sf::Vec3(0.0f, zoom * cameraZoomY + cameraBaseY, zoom * cameraZoomZ + cameraBaseZ);
 		sf::Mat44 view = sf::mat::look(cameraPosition, sf::Vec3(0.0f, zoomC, zoomS));
 		sf::Mat44 proj = sf::mat::perspectiveD3D(1.0f, (float)c->resolution.x/(float)c->resolution.y, 0.1f, 20.0f);
 		sf::Mat44 viewProj = proj * view;
