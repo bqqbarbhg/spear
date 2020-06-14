@@ -640,12 +640,12 @@ for config in configs:
         return ix + 1
 
     def add_attrib(attrib):
-        if attrib.name not in attrib_index:
+        if attrib not in attrib_index:
             ix = len(attribs)
-            attrib_index[attrib.name] = ix
+            attrib_index[attrib] = ix
             attribs.append(attrib)
         else:
-            ix = attrib_index[attrib.name]
+            ix = attrib_index[attrib]
             assert attribs[ix] == attrib
         return ix + 1
 

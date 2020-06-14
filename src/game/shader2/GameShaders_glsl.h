@@ -5,7 +5,7 @@
 
 #define SpShader_TestMesh 0
 #define SpShader_TestSkin 1
-#define SpShaderDataSize 31587
+#define SpShaderDataSize 31609
 
 #define SP_SHADOWGRID_USE_ARRAY 0
 #define SP_NORMALMAP_REMAP 1
@@ -55,5 +55,5 @@ extern const SpShaderInfo spShaders[2];
 extern const SpPermutationInfo spPermutations[10];
 extern const SpUniformBlockInfo spUniformBlock[5];
 extern const SpSamplerInfo spSamplers[6];
-extern const SpAttribInfo spAttribs[7];
-extern const char spShaderData[1967];
+extern const SpAttribInfo spAttribs[10];
+extern const char spShaderData[1983];

@@ -1,9 +1,9 @@
 #include "util/Defines.glsl"
 
 layout(location=0) attribute vec3 a_position;
-layout(location=1) attribute vec3 a_normal;
-layout(location=2) attribute vec4 a_tangent;
-layout(location=3) attribute vec2 a_uv;
+layout(location=1) attribute vec2 a_uv;
+layout(location=2) attribute vec3 a_normal;
+layout(location=3) attribute vec4 a_tangent;
 #if SP_GLSL
 	layout(location=4) attribute vec4 a_indices;
 #else
@@ -70,8 +70,8 @@ void main()
 
 	v_position = p;
     gl_Position = mul(vec4(p, 1.0), worldToClip);
-	v_normal = n;
-	v_tangent = t;
+	v_normal = normalize(n);
+	v_tangent = normalize(t);
 	v_bitangent = a_tangent.w * cross(v_normal, v_tangent); 
 	v_uv = a_uv;
 }
@@ -108,7 +108,7 @@ void main()
 	int end = int(numLightsF) * SP_POINTLIGHT_DATA_SIZE;
 
 	// vec2 matNormal = sampleNormalMap(normalAtlas, v_uv);
-	vec2 matNormal = asVec2(0.5);
+	vec2 matNormal = asVec2(0.0);
 	float matNormalY = sqrt(clamp(1.0 - dot(matNormal, matNormal), 0.0, 1.0));
 
 	// vec3 matAlbedo = texture(albedoAtlas, v_uv).xyz;
