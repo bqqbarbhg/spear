@@ -246,7 +246,6 @@ void setupFileDir(FileDir &dir, sf::StringBuf &queryRoot, sv::QueryDir &queryDir
 		for (FileDir &child : dir.dirs) {
 			if (sf::beginsWith(queryRoot, child.prefix)) {
 				setupFileDir(child, queryRoot, queryDir);
-				return;
 			}
 		}
 	}
@@ -533,7 +532,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
 		l.position = sf::Vec3(0.0f, 8.0f, 0.0f);
-		l.color = sf::Vec3(4.0f, 4.0f, 4.0f) * 1.0f;
+		l.color = sf::Vec3(4.0f, 4.0f, 4.0f) * 20.0f;
 		l.radius = 24.0f;
 		l.shadowIndex = 0;
 	}
@@ -1399,9 +1398,8 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 								cmd->object = object->svObject;
 								msg.command = cmd;
 
-								sv::EventUpdateObject event;
+								sv::EventRemoveObject event;
 								event.id = c->dragObject;
-								event.object = c->dragOriginalObject;
 								c->clientState.applyEvent(&event);
 
 							} else {

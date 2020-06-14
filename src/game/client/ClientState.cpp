@@ -123,6 +123,7 @@ static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, 
 
 	sf::Vec2i origin = chunkPos * (int32_t)sv::MapChunk::Size;
 
+	if (false)
 	for (uint32_t y = 0; y < sv::MapChunk::Size; y++)
 	for (uint32_t x = 0; x < sv::MapChunk::Size; x++)
 	{
