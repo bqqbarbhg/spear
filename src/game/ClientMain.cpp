@@ -42,6 +42,8 @@
 #include "sf/File.h"
 #include "ext/json_output.h"
 #include "sp/Json.h"
+#include "server/Player.h"
+#include "server/ServerSerialization.h"
 
 #if SF_OS_EMSCRIPTEN
 EM_JS(int, sp_emUpdateUrl, (int id, int secret), {
@@ -415,6 +417,33 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 {
 	ClientMain *c = new ClientMain();
 	c->name = name;
+
+	sf::Box<sv2::Player> player = sf::box<sv2::Player>();
+	sf::Box<sv2::CardType> cardType = sf::box<sv2::CardType>();
+	cardType->objectId = 20;
+	cardType->objectRevision = 1;
+
+	player->objectId = 10;
+	player->objectRevision = 1;
+
+	{
+		sv2::Card &card = player->cards.push();
+		card.cardType = cardType;
+	}
+
+	{
+		sv2::Card &card = player->cards.push();
+		card.cardType = cardType;
+	}
+
+	sv2::SerializationState sState;
+	sv2::DeserializationState dState;
+	sf::Array<char> data;
+
+	sv2::serializeBinary(data, sState, player);
+
+	sf::Box<sv2::Player> player2;
+	sv2::deserializeBinary(data.slice(), dState, player2);
 
 	gameShaders.load();
 
