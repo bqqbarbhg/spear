@@ -144,6 +144,7 @@ struct ClientMain
 
 	float cameraZoomVel = 0.0f;
 	float cameraZoom = 0.5f;
+	float cameraLogZoom = 0.5f;
 
 	sf::HashSet<sf::Reflected<sf::Box<sv::Component>>> TEST_SET;
 };
@@ -1150,7 +1151,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 		cameraMove = sf::normalizeOrZero(cameraMove);
 
-		c->cameraVel += cameraMove * dt * 100.0f;
+		c->cameraVel += cameraMove * dt * 100.0f * (0.5f + c->cameraLogZoom);
 	}
 
 	{
@@ -1161,6 +1162,8 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 		c->cameraPos += c->cameraVel * dt;
 		c->cameraVel *= powf(0.7f, dt*60.0f);
+
+		c->cameraLogZoom = log2f(c->cameraZoom + 1.0f);
 	}
 
 
@@ -1547,7 +1550,7 @@ sg_image clientRender(ClientMain *c)
 			ImGui::TreePop();
 		}
 
-		float zoom = log2f(c->cameraZoom + 1.0f);
+		float zoom = c->cameraLogZoom;
 		float zoomAngle = zoom * -cameraZoomAngle + cameraAngleBase;
 		float zoomC = cosf(zoomAngle);
 		float zoomS = sinf(zoomAngle);
