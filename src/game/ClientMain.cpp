@@ -142,6 +142,9 @@ struct ClientMain
 	sv::Object dragOriginalObject;
 	bool dragDoesClone = false;
 
+	float cameraZoomVel = 0.0f;
+	float cameraZoom = 0.5f;
+
 	sf::HashSet<sf::Reflected<sf::Box<sv::Component>>> TEST_SET;
 };
 
@@ -1148,9 +1151,18 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		cameraMove = sf::normalizeOrZero(cameraMove);
 
 		c->cameraVel += cameraMove * dt * 100.0f;
+	}
+
+	{
+		c->cameraZoom += c->cameraZoomVel * dt;
+		c->cameraZoomVel *= powf(0.7f, dt*60.0f);
+
+		c->cameraZoom = sf::clamp(c->cameraZoom, 0.0f, 1.0f);
+
 		c->cameraPos += c->cameraVel * dt;
 		c->cameraVel *= powf(0.7f, dt*60.0f);
 	}
+
 
 	{
 		sp::Canvas &canvas = c->testCanvas;
@@ -1437,6 +1449,10 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 						writeMessage(c->ws, &msg, c->name, serverName);
 					}
 				}
+			} else if (e.type == SAPP_EVENTTYPE_MOUSE_SCROLL) {
+
+				c->cameraZoomVel += sf::clamp(-e.scroll_y / 16.0f, -1.0f, 1.0f) * 8.0f;
+
 			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {
 				for (sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
 					sf::Vec2 uiTouch = sf::Vec2(touch.pos_x, touch.pos_y) / sf::Vec2(c->resolution) * c->uiResolution;
@@ -1513,8 +1529,29 @@ sg_image clientRender(ClientMain *c)
 
 		sp::beginPass(c->mainPass, &action);
 
-		sf::Vec3 cameraPosition = sf::Vec3(c->cameraPos.x, 0.0f, c->cameraPos.y) + sf::Vec3(0.0f, 10.0f, 6.0f);
-		sf::Mat44 view = sf::mat::look(cameraPosition, sf::Vec3(0.0f, -1.0f, -0.5f));
+		static float cameraAngleBase = 3.4f;
+		static float cameraZoomAngle = 0.18f;
+		static float cameraBaseY = 2.0f;
+		static float cameraZoomY = 7.0f;
+		static float cameraBaseZ = 1.0f;
+		static float cameraZoomZ = 1.3f;
+
+		if (ImGui::TreeNode("Camera Tweak")) {
+			ImGui::SliderFloat("Angle Base", &cameraAngleBase, 2.0f, 5.0f);
+			ImGui::SliderFloat("Angle Zoom", &cameraZoomAngle, 0.0f, 0.8f);
+			ImGui::SliderFloat("Y Base", &cameraBaseY, 0.0f, 10.0f);
+			ImGui::SliderFloat("Y Zoom", &cameraZoomY, 0.0f, 10.0f);
+			ImGui::SliderFloat("Z Base", &cameraBaseZ, 0.0f, 10.0f);
+			ImGui::SliderFloat("Z Zoom", &cameraZoomZ, 0.0f, 10.0f);
+
+			ImGui::TreePop();
+		}
+
+		float zoomAngle = c->cameraZoom * -cameraZoomAngle + cameraAngleBase;
+		float zoomC = cosf(zoomAngle);
+		float zoomS = sinf(zoomAngle);
+		sf::Vec3 cameraPosition = sf::Vec3(c->cameraPos.x, 0.0f, c->cameraPos.y) + sf::Vec3(0.0f, c->cameraZoom * cameraZoomY + cameraBaseY, c->cameraZoom * cameraZoomZ + cameraBaseZ);
+		sf::Mat44 view = sf::mat::look(cameraPosition, sf::Vec3(0.0f, zoomC, zoomS));
 		sf::Mat44 proj = sf::mat::perspectiveD3D(1.0f, (float)c->resolution.x/(float)c->resolution.y, 0.1f, 20.0f);
 		sf::Mat44 viewProj = proj * view;
 
