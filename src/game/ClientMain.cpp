@@ -923,9 +923,10 @@ void handleObjectImgui(ImguiStatus &status, sv::GameObject &obj, const sf::Symbo
 		ImGui::PopID();
 
 		if (doDelete) {
-			obj.components.removeOrdered(compI--);
+			obj.components.removeOrdered(compI);
 			status.changed = true;
 			status.modified = true;
+			compI--;
 		}
 	}
 
@@ -1017,11 +1018,13 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 	handleImgui(c->TEST_SET, "TEST_SET");
 
+	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
 	if (c->windowAssets && ImGui::Begin("Assets", &c->windowAssets)) {
 		handleImguiAssetDir(c, g_assets);
 		ImGui::End();
 	}
 
+	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
 	if (c->windowObjects && ImGui::Begin("Objects", &c->windowObjects)) {
 
 		if (ImGui::Button("Save all")) {
