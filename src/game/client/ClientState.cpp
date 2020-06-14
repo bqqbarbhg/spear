@@ -117,26 +117,7 @@ static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, 
 	uint32_t hash = sf::hash(chunkPos);
 	sf::Random chunkRng { hash };
 
-	auto chunkIt = svMap.chunks.find(chunkPos);
-	if (!chunkIt) return true;
-	sv::MapChunk &svChunk = chunkIt->val;
-
 	sf::Vec2i origin = chunkPos * (int32_t)sv::MapChunk::Size;
-
-	if (false)
-	for (uint32_t y = 0; y < sv::MapChunk::Size; y++)
-	for (uint32_t x = 0; x < sv::MapChunk::Size; x++)
-	{
-		sf::Random tileRng { chunkRng.nextU32(), y * sv::MapChunk::Size + x };
-		tileRng.nextU32();
-
-		sv::TileId tileId = svChunk.tiles[y * sv::MapChunk::Size + x];
-		TileType &tileType = state.tileTypes[tileId];
-		sf::Vec2i tilePos = sf::Vec2i((int32_t)x, (int32_t)y) + origin;
-
-		if (!generateMapMesh(meshes, tileRng, tileType.floor, tilePos)) return false;
-		if (!generateMapMesh(meshes, tileRng, tileType.tile, tilePos)) return false;
-	}
 
 	for (uint32_t id : chunk.meshObjects) {
 		Object &object = state.objects[id];
