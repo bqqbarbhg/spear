@@ -82,6 +82,7 @@ static mx_forceinline uint32_t mx_get_thread_id()
 	uint32_t id = mx_imp_thread_id;
 	if (!id) {
 		id = mxa_inc32(&mx_imp_next_thread_id) + 1;
+		mx_imp_thread_id = id;
 	}
 	return id;
 }
