@@ -648,15 +648,6 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 	c->lineBuffer.initDynamicVertex("Line buffer", sizeof(sf::Vec3) * 2 * 2 * MaxLinesPerFrame);
 	c->sphereInstanceBuffer.initDynamicVertex("Sphere instance buffer", sizeof(sf::Vec4) * 4 * MaxSpheresPerFrame);
 
-	// HACK
-	{
-		cl::PointLight &l = c->clientState.pointLights.push();
-		l.position = sf::Vec3(0.0f, 8.0f, 0.0f);
-		l.color = sf::Vec3(4.0f, 4.0f, 4.0f) * 20.0f;
-		l.radius = 24.0f;
-		l.shadowIndex = 0;
-	}
-
 #if 0
 	{
 		cl::PointLight &l = c->clientState.pointLights.push();
@@ -1216,6 +1207,15 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 			c->serverState = m->state;
 			c->clientState.reset(m->state);
 
+			// HACK
+			{
+				cl::PointLight &l = c->clientState.pointLights.push();
+				l.position = sf::Vec3(0.0f, 8.0f, 0.0f);
+				l.color = sf::Vec3(4.0f, 4.0f, 4.0f) * 20.0f;
+				l.radius = 24.0f;
+				l.shadowIndex = c->clientState.pointLights.size - 1;
+			}
+
 			#if SF_OS_EMSCRIPTEN
 				sp_emUpdateUrl((int)m->sessionId, (int)m->sessionSecret);
 			#endif
@@ -1623,22 +1623,8 @@ void clientFree(ClientMain *c)
 
 sg_image clientRender(ClientMain *c)
 {
-	// HACK HACK
-#if 0
-	{
-		float t = (float)stm_sec(stm_now())*0.5f;
-		uint32_t ix = 0;
-		for (cl::PointLight &light : c->clientState.pointLights) {
-			if (ix++ < 3) {
-				light.position.x = sinf(t) * 5.0f;
-				light.position.z = cosf(t) * 5.0f;
-			}
-			c->clientState.shadowCache.updatePointLight(c->clientState, light);
-			t += sf::F_2PI / 3.0f;
-		}
-	}
-#endif
-	{
+	// TODO: Invalidate pointlights
+	if (c->clientState.pointLights.size > 0) {
 		uint32_t index = c->tempShadowUpdateIndex++;
 		cl::PointLight &light = c->clientState.pointLights[index % c->clientState.pointLights.size];
 		c->clientState.shadowCache.updatePointLight(c->clientState, light);

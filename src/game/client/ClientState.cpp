@@ -282,6 +282,10 @@ static void updateObjectImp(State &state, uint32_t id, const ObjectType &prevTyp
 				state.pointLights.removeSwap(index);
 				if (index < state.pointLights.size) {
 					PointLight &swapLight = state.pointLights[index];
+
+					// HACK: Temp use shadow index
+					swapLight.shadowIndex = index;
+
 					sf::Array<uint32_t> &swapIndices = state.pointLightMapping[swapLight.objectId];
 					for (uint32_t &swapRef : swapIndices) {
 						if (swapRef == state.pointLights.size) {
@@ -377,6 +381,9 @@ void State::reset(sv::State *svState)
 			ix++;
 		}
 	}
+
+	pointLights.clear();
+	pointLightMapping.clear();
 
 	objects.clear();
 	objects.reserve(svState->objects.size());
