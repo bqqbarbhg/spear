@@ -442,6 +442,7 @@ void State::applyEvent(sv::Event *event)
 	} else if (auto e = event->as<sv::EventUpdateObjectType>()) {
 		while (objectTypes.size <= e->index) objectTypes.push();
 		ObjectType &type = objectTypes[e->index];
+		type.hasValidBounds = false;
 
 		ObjectType prevType = type;
 		convertObjectType(objectTypes[e->index], e->object);
