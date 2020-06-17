@@ -315,8 +315,6 @@ static void saveObject(const sv::GameObject &obj, const sf::Symbol &path)
 
 void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 {
-	sf::SmallArray<FileDir, 1> dirsToAdd;
-
 	if (!dir.expanded) {
 		dir.expanded = true;
 		sv::MessageQueryFiles msg;
@@ -364,9 +362,10 @@ void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 						d.files.push(FileFile(d.prefix, fileName));
 						saveObject(sv::GameObject(), d.files.back().path);
 					} else if (c->addFolder) {
-						FileDir &newD = dirsToAdd.push();
+						FileDir &newD = d.dirs.push();
 						newD.name = c->addInput;
 						newD.prefix.append(d.prefix, "/", c->addInput);
+						sf::createDirectory(newD.prefix);
 					}
 
 					c->addPath.clear();
@@ -382,9 +381,6 @@ void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 		}
 	}
 
-	for (FileDir &fd : dirsToAdd) {
-		dir.dirs.push(std::move(fd));
-	}
 
 	for (const FileFile &f : dir.files) {
 
