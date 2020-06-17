@@ -54,6 +54,8 @@ static sf::Symbol serverName { "Server" };
 
 static uint32_t playerIdCounter = 100;
 
+static bool useLatestMove = false;
+
 static constexpr const uint32_t MaxLinesPerFrame = 4096;
 static constexpr const uint32_t MaxSpheresPerFrame = 1024;
 
@@ -118,6 +120,7 @@ struct ClientMain
 	bool windowObjects = false;
 	bool windowMessages = false;
 	bool windowProperties = false;
+	bool windowDebug = false;
 
 	sp::Buffer lineBuffer;
 	sp::Buffer sphereVertexBuffer;
@@ -145,8 +148,6 @@ struct ClientMain
 	float cameraZoomVel = 0.0f;
 	float cameraZoom = 0.5f;
 	float cameraLogZoom = 0.5f;
-
-	sf::HashSet<sf::Reflected<sf::Box<sv::Component>>> TEST_SET;
 };
 
 void clientGlobalInit()
@@ -977,6 +978,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 	if (bqws_is_closed(c->ws)) {
 		return true;
 	}
+
 	if (input.resolution != c->resolution) {
 		recreateTargets(c, input.resolution);
 	}
@@ -1017,18 +1019,11 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				sv::MessageCommand msg;
 				msg.command = cmd;
 				writeMessage(c->ws, &msg, c->name, serverName);
-
-				for (sf::Box<sv::Component> &comp : obj->object->components) {
-					sf::Reflected<sf::Box<sv::Component>> ref = { comp };
-					c->TEST_SET.insert(ref);
-				}
 			}
 
 			ImGui::End();
 		}
 	}
-
-	handleImgui(c->TEST_SET, "TEST_SET");
 
 	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
 	if (c->windowAssets && ImGui::Begin("Assets", &c->windowAssets)) {
@@ -1134,9 +1129,6 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		}
 	}
 
-	static bool useLatestMove = false;
-	ImGui::Checkbox("Use latest move", &useLatestMove);
-
 	if (!ImGui::GetIO().WantCaptureKeyboard) {
 		sf::Vec2 cameraMove;
 		float left = sf::min(keyDownDuration(SAPP_KEYCODE_A), keyDownDuration(SAPP_KEYCODE_LEFT));
@@ -1216,9 +1208,6 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				sf::Vec3 dragPos = rayOrigin + rayDirection * dragT;
 				sf::Vec2 dragTile = sf::Vec2(dragPos.x, dragPos.z) - sf::Vec2(c->dragOrigin.x, c->dragOrigin.z);
 				c->dragDstTile = sf::Vec2i(sf::floor(dragTile + sf::Vec2(0.5f))) + c->dragBaseTile;
-
-				ImGui::InputFloat3("dragPos", dragPos.v);
-				ImGui::InputFloat3("dragOrigin", c->dragOrigin.v);
 
 				sv::EventUpdateObject event;
 				event.id = c->dragObject;
@@ -1322,14 +1311,13 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				if (ImGui::MenuItem("Objects")) c->windowObjects = true;
 				if (ImGui::MenuItem("Properties")) c->windowProperties = true;
 				if (ImGui::MenuItem("Messages")) c->windowMessages = true;
+				if (ImGui::MenuItem("Debug")) c->windowDebug = true;
 				ImGui::EndMenu();
 			}
 
 
 			ImGui::EndMainMenuBar();
 		}
-
-		ImGui::Text("DOWN: %d", ImGui::GetIO().MouseDown[0]);
 
 		for (sapp_event &e : input.events) {
 			if (e.type == SAPP_EVENTTYPE_MOUSE_DOWN && !ImGui::GetIO().WantCaptureMouse) {
@@ -1546,15 +1534,19 @@ sg_image clientRender(ClientMain *c)
 		static float cameraBaseZ = 1.0f;
 		static float cameraZoomZ = 1.3f;
 
-		if (ImGui::TreeNode("Camera Tweak")) {
-			ImGui::SliderFloat("Angle Base", &cameraAngleBase, 2.0f, 5.0f);
-			ImGui::SliderFloat("Angle Zoom", &cameraZoomAngle, 0.0f, 0.8f);
-			ImGui::SliderFloat("Y Base", &cameraBaseY, 0.0f, 10.0f);
-			ImGui::SliderFloat("Y Zoom", &cameraZoomY, 0.0f, 10.0f);
-			ImGui::SliderFloat("Z Base", &cameraBaseZ, 0.0f, 10.0f);
-			ImGui::SliderFloat("Z Zoom", &cameraZoomZ, 0.0f, 10.0f);
+		if (c->windowDebug && ImGui::Begin("Debug", &c->windowDebug)) {
+			ImGui::Checkbox("Use latest move", &useLatestMove);
+			if (ImGui::TreeNode("Camera Tweak")) {
+				ImGui::SliderFloat("Angle Base", &cameraAngleBase, 2.0f, 5.0f);
+				ImGui::SliderFloat("Angle Zoom", &cameraZoomAngle, 0.0f, 0.8f);
+				ImGui::SliderFloat("Y Base", &cameraBaseY, 0.0f, 10.0f);
+				ImGui::SliderFloat("Y Zoom", &cameraZoomY, 0.0f, 10.0f);
+				ImGui::SliderFloat("Z Base", &cameraBaseZ, 0.0f, 10.0f);
+				ImGui::SliderFloat("Z Zoom", &cameraZoomZ, 0.0f, 10.0f);
 
-			ImGui::TreePop();
+				ImGui::TreePop();
+			}
+			ImGui::End();
 		}
 
 		float zoom = c->cameraLogZoom;
