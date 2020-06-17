@@ -1459,7 +1459,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 						writeMessage(c->ws, &msg, c->name, serverName);
 					}
 				}
-			} else if (e.type == SAPP_EVENTTYPE_MOUSE_SCROLL) {
+			} else if (e.type == SAPP_EVENTTYPE_MOUSE_SCROLL && !ImGui::GetIO().WantCaptureMouse) {
 
 				c->cameraZoomVel += sf::clamp(-e.scroll_y / 16.0f, -1.0f, 1.0f) * 8.0f;
 
