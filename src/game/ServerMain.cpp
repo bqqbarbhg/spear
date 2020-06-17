@@ -77,14 +77,14 @@ struct ServerMain
 	sf::HashMap<sf::Symbol, uint32_t> roomSessions;
 };
 
-static sf::Mutex g_configMutex;
+static sf::StaticRecursiveMutex g_configMutex;
 
 template <typename T>
 static sf::Box<T> loadConfig(sf::String name)
 {
 	sf::Symbol path = sf::Symbol(name);
 
-	sf::MutexGuard mg(g_configMutex);
+	sf::RecursiveMutexGuard mg(g_configMutex);
 
 	static sf::HashMap<sf::Symbol, sf::Box<T>> cache;
 	sf::Box<T> &entry = cache[path];
@@ -114,7 +114,7 @@ static sf::Box<sv::State> loadRoom(sf::String name)
 {
 	sf::Symbol path = sf::Symbol(name);
 
-	sf::MutexGuard mg(g_configMutex);
+	sf::RecursiveMutexGuard mg(g_configMutex);
 
 	jsi_args args = { };
 	args.dialect.allow_bare_keys = true;
@@ -131,6 +131,14 @@ static sf::Box<sv::State> loadRoom(sf::String name)
 
 	sf::Box<sv::State> box;
 	if (!sp::readJson(value, box)) return { };
+
+	for (sv::GameObject &obj : box->objectTypes) {
+		sf::Box<sv::GameObject> objBox = loadConfig<sv::GameObject>(obj.id);
+		if (objBox) {
+			obj = *objBox;
+		}
+	}
+
 	return box;
 }
 
