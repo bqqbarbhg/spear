@@ -567,6 +567,8 @@ struct AlbedoTextureTask : Task
 		args.push("--format");
 		args.push(sf::String(format));
 
+		args.push("--flip-y");
+
 		args.push("--resolution");
 		args.push(resolutionString);
 		args.push(resolutionString);
@@ -638,6 +640,8 @@ struct NormalTextureTask : Task
 		args.push("--format");
 		args.push(sf::String(format));
 
+		args.push("--flip-y");
+
 		args.push("--resolution");
 		args.push(resolutionString);
 		args.push(resolutionString);
@@ -706,6 +710,8 @@ struct MaskTextureTask : Task
 
 		args.push("--format");
 		args.push(sf::String(format));
+
+		args.push("--flip-y");
 
 		args.push("--resolution");
 		args.push(resolutionString);
