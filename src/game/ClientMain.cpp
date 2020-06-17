@@ -1543,10 +1543,6 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 								cmd->object = object->svObject;
 								msg.command = cmd;
 
-								sv::EventRemoveObject event;
-								event.id = c->dragObject;
-								c->clientState.applyEvent(&event);
-
 							} else {
 								sf::Box<sv::CommandUpdateObject> cmd = sf::box<sv::CommandUpdateObject>();
 								cmd->id = c->dragObject;
@@ -1555,6 +1551,12 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 							}
 
 							writeMessage(c->ws, &msg, c->name, serverName);
+						}
+
+						if (c->dragDoesClone) {
+							sv::EventRemoveObject event;
+							event.id = c->dragObject;
+							c->clientState.applyEvent(&event);
 						}
 					}
 
