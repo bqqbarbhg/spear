@@ -413,6 +413,11 @@ static Session *setupSession(ServerMain *s, uint32_t id, uint32_t secret, const 
 			session.editRoomPath = roomPath;
 
 			session.state = loadRoom(roomPath);
+			uint32_t maxId = 0;
+			for (auto &pair : session.state->objects) {
+				maxId = sf::max(maxId, pair.key);
+			}
+			session.objectIdCounter = maxId;
 
 			if (session.state->objectTypes.size == 0) {
 				session.state->objectTypes.push();

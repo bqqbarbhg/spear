@@ -511,6 +511,10 @@ void handleImguiRoomDir(ClientMain *c, FileDir &dir)
 			c->selectedObject = 0;
 			c->selectedCard = -1;
 
+			if (c->editRoomPath) {
+				saveRoom(*c->serverState, c->editRoomPath);
+			}
+
 			{
 				sv::MessageJoin join;
 				join.name = c->name;
@@ -1606,11 +1610,15 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 	return false;
 }
 
-void clientFree(ClientMain *client)
+void clientFree(ClientMain *c)
 {
-	saveModifiedObjects(client);
-	bqws_free_socket(client->ws);
-	delete client;
+	if (c->editRoomPath) {
+		saveRoom(*c->serverState, c->editRoomPath);
+	}
+
+	saveModifiedObjects(c);
+	bqws_free_socket(c->ws);
+	delete c;
 }
 
 sg_image clientRender(ClientMain *c)
