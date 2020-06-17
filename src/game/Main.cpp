@@ -132,6 +132,10 @@ void spInit()
 
 void spCleanup()
 {
+	for (MainClient &mc : clients) {
+		clientQuit(mc.client);
+	}
+
 	simgui_shutdown();
 	clientGlobalCleanup();
 	closeProcessing();

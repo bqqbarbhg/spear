@@ -313,6 +313,16 @@ static void saveObject(const sv::GameObject &obj, const sf::Symbol &path)
 	jso_close(&s);
 }
 
+static void saveModifiedObjects(ClientMain *c)
+{
+	for (auto &pair : g_loadedObjects) {
+		if (pair.val.modified) {
+			saveObject(*pair.val.object, pair.key);
+			pair.val.modified = false;
+		}
+	}
+}
+
 void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 {
 	if (!dir.expanded) {
@@ -360,7 +370,6 @@ void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 						}
 
 						d.files.push(FileFile(d.prefix, fileName));
-						saveObject(sv::GameObject(), d.files.back().path);
 					} else if (c->addFolder) {
 						FileDir &newD = d.dirs.push();
 						newD.name = c->addInput;
@@ -568,7 +577,10 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 
 void clientQuit(ClientMain *client)
 {
+	saveModifiedObjects(client);
 	bqws_close(client->ws, BQWS_CLOSE_NORMAL, NULL, 0);
+
+	delete client;
 }
 
 static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
@@ -1028,12 +1040,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 	if (c->windowObjects && ImGui::Begin("Objects", &c->windowObjects)) {
 
 		if (ImGui::Button("Save all")) {
-			for (auto &pair : g_loadedObjects) {
-				if (pair.val.modified) {
-					saveObject(*pair.val.object, pair.key);
-					pair.val.modified = false;
-				}
-			}
+			saveModifiedObjects(c);
 		}
 
 		handleImguiObjectDir(c, g_objects);
@@ -1106,9 +1113,13 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 				if (sv::EventUpdateObjectType *e = event->as<sv::EventUpdateObjectType>()) {
 					if (e->object.id) {
-						sf::Box<sv::GameObject> &box = g_loadedObjects[e->object.id].object;
-						if (!box) box = sf::box<sv::GameObject>();
-						*box = e->object;
+						LoadedObject &loadedObject = g_loadedObjects[e->object.id];
+						if (!loadedObject.object) {
+							loadedObject.object = sf::box<sv::GameObject>();
+						} else {
+							loadedObject.modified = true;
+						}
+						*loadedObject.object = e->object;
 					}
 				}
 			}
