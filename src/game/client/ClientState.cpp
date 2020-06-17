@@ -67,7 +67,7 @@ static void convertObjectType(ObjectType &type, const sv::GameObject &svType)
 				sf::mat::rotateZ(c->rotation.z * (sf::F_PI/180.0f)) *
 				sf::mat::rotateY(c->rotation.y * (sf::F_PI/180.0f)) *
 				sf::mat::rotateX(c->rotation.x * (sf::F_PI/180.0f)) *
-				sf::mat::scale(c->stretch * c->scale));
+				sf::mat::scale(c->stretch * c->scale * 0.01f));
 
 			if (c->castShadows) {
 				if (c->shadowModel) {
