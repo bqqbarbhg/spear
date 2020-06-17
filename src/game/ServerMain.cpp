@@ -26,7 +26,7 @@ struct Client
 {
 	sf::Symbol name;
 	bqws_socket *ws = nullptr;
-	sv::EntityId playerEntity;
+	sf::SmallArray<sv::EntityId, 4> playerEntities;
 	uint32_t playerId;
 
 	sf::Array<UndoChunk> undoList;
@@ -35,8 +35,9 @@ struct Client
 
 struct Session
 {
-	uint32_t id;
-	uint32_t secret;
+	uint32_t id = 0;
+	uint32_t secret = 0;
+	sf::Symbol editRoomPath;
 
 	sf::Box<sv::State> state;
 
@@ -68,10 +69,12 @@ struct ServerMain
 {
 	bqws_pt_server *server;
 	LocalServer *localServer;
-	sf::HashMap<uint32_t, Session> sessions;
+	sf::HashMap<uint32_t, sf::Box<Session>> sessions;
 	sf::Array<bqws_socket*> pendingClients;
 	uint32_t clientCounter = 0;
 	sf::StringBuf dataRoot;
+
+	sf::HashMap<sf::Symbol, uint32_t> roomSessions;
 };
 
 static sf::Mutex g_configMutex;
@@ -105,6 +108,30 @@ static sf::Box<T> loadConfig(sf::String name)
 	entry->id = path;
 
 	return entry;
+}
+
+static sf::Box<sv::State> loadRoom(sf::String name)
+{
+	sf::Symbol path = sf::Symbol(name);
+
+	sf::MutexGuard mg(g_configMutex);
+
+	jsi_args args = { };
+	args.dialect.allow_bare_keys = true;
+	args.dialect.allow_comments = true;
+	args.dialect.allow_control_in_string = true;
+	args.dialect.allow_missing_comma = true;
+	args.dialect.allow_trailing_comma = true;
+	jsi_value *value = jsi_parse_file(path.data, &args);
+	if (!value) {
+		sf::debugPrint("Failed to parse %s:%u:%u: %s",
+			path.data, args.error.line, args.error.column, args.error.description);
+		return { };
+	}
+
+	sf::Box<sv::State> box;
+	if (!sp::readJson(value, box)) return { };
+	return box;
 }
 
 ServerMain *serverInit(int port)
@@ -357,60 +384,131 @@ static void applyCommand(Session &se, sf::Box<sv::Command> command, sf::Array<sf
 	}
 }
 
-static Session *setupSession(ServerMain *s, uint32_t id, uint32_t secret)
+static Session *setupSession(ServerMain *s, uint32_t id, uint32_t secret, const sf::Symbol &roomPath)
 {
 	if (id == 0) {
 
 		// TODO: Real random
 		do {
 			id = rand();
-		} while (s->sessions.find(id));
+		} while (id != 0 && s->sessions.find(id));
 
-		Session &session = s->sessions[id];
+		sf::Box<Session> &box = s->sessions[id];
+		box = sf::box<Session>();
+		Session &session = *box;
 		session.id = id;
 		session.secret = rand();
 
 		session.state = sf::box<sv::State>();
 
-		// Reserve NULL object type
-		session.state->objectTypes.push();
+		if (roomPath) {
+			session.editRoomPath = roomPath;
 
-		sv::Map &map = session.state->map;
-		map.tileTypes.push();
+			session.state = loadRoom(roomPath);
 
-		{
-			sv::TileType &tile = map.tileTypes.push();
-			tile.floorName = sf::Symbol("Game/Tiles/Tile_Test.js");
-			tile.floor = true;
-		}
+			if (session.state->objectTypes.size == 0) {
+				session.state->objectTypes.push();
+			}
 
-		{
-			sv::TileType &tile = map.tileTypes.push();
-			tile.floorName = sf::Symbol("Game/Tiles/floor.js");
-			tile.tileName = sf::Symbol("Game/Tiles/wall.js");
-			tile.wall = true;
-		}
+			sv::Map &map = session.state->map;
+			if (map.tileTypes.size == 0) {
+				map.tileTypes.push();
+			}
 
-		for (int32_t y = -10; y <= 10; y++)
-		for (int32_t x = -10; x <= 10; x++)
-		{
-			sf::Vec2i v = { x, y };
-			map.setTile(v, (rand() % 15 == 0) ? 2 : 1);
-		}
+		} else {
 
-		for (int32_t i = -10; i <= 10; i++) {
-			map.setTile(sf::Vec2i(i, -10), 2);
-			map.setTile(sf::Vec2i(i, +10), 2);
-			map.setTile(sf::Vec2i(-10, i), 2);
-			map.setTile(sf::Vec2i(+10, i), 2);
+			// Reserve NULL object type
+			session.state->objectTypes.push();
+			sv::Map &map = session.state->map;
+			map.tileTypes.push();
+
+			{
+				sv::TileType &tile = map.tileTypes.push();
+				tile.floorName = sf::Symbol("Game/Tiles/Tile_Test.js");
+				tile.floor = true;
+			}
+
+			{
+				sv::TileType &tile = map.tileTypes.push();
+				tile.floorName = sf::Symbol("Game/Tiles/floor.js");
+				tile.tileName = sf::Symbol("Game/Tiles/wall.js");
+				tile.wall = true;
+			}
+
+			for (int32_t y = -10; y <= 10; y++)
+			for (int32_t x = -10; x <= 10; x++)
+			{
+				sf::Vec2i v = { x, y };
+				map.setTile(v, (rand() % 15 == 0) ? 2 : 1);
+			}
+
+			for (int32_t i = -10; i <= 10; i++) {
+				map.setTile(sf::Vec2i(i, -10), 2);
+				map.setTile(sf::Vec2i(i, +10), 2);
+				map.setTile(sf::Vec2i(-10, i), 2);
+				map.setTile(sf::Vec2i(+10, i), 2);
+			}
+
 		}
 
 		return &session;
 	}
 
 	auto it = s->sessions.find(id);
-	if (it && it->val.secret == secret) return &it->val;
+	if (it && it->val->secret == secret) return it->val;
 	return nullptr;
+}
+
+static void joinSession(Session &session, bqws_socket *ws, sv::MessageJoin *m)
+{
+	Client &client = session.clients.push();
+	client.ws = ws;
+	client.name = m->name;
+	client.playerId = m->playerId;
+
+	{
+		sv::MessageLoad load;
+		load.state = session.state;
+		load.sessionId = session.id;
+		load.sessionSecret = session.secret;
+		load.editRoomPath = session.editRoomPath;
+		writeMessage(ws, &load, serverName, client.name);
+	}
+
+	if (!session.editRoomPath) {
+		uint32_t entityId = session.allocateEntityId();
+		client.playerEntities.push(entityId);
+
+		sf::Box<sv::CardType> shortsword = loadConfig<sv::CardType>("Server/Cards/Weapon/Shortsword.js");
+		sf::Box<sv::CardType> club = loadConfig<sv::CardType>("Server/Cards/Weapon/Club.js");
+
+		auto player = sf::box<sv::Character>();
+		player->name = client.name;
+		if (time(NULL) % 2 == 0) {
+			player->model = sf::Symbol("Game/Characters/goblin.js");
+		} else {
+			player->model = sf::Symbol("Game/Characters/dwarf.js");
+		}
+		player->position = findSpawnPos(session.state, sf::Vec2i(0, 0));
+		player->players.push(client.playerId);
+		player->cards.push({ shortsword });
+		player->cards.push({ club });
+
+		auto spawn = sf::box<sv::EventSpawn>();
+		spawn->data = player;
+		spawn->data->id = entityId;
+		pushEvent(session, std::move(spawn));
+	}
+}
+
+static void quitSession(Session &session, Client &client)
+{
+	for (uint32_t id : client.playerEntities) {
+		auto destroy = sf::box<sv::EventDestroy>();
+		destroy->entity = id;
+		pushEvent(session, std::move(destroy));
+	}
+	session.clients.removeSwapPtr(&client);
 }
 
 void serverUpdate(ServerMain *s)
@@ -449,46 +547,10 @@ void serverUpdate(ServerMain *s)
 		sf_assert(msg);
 
 		if (auto m = msg->as<sv::MessageJoin>()) {
-			Session *maybeSession = setupSession(s, m->sessionId, m->sessionSecret);
+			Session *maybeSession = setupSession(s, m->sessionId, m->sessionSecret, m->editRoomPath);
 
 			if (maybeSession) {
-				Session &session = *maybeSession;
-				Client &client = session.clients.push();
-				client.ws = ws;
-				client.name = m->name;
-				client.playerEntity = session.allocateEntityId();
-				client.playerId = m->playerId;
-
-				{
-					sv::MessageLoad load;
-					load.state = session.state;
-					load.sessionId = session.id;
-					load.sessionSecret = session.secret;
-					writeMessage(ws, &load, serverName, client.name);
-				}
-
-				{
-					sf::Box<sv::CardType> shortsword = loadConfig<sv::CardType>("Server/Cards/Weapon/Shortsword.js");
-					sf::Box<sv::CardType> club = loadConfig<sv::CardType>("Server/Cards/Weapon/Club.js");
-
-					auto player = sf::box<sv::Character>();
-					player->name = client.name;
-					if (time(NULL) % 2 == 0) {
-						player->model = sf::Symbol("Game/Characters/goblin.js");
-					} else {
-						player->model = sf::Symbol("Game/Characters/dwarf.js");
-					}
-					player->position = findSpawnPos(session.state, sf::Vec2i(0, 0));
-					player->players.push(client.playerId);
-					player->cards.push({ shortsword });
-					player->cards.push({ club });
-
-					auto spawn = sf::box<sv::EventSpawn>();
-					spawn->data = player;
-					spawn->data->id = client.playerEntity;
-					pushEvent(session, std::move(spawn));
-				}
-
+				joinSession(*maybeSession, ws, m);
 				ws = nullptr;
 			}
 		}
@@ -501,7 +563,7 @@ void serverUpdate(ServerMain *s)
 	}
 
 	for (auto &pair : s->sessions) {
-		Session &session = pair.val;
+		Session &session = *pair.val;
 
 		if (session.pendingEvents.size) {
 
@@ -524,7 +586,13 @@ void serverUpdate(ServerMain *s)
 			while (bqws_msg *wsMsg = bqws_recv(client.ws)) {
 				auto msg = readMessage(wsMsg);
 
-				if (auto m = msg->as<sv::MessageAction>()) {
+				if (auto m = msg->as<sv::MessageJoin>()) {
+					Session *maybeSession = setupSession(s, m->sessionId, m->sessionSecret, m->editRoomPath);
+					if (maybeSession) {
+						quitSession(session, client);
+						joinSession(*maybeSession, client.ws, m);
+					}
+				} else if (auto m = msg->as<sv::MessageAction>()) {
 					sv::Action *action = m->action;
 					sv::Entity *entity = session.state->entities[action->entity];
 					sv::Character *chr = entity->as<sv::Character>();
@@ -619,11 +687,8 @@ void serverUpdate(ServerMain *s)
 			}
 
 			if (bqws_is_closed(client.ws)) {
-				auto destroy = sf::box<sv::EventDestroy>();
-				destroy->entity = client.playerEntity;
-				pushEvent(session, std::move(destroy));
+				quitSession(session, client);
 				bqws_free_socket(client.ws);
-				session.clients.removeSwap(i);
 			}
 		}
 	}

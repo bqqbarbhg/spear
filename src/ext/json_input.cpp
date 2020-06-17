@@ -1410,6 +1410,7 @@ jsi_value *jsi_parse_file(const char *filename, jsi_args *args)
 
 	if (!stream.file) {
 		if (args) {
+			p.args = args;
 			p.line_index = 0;
 			p.newline_offset = 0;
 			jsi_err_at(&p, 0, "Could not open file");

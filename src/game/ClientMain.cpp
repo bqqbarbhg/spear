@@ -68,10 +68,12 @@ struct ClientMain
 {
 	bqws_socket *ws;
 	sf::Symbol name;
+	uint32_t playerId;
 
 	sf::Box<sv::State> serverState;
 	cl::State clientState;
 	uint32_t reloadCount = 0;
+	sf::Symbol editRoomPath;
 
 	sf::Vec2i resolution;
 
@@ -115,9 +117,11 @@ struct ClientMain
 	sf::StringBuf addInput;
 	bool addFolder = false;
 	bool addObject = false;
+	bool addRoom = false;
 
 	bool windowAssets = false;
 	bool windowObjects = false;
+	bool windowRooms = false;
 	bool windowMessages = false;
 	bool windowProperties = false;
 	bool windowDebug = false;
@@ -208,6 +212,7 @@ struct LoadedObject
 
 static FileDir g_assets;
 static FileDir g_objects;
+static FileDir g_rooms;
 static sf::HashMap<sf::Symbol, LoadedObject> g_loadedObjects;
 
 const sf::String materialSuffixes[] = {
@@ -314,6 +319,17 @@ static void saveObject(const sv::GameObject &obj, const sf::Symbol &path)
 	jso_close(&s);
 }
 
+static void saveRoom(const sv::State &state, const sf::Symbol &path)
+{
+	jso_stream s = { };
+	jso_init_file(&s, path.data);
+	s.pretty = true;
+
+	sp::writeJson(s, state);
+
+	jso_close(&s);
+}
+
 static void saveModifiedObjects(ClientMain *c)
 {
 	for (auto &pair : g_loadedObjects) {
@@ -391,7 +407,6 @@ void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 		}
 	}
 
-
 	for (const FileFile &f : dir.files) {
 
 		sf::String buttonText = f.name;
@@ -420,10 +435,100 @@ void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 	}
 }
 
+void handleImguiRoomDir(ClientMain *c, FileDir &dir)
+{
+	if (!dir.expanded) {
+		dir.expanded = true;
+		sv::MessageQueryFiles msg;
+		msg.root = dir.prefix;
+		writeMessage(c->ws, &msg, c->name, serverName);
+	}
+
+	for (FileDir &d : dir.dirs) {
+		sf::SmallStringBuf<128> nameCopy;
+		nameCopy.append(d.name, "/");
+
+		if (c->addPath.size > 0 && sf::beginsWith(d.prefix, c->addPath)) {
+			ImGui::SetNextItemOpen(true);
+		}
+
+		bool open = ImGui::TreeNode(nameCopy.data);
+
+		if (ImGui::BeginPopupContextItem()) {
+			if (ImGui::MenuItem("New Room")) {
+				c->addPath = d.prefix;
+				c->addInput.clear();
+				c->addRoom = true;
+			}
+			if (ImGui::MenuItem("New Folder")) {
+				c->addPath = d.prefix;
+				c->addInput.clear();
+				c->addFolder = true;
+			}
+			ImGui::EndPopup();
+		}
+
+		if (open) {
+			if (c->addPath.size > 0 && c->addPath == d.prefix) {
+				c->addInput.reserve(256);
+				if (ImGui::InputText("##Name", c->addInput.data, c->addInput.capacity, ImGuiInputTextFlags_EnterReturnsTrue)) {
+					c->addInput.resize(strlen(c->addInput.data));
+
+					if (c->addRoom) {
+						sf::SmallStringBuf<128> fileName;
+						fileName.append(c->addInput);
+						if (!sf::endsWith(fileName, ".json")) {
+							fileName.append(".json");
+						}
+						d.files.push(FileFile(d.prefix, fileName));
+						sf::writeFile(d.files.back().path, sf::String("{}").slice());
+					} else if (c->addFolder) {
+						FileDir &newD = d.dirs.push();
+						newD.name = c->addInput;
+						newD.prefix.append(d.prefix, "/", c->addInput);
+						sf::createDirectory(newD.prefix);
+					}
+
+					c->addPath.clear();
+					c->addRoom = false;
+					c->addFolder = false;
+					c->addInput.clear();
+				}
+				ImGui::SetKeyboardFocusHere(-1);
+			}
+
+			handleImguiRoomDir(c, d);
+			ImGui::TreePop();
+		}
+	}
+
+	for (const FileFile &f : dir.files) {
+
+		sf::String buttonText = f.name;
+		sf::SmallStringBuf<128> localButtonText;
+
+		if (ImGui::Button(buttonText.data)) {
+			c->selectedObject = 0;
+			c->selectedCard = -1;
+
+			{
+				sv::MessageJoin join;
+				join.name = c->name;
+				join.sessionId = 0;
+				join.sessionSecret = 0;
+				join.playerId = c->playerId;
+				join.editRoomPath = f.path;
+				writeMessage(c->ws, &join, c->name, serverName);
+			}
+		}
+	}
+}
+
 ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uint32_t sessionSecret)
 {
 	ClientMain *c = new ClientMain();
 	c->name = name;
+	c->playerId = ++playerIdCounter;
 
 	gameShaders.load();
 
@@ -451,12 +556,13 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 		join.name = name;
 		join.sessionId = sessionId;
 		join.sessionSecret = sessionSecret;
-		join.playerId = ++playerIdCounter;
+		join.playerId = c->playerId;
 		writeMessage(c->ws, &join, c->name, serverName);
 	}
 
 	g_assets.prefix = "Assets";
 	g_objects.prefix = "Server/Objects";
+	g_rooms.prefix = "Server/Rooms";
 
 	c->tonemapPipe.init(gameShaders.postprocess, sp::PipeVertexFloat2);
 	c->fxaaPipe.init(gameShaders.fxaa, sp::PipeVertexFloat2);
@@ -578,10 +684,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 
 void clientQuit(ClientMain *client)
 {
-	saveModifiedObjects(client);
 	bqws_close(client->ws, BQWS_CLOSE_NORMAL, NULL, 0);
-
-	delete client;
 }
 
 static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
@@ -1042,6 +1145,18 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		ImGui::End();
 	}
 
+	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
+	if (c->windowRooms && ImGui::Begin("Rooms", &c->windowRooms)) {
+		if (ImGui::Button("Save room")) {
+			if (c->editRoomPath) {
+				saveRoom(*c->serverState, c->editRoomPath);
+			}
+		}
+
+		handleImguiRoomDir(c, g_rooms);
+		ImGui::End();
+	}
+
 	#if SF_DEBUG
 	if (c->windowMessages && ImGui::Begin("Messages", &c->windowMessages)) {
 		uint32_t index = 0;
@@ -1101,6 +1216,8 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				sp_emUpdateUrl((int)m->sessionId, (int)m->sessionSecret);
 			#endif
 
+			c->editRoomPath = m->editRoomPath;
+
 		} else if (auto m = msg->as<sv::MessageUpdate>()) {
 			for (auto &event : m->events) {
 				c->serverState->applyEvent(event);
@@ -1122,6 +1239,8 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 			if (sf::beginsWith(m->root, g_objects.prefix)) {
 				setupFileDir(g_objects, m->root, m->dir);
+			} else if (sf::beginsWith(m->root, g_rooms.prefix)) {
+				setupFileDir(g_rooms, m->root, m->dir);
 			} else if (sf::beginsWith(m->root, g_assets.prefix)) {
 				setupFileDir(g_assets, m->root, m->dir);
 			}
@@ -1309,6 +1428,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 			if (ImGui::BeginMenu("Window")) {
 				if (ImGui::MenuItem("Assets")) c->windowAssets = true;
 				if (ImGui::MenuItem("Objects")) c->windowObjects = true;
+				if (ImGui::MenuItem("Rooms")) c->windowRooms = true;
 				if (ImGui::MenuItem("Properties")) c->windowProperties = true;
 				if (ImGui::MenuItem("Messages")) c->windowMessages = true;
 				if (ImGui::MenuItem("Debug")) c->windowDebug = true;
@@ -1488,6 +1608,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 void clientFree(ClientMain *client)
 {
+	saveModifiedObjects(client);
 	bqws_free_socket(client->ws);
 	delete client;
 }

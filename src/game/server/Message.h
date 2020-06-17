@@ -62,6 +62,7 @@ struct MessageJoin : MessageBase<Message::Join>
 	uint32_t sessionId, sessionSecret;
 	uint32_t playerId;
 	sf::Symbol name;
+	sf::Symbol editRoomPath;
 };
 
 struct MessageAction : MessageBase<Message::Action>
@@ -98,6 +99,7 @@ struct MessageLoad : MessageBase<Message::Load>
 	sf::Box<sv::State> state;
 	uint32_t sessionId;
 	uint32_t sessionSecret;
+	sf::Symbol editRoomPath;
 };
 
 struct MessageQueryFiles : MessageBase<Message::QueryFiles>

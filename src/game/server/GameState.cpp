@@ -372,7 +372,7 @@ template<> void initType<sv::Object>(Type *t)
 		sf_field(sv::Object, offset),
 		sf_field(sv::Object, rotation),
 	};
-	sf_struct(t, sv::Object, fields);
+	sf_struct(t, sv::Object, fields, sf::Type::CompactString);
 }
 
 template<> void initType<sv::Map>(Type *t)

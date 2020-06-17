@@ -18,6 +18,7 @@ struct Command
 		RemoveObject,
 		UpdateObjectType,
 		LoadObjectType,
+		LoadRoom,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,

@@ -133,7 +133,7 @@ void spInit()
 void spCleanup()
 {
 	for (MainClient &mc : clients) {
-		clientQuit(mc.client);
+		clientFree(mc.client);
 	}
 
 	simgui_shutdown();
