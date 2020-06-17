@@ -413,11 +413,6 @@ static Session *setupSession(ServerMain *s, uint32_t id, uint32_t secret, const 
 			session.editRoomPath = roomPath;
 
 			session.state = loadRoom(roomPath);
-			uint32_t maxId = 0;
-			for (auto &pair : session.state->objects) {
-				maxId = sf::max(maxId, pair.key);
-			}
-			session.objectIdCounter = maxId;
 
 			if (session.state->objectTypes.size == 0) {
 				session.state->objectTypes.push();
@@ -427,6 +422,22 @@ static Session *setupSession(ServerMain *s, uint32_t id, uint32_t secret, const 
 			if (map.tileTypes.size == 0) {
 				map.tileTypes.push();
 			}
+
+			// TODO: Make this generic
+
+			uint32_t maxObjectId = 0;
+			for (auto &pair : session.state->objects) {
+				maxObjectId = sf::max(maxObjectId, pair.key);
+			}
+			uint32_t entityId = 0;
+			for (sf::Box<sv::Entity> &entityBox : session.state->entities) {
+				if (!entityBox) {
+					session.freeEntityIds.push(entityId);
+				}
+				entityId++;
+			}
+			session.objectIdCounter = maxObjectId;
+			session.entityIdCounter = session.state->entities.size;
 
 		} else {
 
