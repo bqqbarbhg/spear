@@ -310,6 +310,10 @@ static void loadObject(ClientMain *c, const sf::Symbol &path)
 
 static void saveObject(const sv::GameObject &obj, const sf::Symbol &path)
 {
+	#if SF_OS_WASM
+		return;
+	#endif
+
 	jso_stream s = { };
 	jso_init_file(&s, path.data);
 	s.pretty = true;
@@ -321,6 +325,10 @@ static void saveObject(const sv::GameObject &obj, const sf::Symbol &path)
 
 static void saveRoom(const sv::State &state, const sf::Symbol &path)
 {
+	#if SF_OS_WASM
+		return;
+	#endif
+
 	jso_stream s = { };
 	jso_init_file(&s, path.data);
 	s.pretty = true;
