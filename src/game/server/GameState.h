@@ -10,31 +10,9 @@
 
 namespace sv {
 
-typedef uint16_t TileId;
 typedef uint32_t EntityId;
 struct Event;
 struct Action;
-
-struct TileType
-{
-	sf::Symbol floorName;
-	sf::Symbol tileName;
-	bool floor = false;
-	bool wall = false;
-
-	bool operator==(const TileType &rhs) const;
-	bool operator!=(const TileType &rhs) const { return !(*this == rhs); }
-};
-
-uint32_t hash(const TileType &t);
-
-struct MapChunk
-{
-	static constexpr const uint32_t SizeLog2 = 4;
-	static constexpr const uint32_t Size = 1u << SizeLog2;
-	TileId tiles[Size * Size] = { };
-	uint32_t numNonZeroTiles = 0;
-};
 
 struct CardType
 {
@@ -98,19 +76,6 @@ struct Character : EntityBase<Entity::Character>
 	}
 };
 
-struct Map
-{
-	sf::Array<TileType> tileTypes;
-	sf::HashMap<sf::Vec2i, MapChunk> chunks;
-
-	static sf::Vec2i getChunk(const sf::Vec2i &pos);
-
-	sf::Vec2i setTile(const sf::Vec2i &pos, TileId tileId);
-	TileId getTile(const sf::Vec2i &pos) const;
-
-	bool canStandOn(const sf::Vec2i &pos) const;
-};
-
 struct EntityTileMap
 {
 	rhmap map;
@@ -141,7 +106,6 @@ struct Object
 
 struct State
 {
-	Map map;
 	sf::Array<sf::Box<Entity>> entities;
 	sf::Array<sv::GameObject> objectTypes;
 	sf::HashMap<uint32_t, Object> objects;

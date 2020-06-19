@@ -45,7 +45,6 @@ struct Session
 	sf::Array<sf::Box<sv::Event>> pendingEvents;
 
 	sf::Array<sv::EntityId> freeEntityIds;
-	sf::HashMap<sv::TileType, uint32_t> tileTypes;
 	sf::HashMap<sf::Symbol, uint32_t> objectTypes;
 	uint32_t entityIdCounter = 0;
 	uint32_t objectIdCounter = 0;
@@ -214,23 +213,6 @@ static void pushEvent(Session &se, sf::Box<sv::Event> event)
 	se.pendingEvents.push(std::move(event));
 }
 
-static sv::TileId resolveTileId(Session &se, const sv::TileType &type)
-{
-	sv::State *state = se.state;
-	auto res = se.tileTypes.insert(type);
-	if (res.inserted) {
-		uint32_t index = state->map.tileTypes.size;
-		state->map.tileTypes.push(type);
-		res.entry.val = index;
-
-		sf::Box<sv::EventUpdateTileType> ev = sf::box<sv::EventUpdateTileType>();
-		ev->tileType = type;
-		ev->index = index;
-		pushEvent(se, std::move(ev));
-	}
-	return res.entry.val;
-}
-
 static uint32_t resolveObjectTypeId(Session &se, const sf::Symbol &path)
 {
 	sv::State *state = se.state;
@@ -259,58 +241,7 @@ static uint32_t resolveObjectTypeId(Session &se, const sf::Symbol &path)
 static void applyCommand(Session &se, sf::Box<sv::Command> command, sf::Array<sf::Box<sv::Command>> &undoList)
 {
 	sv::State *state = se.state;
-	if (sv::CommandSetTiles *cmd = command->as<sv::CommandSetTiles>()) {
-		sv::TileId id = resolveTileId(se, cmd->tileType);
-
-		sf::Box<sv::CommandSetTilesRaw> undoCmd = sf::box<sv::CommandSetTilesRaw>();
-
-		for (const sf::Vec2i &tile : cmd->tiles) {
-			sv::RawTileInfo &info = undoCmd->tiles.push();
-			info.position = tile;
-			info.tileId = state->map.getTile(tile);
-		}
-
-		undoList.push(undoCmd);
-
-		sf::HashSet<sf::Vec2i> updatedChunks;
-		for (const sf::Vec2i &tile : cmd->tiles) {
-			sf::Vec2i chunk = state->map.setTile(tile, id);
-			updatedChunks.insert(chunk);
-		}
-
-		for (const sf::Vec2i &chunk : updatedChunks) {
-			sf::Box<sv::EventUpdateChunk> ev = sf::box<sv::EventUpdateChunk>();
-			ev->position = chunk;
-			ev->chunk = state->map.chunks[chunk];
-			pushEvent(se, std::move(ev));
-		}
-
-	} else if (sv::CommandSetTilesRaw *cmd = command->as<sv::CommandSetTilesRaw>()) {
-
-		sf::Box<sv::CommandSetTilesRaw> undoCmd = sf::box<sv::CommandSetTilesRaw>();
-
-		for (const sv::RawTileInfo &tile : cmd->tiles) {
-			sv::RawTileInfo &info = undoCmd->tiles.push();
-			info.position = tile.position;
-			info.tileId = state->map.getTile(tile.position);
-		}
-
-		undoList.push(undoCmd);
-
-		sf::HashSet<sf::Vec2i> updatedChunks;
-		for (const sv::RawTileInfo &tile : cmd->tiles) {
-			sf::Vec2i chunk = state->map.setTile(tile.position, tile.tileId);
-			updatedChunks.insert(chunk);
-		}
-
-		for (const sf::Vec2i &chunk : updatedChunks) {
-			sf::Box<sv::EventUpdateChunk> ev = sf::box<sv::EventUpdateChunk>();
-			ev->position = chunk;
-			ev->chunk = state->map.chunks[chunk];
-			pushEvent(se, std::move(ev));
-		}
-
-	} else if (sv::CommandAddObject *cmd = command->as<sv::CommandAddObject>()) {
+	if (sv::CommandAddObject *cmd = command->as<sv::CommandAddObject>()) {
 
 		uint32_t id = ++se.objectIdCounter;
 		uint32_t typeId = resolveObjectTypeId(se, cmd->typePath);
@@ -418,11 +349,6 @@ static Session *setupSession(ServerMain *s, uint32_t id, uint32_t secret, const 
 				session.state->objectTypes.push();
 			}
 
-			sv::Map &map = session.state->map;
-			if (map.tileTypes.size == 0) {
-				map.tileTypes.push();
-			}
-
 			// TODO: Make this generic
 
 			uint32_t maxObjectId = 0;
@@ -443,35 +369,6 @@ static Session *setupSession(ServerMain *s, uint32_t id, uint32_t secret, const 
 
 			// Reserve NULL object type
 			session.state->objectTypes.push();
-			sv::Map &map = session.state->map;
-			map.tileTypes.push();
-
-			{
-				sv::TileType &tile = map.tileTypes.push();
-				tile.floorName = sf::Symbol("Game/Tiles/Tile_Test.js");
-				tile.floor = true;
-			}
-
-			{
-				sv::TileType &tile = map.tileTypes.push();
-				tile.floorName = sf::Symbol("Game/Tiles/floor.js");
-				tile.tileName = sf::Symbol("Game/Tiles/wall.js");
-				tile.wall = true;
-			}
-
-			for (int32_t y = -10; y <= 10; y++)
-			for (int32_t x = -10; x <= 10; x++)
-			{
-				sf::Vec2i v = { x, y };
-				map.setTile(v, (rand() % 15 == 0) ? 2 : 1);
-			}
-
-			for (int32_t i = -10; i <= 10; i++) {
-				map.setTile(sf::Vec2i(i, -10), 2);
-				map.setTile(sf::Vec2i(i, +10), 2);
-				map.setTile(sf::Vec2i(-10, i), 2);
-				map.setTile(sf::Vec2i(+10, i), 2);
-			}
 
 		}
 

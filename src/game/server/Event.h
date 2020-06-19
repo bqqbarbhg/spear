@@ -16,8 +16,6 @@ struct Event
 		Move,
 		Spawn,
 		Destroy,
-		UpdateChunk,
-		UpdateTileType,
 		UpdateObject,
 		UpdateObjectType,
 		RemoveObject,
@@ -70,18 +68,6 @@ struct EventSpawn : EventBase<Event::Spawn>
 struct EventDestroy : EventBase<Event::Destroy>
 {
 	EntityId entity;
-};
-
-struct EventUpdateChunk : EventBase<Event::UpdateChunk>
-{
-	sf::Vec2i position;
-	MapChunk chunk;
-};
-
-struct EventUpdateTileType : EventBase<Event::UpdateTileType>
-{
-	uint32_t index;
-	TileType tileType;
 };
 
 struct EventUpdateObject : EventBase<Event::UpdateObject>

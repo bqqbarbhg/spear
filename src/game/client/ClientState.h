@@ -12,14 +12,22 @@
 
 namespace cl {
 
-struct TileType
-{
-	TileInfoRef floor;
-	TileInfoRef tile;
-};
-
 struct MapChunk
 {
+	static constexpr const uint32_t SizeLog2 = 4;
+	static constexpr const uint32_t Size = 1u << SizeLog2;
+
+	static sf_forceinline void getChunkAndTile(sf::Vec2i &chunkI, sf::Vec2i &tileI, const sf::Vec2i &pos)
+	{
+		chunkI = { pos.x >> (int32_t)MapChunk::SizeLog2, pos.y >> (int32_t)MapChunk::SizeLog2 };
+		tileI = { pos.x & ((int32_t)MapChunk::Size - 1), pos.y & ((int32_t)MapChunk::Size - 1) };
+	}
+
+	static sf_forceinline sf::Vec2i getChunk(const sf::Vec2i &pos)
+	{
+		return { pos.x >> (int32_t)MapChunk::SizeLog2, pos.y >> (int32_t)MapChunk::SizeLog2 };
+	}
+
 	sf::HashSet<uint32_t> meshObjects;
 	sf::Array<MapMesh> meshes;
 	MapChunkGeometry geometry;
@@ -125,7 +133,6 @@ struct Object
 
 struct State
 {
-	sf::Array<TileType> tileTypes;
 	sf::Array<sf::Box<Entity>> entities;
 	sf::HashMap<sf::Vec2i, MapChunk> chunks;
 	sf::Array<sf::Vec2i> dirtyChunks;

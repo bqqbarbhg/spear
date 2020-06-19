@@ -110,14 +110,14 @@ static bool generateMapMesh(sf::Array<cl::MapMesh> &meshes, sf::Random &tileRng,
 	return true;
 }
 
-static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, sv::Map &svMap, MapChunk &chunk, const sf::Vec2i &chunkPos)
+static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, MapChunk &chunk, const sf::Vec2i &chunkPos)
 {
 	meshes.clear();
 
 	uint32_t hash = sf::hash(chunkPos);
 	sf::Random chunkRng { hash };
 
-	sf::Vec2i origin = chunkPos * (int32_t)sv::MapChunk::Size;
+	sf::Vec2i origin = chunkPos * (int32_t)MapChunk::Size;
 
 	for (uint32_t id : chunk.meshObjects) {
 		Object &object = state.objects[id];
@@ -132,12 +132,6 @@ static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, 
 	}
 
 	return true;
-}
-
-static void setTileType(TileType &type, sv::TileType svType)
-{
-	if (svType.floorName) type.floor.load(svType.floorName);
-	if (svType.tileName) type.tile.load(svType.tileName);
 }
 
 sf::Sphere State::getObjectTypeBounds(ObjectType &type)
@@ -262,11 +256,11 @@ static void updateObjectImp(State &state, uint32_t id, const ObjectType &prevTyp
 	bool removed = (next.type == 0);
 	ObjectType &nextType = state.objectTypes[next.type];
 	sf::Vec2i tile = sf::Vec2i(next.x, next.y);
-	sf::Vec2i chunkI = sv::Map::getChunk(tile);
+	sf::Vec2i chunkI = MapChunk::getChunk(tile);
 
 	if (!added) {
 		sf::Vec2i oldTile = sf::Vec2i(prev.svObject.x, prev.svObject.y);
-		sf::Vec2i oldChunkI = sv::Map::getChunk(oldTile);
+		sf::Vec2i oldChunkI = MapChunk::getChunk(oldTile);
 		if (prevType.mapMeshes.size > 0 && (chunkI != oldChunkI || removed)) {
 			MapChunk &chunk = state.chunks[oldChunkI];
 			chunk.meshesDirty = true;
@@ -348,26 +342,8 @@ void State::reset(sv::State *svState)
 		}
 	}
 
-	tileTypes.clear();
-	tileTypes.reserve(svState->map.tileTypes.size);
-
-	{
-		for (sv::TileType &tileType : svState->map.tileTypes) {
-			cl::TileType &dst = tileTypes.push();
-			setTileType(dst, tileType);
-		}
-	}
-
 	chunks.clear();
 	dirtyChunks.clear();
-	chunks.reserve(svState->map.chunks.size());
-	dirtyChunks.reserve(svState->map.chunks.size());
-
-	for (auto &pair : svState->map.chunks) {
-		chunks[pair.key].dirty = true;
-		chunks[pair.key].meshesDirty = true;
-		dirtyChunks.push(pair.key);
-	}
 
 	objectTypes.clear();
 	objectTypes.resize(svState->objectTypes.size);
@@ -434,18 +410,6 @@ void State::applyEvent(sv::Event *event)
 
 		entities[e->entity].reset();
 
-	} else if (auto e = event->as<sv::EventUpdateTileType>()) {
-
-		while (tileTypes.size <= e->index) tileTypes.push();
-		setTileType(tileTypes[e->index], e->tileType);
-
-	} else if (auto e = event->as<sv::EventUpdateChunk>()) {
-		MapChunk &chunk = chunks[e->position];
-		chunk.meshesDirty = true;
-		if (!chunk.dirty) {
-			chunk.dirty = true;
-			dirtyChunks.push(e->position);
-		}
 	} else if (auto e = event->as<sv::EventUpdateObjectType>()) {
 		while (objectTypes.size <= e->index) objectTypes.push();
 		ObjectType &type = objectTypes[e->index];
@@ -525,7 +489,7 @@ void State::updateMapChunks(sv::State &svState)
 		sf_assert(chunk.dirty);
 
 		if (chunk.meshesDirty) {
-			if (!generateMapMeshes(chunk.meshes, *this, svState.map, chunk, chunkPos)) {
+			if (!generateMapMeshes(chunk.meshes, *this, chunk, chunkPos)) {
 				continue;
 			}
 			chunk.meshesDirty = false;

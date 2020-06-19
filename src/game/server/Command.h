@@ -9,8 +9,6 @@ struct Command
 	enum Type
 	{
 		Error,
-		SetTiles,
-		SetTilesRaw,
 		Undo,
 		Redo,
 		AddObject,
@@ -38,23 +36,6 @@ struct CommandBase : Command
 {
 	static constexpr Type CommandType = SelfType;
 	CommandBase() : Command(SelfType) { }
-};
-
-struct CommandSetTiles : CommandBase<Command::SetTiles>
-{
-	TileType tileType;
-	sf::Array<sf::Vec2i> tiles;
-};
-
-struct RawTileInfo
-{
-	sf::Vec2i position;
-	uint32_t tileId;
-};
-
-struct CommandSetTilesRaw : CommandBase<Command::SetTilesRaw>
-{
-	sf::Array<RawTileInfo> tiles;
 };
 
 struct CommandUndo : CommandBase<Command::Undo>

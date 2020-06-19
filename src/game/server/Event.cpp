@@ -10,8 +10,6 @@ template<> void initType<sv::Event>(Type *t)
 		sf_poly(sv::Event, Move, sv::EventMove),
 		sf_poly(sv::Event, Spawn, sv::EventSpawn),
 		sf_poly(sv::Event, Destroy, sv::EventDestroy),
-		sf_poly(sv::Event, UpdateChunk, sv::EventUpdateChunk),
-		sf_poly(sv::Event, UpdateTileType, sv::EventUpdateTileType),
 		sf_poly(sv::Event, UpdateObject, sv::EventUpdateObject),
 		sf_poly(sv::Event, UpdateObjectType, sv::EventUpdateObjectType),
 		sf_poly(sv::Event, RemoveObject, sv::EventRemoveObject),
@@ -62,24 +60,6 @@ template<> void initType<sv::EventDestroy>(Type *t)
 		sf_field(sv::EventDestroy, entity),
 	};
 	sf_struct_base(t, sv::EventDestroy, sv::Event, fields);
-}
-
-template<> void initType<sv::EventUpdateChunk>(Type *t)
-{
-	static Field fields[] = {
-		sf_field(sv::EventUpdateChunk, position),
-		sf_field(sv::EventUpdateChunk, chunk),
-	};
-	sf_struct_base(t, sv::EventUpdateChunk, sv::Event, fields);
-}
-
-template<> void initType<sv::EventUpdateTileType>(Type *t)
-{
-	static Field fields[] = {
-		sf_field(sv::EventUpdateTileType, index),
-		sf_field(sv::EventUpdateTileType, tileType),
-	};
-	sf_struct_base(t, sv::EventUpdateTileType, sv::Event, fields);
 }
 
 template<> void initType<sv::EventUpdateObject>(Type *t)

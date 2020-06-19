@@ -3,20 +3,9 @@
 
 namespace sf {
 
-template<> void initType<sv::RawTileInfo>(Type *t)
-{
-	static Field fields[] = {
-		sf_field(sv::RawTileInfo, position),
-		sf_field(sv::RawTileInfo, tileId),
-	};
-	sf_struct(t, sv::RawTileInfo, fields);
-}
-
 template<> void initType<sv::Command>(Type *t)
 {
 	static PolymorphType polys[] = {
-		sf_poly(sv::Command, SetTiles, sv::CommandSetTiles),
-		sf_poly(sv::Command, SetTilesRaw, sv::CommandSetTilesRaw),
 		sf_poly(sv::Command, Undo, sv::CommandUndo),
 		sf_poly(sv::Command, Redo, sv::CommandRedo),
 		sf_poly(sv::Command, AddObject, sv::CommandAddObject),
@@ -26,23 +15,6 @@ template<> void initType<sv::Command>(Type *t)
 		sf_poly(sv::Command, LoadObjectType, sv::CommandLoadObjectType),
 	};
 	sf_struct_poly(t, sv::Command, type, { }, polys);
-}
-
-template<> void initType<sv::CommandSetTiles>(Type *t)
-{
-	static Field fields[] = {
-		sf_field(sv::CommandSetTiles, tileType),
-		sf_field(sv::CommandSetTiles, tiles),
-	};
-	sf_struct_base(t, sv::CommandSetTiles, sv::Command, fields);
-}
-
-template<> void initType<sv::CommandSetTilesRaw>(Type *t)
-{
-	static Field fields[] = {
-		sf_field(sv::CommandSetTilesRaw, tiles),
-	};
-	sf_struct_base(t, sv::CommandSetTilesRaw, sv::Command, fields);
 }
 
 template<> void initType<sv::CommandUndo>(Type *t)
@@ -97,5 +69,4 @@ template<> void initType<sv::CommandLoadObjectType>(Type *t)
 	};
 	sf_struct_base(t, sv::CommandLoadObjectType, sv::Command, fields);
 }
-
 }

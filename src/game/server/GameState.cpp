@@ -8,25 +8,6 @@
 
 namespace sv {
 
-bool TileType::operator==(const TileType &rhs) const
-{
-	if (floorName != rhs.floorName) return false;
-	if (tileName != rhs.tileName) return false;
-	if (floor != rhs.floor) return false;
-	if (wall != rhs.wall) return false;
-	return true;
-}
-
-uint32_t hash(const TileType &t)
-{
-	uint32_t h = 0;
-	h = sf::hashCombine(h, sf::hash(t.floorName));
-	h = sf::hashCombine(h, sf::hash(t.tileName));
-	h = sf::hashCombine(h, sf::hash(t.floor));
-	h = sf::hashCombine(h, sf::hash(t.wall));
-	return h;
-}
-
 struct CardTypeCache
 {
 	sf::HashMap<sf::Symbol, sf::Box<CardType>> map;
@@ -41,48 +22,6 @@ void Card::refresh()
 	sf::MutexGuard mg(g_cardTypeCache.mutex);
 	auto res = g_cardTypeCache.map.insert(type->name, std::move(type));
 	type = res.entry.val;
-}
-
-sf_inline void resolveChunk(sf::Vec2i &chunkI, sf::Vec2i &tileI, const sf::Vec2i &pos)
-{
-	chunkI = { pos.x >> (int32_t)MapChunk::SizeLog2, pos.y >> (int32_t)MapChunk::SizeLog2 };
-	tileI = { pos.x & ((int32_t)MapChunk::Size - 1), pos.y & ((int32_t)MapChunk::Size - 1) };
-}
-
-sf::Vec2i Map::getChunk(const sf::Vec2i &pos)
-{
-	return { pos.x >> (int32_t)MapChunk::SizeLog2, pos.y >> (int32_t)MapChunk::SizeLog2 };
-}
-
-sf::Vec2i Map::setTile(const sf::Vec2i &pos, TileId tileId)
-{
-	sf::Vec2i chunkI, tileI;
-	resolveChunk(chunkI, tileI, pos);
-	auto result = chunks.insert(chunkI);
-	MapChunk &chunk = result.entry.val;
-	TileId &dst = chunk.tiles[tileI.y * MapChunk::Size + tileI.x];
-	if (dst == 0 && tileId != 0) chunk.numNonZeroTiles++;
-	if (dst != 0 && tileId == 0) chunk.numNonZeroTiles--;
-	dst = tileId;
-	if (chunk.numNonZeroTiles == 0) {
-		chunks.removeAt(&result.entry);
-	}
-	return chunkI;
-}
-
-bool Map::canStandOn(const sf::Vec2i &pos) const
-{
-	const TileType &type = tileTypes[getTile(pos)];
-	return type.floor && !type.wall;
-}
-
-TileId Map::getTile(const sf::Vec2i &pos) const
-{
-	sf::Vec2i chunkI, tileI;
-	resolveChunk(chunkI, tileI, pos);
-	auto it = chunks.find(chunkI);
-	if (!it) return 0;
-	return it->val.tiles[tileI.y * MapChunk::Size + tileI.x];
 }
 
 void EntityTileMap::impGrow(size_t minSize)
@@ -227,7 +166,6 @@ void State::getEntitiesOnTile(sf::Array<Entity*> &dst, const sf::Vec2i &pos) con
 
 bool State::canStandOn(const sf::Vec2i &pos) const
 {
-	if (!map.canStandOn(pos)) return false;
 	sf::SmallArray<Entity*, 16> entitiesOnTile;
 	getEntitiesOnTile(entitiesOnTile, pos);
 	for (Entity *entity : entitiesOnTile) {
@@ -245,11 +183,6 @@ void State::applyEvent(Event *event)
 		initEntity(e->data->id, e->data);
 	} else if (auto e = event->as<EventDestroy>()) {
 		destroyEntity(e->entity);
-	} else if (auto e = event->as<EventUpdateTileType>()) {
-		while (map.tileTypes.size <= e->index) map.tileTypes.push();
-		map.tileTypes[e->index] = e->tileType;
-	} else if (auto e = event->as<EventUpdateChunk>()) {
-		map.chunks[e->position] = e->chunk;
 	} else if (auto e = event->as<sv::EventUpdateObjectType>()) {
 		while (objectTypes.size <= e->index) objectTypes.push();
 		objectTypes[e->index] = e->object;
@@ -287,17 +220,6 @@ bool State::applyAction(Action *action, sf::Array<sf::Box<Event>> &events, sf::S
 
 namespace sf {
 
-template<> void initType<sv::TileType>(Type *t)
-{
-	static Field fields[] = {
-		sf_field(sv::TileType, floorName),
-		sf_field(sv::TileType, tileName),
-		sf_field(sv::TileType, floor),
-		sf_field(sv::TileType, wall),
-	};
-	sf_struct(t, sv::TileType, fields);
-}
-
 template<> void initType<sv::CardType>(Type *t)
 {
 	static Field fields[] = {
@@ -319,15 +241,6 @@ template<> void initType<sv::Card>(Type *t)
 	t->postSerializeFn = [](void *inst, sf::Type *) {
 		((sv::Card*)inst)->refresh();
 	};
-}
-
-template<> void initType<sv::MapChunk>(Type *t)
-{
-	static Field fields[] = {
-		sf_field_flags(sv::MapChunk, tiles, Field::CompactString),
-		sf_field(sv::MapChunk, numNonZeroTiles),
-	};
-	sf_struct(t, sv::MapChunk, fields, Type::IsPod);
 }
 
 template<> void initType<sv::Entity::Type>(Type *t)
@@ -375,19 +288,9 @@ template<> void initType<sv::Object>(Type *t)
 	sf_struct(t, sv::Object, fields, sf::Type::CompactString);
 }
 
-template<> void initType<sv::Map>(Type *t)
-{
-	static Field fields[] = {
-		sf_field(sv::Map, tileTypes),
-		sf_field(sv::Map, chunks),
-	};
-	sf_struct(t, sv::Map, fields);
-}
-
 template<> void initType<sv::State>(Type *t)
 {
 	static Field fields[] = {
-		sf_field(sv::State, map),
 		sf_field(sv::State, entities),
 		sf_field(sv::State, objectTypes),
 		sf_field(sv::State, objects),
