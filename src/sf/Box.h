@@ -7,16 +7,25 @@ namespace sf {
 void *boxAlloc(size_t size);
 void boxFree(void *ptr, size_t size);
 
-struct RcHeader
+struct WeakBoxData;
+
+struct BoxHeader
 {
 	uint32_t refCount;
 	uint32_t size;
 	DestructRangeFn dtor;
+	WeakBoxData *weakData;
+	uint64_t id;
 };
 
 void *impBoxAllocate(size_t size, DestructRangeFn dtor);
 void impBoxIncRef(void *ptr);
 void impBoxDecRef(void *ptr);
+uint64_t impBoxGetId(void *ptr);
+WeakBoxData *impWeakBoxMake(void *ptr);
+uint64_t impWeakBoxGetId(WeakBoxData *data);
+bool impWeakBoxValid(WeakBoxData *data);
+void *impWeakBoxRetain(WeakBoxData *data);
 
 template <typename T>
 struct Box
@@ -82,7 +91,9 @@ struct Box
 
 	operator T*() const { return ptr; }
 	T *operator->() const { return ptr; }
-	T &operator*() const { return *ptr; }
+	std::add_lvalue_reference<T> operator*() const { return *ptr; }
+
+	uint64_t getId() const { return impBoxGetId(ptr); }
 };
 
 template <typename T, typename... Args>
@@ -93,6 +104,30 @@ Box<T> box(Args&&... args)
 	new (box.ptr) T(std::forward<Args>(args)...);
 	return box;
 }
+
+template <typename T>
+struct WeakBox
+{
+	sf::Box<WeakBoxData> data;
+
+	WeakBox() { }
+	WeakBox(const Box<T> &box)
+	{
+		data.ptr = impWeakBoxMake(box.ptr);
+	}
+
+	uint64_t getId() const { return impWeakBoxGetid(data.ptr); }
+	bool isValid() const { return impWeakBoxValid(data.ptr); }
+
+	Box<T> retain() const {
+		Box<T> box;
+		box.ptr = (T*)impWeakBoxRetain(data.ptr);
+		return box;
+	}
+
+	bool operator!() const { return data.ptr == nullptr; }
+	explicit operator bool() const { return data.ptr != nullptr; }
+};
 
 void initBoxType(Type *t, const TypeInfo &info, Type *elemType);
 

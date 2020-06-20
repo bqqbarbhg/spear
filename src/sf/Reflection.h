@@ -58,6 +58,7 @@ struct Type {
 		Polymorph = 0x200,
 		Initialized = 0x400,
 		HasPointer = 0x800,
+		IsBox = 0x1000,
 	};
 
 	Type *next = nullptr;
