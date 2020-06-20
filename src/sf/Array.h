@@ -9,6 +9,9 @@ struct ArrayBase
 	void *data;
 	uint32_t size;
 	uint32_t capacity;
+	#if !SF_POINTER_64BIT
+		uint32_t _impPadding;
+	#endif
 };
 
 template <typename T>
@@ -17,6 +20,9 @@ struct Array
 	T *data;
 	uint32_t size;
 	uint32_t capacity;
+	#if !SF_POINTER_64BIT
+		uint32_t _impPadding;
+	#endif
 
 	Array() : data(nullptr), size(0), capacity(0) { }
 
@@ -365,10 +371,16 @@ static bool findRemoveSwap(Array<T> &arr, const U &t)
 }
 
 void initArrayType(Type *t, const TypeInfo &info, Type *elemType);
+void initSmallArrayType(Type *t, const TypeInfo &info, Type *elemType, uint32_t n);
 
 template <typename T>
 struct InitType<Array<T>> {
 	static void init(Type *t) { return initArrayType(t, getTypeInfo<Array<T>>(), typeOfRecursive<T>()); }
+};
+
+template <typename T, uint32_t N>
+struct InitType<SmallArray<T, N>> {
+	static void init(Type *t) { return initSmallArrayType(t, getTypeInfo<SmallArray<T, N>>(), typeOfRecursive<T>(), N); }
 };
 
 }

@@ -197,6 +197,12 @@
 	#define SF_WASM_USE_SIMD 0
 #endif
 
+#if SF_ARCH_X64 || SF_ARCH_ARM64
+	#define SF_POINTER_64BIT 1
+#else
+	#define SF_POINTER_64BIT 0
+#endif
+
 // -- Debugging
 
 #if SF_CC_MSC
