@@ -11,11 +11,11 @@ struct Command
 		Error,
 		Undo,
 		Redo,
-		AddObject,
+		AddInstance,
+		UpdateInstance,
+		RemoveInstance,
 		UpdateObject,
-		RemoveObject,
-		UpdateObjectType,
-		LoadObjectType,
+		LoadObject,
 		LoadRoom,
 
 		Type_Count,
@@ -46,30 +46,30 @@ struct CommandRedo : CommandBase<Command::Redo>
 {
 };
 
-struct CommandAddObject : CommandBase<Command::AddObject>
+struct CommandAddInstance : CommandBase<Command::AddInstance>
 {
 	sf::Symbol typePath;
-	sv::Object object;
+	sv::InstancedObject instance;
+};
+
+struct CommandUpdateInstance : CommandBase<Command::UpdateInstance>
+{
+	InstanceId id;
+	sv::InstancedObject instance;
+};
+
+struct CommandRemoveInstance : CommandBase<Command::RemoveInstance>
+{
+	InstanceId id;
 };
 
 struct CommandUpdateObject : CommandBase<Command::UpdateObject>
 {
-	uint32_t id;
-	sv::Object object;
-};
-
-struct CommandRemoveObject : CommandBase<Command::RemoveObject>
-{
-	uint32_t id;
-};
-
-struct CommandUpdateObjectType : CommandBase<Command::UpdateObjectType>
-{
 	sf::Symbol typePath;
-	sv::GameObject objectType;
+	sv::GameObject object;
 };
 
-struct CommandLoadObjectType : CommandBase<Command::LoadObjectType>
+struct CommandLoadObject : CommandBase<Command::LoadObject>
 {
 	sf::Symbol typePath;
 };

@@ -9,48 +9,16 @@ namespace cl {
 
 static const sf::Symbol g_defaultTileMaterial { "Assets/Tiles/Default_Material/TileDefault" };
 
-static Card convertCard(const sv::Card &svCard)
+static void convertObject(Object &obj, const sv::GameObject &svObj)
 {
-	Card card;
+	obj.sv = svObj;
+	obj.mapMeshes.clear();
+	obj.pointLights.clear();
 
-	card.svCard = svCard;
-	card.imageSprite.load(svCard.type->image);
-
-	return card;
-}
-
-static sf::Box<Entity> convertEntity(const sf::Box<sv::Entity> &svEntity)
-{
-	sf::Box<Entity> data;
-	if (auto ent = svEntity->as<sv::Character>()) {
-		auto chr = sf::box<Character>(svEntity);
-		data = chr;
-
-		chr->model.load(ent->model);
-		chr->cards.reserve(ent->cards.size);
-		for (sv::Card &svCard : ent->cards) {
-			chr->cards.push(convertCard(svCard));
-		}
-
-	} else {
-		sf_failf("Unhandled entity type: %u", svEntity->type);
-	}
-
-	data->position = sf::Vec2(svEntity->position);
-
-	return data;
-}
-
-static void convertObjectType(ObjectType &type, const sv::GameObject &svType)
-{
-	type.svType = svType;
-	type.mapMeshes.clear();
-	type.pointLights.clear();
-
-	for (sv::Component *component : svType.components) {
+	for (sv::Component *component : svObj.components) {
 		if (sv::ModelComponent *c = component->as<sv::ModelComponent>()) {
 
-			MapMesh &mesh = type.mapMeshes.push();
+			MapMesh &mesh = obj.mapMeshes.push();
 			mesh.material.load(c->material);
 
 			sp::ModelProps props;
@@ -77,7 +45,7 @@ static void convertObjectType(ObjectType &type, const sv::GameObject &svType)
 				}
 			}
 		} else if (sv::PointLightComponent *c = component->as<sv::PointLightComponent>()) {
-			PointLight &light = type.pointLights.push();
+			PointLight &light = obj.pointLights.push();
 			light.color = c->color * c->intensity;
 			light.radius = c->radius;
 			light.position = c->position;
@@ -119,12 +87,12 @@ static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, 
 
 	sf::Vec2i origin = chunkPos * (int32_t)MapChunk::Size;
 
-	for (uint32_t id : chunk.meshObjects) {
-		Object &object = state.objects[id];
-		ObjectType &type = state.objectTypes[object.svObject.type];
+	for (sv::InstanceId instId : chunk.meshInstances) {
+		Instance &inst = state.instances[instId];
+		Object &obj = state.objects[inst.sv.objectId];
 
-		sf::Mat34 transform = state.getObjectTransform(object.svObject);
-		for (MapMesh &mesh : type.mapMeshes) {
+		sf::Mat34 transform = state.getInstanceTransform(inst.sv);
+		for (MapMesh &mesh : obj.mapMeshes) {
 			MapMesh &dst = meshes.push();
 			dst = mesh;
 			dst.transform = transform * mesh.transform;
@@ -134,15 +102,15 @@ static bool generateMapMeshes(sf::Array<cl::MapMesh> &meshes, cl::State &state, 
 	return true;
 }
 
-sf::Sphere State::getObjectTypeBounds(ObjectType &type)
+sf::Sphere State::getObjectBounds(Object &obj)
 {
-	if (type.hasValidBounds) return type.bounds;
+	if (obj.hasValidBounds) return obj.bounds;
 
 	sf::Sphere bounds = { { }, -1.0f };
 	float lightRadius = sf::length(sf::Vec3(0.1f));
 
 	bool loading = false;
-	for (MapMesh &mapMesh : type.mapMeshes) {
+	for (MapMesh &mapMesh : obj.mapMeshes) {
 		loading |= mapMesh.model.isLoading();
 		loading |= mapMesh.shadowModel.isLoading();
 
@@ -160,36 +128,36 @@ sf::Sphere State::getObjectTypeBounds(ObjectType &type)
 		}
 	}
 
-	for (PointLight &light : type.pointLights) {
+	for (PointLight &light : obj.pointLights) {
 		sf::Sphere sphere = { light.position, lightRadius };
 		bounds = sf::sphereUnion(bounds, sphere);
 	}
 
 	if (!loading) {
-		type.bounds = bounds;
-		type.hasValidBounds = true;
+		obj.bounds = bounds;
+		obj.hasValidBounds = true;
 	}
 
 	return bounds;
 }
 
-sf::Vec3 State::getObjectPosition(const sv::Object &object)
+sf::Vec3 State::getInstancePosition(const sv::InstancedObject &object)
 {
 	// TODO: Apply offset
 	sf::Vec3 pos = { (float)object.x, 0.0f, (float)object.y };
 	return pos;
 }
 
-sf::Mat34 State::getObjectTransform(const sv::Object &object)
+sf::Mat34 State::getInstanceTransform(const sv::InstancedObject &object)
 {
 	sf::Vec3 pos = { (float)object.x, 0.0f, (float)object.y };
 	return sf::mat::translate(pos) * sf::mat::rotateY((float)object.rotation * (sf::F_2PI / 256.0f));
 }
 
-void State::getObjectBounds(const ObjectType &type, const sf::Mat34 &transform, sf::Array<sf::Mat34> &bounds)
+void State::getObjectBounds(const Object &object, const sf::Mat34 &transform, sf::Array<sf::Mat34> &bounds)
 {
 	float lightRadius = 0.1f;
-	for (const MapMesh &mapMesh : type.mapMeshes) {
+	for (const MapMesh &mapMesh : object.mapMeshes) {
 		sf::Mat34 meshTransform = transform * mapMesh.transform;
 		if (mapMesh.model.isLoaded()) {
 			for (const sp::Mesh &mesh : mapMesh.model->meshes) {
@@ -203,32 +171,32 @@ void State::getObjectBounds(const ObjectType &type, const sf::Mat34 &transform, 
 		}
 	}
 
-	for (const PointLight &light : type.pointLights) {
+	for (const PointLight &light : object.pointLights) {
 		sf::Vec3 origin = sf::transformPoint(transform, light.position);
 		bounds.push(sf::mat::translate(origin) * sf::mat::scale(lightRadius));
 	}
 }
 
-uint32_t State::pickObject(float &outT, const sf::Ray &ray)
+sv::InstanceId State::pickInstance(float &outT, const sf::Ray &ray)
 {
-	uint32_t minId = 0;
+	sv::InstanceId minId = 0;
 	float minT = HUGE_VALF;
 
-	for (ObjectType &type : objectTypes) {
-		sf::Sphere bounds = getObjectTypeBounds(type);
+	for (auto &pair : objects) {
+		Object &obj = pair.val;
+		sf::Sphere bounds = getObjectBounds(obj);
 
-		for (uint32_t id : type.objects) {
-			Object &object = objects[id];
-			sf::Mat34 transform = getObjectTransform(object.svObject);
+		for (sv::InstanceId id : obj.instances) {
+			Instance &inst = instances[id];
+			sf::Mat34 transform = getInstanceTransform(inst.sv);
 
-			// TODO: Rotation
 			sf::Sphere objectBounds = { sf::transformPoint(transform, bounds.origin), bounds.radius };
 
 			float t;
 			if (sf::intesersectRay(t, ray, objectBounds) && t >= 0.0f) {
 				if (t < minT) {
 					sf::SmallArray<sf::Mat34, 32> obbs;
-					getObjectBounds(type, transform, obbs);
+					getObjectBounds(obj, transform, obbs);
 
 					float realT = HUGE_VALF;
 					for (sf::Mat34 &obb : obbs) {
@@ -250,28 +218,28 @@ uint32_t State::pickObject(float &outT, const sf::Ray &ray)
 	return minId;
 }
 
-static void updateObjectImp(State &state, uint32_t id, const ObjectType &prevType, const Object &prev, const sv::Object &next)
+static void updateInstanceImp(State &state, sv::InstanceId instId, const Object &prevObj, const Instance &prevInst, const sv::InstancedObject &nextInst)
 {
-	bool added = (prev.svObject.type == 0);
-	bool removed = (next.type == 0);
-	ObjectType &nextType = state.objectTypes[next.type];
-	sf::Vec2i tile = sf::Vec2i(next.x, next.y);
+	bool added = (prevInst.sv.objectId == 0);
+	bool removed = (nextInst.objectId == 0);
+	Object &nextObj = state.objects[nextInst.objectId];
+	sf::Vec2i tile = sf::Vec2i(nextInst.x, nextInst.y);
 	sf::Vec2i chunkI = MapChunk::getChunk(tile);
 
 	if (!added) {
-		sf::Vec2i oldTile = sf::Vec2i(prev.svObject.x, prev.svObject.y);
+		sf::Vec2i oldTile = sf::Vec2i(prevInst.sv.x, prevInst.sv.y);
 		sf::Vec2i oldChunkI = MapChunk::getChunk(oldTile);
-		if (prevType.mapMeshes.size > 0 && (chunkI != oldChunkI || removed)) {
+		if (prevObj.mapMeshes.size > 0 && (chunkI != oldChunkI || removed)) {
 			MapChunk &chunk = state.chunks[oldChunkI];
 			chunk.meshesDirty = true;
-			chunk.meshObjects.remove(id);
+			chunk.meshInstances.remove(instId);
 			if (!chunk.dirty) {
 				chunk.dirty = true;
 				state.dirtyChunks.push(oldChunkI);
 			}
 		}
-		if (prevType.pointLights.size > 0 && removed) {
-			sf::Array<uint32_t> &lightIndices = state.pointLightMapping[id];
+		if (prevObj.pointLights.size > 0 && removed) {
+			sf::Array<uint32_t> &lightIndices = state.pointLightMapping[instId];
 			for (uint32_t index : lightIndices) {
 				state.pointLights.removeSwap(index);
 				if (index < state.pointLights.size) {
@@ -289,27 +257,27 @@ static void updateObjectImp(State &state, uint32_t id, const ObjectType &prevTyp
 					}
 				}
 			}
-			state.pointLightMapping.remove(id);
+			state.pointLightMapping.remove(instId);
 		}
 	}
 
-	if (nextType.mapMeshes.size > 0) {
+	if (nextObj.mapMeshes.size > 0) {
 		MapChunk &chunk = state.chunks[chunkI];
 		chunk.meshesDirty = true;
-		chunk.meshObjects.insert(id);
+		chunk.meshInstances.insert(instId);
 		if (!chunk.dirty) {
 			chunk.dirty = true;
 			state.dirtyChunks.push(chunkI);
 		}
 	}
 
-	if (nextType.pointLights.size > 0) {
-		sf::Mat34 transform = state.getObjectTransform(next);
-		sf::Array<uint32_t> &lightIndices = state.pointLightMapping[id];
-		lightIndices.reserve(nextType.pointLights.size);
-		while (lightIndices.size < nextType.pointLights.size) lightIndices.push(~0u);
+	if (nextObj.pointLights.size > 0) {
+		sf::Mat34 transform = state.getInstanceTransform(nextInst);
+		sf::Array<uint32_t> &lightIndices = state.pointLightMapping[instId];
+		lightIndices.reserve(nextObj.pointLights.size);
+		while (lightIndices.size < nextObj.pointLights.size) lightIndices.push(~0u);
 		uint32_t *pLightIndex = lightIndices.data;
-		for (const PointLight &src : nextType.pointLights) {
+		for (const PointLight &src : nextObj.pointLights) {
 			if (*pLightIndex == ~0u) {
 				*pLightIndex = state.pointLights.size;
 				state.pointLights.push();
@@ -320,7 +288,7 @@ static void updateObjectImp(State &state, uint32_t id, const ObjectType &prevTyp
 			dst.color = src.color;
 			dst.radius = src.radius;
 			dst.shadowIndex = *pLightIndex;
-			dst.objectId = id;
+			dst.objectId = instId;
 			
 			pLightIndex++;
 		}
@@ -329,123 +297,76 @@ static void updateObjectImp(State &state, uint32_t id, const ObjectType &prevTyp
 
 void State::reset(sv::State *svState)
 {
-	entities.clear();
-	entities.resize(svState->entities.size);
-
-	{
-		uint32_t ix = 0;
-		for (sf::Box<sv::Entity> &svEntity : svState->entities) {
-			if (svEntity) {
-				entities[ix] = convertEntity(svEntity);
-			}
-			ix++;
-		}
-	}
-
 	chunks.clear();
 	dirtyChunks.clear();
 
-	objectTypes.clear();
-	objectTypes.resize(svState->objectTypes.size);
+	objects.clear();
+	objects.reserve(svState->objects.size());
 
 	{
-		uint32_t ix = 0;
-		for (sv::GameObject &objectType : svState->objectTypes) {
-			if (ix > 0) {
-				convertObjectType(objectTypes[ix], objectType);
-			}
-			ix++;
+		for (auto &pair : svState->objects) {
+			convertObject(objects[pair.key], pair.val);
 		}
 	}
 
 	pointLights.clear();
 	pointLightMapping.clear();
 
-	objects.clear();
-	objects.reserve(svState->objects.size());
+	instances.clear();
+	instances.reserve(svState->instances.size());
 
 	{
 		uint32_t ix = 0;
-		for (auto &pair : svState->objects) {
-			Object &object = objects[pair.key];
-			ObjectType &type = objectTypes[pair.val.type];
+		for (auto &pair : svState->instances) {
+			Instance &inst = instances[pair.key];
+			Object &obj = objects[pair.val.objectId];
 
-			type.objects.insert(pair.key);
-			updateObjectImp(*this, pair.key, type, object, pair.val);
-			object.svObject = pair.val;
+			obj.instances.insert(pair.key);
+			updateInstanceImp(*this, pair.key, obj, inst, pair.val);
+			inst.sv = pair.val;
 		}
 	}
 }
 
 void State::applyEvent(sv::Event *event)
 {
-	if (auto e = event->as<sv::EventMove>()) {
+	if (auto e = event->as<sv::EventUpdateObject>()) {
+		Object &obj = objects[e->id];
+		obj.hasValidBounds = false;
 
-		Entity *data = entities[e->entity];
+		Object prevObj = obj;
+		convertObject(obj, e->object);
 
-		if (auto d = data->as<Character>()) {
-
-			if (e->waypoints.size) {
-				d->waypoints.push(e->waypoints);
-			} else {
-				d->waypoints.clear();
-				data->position = sf::Vec2(e->position);
-			}
-
-		} else {
-			data->position = sf::Vec2(e->position);
-		}
-
-	} else if (auto e = event->as<sv::EventSpawn>()) {
-
-		sv::EntityId id = e->data->id;
-		sf_assert(id != 0);
-		while (id >= entities.size) entities.push();
-		sf_assert(!entities[id]);
-		sf::Box<Entity> entity = convertEntity(e->data);
-		entity->position = sf::Vec2(e->data->position);
-		entities[id] = entity;
-
-	} else if (auto e = event->as<sv::EventDestroy>()) {
-
-		entities[e->entity].reset();
-
-	} else if (auto e = event->as<sv::EventUpdateObjectType>()) {
-		while (objectTypes.size <= e->index) objectTypes.push();
-		ObjectType &type = objectTypes[e->index];
-		type.hasValidBounds = false;
-
-		ObjectType prevType = type;
-		convertObjectType(objectTypes[e->index], e->object);
-
-		sf::Array<sv::Object> storedObjects;
-		if (type.objects.size() > 0) {
-			storedObjects.reserve(type.objects.size());
-			sv::Object emptySvObject = { };
-			for (uint32_t id : type.objects) {
-				Object &object = objects[id];
-				storedObjects.push(object.svObject);
-				updateObjectImp(*this, id, prevType, object, object.svObject);
+		if (obj.instances.size() > 0) {
+			for (sv::InstanceId instId : obj.instances) {
+				Instance &inst = instances[instId];
+				updateInstanceImp(*this, instId, prevObj, inst, inst.sv);
 			}
 		}
-
-	} else if (auto e = event->as<sv::EventUpdateObject>()) {
-		Object &object = objects[e->id];
-		ObjectType &type = objectTypes[e->object.type];
-
-		type.objects.insert(e->id);
-		updateObjectImp(*this, e->id, type, object, e->object);
-		object.svObject = e->object;
 
 	} else if (auto e = event->as<sv::EventRemoveObject>()) {
-		Object &object = objects[e->id];
-		if (!object.svObject.type) return;
-		ObjectType &type = objectTypes[object.svObject.type];
+		Object &obj = objects[e->id];
+		sf_assert(obj.instances.size() == 0);
 
-		updateObjectImp(*this, e->id, type, object, sv::Object());
+		objects.remove(e->id);
 
-		object = Object();
-		type.objects.remove(e->id);
+	} else if (auto e = event->as<sv::EventUpdateInstance>()) {
+		Instance &inst = instances[e->id];
+		Object &obj = objects[e->instance.objectId];
+
+		obj.instances.insert(e->id);
+		updateInstanceImp(*this, e->id, obj, inst, e->instance);
+		inst.sv = e->instance;
+
+	} else if (auto e = event->as<sv::EventRemoveInstance>()) {
+		Instance &inst = instances[e->id];
+		if (!inst.sv.objectId) return;
+		Object &obj = objects[inst.sv.objectId];
+
+		updateInstanceImp(*this, e->id, obj, inst, sv::InstancedObject());
+
+		obj.instances.remove(e->id);
+		instances.remove(e->id);
 	} else {
 		sf_failf("Unhandled event type: %u", event->type);
 	}

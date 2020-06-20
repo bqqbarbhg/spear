@@ -77,6 +77,22 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 				handleInstImgui(status, ptr, elem, indexLabel, callback, user);
 				ptr += elemSize;
 			}
+
+			if (flags & sf::Type::HasArrayResize) {
+
+				bool doAdd = ImGui::Button("Add");
+				ImGui::SameLine();
+				bool doRemove = ImGui::Button("Remove");
+
+				if (doAdd) {
+					if (type->instArrayReserve(inst, size + 1).size) {
+						type->instArrayResize(inst, size + 1);
+					}
+				} else if (doRemove && size > 0) {
+					type->instArrayResize(inst, size - 1);
+				}
+			}
+
 			ImGui::TreePop();
 		}
 

@@ -28,7 +28,7 @@ struct MapChunk
 		return { pos.x >> (int32_t)MapChunk::SizeLog2, pos.y >> (int32_t)MapChunk::SizeLog2 };
 	}
 
-	sf::HashSet<uint32_t> meshObjects;
+	sf::HashSet<sv::InstanceId> meshInstances;
 	sf::Array<MapMesh> meshes;
 	MapChunkGeometry geometry;
 	bool meshesDirty = false;
@@ -43,42 +43,6 @@ struct Card
 	sp::SpriteRef imageSprite;
 };
 
-struct Entity
-{
-	#if SF_DEBUG
-		virtual void debugForceVtable() { }
-	#endif
-
-	using Type = sv::Entity::Type;
-
-	sv::Entity::Type type;
-	sf::Box<sv::Entity> svEntity;
-	sf::Vec2 position;
-
-	Entity() { }
-	Entity(Type type, sf::Box<sv::Entity> svEntity) : type(type), svEntity(std::move(svEntity)) { }
-
-	template <typename T> T *as() { return type == T::EntityType ? (T*)this : nullptr; }
-	template <typename T> const T *as() const { return type == T::EntityType ? (T*)this : nullptr; }
-};
-
-template <Entity::Type SelfType>
-struct EntityBase : Entity
-{
-	static constexpr Type EntityType = SelfType;
-	EntityBase(sf::Box<sv::Entity> svEntity) : Entity(SelfType, svEntity) { }
-};
-
-struct Character : EntityBase<sv::Entity::Character>
-{
-	Character(sf::Box<sv::Entity> svEntity) : EntityBase(std::move(svEntity)) { }
-
-	sf::Array<Card> cards;
-
-	ModelInfoRef model;
-	sf::Array<sv::Waypoint> waypoints;
-};
-
 struct PointLight
 {
 	sf::Vec3 position;
@@ -89,7 +53,7 @@ struct PointLight
 	sf::Vec3 shadowMul;
 	sf::Vec3 shadowBias;
 
-	uint32_t objectId;
+	sv::InstanceId objectId;
 };
 
 struct RenderShadowArgs
@@ -99,55 +63,37 @@ struct RenderShadowArgs
 	sf::Mat44 worldToClip;
 };
 
-struct Component
+struct Object
 {
-	using Type = sv::Component::Type;
-
-	#if SF_DEBUG
-		virtual void debugForceVtable() { }
-	#endif
-
-	Type type;
-
-	Component() { }
-	Component(Type type) : type(type) { }
-
-	template <typename T> T *as() { return type == T::ComponentType ? (T*)this : nullptr; }
-	template <typename T> const T *as() const { return type == T::ComponentType ? (T*)this : nullptr; }
-};
-
-struct ObjectType
-{
-	sv::GameObject svType;
+	sv::GameObject sv;
 	sf::Array<MapMesh> mapMeshes;
 	sf::Array<PointLight> pointLights;
-	sf::HashSet<uint32_t> objects;
+	sf::HashSet<sv::InstanceId> instances;
 	bool hasValidBounds = false;
 	sf::Sphere bounds;
 };
 
-struct Object
+struct Instance
 {
-	sv::Object svObject;
+	sv::InstancedObject sv;
 };
 
 struct State
 {
-	sf::Array<sf::Box<Entity>> entities;
 	sf::HashMap<sf::Vec2i, MapChunk> chunks;
 	sf::Array<sf::Vec2i> dirtyChunks;
 	sf::Array<PointLight> pointLights;
-	sf::Array<ObjectType> objectTypes;
-	sf::HashMap<uint32_t, Object> objects;
-	sf::HashMap<uint32_t, sf::SmallArray<uint32_t, 1>> pointLightMapping;
+	sf::HashMap<sv::ObjectId, Object> objects;
+	sf::HashMap<sv::InstanceId, Instance> instances;
+	sf::HashMap<sv::InstanceId, sf::SmallArray<uint32_t, 1>> pointLightMapping;
 	ShadowCache shadowCache;
 
-	sf::Sphere getObjectTypeBounds(ObjectType &type);
-	sf::Vec3 getObjectPosition(const sv::Object &object);
-	sf::Mat34 getObjectTransform(const sv::Object &object);
-	void getObjectBounds(const ObjectType &type, const sf::Mat34 &transform, sf::Array<sf::Mat34> &bounds);
+	sf::Sphere getObjectBounds(Object &object);
+	sf::Vec3 getInstancePosition(const sv::InstancedObject &object);
+	sf::Mat34 getInstanceTransform(const sv::InstancedObject &object);
+	void getObjectBounds(const Object &type, const sf::Mat34 &transform, sf::Array<sf::Mat34> &bounds);
 
-	uint32_t pickObject(float &outT, const sf::Ray &ray);
+	sv::InstanceId pickInstance(float &outT, const sf::Ray &ray);
 
 	void reset(sv::State *svState);
 

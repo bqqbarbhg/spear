@@ -17,8 +17,9 @@ struct Event
 		Spawn,
 		Destroy,
 		UpdateObject,
-		UpdateObjectType,
 		RemoveObject,
+		UpdateInstance,
+		RemoveInstance,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -53,38 +54,26 @@ struct Waypoint
 	sf::Vec2i position;
 };
 
-struct EventMove : EventBase<Event::Move>
-{
-	EntityId entity;
-	sf::Vec2i position;
-	sf::Array<Waypoint> waypoints;
-};
-
-struct EventSpawn : EventBase<Event::Spawn>
-{
-	sf::Box<sv::Entity> data;
-};
-
-struct EventDestroy : EventBase<Event::Destroy>
-{
-	EntityId entity;
-};
-
 struct EventUpdateObject : EventBase<Event::UpdateObject>
 {
-	uint32_t id;
-	sv::Object object;
-};
-
-struct EventUpdateObjectType : EventBase<Event::UpdateObjectType>
-{
-	uint32_t index;
+	ObjectId id;
 	sv::GameObject object;
 };
 
 struct EventRemoveObject : EventBase<Event::RemoveObject>
 {
-	uint32_t id;
+	ObjectId id;
+};
+
+struct EventUpdateInstance : EventBase<Event::UpdateInstance>
+{
+	InstanceId id;
+	sv::InstancedObject instance;
+};
+
+struct EventRemoveInstance : EventBase<Event::RemoveInstance>
+{
+	InstanceId id;
 };
 
 }

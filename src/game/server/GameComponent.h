@@ -8,6 +8,9 @@
 
 namespace sv {
 
+typedef uint32_t ObjectId;
+typedef uint32_t InstanceId;
+
 struct Component
 {
 	#if SF_DEBUG
@@ -19,6 +22,8 @@ struct Component
 		Error,
 		Model,
 		PointLight,
+		Character,
+		Card,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -58,6 +63,25 @@ struct PointLightComponent : ComponentBase<Component::PointLight>
 	float intensity = 1.0f;
 	float radius = 1.0f;
 	sf::Vec3 position;
+};
+
+struct Card
+{
+	ObjectId type;
+};
+
+struct CharacterComponent : ComponentBase<Component::Character>
+{
+	sf::Symbol model;
+	sf::Array<uint32_t> players;
+	sf::Array<sv::Card> cards;
+};
+
+struct CardComponent : ComponentBase<Component::Card>
+{
+	sf::Symbol image;
+	sf::Symbol name;
+	sf::Array<sf::Symbol> description;
 };
 
 struct GameObject

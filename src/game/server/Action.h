@@ -15,7 +15,7 @@ struct Action
 		Type_ForceU32 = 0x7fffffff,
 	};
 
-	EntityId entity;
+	uint32_t objectId;
 	Type type;
 
 	template <typename T> T *as() { return type == T::ActionType ? (T*)this : nullptr; }

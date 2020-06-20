@@ -7,12 +7,11 @@ namespace sf {
 template<> void initType<sv::Event>(Type *t)
 {
 	static PolymorphType polys[] = {
-		sf_poly(sv::Event, Move, sv::EventMove),
-		sf_poly(sv::Event, Spawn, sv::EventSpawn),
-		sf_poly(sv::Event, Destroy, sv::EventDestroy),
+		sf_poly(sv::Event, UpdateInstance, sv::EventUpdateInstance),
 		sf_poly(sv::Event, UpdateObject, sv::EventUpdateObject),
-		sf_poly(sv::Event, UpdateObjectType, sv::EventUpdateObjectType),
 		sf_poly(sv::Event, RemoveObject, sv::EventRemoveObject),
+		sf_poly(sv::Event, UpdateInstance, sv::EventUpdateInstance),
+		sf_poly(sv::Event, RemoveInstance, sv::EventRemoveInstance),
 	};
 	sf_struct_poly(t, sv::Event, type, { }, polys);
 }
@@ -36,32 +35,6 @@ template<> void initType<sv::Waypoint>(Type *t)
 	sf_struct(t, sv::Waypoint, fields);
 }
 
-template<> void initType<sv::EventMove>(Type *t)
-{
-	static Field fields[] = {
-		sf_field(sv::EventMove, entity),
-		sf_field(sv::EventMove, position),
-		sf_field(sv::EventMove, waypoints),
-	};
-	sf_struct_base(t, sv::EventMove, sv::Event, fields);
-}
-
-template<> void initType<sv::EventSpawn>(Type *t)
-{
-	static Field fields[] = {
-		sf_field(sv::EventSpawn, data),
-	};
-	sf_struct_base(t, sv::EventSpawn, sv::Event, fields);
-}
-
-template<> void initType<sv::EventDestroy>(Type *t)
-{
-	static Field fields[] = {
-		sf_field(sv::EventDestroy, entity),
-	};
-	sf_struct_base(t, sv::EventDestroy, sv::Event, fields);
-}
-
 template<> void initType<sv::EventUpdateObject>(Type *t)
 {
 	static Field fields[] = {
@@ -70,22 +43,28 @@ template<> void initType<sv::EventUpdateObject>(Type *t)
 	};
 	sf_struct_base(t, sv::EventUpdateObject, sv::Event, fields);
 }
-
-template<> void initType<sv::EventUpdateObjectType>(Type *t)
-{
-	static Field fields[] = {
-		sf_field(sv::EventUpdateObjectType, index),
-		sf_field(sv::EventUpdateObjectType, object),
-	};
-	sf_struct_base(t, sv::EventUpdateObjectType, sv::Event, fields);
-}
-
 template<> void initType<sv::EventRemoveObject>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(sv::EventRemoveObject, id),
 	};
 	sf_struct_base(t, sv::EventRemoveObject, sv::Event, fields);
+}
+
+template<> void initType<sv::EventUpdateInstance>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::EventUpdateInstance, id),
+		sf_field(sv::EventUpdateInstance, instance),
+	};
+	sf_struct_base(t, sv::EventUpdateInstance, sv::Event, fields);
+}
+template<> void initType<sv::EventRemoveInstance>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::EventRemoveInstance, id),
+	};
+	sf_struct_base(t, sv::EventRemoveInstance, sv::Event, fields);
 }
 
 }

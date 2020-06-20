@@ -111,7 +111,7 @@ struct ClientMain
 	sf::Array<sf::Box<sv::Message>> debugMessages;
 
 	sf::Symbol selectedObjectType;
-	uint32_t selectedObjectTypeIndex;
+	sv::ObjectId selectedObjectTypeIndex;
 
 	sf::StringBuf addPath;
 	sf::StringBuf addInput;
@@ -138,15 +138,15 @@ struct ClientMain
 
 	uint32_t clientObjectIdCounter = 0x80000000;
 
-	uint32_t selectedObject = 0;
-	uint32_t dragObject = 0;
+	sv::InstanceId selectedInstance = 0;
+	sv::InstanceId dragInstance = 0;
 	uint32_t tempShadowUpdateIndex = 0;
 	sf::Vec2i dragBaseTile;
 	sf::Vec3 dragOrigin;
 	sf::Vec2i dragDstTile;
 	uint8_t dragBaseRotation = 0;
 	uint8_t dragDstRotation = 0;
-	sv::Object dragOriginalObject;
+	sv::InstancedObject dragOriginalInstance;
 	bool dragDoesClone = false;
 
 	float cameraZoomVel = 0.0f;
@@ -292,14 +292,14 @@ void handleImguiAssetDir(ClientMain *c, FileDir &dir)
 
 static void loadObject(ClientMain *c, const sf::Symbol &path)
 {
-	for (sv::GameObject &type : c->serverState->objectTypes) {
-		if (type.id == path) {
+	for (auto &pair : c->serverState->objects) {
+		if (pair.val.id == path) {
 			return;
 		}
 	}
 
 	{
-		sf::Box<sv::CommandLoadObjectType> cmd = sf::box<sv::CommandLoadObjectType>();
+		sf::Box<sv::CommandLoadObject> cmd = sf::box<sv::CommandLoadObject>();
 		cmd->typePath = path;
 
 		sv::MessageCommand msg;
@@ -395,6 +395,11 @@ void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 						}
 
 						d.files.push(FileFile(d.prefix, fileName));
+
+						sv::GameObject obj;
+						obj.name = sf::Symbol(fileName.slice().dropRight(5));
+						saveObject(obj, d.files.back().path);
+
 					} else if (c->addFolder) {
 						FileDir &newD = d.dirs.push();
 						newD.name = c->addInput;
@@ -516,7 +521,7 @@ void handleImguiRoomDir(ClientMain *c, FileDir &dir)
 		sf::SmallStringBuf<128> localButtonText;
 
 		if (ImGui::Button(buttonText.data)) {
-			c->selectedObject = 0;
+			c->selectedInstance = 0;
 			c->selectedCard = -1;
 
 			if (c->editRoomPath) {
@@ -856,6 +861,7 @@ static float drawRichText(sp::Canvas &canvas, const RichTextDesc &desc, sf::Slic
 	return 0.0f;
 }
 
+#if 0
 static void drawCard(ClientMain *c, sp::Canvas &canvas, const cl::Card &card)
 {
 	sf::Vec2 size = { 100.0f, 100.0f / cl::Card::Aspect };
@@ -917,6 +923,7 @@ static void drawCard(ClientMain *c, sp::Canvas &canvas, const cl::Card &card)
 	}
 
 }
+#endif
 
 static void lerpExp(float &state, float target, float exponential, float linear, float dt)
 {
@@ -972,8 +979,9 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 		bool isModel = label == sf::String("model");
 		bool isShadowModel = label == sf::String("shadowModel");
 		bool isMaterial = label == sf::String("material");
+		bool isImage = label == sf::String("image");
 
-		if (isModel || isShadowModel || isMaterial) {
+		if (isModel || isShadowModel || isMaterial || isImage) {
 			sf::SmallStringBuf<4096> textBuf;
 			textBuf.append(*sym);
 			if (ImGui::InputText(label.data, textBuf.data, textBuf.capacity, ImGuiInputTextFlags_AlignRight | ImGuiInputTextFlags_AutoSelectAll)) {
@@ -1016,6 +1024,7 @@ static sf::Box<sv::Component> createComponent() { return sf::box<T>(); }
 static const ComponentType componentTypes[] = {
 	{ "Model", &createComponent<sv::ModelComponent> },
 	{ "PointLight", &createComponent<sv::PointLightComponent> },
+	{ "Card", &createComponent<sv::CardComponent> },
 };
 
 void handleObjectImgui(ImguiStatus &status, sv::GameObject &obj, const sf::Symbol &path)
@@ -1097,19 +1106,17 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 			if (status.modified) {
 
 				if (c->selectedObjectTypeIndex == 0) {
-					uint32_t ix = 0;
-					for (sv::GameObject &type : c->serverState->objectTypes) {
-						if (type.id == c->selectedObjectType) {
-							c->selectedObjectTypeIndex = ix;
+					for (auto &pair : c->serverState->objects) {
+						if (pair.val.id == c->selectedObjectType) {
+							c->selectedObjectTypeIndex = pair.key;
 							break;
 						}
-						ix++;
 					}
 				}
 
 				if (c->selectedObjectTypeIndex != 0) {
-					sv::EventUpdateObjectType event;
-					event.index = c->selectedObjectTypeIndex;
+					sv::EventUpdateObject event;
+					event.id = c->selectedObjectTypeIndex;
 					event.object = *obj->object;
 					c->clientState.applyEvent(&event);
 				}
@@ -1118,9 +1125,9 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 			if (status.changed) {
 				obj->modified = true;
 
-				sf::Box<sv::CommandUpdateObjectType> cmd = sf::box<sv::CommandUpdateObjectType>();
+				sf::Box<sv::CommandUpdateObject> cmd = sf::box<sv::CommandUpdateObject>();
 				cmd->typePath = c->selectedObjectType;
-				cmd->objectType = *obj->object;
+				cmd->object = *obj->object;
 
 				sv::MessageCommand msg;
 				msg.command = cmd;
@@ -1211,7 +1218,6 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		#endif
 
 		if (auto m = msg->as<sv::MessageLoad>()) {
-			m->state->refreshEntityTileMap();
 			c->serverState = m->state;
 			c->clientState.reset(m->state);
 
@@ -1235,7 +1241,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				c->serverState->applyEvent(event);
 				c->clientState.applyEvent(event);
 
-				if (sv::EventUpdateObjectType *e = event->as<sv::EventUpdateObjectType>()) {
+				if (sv::EventUpdateObject *e = event->as<sv::EventUpdateObject>()) {
 					if (e->object.id) {
 						LoadedObject &loadedObject = g_loadedObjects[e->object.id];
 						if (!loadedObject.object) {
@@ -1325,32 +1331,33 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 		for (sapp_event &e : input.events) {
 			if (e.type == SAPP_EVENTTYPE_MOUSE_DOWN && !ImGui::GetIO().WantCaptureMouse) {
-				if (c->dragObject && e.mouse_button == 1) {
+				if (c->dragInstance && e.mouse_button == 1) {
 					c->dragDstRotation -= 64;
 				}
 			}
 		}
 
-		if (c->dragObject && ImGui::GetIO().MouseDown[0]) {
-			cl::Object *object = c->clientState.objects.findValue(c->dragObject);
+		if (c->dragInstance && ImGui::GetIO().MouseDown[0]) {
+			cl::Instance *inst = c->clientState.instances.findValue(c->dragInstance);
 
-			if (object) {
+			if (inst) {
 				float dragT = (c->dragOrigin.y - rayOrigin.y) / rayDirection.y;
 				sf::Vec3 dragPos = rayOrigin + rayDirection * dragT;
 				sf::Vec2 dragTile = sf::Vec2(dragPos.x, dragPos.z) - sf::Vec2(c->dragOrigin.x, c->dragOrigin.z);
 				c->dragDstTile = sf::Vec2i(sf::floor(dragTile + sf::Vec2(0.5f))) + c->dragBaseTile;
 
-				sv::EventUpdateObject event;
-				event.id = c->dragObject;
-				event.object = object->svObject;
-				event.object.x = c->dragDstTile.x;
-				event.object.y = c->dragDstTile.y;
-				event.object.rotation = c->dragDstRotation;
+				sv::EventUpdateInstance event;
+				event.id = c->dragInstance;
+				event.instance = inst->sv;
+				event.instance.x = c->dragDstTile.x;
+				event.instance.y = c->dragDstTile.y;
+				event.instance.rotation = c->dragDstRotation;
 				c->clientState.applyEvent(&event);
 			}
 		}
 
 		// HACK: Take the first character
+#if 0
 		cl::Character *character = nullptr;
 		for (sf::Box<cl::Entity> &entity : c->clientState.entities) {
 			if (!entity) continue;
@@ -1418,6 +1425,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 			}
 
 		}
+#endif
 
 		if (ImGui::BeginMainMenuBar()) {
 
@@ -1462,28 +1470,28 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 						// HACK
 						float t;
-						uint32_t id = c->clientState.pickObject(t, mouseRay);
-						c->selectedObject = id;
+						sv::InstanceId id = c->clientState.pickInstance(t, mouseRay);
+						c->selectedInstance = id;
 
 						if (id) {
 							c->dragOrigin = mouseRay.origin + mouseRay.direction * t;
-							if (cl::Object *object = c->clientState.objects.findValue(id)) {
-								c->dragOriginalObject = object->svObject;
-								c->dragDstTile = c->dragBaseTile = sf::Vec2i(object->svObject.x, object->svObject.y);
-								c->dragDstRotation = c->dragBaseRotation = object->svObject.rotation;
+							if (cl::Instance *inst = c->clientState.instances.findValue(id)) {
+								c->dragOriginalInstance = inst->sv;
+								c->dragDstTile = c->dragBaseTile = sf::Vec2i(inst->sv.x, inst->sv.y);
+								c->dragDstRotation = c->dragBaseRotation = inst->sv.rotation;
 								if (keyDown(SAPP_KEYCODE_LEFT_CONTROL) || keyDown(SAPP_KEYCODE_RIGHT_CONTROL)) {
 									uint32_t cloneId = ++c->clientObjectIdCounter;
 									c->dragDoesClone = true;
 
-									sv::EventUpdateObject cloneObj;
+									sv::EventUpdateInstance cloneObj;
 									cloneObj.id = cloneId;
-									cloneObj.object = object->svObject;
+									cloneObj.instance = inst->sv;
 									c->clientState.applyEvent(&cloneObj);
 
-									c->dragObject = cloneId;
-									c->selectedObject = cloneId;
+									c->dragInstance = cloneId;
+									c->selectedInstance = cloneId;
 								} else {
-									c->dragObject = id;
+									c->dragInstance = id;
 									c->dragDoesClone = false;
 								}
 							}
@@ -1504,6 +1512,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 					}
 				}
 
+#if 0
 				if (e.key_code >= '1' && e.key_code <= '9' && character) {
 					int32_t ix = (int32_t)(e.key_code - '1');
 					if (ix == c->selectedCard) {
@@ -1513,12 +1522,13 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 						c->selectedCard = ix;
 					}
 				}
+#endif
 
 				if (e.key_code == SAPP_KEYCODE_DELETE) {
-					if (c->selectedObject) {
-						sf::Box<sv::CommandRemoveObject> cmd = sf::box<sv::CommandRemoveObject>();
-						cmd->id = c->selectedObject;
-						c->selectedObject = 0;
+					if (c->selectedInstance) {
+						sf::Box<sv::CommandRemoveInstance> cmd = sf::box<sv::CommandRemoveInstance>();
+						cmd->id = c->selectedInstance;
+						c->selectedInstance = 0;
 
 						sv::MessageCommand msg;
 						msg.command = cmd;
@@ -1527,9 +1537,9 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				}
 
 			} else if (e.type == SAPP_EVENTTYPE_MOUSE_UP) {
-				if (c->dragObject && e.mouse_button == 0) {
+				if (c->dragInstance && e.mouse_button == 0) {
 
-					if (cl::Object *object = c->clientState.objects.findValue(c->dragObject)) {
+					if (cl::Instance *inst = c->clientState.instances.findValue(c->dragInstance)) {
 						bool changed = false;
 						if (c->dragDstTile != c->dragBaseTile) changed = true;
 						if (c->dragDstRotation != c->dragBaseRotation) changed = true;
@@ -1538,15 +1548,15 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 							sv::MessageCommand msg;
 
 							if (c->dragDoesClone) {
-								sf::Box<sv::CommandAddObject> cmd = sf::box<sv::CommandAddObject>();
-								cmd->typePath = c->serverState->objectTypes[object->svObject.type].id;
-								cmd->object = object->svObject;
+								sf::Box<sv::CommandAddInstance> cmd = sf::box<sv::CommandAddInstance>();
+								cmd->typePath = c->serverState->objects[inst->sv.objectId].id;
+								cmd->instance = inst->sv;
 								msg.command = cmd;
 
 							} else {
-								sf::Box<sv::CommandUpdateObject> cmd = sf::box<sv::CommandUpdateObject>();
-								cmd->id = c->dragObject;
-								cmd->object = object->svObject;
+								sf::Box<sv::CommandUpdateInstance> cmd = sf::box<sv::CommandUpdateInstance>();
+								cmd->id = c->dragInstance;
+								cmd->instance = inst->sv;
 								msg.command = cmd;
 							}
 
@@ -1554,27 +1564,27 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 						}
 
 						if (c->dragDoesClone) {
-							sv::EventRemoveObject event;
-							event.id = c->dragObject;
+							sv::EventRemoveInstance event;
+							event.id = c->dragInstance;
 							c->clientState.applyEvent(&event);
 						}
 					}
 
-					c->dragObject = 0;
+					c->dragInstance = 0;
 				}
 
 				if (!ImGui::GetIO().WantCaptureMouse) {
 					const ImGuiPayload *payload = ImGui::GetDragDropPayload();
 					if (payload && !strcmp(payload->DataType, "object")) {
 
-						sf::Box<sv::CommandAddObject> cmd = sf::box<sv::CommandAddObject>();
+						sf::Box<sv::CommandAddInstance> cmd = sf::box<sv::CommandAddInstance>();
 						cmd->typePath = sf::Symbol((const char*)payload->Data, payload->DataSize);
-						cmd->object.x = (uint16_t)mouseTileInt.x;
-						cmd->object.y = (uint16_t)mouseTileInt.y;
-						cmd->object.rotation = 0;
-						cmd->object.offset[0] = 0;
-						cmd->object.offset[1] = 0;
-						cmd->object.offset[2] = 0;
+						cmd->instance.x = (uint16_t)mouseTileInt.x;
+						cmd->instance.y = (uint16_t)mouseTileInt.y;
+						cmd->instance.rotation = 0;
+						cmd->instance.offset[0] = 0;
+						cmd->instance.offset[1] = 0;
+						cmd->instance.offset[2] = 0;
 
 						sv::MessageCommand msg;
 						msg.command = cmd;
@@ -1589,6 +1599,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				for (sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
 					sf::Vec2 uiTouch = sf::Vec2(touch.pos_x, touch.pos_y) / sf::Vec2(c->resolution) * c->uiResolution;
 					sf::Vec2 relTouch = uiTouch - cardOrigin;
+#if 0
 					if (character && character->cards.size > 0 && relTouch.x >= -5.0f && relTouch.x <= cardWidthPad * (float)character->cards.size + 5.0f && relTouch.y >= -5.0f && relTouch.y <= cardHeight + 5.0f) {
 						int32_t cardIx = sf::clamp((int32_t)(relTouch.x / cardWidthPad), 0, (int32_t)character->cards.size - 1);
                         if (cardIx == c->selectedCard) {
@@ -1597,6 +1608,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
                             c->selectedCard = cardIx;
                         }
                     }
+#endif
 				}
 			}
 		}
@@ -1604,13 +1616,13 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		canvas.prepareForRendering();
 	}
 
-	if (c->selectedObject != 0) {
-		cl::Object *object = c->clientState.objects.findValue(c->selectedObject);
-		if (object) {
-			cl::ObjectType &type = c->clientState.objectTypes[object->svObject.type];
-			sf::Mat34 transform = c->clientState.getObjectTransform(object->svObject);
+	if (c->selectedInstance != 0) {
+		cl::Instance *inst = c->clientState.instances.findValue(c->selectedInstance);
+		if (inst) {
+			cl::Object &obj = c->clientState.objects[inst->sv.objectId];
+			sf::Mat34 transform = c->clientState.getInstanceTransform(inst->sv);
 			sf::SmallArray<sf::Mat34, 32> obbs;
-			c->clientState.getObjectBounds(type, transform, obbs);
+			c->clientState.getObjectBounds(obj, transform, obbs);
 			for (const sf::Mat34 &obb : obbs) {
 				debugDrawBox(obb, sf::Vec3(1.0f, 0.8f, 0.8f));
 			}
@@ -1784,6 +1796,7 @@ sg_image clientRender(ClientMain *c)
 			sg_draw(0, chunkGeo.main.numInidces, 1);
 		}
 
+#if 0
 		for (cl::Entity *entity : c->clientState.entities) {
 			if (!entity) continue;
 
@@ -1878,6 +1891,7 @@ sg_image clientRender(ClientMain *c)
 				}
 			}
 		}
+#endif
 
 		{
 			debugDrawFlipBuffers();
@@ -1999,6 +2013,7 @@ void clientRenderGui(ClientMain *c)
 
 void clientDoMoveTemp(ClientMain *c)
 {
+#if 0
 	auto move = sf::box<sv::ActionMove>();
 	move->entity = 1;
 	move->position = sf::Vec2i(5, 5);
@@ -2006,4 +2021,5 @@ void clientDoMoveTemp(ClientMain *c)
 	sv::MessageAction action;
 	action.action = move;
 	writeMessage(c->ws, &action, c->name, serverName);
+#endif
 }
