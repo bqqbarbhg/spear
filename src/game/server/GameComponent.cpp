@@ -4,11 +4,21 @@
 
 namespace sf {
 
+template<> void initType<sv::Card>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::Card, type),
+	};
+	sf_struct(t, sv::Card, fields);
+}
+
 template<> void initType<sv::Component>(Type *t)
 {
 	static PolymorphType polys[] = {
 		sf_poly(sv::Component, Model, sv::ModelComponent),
 		sf_poly(sv::Component, PointLight, sv::PointLightComponent),
+		sf_poly(sv::Component, Character, sv::CharacterComponent),
+		sf_poly(sv::Component, Card, sv::CardComponent),
 	};
 	sf_struct_poly(t, sv::Component, type, { }, polys);
 }
@@ -37,6 +47,26 @@ template<> void initType<sv::PointLightComponent>(Type *t)
 		sf_field(sv::PointLightComponent, position),
 	};
 	sf_struct_base(t, sv::PointLightComponent, sv::Component, fields);
+}
+
+template<> void initType<sv::CharacterComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::CharacterComponent, model),
+		sf_field(sv::CharacterComponent, players),
+		sf_field(sv::CharacterComponent, cards),
+	};
+	sf_struct_base(t, sv::CharacterComponent, sv::Component, fields);
+}
+
+template<> void initType<sv::CardComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::CardComponent, image),
+		sf_field(sv::CardComponent, name),
+		sf_field(sv::CardComponent, description),
+	};
+	sf_struct_base(t, sv::CardComponent, sv::Component, fields);
 }
 
 template<> void initType<sv::GameObject>(Type *t)
