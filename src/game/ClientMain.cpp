@@ -1970,7 +1970,9 @@ sg_image clientRender(ClientMain *c)
 
 		sp::endPass();
 	}
+#endif
 
+#if 0
 	{
 		sp::beginPass(c->fxaaPass, nullptr);
 
@@ -1978,11 +1980,11 @@ sg_image clientRender(ClientMain *c)
 			c->fxaaPipe.bind();
 
 			Fxaa_Pixel_t pixel;
-			pixel.rcpTexSize = sf::Vec2(1.0f) / sf::Vec2(c->tonemapPass.resolution);
+			pixel.rcpTexSize = sf::Vec2(1.0f) / sf::Vec2(c->mainPass.resolution);
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_Fxaa_Pixel, &pixel, sizeof(pixel));
 
 			sg_bindings bindings = { };
-			bindings.fs_images[SLOT_Fxaa_Pixel] = c->tonemapTarget.image;
+			bindings.fs_images[SLOT_Fxaa_Pixel] = c->mainTarget.image;
 			bindings.vertex_buffers[0] = gameShaders.fullscreenTriangleBuffer;
 			sg_apply_bindings(&bindings);
 
@@ -1990,6 +1992,8 @@ sg_image clientRender(ClientMain *c)
 		}
 
 		sp::endPass();
+
+		return c->fxaaTarget.image;
 	}
 #endif
 
