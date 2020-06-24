@@ -437,6 +437,7 @@ static const sf::Symbol s_ao{"ao"};
 static const sf::Symbol s_roughness{"roughness"};
 static const sf::Symbol s_albedo{"albdo"};
 static const sf::Symbol s_normal{"normal"};
+static const sf::Symbol s_normal_dx{"normal_dx"};
 static const sf::Symbol s_src{"src"};
 static const sf::Symbol s_dst{"dst"};
 
@@ -544,6 +545,8 @@ struct AlbedoTextureTask : Task
 	{
 		if (endsWithStrip(ti.key, path, "_BaseColor.png")) {
 			ti.inputs[s_albedo] = path;
+		} else if (endsWithStrip(ti.key, path, "_Base_Color.png")) {
+			ti.inputs[s_albedo] = path;
 		} else {
 			return false;
 		}
@@ -613,6 +616,8 @@ struct NormalTextureTask : Task
 	{
 		if (endsWithStrip(ti.key, path, "_Normal.png")) {
 			ti.inputs[s_normal] = path;
+		} else if (endsWithStrip(ti.key, path, "_Normal_DirectX.png")) {
+			ti.inputs[s_normal_dx] = path;
 		} else {
 			return false;
 		}
@@ -648,7 +653,11 @@ struct NormalTextureTask : Task
 
 		{
 			sf::SmallStringBuf<512> path;
-			sf::appendPath(path, p.dataRoot, ti.inputs[s_normal]);
+			if (sf::Symbol *dx = ti.inputs.findValue(s_normal_dx)) {
+				sf::appendPath(path, p.dataRoot, *dx);
+			} else {
+				sf::appendPath(path, p.dataRoot, ti.inputs[s_normal]);
+			}
 			args.push("--input");
 			args.push(path);
 		}
@@ -685,7 +694,7 @@ struct MaskTextureTask : Task
 	{
 		if (endsWithStrip(ti.key, path, "_Metallic.png")) {
 			ti.inputs[s_metallic] = path;
-		} else if (endsWithStrip(ti.key, path, "_ao.png")) {
+		} else if (endsWithStrip(ti.key, path, "_Mixed_AO.png")) {
 			ti.inputs[s_ao] = path;
 		} else if (endsWithStrip(ti.key, path, "_Roughness.png")) {
 			ti.inputs[s_roughness] = path;
@@ -727,6 +736,11 @@ struct MaskTextureTask : Task
 		if (auto pair = ti.inputs.find(s_ao)) {
 			sf::SmallStringBuf<512> path;
 			sf::appendPath(path, p.dataRoot, pair->val);
+			args.push("--input-g");
+			args.push(path);
+		} else {
+			sf::SmallStringBuf<512> path;
+			sf::appendPath(path, p.dataRoot, "Utility", "White.png");
 			args.push("--input-g");
 			args.push(path);
 		}

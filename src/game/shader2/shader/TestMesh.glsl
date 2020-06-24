@@ -79,6 +79,9 @@ void main()
 		result += evaluatePointLight(P, N, V, cdiff, f0, alpha2, base);
 	}
 
+	// HACK AO
+	result *= matMask.y;
+
 	o_color = tonemap(result);
 }
 

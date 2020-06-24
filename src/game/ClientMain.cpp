@@ -217,10 +217,13 @@ static sf::HashMap<sf::Symbol, LoadedObject> g_loadedObjects;
 
 const sf::String materialSuffixes[] = {
 	"_BaseColor.png",
+	"_Base_Color.png",
 	"_Height.png",
 	"_Metallic.png",
 	"_Normal.png",
 	"_Roughness.png",
+	"_Mixed_AO.png",
+	"_Normal_DirectX.png",
 };
 
 void setupFileDir(FileDir &dir, sf::StringBuf &queryRoot, sv::QueryDir &queryDir)

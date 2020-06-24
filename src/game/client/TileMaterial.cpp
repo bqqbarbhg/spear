@@ -246,19 +246,19 @@ void TileMaterial::globalInit()
 
     for (sg_pixel_format format : albedoFormats) {
         if (!sg_query_pixelformat(format).sample) continue;
-        ctx.atlases[(uint32_t)MaterialTexture::Albedo].init(ctx.numSlotsX, ctx.numSlotsY, 256, format, "TileMaterial albedo");
+        ctx.atlases[(uint32_t)MaterialTexture::Albedo].init(ctx.numSlotsX, ctx.numSlotsY, 512, format, "TileMaterial albedo");
         break;
     }
 
     for (sg_pixel_format format : normalFormats) {
         if (!sg_query_pixelformat(format).sample) continue;
-    	ctx.atlases[(uint32_t)MaterialTexture::Normal].init(ctx.numSlotsX, ctx.numSlotsY, 256, format, "TileMaterial normal");
+    	ctx.atlases[(uint32_t)MaterialTexture::Normal].init(ctx.numSlotsX, ctx.numSlotsY, 512, format, "TileMaterial normal");
         break;
     }
     
     for (sg_pixel_format format : maskFormats) {
         if (!sg_query_pixelformat(format).sample) continue;
-    	ctx.atlases[(uint32_t)MaterialTexture::Mask].init(ctx.numSlotsX, ctx.numSlotsY, 256, format, "TileMaterial mask");
+    	ctx.atlases[(uint32_t)MaterialTexture::Mask].init(ctx.numSlotsX, ctx.numSlotsY, 512, format, "TileMaterial mask");
         break;
     }
 }
