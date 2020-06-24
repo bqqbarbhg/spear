@@ -437,6 +437,7 @@ static const sf::Symbol s_ao{"ao"};
 static const sf::Symbol s_roughness{"roughness"};
 static const sf::Symbol s_albedo{"albdo"};
 static const sf::Symbol s_normal{"normal"};
+static const sf::Symbol s_normal_gl{"normal_gl"};
 static const sf::Symbol s_normal_dx{"normal_dx"};
 static const sf::Symbol s_src{"src"};
 static const sf::Symbol s_dst{"dst"};
@@ -616,6 +617,8 @@ struct NormalTextureTask : Task
 	{
 		if (endsWithStrip(ti.key, path, "_Normal.png")) {
 			ti.inputs[s_normal] = path;
+		} else if (endsWithStrip(ti.key, path, "_Normal_OpenGL.png")) {
+			ti.inputs[s_normal_gl] = path;
 		} else if (endsWithStrip(ti.key, path, "_Normal_DirectX.png")) {
 			ti.inputs[s_normal_dx] = path;
 		} else {
@@ -654,7 +657,10 @@ struct NormalTextureTask : Task
 		{
 			sf::SmallStringBuf<512> path;
 			if (sf::Symbol *dx = ti.inputs.findValue(s_normal_dx)) {
+				args.push("--invert-g");
 				sf::appendPath(path, p.dataRoot, *dx);
+			} else if (sf::Symbol *gl = ti.inputs.findValue(s_normal_gl)) {
+				sf::appendPath(path, p.dataRoot, *gl);
 			} else {
 				sf::appendPath(path, p.dataRoot, ti.inputs[s_normal]);
 			}
