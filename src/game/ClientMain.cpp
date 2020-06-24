@@ -395,6 +395,7 @@ void handleImguiObjectDir(ClientMain *c, FileDir &dir)
 						}
 
 						d.files.push(FileFile(d.prefix, fileName));
+						saveObject(sv::GameObject(), d.files.back().path);
 					} else if (c->addFolder) {
 						FileDir &newD = d.dirs.push();
 						newD.name = c->addInput;
