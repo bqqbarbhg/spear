@@ -1,19 +1,45 @@
 #include "Json.h"
 #include "sf/Reflection.h"
 
+#include "sf/Box.h"
+
 namespace sp {
 
-static void writeJsonFieldsImp(jso_stream &dst, char *base, sf::Type *type)
+void WeakHandles::collectGarbage(sf::Array<uint64_t> &deleted)
 {
-	if (type->baseType) writeJsonFieldsImp(dst, base, type->baseType);
-	for (const sf::Field &field : type->fields) {
-		jso_prop_len(&dst, field.name.data, field.name.size);
-		if (dst.pretty && field.flags & sf::Field::CompactString) jso_single_line(&dst);
-		writeInstJson(dst, base + field.offset, field.type, type);
+	if (handles.size() < gcLimit) return;
+
+	uint32_t initialDeleted = deleted.size;
+	for (auto &pair : handles) {
+		if (!pair.val.isValid()) {
+			deleted.push(pair.key);
+		}
+	}
+
+	for (uint64_t id : deleted.slice().drop(initialDeleted)) {
+		handles.remove(id);
+	}
+	gcLimit = handles.size() * 2;
+}
+
+void StrongHandles::collectGarbage(const sf::Slice<uint64_t> &deleted)
+{
+	for (uint64_t id : deleted) {
+		handles.remove(id);
 	}
 }
 
-void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parentType)
+static void writeJsonFieldsImp(jso_stream &dst, char *base, sf::Type *type, WeakHandles *handles)
+{
+	if (type->baseType) writeJsonFieldsImp(dst, base, type->baseType, handles);
+	for (const sf::Field &field : type->fields) {
+		jso_prop_len(&dst, field.name.data, field.name.size);
+		if (dst.pretty && field.flags & sf::Field::CompactString) jso_single_line(&dst);
+		writeInstJson(dst, base + field.offset, field.type, handles, type);
+	}
+}
+
+void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, WeakHandles *handles, sf::Type *parentType)
 {
 	uint32_t flags = type->flags;
 	char *base = (char*)inst;
@@ -27,6 +53,17 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 		jso_raw_append_len(&dst, name.data, name.size);
 	}
 #endif
+
+	if (handles && (flags & sf::Type::IsBox) != 0) {
+		sf::Box<void> &box = *(sf::Box<void>*)inst;
+		uint64_t id = box.getId();
+		sf::WeakBox<void> &weakRef = handles->handles[id];
+		if (weakRef) {
+			jso_uint64(&dst, id);
+			return;
+		}
+		weakRef = sf::WeakBox<void>(box);
+	}
 
 	if (flags & sf::Type::HasString) {
 		sf::VoidSlice slice = type->instGetArray(inst);
@@ -43,7 +80,7 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 			jso_string_len(&dst, poly.type->name.data, poly.type->name.size);
 
 			char *polyBase = (char*)poly.inst;
-			writeJsonFieldsImp(dst, polyBase, poly.type->type);
+			writeJsonFieldsImp(dst, polyBase, poly.type->type, handles);
 
 			jso_end_object(&dst);
 		} else {
@@ -53,12 +90,12 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 	} else if (flags & sf::Type::HasFields) {
 		if (dst.pretty && flags & sf::Type::CompactString) jso_single_line(&dst);
 		jso_object(&dst);
-		writeJsonFieldsImp(dst, base, type);
+		writeJsonFieldsImp(dst, base, type, handles);
 		jso_end_object(&dst);
 	} else if (flags & sf::Type::HasPointer) {
 		void *ptr = type->instGetPointer(inst);
 		if (ptr) {
-			writeInstJson(dst, ptr, type->elementType, type);
+			writeInstJson(dst, ptr, type->elementType, handles, type);
 		} else {
 			jso_null(&dst);
 		}
@@ -80,7 +117,7 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 		jso_array(&dst);
 		char *ptr = (char*)slice.data;
 		for (uint32_t i = 0; i < size; i++) {
-			writeInstJson(dst, ptr, elem, type);
+			writeInstJson(dst, ptr, elem, handles, type);
 			ptr += elemSize;
 		}
 		jso_end_array(&dst);
@@ -105,23 +142,36 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 	}
 }
 
-static bool readJsonFieldsImp(jsi_value *src, char *base, sf::Type *type)
+static bool readJsonFieldsImp(jsi_value *src, char *base, sf::Type *type, StrongHandles *handles)
 {
 	if (type->baseType) {
-		if (!readJsonFieldsImp(src, base, type->baseType)) return false;
+		if (!readJsonFieldsImp(src, base, type->baseType, handles)) return false;
 	}
 	for (const sf::Field &field : type->fields) {
 		jsi_value *child = jsi_get_len(src->object, field.name.data, field.name.size);
 		if (!child) continue;
-		if (!readInstJson(child, base + field.offset, field.type)) return false;
+		if (!readInstJson(child, base + field.offset, field.type, handles)) return false;
 	}
 	return true;
 }
 
-bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
+bool readInstJson(jsi_value *src, void *inst, sf::Type *type, StrongHandles *handles)
 {
 	uint32_t flags = type->flags;
 	char *base = (char*)inst;
+
+	if (handles && (flags & sf::Type::IsBox) != 0) {
+		if (src->type == jsi_type_number) {
+			sf::Box<void> &box = *(sf::Box<void>*)inst;
+			if ((src->flags & jsi_flag_stored_as_int64) == 0) return false;
+			uint64_t id = src->int64_storage;
+			sf::Box<void> *ref = handles->handles.findValue(id);
+			if (!ref) return false;
+			box = *ref;
+			return true;
+		}
+	}
+
 	if (flags & sf::Type::HasSetString && src->type == jsi_type_string) {
 		if (src->flags & jsi_flag_multiline) {
 			sf::SmallStringBuf<1024> buf;
@@ -178,21 +228,21 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 			sf::String name { tag->string, jsi_length(tag->string) };
 			const sf::PolymorphType *poly = type->elementType->getPolymorphTypeByName(name);
 			char *polyBase = (char*)type->instSetPolymorph(inst, poly->type);
-			if (!readJsonFieldsImp(src, polyBase, poly->type)) return false;
+			if (!readJsonFieldsImp(src, polyBase, poly->type, handles)) return false;
 
 		} else if (src->type != jsi_type_null) {
 			return false;
 		}
 	} else if (flags & sf::Type::HasFields) {
 		if (src->type == jsi_type_object) {
-			if (!readJsonFieldsImp(src, base, type)) return false;
+			if (!readJsonFieldsImp(src, base, type, handles)) return false;
 		} else {
 			return false;
 		}
 	} else if (flags & sf::Type::HasPointer) {
 		if (src->type != jsi_type_null) {
 			void *ptr = type->instSetPointer(inst);
-			readInstJson(src, ptr, type->elementType);
+			readInstJson(src, ptr, type->elementType, handles);
 		}
 	} else if (flags & sf::Type::HasArrayResize) {
 		if (src->type == jsi_type_array) {
@@ -204,7 +254,7 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 			char *ptr = (char*)slice.data;
 			jsi_value *val = src->array->values;
 			for (uint32_t i = 0; i < size; i++) {
-				if (!readInstJson(val, ptr, elem)) return false;
+				if (!readInstJson(val, ptr, elem, handles)) return false;
 				ptr += elemSize;
 				val++;
 			}

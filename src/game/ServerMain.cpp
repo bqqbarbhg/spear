@@ -1,4 +1,4 @@
-#include "game/server/GameState.h"
+#include "game/server/ServerState.h"
 #include "game/server/Message.h"
 
 #include "ext/bq_websocket.h"
@@ -44,24 +44,9 @@ struct Session
 	sf::Array<Client> clients;
 	sf::Array<sf::Box<sv::Event>> pendingEvents;
 
-	sf::Array<sv::EntityId> freeEntityIds;
 	sf::HashMap<sf::Symbol, uint32_t> objectTypes;
 	uint32_t entityIdCounter = 0;
 	uint32_t objectIdCounter = 0;
-
-	sv::EntityId allocateEntityId()
-	{
-		if (freeEntityIds.size) {
-			return freeEntityIds.popValue();
-		} else {
-			return ++entityIdCounter;
-		}
-	}
-
-	void freeEntityId(sv::EntityId id)
-	{
-		freeEntityIds.push(id);
-	}
 };
 
 struct ServerMain

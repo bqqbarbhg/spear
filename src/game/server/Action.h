@@ -1,6 +1,6 @@
 #pragma once
 
-#include "game/server/GameState.h"
+#include "game/server/ServerState.h"
 
 namespace sv {
 
@@ -15,7 +15,7 @@ struct Action
 		Type_ForceU32 = 0x7fffffff,
 	};
 
-	EntityId entity;
+	ObjectId object;
 	Type type;
 
 	template <typename T> T *as() { return type == T::ActionType ? (T*)this : nullptr; }

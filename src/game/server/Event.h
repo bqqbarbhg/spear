@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GameState.h"
+#include "ServerState.h"
 
 namespace sv {
 
@@ -13,12 +13,12 @@ struct Event
 	enum Type
 	{
 		Error,
-		Move,
-		Spawn,
-		Destroy,
+		CreateObject,
 		UpdateObject,
-		UpdateObjectType,
 		RemoveObject,
+		CreateInstance,
+		UpdateInstance,
+		RemoveInstance,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -40,6 +40,7 @@ struct EventBase : Event
 	EventBase() : Event(SelfType) { }
 };
 
+#if 0
 enum class MoveType : uint32_t
 {
 	Walk,
@@ -59,32 +60,40 @@ struct EventMove : EventBase<Event::Move>
 	sf::Vec2i position;
 	sf::Array<Waypoint> waypoints;
 };
+#endif
 
-struct EventSpawn : EventBase<Event::Spawn>
+struct EventCreateObject : EventBase<Event::CreateObject>
 {
-	sf::Box<sv::Entity> data;
-};
-
-struct EventDestroy : EventBase<Event::Destroy>
-{
-	EntityId entity;
+	sv::ObjectId id;
+	sv::Object object;
 };
 
 struct EventUpdateObject : EventBase<Event::UpdateObject>
 {
-	uint32_t id;
+	sv::ObjectId id;
 	sv::Object object;
-};
-
-struct EventUpdateObjectType : EventBase<Event::UpdateObjectType>
-{
-	uint32_t index;
-	sv::GameObject object;
 };
 
 struct EventRemoveObject : EventBase<Event::RemoveObject>
 {
-	uint32_t id;
+	sv::ObjectId id;
+};
+
+struct EventCreateInstance : EventBase<Event::CreateInstance>
+{
+	sv::InstanceId id;
+	sv::Instance instance;
+};
+
+struct EventUpdateInstance : EventBase<Event::UpdateInstance>
+{
+	sv::InstanceId id;
+	sv::Instance instance;
+};
+
+struct EventRemoveInstance : EventBase<Event::RemoveInstance>
+{
+	sv::InstanceId id;
 };
 
 }

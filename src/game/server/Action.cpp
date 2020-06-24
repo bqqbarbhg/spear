@@ -6,7 +6,7 @@ namespace sf {
 template<> void initType<sv::Action>(Type *t)
 {
 	static Field fields[] = {
-		sf_field(sv::Action, entity),
+		sf_field(sv::Action, object),
 	};
 	static PolymorphType polys[] = {
 		sf_poly(sv::Action, Move, sv::ActionMove),

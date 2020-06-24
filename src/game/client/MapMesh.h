@@ -3,7 +3,7 @@
 #include "sp/Renderer.h"
 #include "sp/Model.h"
 #include "sf/Geometry.h"
-#include "game/server/GameState.h"
+#include "game/server/ServerState.h"
 #include "TileMaterial.h"
 
 namespace cl {

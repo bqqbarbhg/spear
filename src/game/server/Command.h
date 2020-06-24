@@ -1,6 +1,6 @@
 #pragma once
 
-#include "game/server/GameState.h"
+#include "game/server/ServerState.h"
 
 namespace sv {
 

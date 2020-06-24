@@ -7,6 +7,8 @@
 
 namespace cl {
 
+#if 0
+
 static const sf::Symbol g_defaultTileMaterial { "Assets/Tiles/Default_Material/TileDefault" };
 
 static Card convertCard(const sv::Card &svCard)
@@ -519,5 +521,7 @@ void State::assetsReloaded()
 		dirtyChunks.push(pair.key);
 	}
 }
+
+#endif
 
 }

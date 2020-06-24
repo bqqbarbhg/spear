@@ -17,7 +17,6 @@
 #include "game/shader/Line.h"
 #include "game/shader/Sphere.h"
 #include "game/client/TileMaterial.h"
-#include "game/server/GameComponent.h"
 #include "game/ImguiSerialization.h"
 #include "sf/Reflection.h"
 #include "sf/HashSet.h"

@@ -3,7 +3,7 @@
 #include "Action.h"
 #include "Command.h"
 #include "Event.h"
-#include "GameState.h"
+#include "ServerState.h"
 #include "sf/Box.h"
 #include "sf/Array.h"
 #include "sf/String.h"

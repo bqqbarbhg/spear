@@ -1,6 +1,88 @@
 #pragma once
 
-#include "game/server/GameState.h"
+#include "game/server/ServerState.h"
+#include "sp/Model.h"
+#include "sp/Sprite.h"
+#include "game/client/MapMesh.h"
+
+namespace cl {
+
+struct Component
+{
+	#if SF_DEBUG
+		virtual void debugForceVtable() { }
+	#endif
+
+	using Type = sv::Component::Type;
+
+	Type type;
+	sf::Box<sv::Component> sv;
+
+	Component() { }
+	Component(Type type) : type(type) { }
+
+	template <typename T> T *as() { return type == T::ComponentType ? (T*)this : nullptr; }
+	template <typename T> const T *as() const { return type == T::ComponentType ? (T*)this : nullptr; }
+};
+
+template <Component::Type SelfType>
+struct ComponentBase : Component
+{
+	static constexpr Type ComponentType = SelfType;
+	ComponentBase() : Component(SelfType) { }
+};
+
+struct ModelComponent : ComponentBase<sv::Component::Model>
+{
+	sp::ModelRef modelRef;
+};
+
+struct PointLightComponent : ComponentBase<sv::Component::PointLight>
+{
+};
+
+struct CharacterComponent : ComponentBase<sv::Component::Character>
+{
+};
+
+struct CardComponent : ComponentBase<sv::Component::Card>
+{
+	sp::SpriteRef imageRef;
+};
+
+struct Object
+{
+	uint32_t refCount = 0;
+	sf::Symbol path;
+	sf::Symbol name;
+	sf::SmallArray<sf::Box<Component>, 8> components;
+};
+
+struct Instance
+{
+	ObjectId objectId;
+	int16_t x, y;
+	uint8_t offset[3];
+	uint8_t rotation;
+};
+
+struct State
+{
+	sf::HashMap<ObjectId, Object> objects;
+	sf::HashMap<InstanceId, Instance> instances;
+	uint32_t nextObjectId = 1;
+	uint32_t nextInstanceId = 2;
+
+	void applyEvent(const Event &event);
+};
+
+
+}
+
+
+#if 0
+
+#include "game/server/ServerState.h"
 #include "game/server/Event.h"
 #include "game/client/AssetInfo.h"
 #include "game/client/MapMesh.h"
@@ -33,50 +115,6 @@ struct MapChunk
 	MapChunkGeometry geometry;
 	bool meshesDirty = false;
 	bool dirty = false;
-};
-
-struct Card
-{
-	static constexpr const float Aspect = 1.0f / 1.5f;
-
-	sv::Card svCard;
-	sp::SpriteRef imageSprite;
-};
-
-struct Entity
-{
-	#if SF_DEBUG
-		virtual void debugForceVtable() { }
-	#endif
-
-	using Type = sv::Entity::Type;
-
-	sv::Entity::Type type;
-	sf::Box<sv::Entity> svEntity;
-	sf::Vec2 position;
-
-	Entity() { }
-	Entity(Type type, sf::Box<sv::Entity> svEntity) : type(type), svEntity(std::move(svEntity)) { }
-
-	template <typename T> T *as() { return type == T::EntityType ? (T*)this : nullptr; }
-	template <typename T> const T *as() const { return type == T::EntityType ? (T*)this : nullptr; }
-};
-
-template <Entity::Type SelfType>
-struct EntityBase : Entity
-{
-	static constexpr Type EntityType = SelfType;
-	EntityBase(sf::Box<sv::Entity> svEntity) : Entity(SelfType, svEntity) { }
-};
-
-struct Character : EntityBase<sv::Entity::Character>
-{
-	Character(sf::Box<sv::Entity> svEntity) : EntityBase(std::move(svEntity)) { }
-
-	sf::Array<Card> cards;
-
-	ModelInfoRef model;
-	sf::Array<sv::Waypoint> waypoints;
 };
 
 struct PointLight
@@ -162,3 +200,5 @@ struct State
 };
 
 }
+
+#endif
