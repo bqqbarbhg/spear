@@ -91,7 +91,7 @@ struct Box
 
 	operator T*() const { return ptr; }
 	T *operator->() const { return ptr; }
-	std::add_lvalue_reference<T> operator*() const { return *ptr; }
+	typename std::add_lvalue_reference<T>::type operator*() const { return *ptr; }
 
 	uint64_t getId() const { return impBoxGetId(ptr); }
 };

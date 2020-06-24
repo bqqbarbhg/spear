@@ -43,7 +43,7 @@ void *impBoxAllocate(size_t size, DestructRangeFn dtor)
 	header->weakData = nullptr;
 	uint64_t id = t_boxCounter;
 	if (id == 0) {
-		id = (mxa_inc32(g_boxThreadCounter) + 1) << 32u + 1;
+		id = ((uint64_t)(mxa_inc32(&g_boxThreadCounter) + 1) << 32u) + 1;
 	} else {
 		id++;
 	}
