@@ -116,7 +116,7 @@ struct WeakBox
 		data.ptr = impWeakBoxMake(box.ptr);
 	}
 
-	uint64_t getId() const { return impWeakBoxGetid(data.ptr); }
+	uint64_t getId() const { return impWeakBoxGetId(data.ptr); }
 	bool isValid() const { return impWeakBoxValid(data.ptr); }
 
 	Box<T> retain() const {
