@@ -225,7 +225,7 @@ uint32_t State::pickObject(float &outT, const sf::Ray &ray)
 			sf::Sphere objectBounds = { sf::transformPoint(transform, bounds.origin), bounds.radius };
 
 			float t;
-			if (sf::intesersectRay(t, ray, objectBounds) && t >= 0.0f) {
+			if (sf::intesersectRay(t, ray, objectBounds)) {
 				if (t < minT) {
 					sf::SmallArray<sf::Mat34, 32> obbs;
 					getObjectBounds(type, transform, obbs);

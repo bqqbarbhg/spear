@@ -19,7 +19,7 @@ bool intesersectRay(float &outT, const Ray &ray, const Sphere &sphere)
 	float radicand = b*b - 4.0f*a*c;
 	if (radicand <= 0.0f) return false;
 	float root = sf::sqrt(radicand);
-	float denom = 0.5f / root;
+	float denom = 0.5f / a;
 	outT = (-b - root) * denom;
 	return true;
 }
