@@ -1,18 +1,6 @@
 #pragma once
 
-float linearToSrgb(float x)
-{
-	x = clamp(x, 0.0, 1.0);
-	if (x <= 0.00031308)
-		return 12.92 * x;
-	else
-		return 1.055*pow(x,(1.0 / 2.4) ) - 0.055;
-}
-
-vec3 linearToSrgb(vec3 v)
-{
-	return vec3(linearToSrgb(v.x), linearToSrgb(v.y), linearToSrgb(v.z));
-}
+#include "util/Srgb.glsl"
 
 vec4 tonemap(vec3 v)
 {

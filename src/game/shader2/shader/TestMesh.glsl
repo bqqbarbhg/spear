@@ -5,14 +5,18 @@ layout(location=0) attribute vec3 a_position;
 layout(location=1) attribute vec3 a_normal;
 layout(location=2) attribute vec4 a_tangent;
 layout(location=3) attribute vec2 a_uv;
+layout(location=4) attribute vec4 a_tint;
 
 varying vec3 v_position;
 varying vec3 v_normal;
 varying vec3 v_tangent;
 varying vec3 v_bitangent;
 varying vec2 v_uv;
+varying vec4 v_tint;
 
 #ifdef SP_VS
+
+#include "util/Srgb.glsl"
 
 uniform Transform
 {
@@ -28,6 +32,8 @@ void main()
 	v_tangent = a_tangent.xyz;
 	v_bitangent = a_tangent.w * cross(v_normal, v_tangent); 
 	v_uv = a_uv;
+	v_tint.xyz = srgbToLinear(a_tint.xyz);
+	v_tint.w = 1.0;
 }
 
 #endif
@@ -64,7 +70,7 @@ void main()
 	vec2 matNormal = sampleNormalMap(normalAtlas, v_uv);
 	float matNormalY = sqrt(clamp(1.0 - dot(matNormal, matNormal), 0.0, 1.0));
 
-	vec3 matAlbedo = texture(albedoAtlas, v_uv).xyz;
+	vec3 matAlbedo = texture(albedoAtlas, v_uv).xyz * v_tint.xyz;
 	vec4 matMask = texture(maskAtlas, v_uv);
 	
 	vec3 P = v_position;

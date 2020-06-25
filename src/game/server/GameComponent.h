@@ -49,6 +49,7 @@ struct ModelComponent : ComponentBase<Component::Model>
 	sf::Vec3 rotation;
 	float scale = 1.0f;
 	sf::Vec3 stretch = sf::Vec3(1.0f);
+	uint8_t tintColor[3] = { 255, 255, 255 };
 	bool castShadows = true;
 };
 

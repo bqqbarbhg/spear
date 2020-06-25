@@ -117,14 +117,15 @@ bool MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 		if (mapMesh.model.isLoaded() && mapMesh.material.isLoaded()) {
 			cl::TileMaterial *material = mapMesh.material;
 			for (sp::Mesh &mesh : mapMesh.model->meshes) {
-				sf_assert(mesh.streams[0].stride == sizeof(MapVertex));
+				sf_assert(mesh.streams[0].stride == sizeof(MapSrcVertex));
 				mainBuilder.appendIndices(sf::slice(mesh.cpuIndexData16, mesh.numIndices), (uint32_t)(vertexDst - vertices.data));
-				for (MapVertex &vertex : sf::slice((MapVertex*)mesh.streams[0].cpuData, mesh.numVertices)) {
+				for (MapSrcVertex &vertex : sf::slice((MapSrcVertex*)mesh.streams[0].cpuData, mesh.numVertices)) {
 					MapVertex &dst = *vertexDst++;
 					dst.position = sf::transformPoint(transform, vertex.position);
 					dst.normal = sf::normalizeOrZero(sf::transformPoint(normalTransform, vertex.normal));
 					dst.tangent = sf::Vec4(sf::normalizeOrZero(sf::transformPoint(tangentTransform, sf::Vec3(vertex.tangent.v))), vertex.tangent.w);
 					dst.uv = vertex.uv * material->uvScale + material->uvBase;
+					dst.tint = mapMesh.tint;
 					mainBuilder.updateBounds(dst.position);
 				}
 			}
@@ -133,7 +134,7 @@ bool MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 		if (mapMesh.shadowModel.isLoaded()) {
 			for (sp::Mesh &mesh : mapMesh.shadowModel->meshes) {
 				shadowBuilder.appendIndices(sf::slice(mesh.cpuIndexData16, mesh.numIndices), (uint32_t)(shadowVertexDst - shadowVertices.data));
-				for (MapVertex &vertex : sf::slice((MapVertex*)mesh.streams[0].cpuData, mesh.numVertices)) {
+				for (MapSrcVertex &vertex : sf::slice((MapSrcVertex*)mesh.streams[0].cpuData, mesh.numVertices)) {
 					sf::Vec3 &dst = *shadowVertexDst++;
 					dst = sf::transformPoint(transform, vertex.position);
 					shadowBuilder.updateBounds(dst);

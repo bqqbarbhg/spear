@@ -603,6 +603,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
 		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT4;
 		d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2;
+		d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4N;
 	}
 
 	{
@@ -950,6 +951,21 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 			return true;
 		} else if (label == sf::String("color")) {
 			status.modified |= ImGui::ColorEdit3(label.data, vec->v, 0);
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
+			return true;
+		}
+
+	} else if (type == sf::typeOf<uint8_t[3]>()) {
+		uint8_t *src = (uint8_t*)inst;
+
+		if (label == sf::String("tintColor")) {
+			float colorF[3] = { (float)src[0] / 255.0f, (float)src[1] / 255.0f, (float)src[2] / 255.0f };
+			if (ImGui::ColorEdit3(label.data, colorF, 0)) {
+				src[0] = (uint8_t)sf::clamp(colorF[0] * 255.0f, 0.0f, 255.0f);
+				src[1] = (uint8_t)sf::clamp(colorF[1] * 255.0f, 0.0f, 255.0f);
+				src[2] = (uint8_t)sf::clamp(colorF[2] * 255.0f, 0.0f, 255.0f);
+				status.modified = true;
+			}
 			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
 			return true;
 		}

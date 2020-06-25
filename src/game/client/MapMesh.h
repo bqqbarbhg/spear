@@ -8,12 +8,21 @@
 
 namespace cl {
 
+struct MapSrcVertex
+{
+	sf::Vec3 position;
+	sf::Vec3 normal;
+	sf::Vec4 tangent;
+	sf::Vec2 uv;
+};
+
 struct MapVertex
 {
 	sf::Vec3 position;
 	sf::Vec3 normal;
 	sf::Vec4 tangent;
 	sf::Vec2 uv;
+	uint32_t tint;
 };
 
 struct MapMesh
@@ -22,6 +31,7 @@ struct MapMesh
 	sp::ModelRef shadowModel;
 	cl::TileMaterialRef material;
 	sf::Mat34 transform;
+	uint32_t tint;
 };
 
 struct MapGeometry

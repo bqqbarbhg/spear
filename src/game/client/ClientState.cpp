@@ -76,6 +76,12 @@ static void convertObjectType(ObjectType &type, const sv::GameObject &svType)
 					mesh.shadowModel = mesh.model;
 				}
 			}
+
+			mesh.tint =
+				(uint32_t)c->tintColor[0] << 0 |
+				(uint32_t)c->tintColor[1] << 8 |
+				(uint32_t)c->tintColor[2] << 16;
+
 		} else if (sv::PointLightComponent *c = component->as<sv::PointLightComponent>()) {
 			PointLight &light = type.pointLights.push();
 			light.color = c->color * c->intensity;

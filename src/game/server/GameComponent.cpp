@@ -23,6 +23,7 @@ template<> void initType<sv::ModelComponent>(Type *t)
 		sf_field(sv::ModelComponent, rotation),
 		sf_field(sv::ModelComponent, scale),
 		sf_field(sv::ModelComponent, stretch),
+		sf_field_flags(sv::ModelComponent, tintColor, Field::CompactString),
 		sf_field(sv::ModelComponent, castShadows),
 	};
 	sf_struct_base(t, sv::ModelComponent, sv::Component, fields);
