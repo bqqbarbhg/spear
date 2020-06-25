@@ -504,14 +504,23 @@ void serverUpdate(ServerMain *s)
 
 			bqws_update(client.ws);
 
+			if (bqws_is_closed(client.ws)) {
+				bqws_socket *ws = client.ws;
+				quitSession(session, client);
+				bqws_free_socket(ws);
+				continue;
+			}
+
 			while (bqws_msg *wsMsg = bqws_recv(client.ws)) {
 				auto msg = readMessage(wsMsg);
 
 				if (auto m = msg->as<sv::MessageJoin>()) {
 					Session *maybeSession = setupSession(s, m->sessionId, m->sessionSecret, m->editRoomPath);
 					if (maybeSession) {
+						bqws_socket *ws = client.ws;
 						quitSession(session, client);
-						joinSession(*maybeSession, client.ws, m);
+						joinSession(*maybeSession, ws, m);
+						break;
 					}
 				} else if (auto m = msg->as<sv::MessageAction>()) {
 					sv::Action *action = m->action;
@@ -605,11 +614,6 @@ void serverUpdate(ServerMain *s)
 
 				}
 
-			}
-
-			if (bqws_is_closed(client.ws)) {
-				quitSession(session, client);
-				bqws_free_socket(client.ws);
 			}
 		}
 	}
