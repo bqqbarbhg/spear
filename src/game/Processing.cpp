@@ -202,6 +202,7 @@ struct TaskInstance
 	sf::HashMap<sf::Symbol, sf::Symbol> inputs;
 	sf::HashMap<sf::Symbol, sf::Symbol> params;
 	sf::HashMap<sf::Symbol, sf::Symbol> outputs;
+	sf::HashSet<sf::Symbol> assets;
 
 	bool dirty = false;
 	bool processing = false;
@@ -225,13 +226,6 @@ struct Task
 	~Task() { }
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) = 0;
 	virtual void process(Processor &p, TaskInstance &ti) = 0;
-	virtual void getAssetNames(TaskInstance &ti, sf::HashSet<sf::Symbol> &names)
-	{
-		if (ti.key) names.insert(ti.key);
-		for (const auto &pair : ti.outputs) {
-			names.insert(pair.val);
-		}
-	}
 };
 
 struct TaskInstanceKey
@@ -331,7 +325,9 @@ void Processor::updateTasks()
 
 		ti->dirty = false;
 		ti->processing = true;
-		ti->task->getAssetNames(*ti, assetsToReload);
+		for (const sf::Symbol &sym : ti->assets) {
+			assetsToReload.insert(sym);
+		}
 		ti->task->process(*this, *ti);
 		dirtyTaskInstances.removeSwap(i--);
 	}
@@ -484,6 +480,7 @@ struct GuiTextureTask : Task
 		if (!sf::endsWith(path, ".png")) return false;
 		ti.outputs[s_dst] = symf("%s.%s.sptex", path.data, format.data);
 		ti.inputs[s_src] = path;
+		ti.assets.insert(path);
 		return true;
 	}
 
@@ -552,6 +549,7 @@ struct AlbedoTextureTask : Task
 			return false;
 		}
 		ti.outputs[s_dst] = symf("%s_albedo.%s.sptex", ti.key.data, format.data);
+		ti.assets.insert(ti.key);
 		return true;
 	}
 
@@ -625,6 +623,7 @@ struct NormalTextureTask : Task
 			return false;
 		}
 		ti.outputs[s_dst] = symf("%s_normal.%s.sptex", ti.key.data, format.data);
+		ti.assets.insert(ti.key);
 		return true;
 	}
 
@@ -708,6 +707,7 @@ struct MaskTextureTask : Task
 			return false;
 		}
 		ti.outputs[s_dst] = symf("%s_mask.%s.sptex", ti.key.data, format.data);
+		ti.assets.insert(ti.key);
 		return true;
 	}
 
@@ -788,6 +788,7 @@ struct AnimationTask : Task
 			return false;
 		}
 		ti.outputs[s_dst] = symf("%s.spanim", path.data);
+		ti.assets.insert(path);
 		return true;
 	}
 
@@ -839,6 +840,7 @@ struct CharacterModelTask : Task
 			return false;
 		}
 		ti.outputs[s_dst] = symf("%s.spmdl", path.data);
+		ti.assets.insert(path);
 		return true;
 	}
 
@@ -891,6 +893,7 @@ struct TileModelTask : Task
 			return false;
 		}
 		ti.outputs[s_dst] = symf("%s.spmdl", path.data);
+		ti.assets.insert(path);
 		return true;
 	}
 
@@ -942,6 +945,7 @@ struct FontTask : Task
 			return false;
 		}
 		ti.outputs[s_dst] = ti.inputs[s_src];
+		ti.assets.insert(path);
 		return true;
 	}
 
