@@ -1240,7 +1240,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 			{
 				cl::PointLight &l = c->clientState.pointLights.push();
 				l.position = sf::Vec3(0.0f, 8.0f, 0.0f);
-				l.color = sf::Vec3(4.0f, 4.0f, 4.0f) * 20.0f;
+				l.color = sf::Vec3(4.0f, 4.0f, 4.0f) * 0.0f;
 				l.radius = 24.0f;
 				l.shadowIndex = c->clientState.pointLights.size - 1;
 			}

@@ -26,6 +26,7 @@ vec3 evaluatePointLight(vec3 P, vec3 N, vec3 V, vec3 cdiff, vec3 f0, float alpha
 		vec3 shadowTexCoord = delta * shadowMul + shadowBias;
 		float shadow = evaluateShadowGrid(shadowTexCoord);
 		float attenuation = 1.0 / (0.1 + distSq) - 1.0 / (0.1 + radiusSq);
+		float linearAttenuation = 1.0 - sqrt(distSq) / lightRadius;
 
 		vec3 H = normalize(L + V);
 		float VdotH = saturate(dot(V, H));
@@ -33,7 +34,9 @@ vec3 evaluatePointLight(vec3 P, vec3 N, vec3 V, vec3 cdiff, vec3 f0, float alpha
 		float NdotV = saturate(dot(N, V));
 		float NdotH = saturate(dot(N, H));
 
-		return asVec3(shadow * attenuation * NdotL) * lightColor * BRDF_specularGGX(cdiff, f0, alpha2, VdotH, NdotL, NdotV, NdotH);
+		vec3 result = asVec3(shadow * attenuation * NdotL) * lightColor * BRDF_specularGGX(cdiff, f0, alpha2, VdotH, NdotL, NdotV, NdotH);
+		result += cdiff * saturate(abs(N.y)) * shadow * linearAttenuation * lightColor * 0.005;
+		return result;
 	} else {
 		return asVec3(0.0);
 	}
