@@ -172,7 +172,7 @@ struct Float4
 
 	sf_forceinline Float4() { }
 	sf_forceinline Float4(float f) : imp(vdupq_n_f32(f)) { }
-	sf_forceinline Float4(v128_t m) : imp(m) { }
+	sf_forceinline Float4(float32x4_t m) : imp(m) { }
 	sf_forceinline Float4(float a, float b, float c, float d) {
 		alignas(16) float v[4] = { a, b, c, d };
 		imp = vld1q_f32(v);
@@ -181,25 +181,25 @@ struct Float4
 	sf_forceinline Float4 operator-(const Float4 &rhs) const { return vsubq_f32(imp, rhs.imp); }
 	sf_forceinline Float4 operator*(const Float4 &rhs) const { return vmulq_f32(imp, rhs.imp); }
 	sf_forceinline Float4 operator/(const Float4 &rhs) const {
-		float32x4_t e = vrecpeq_f32(rhs);
-		e = vmulq_f32(vrecpsq_f32(rhs, e), e);
-		e = vmulq_f32(vrecpsq_f32(rhs, e), e);
+		float32x4_t e = vrecpeq_f32(rhs.imp);
+		e = vmulq_f32(vrecpsq_f32(rhs.imp, e), e);
+		e = vmulq_f32(vrecpsq_f32(rhs.imp, e), e);
 		return vmulq_f32(imp, e);
 	}
 	sf_forceinline Float4 &operator+=(const Float4 &rhs) { imp = vaddq_f32(imp, rhs.imp); return *this; }
 	sf_forceinline Float4 &operator-=(const Float4 &rhs) { imp = vsubq_f32(imp, rhs.imp); return *this; }
 	sf_forceinline Float4 &operator*=(const Float4 &rhs) { imp = vmulq_f32(imp, rhs.imp); return *this; }
 	sf_forceinline Float4 &operator/=(const Float4 &rhs) {
-		float32x4_t e = vrecpeq_f32(rhs);
-		e = vmulq_f32(vrecpsq_f32(rhs, e), e);
-		e = vmulq_f32(vrecpsq_f32(rhs, e), e);
+		float32x4_t e = vrecpeq_f32(rhs.imp);
+		e = vmulq_f32(vrecpsq_f32(rhs.imp, e), e);
+		e = vmulq_f32(vrecpsq_f32(rhs.imp, e), e);
 		imp = vmulq_f32(imp, e);
 		return *this;
 	}
-	sf_forceinline Float4 broadcastX() const { return vdupq_lane_f32(imp, 0); }
-	sf_forceinline Float4 broadcastY() const { return vdupq_lane_f32(imp, 1); }
-	sf_forceinline Float4 broadcastZ() const { return vdupq_lane_f32(imp, 2); }
-	sf_forceinline Float4 broadcastW() const { return vdupq_lane_f32(imp, 3); }
+	sf_forceinline Float4 broadcastX() const { return vdupq_laneq_f32(imp, 0); }
+	sf_forceinline Float4 broadcastY() const { return vdupq_laneq_f32(imp, 1); }
+	sf_forceinline Float4 broadcastZ() const { return vdupq_laneq_f32(imp, 2); }
+	sf_forceinline Float4 broadcastW() const { return vdupq_laneq_f32(imp, 3); }
 	sf_forceinline Float4 rotateLeft() const { return vextq_f32(imp, imp, 1); }
 	sf_forceinline Float4 clearW() const { return vsetq_lane_f32(0.0f, imp, 3); }
 
@@ -224,11 +224,11 @@ struct Float4
 	sf_forceinline Float4 max(const Float4 &rhs) const { return vmaxq_f32(imp, rhs.imp); }
 
 	sf_forceinline bool anyGreaterThanZero() const {
-		uint64x2_t b = vreinterpretq_u64_f32(vcgtq_f32(imp, vdupq_n_f32(0.0f)));
+		uint64x2_t b = vreinterpretq_u64_u32(vcgtq_f32(imp, vdupq_n_f32(0.0f)));
 		return (vgetq_lane_u64(b, 0) | vgetq_lane_u64(b, 1)) != 0;
 	}
 	sf_forceinline bool allGreaterThanZero() const {
-		uint64x2_t b = vreinterpretq_u64_f32(vcleq_f32(imp, vdupq_n_f32(0.0f)));
+		uint64x2_t b = vreinterpretq_u64_u32(vcleq_f32(imp, vdupq_n_f32(0.0f)));
 		return (vgetq_lane_u64(b, 0) | vgetq_lane_u64(b, 1)) == 0;
 	}
 
@@ -241,8 +241,8 @@ struct Float4
 
 	static sf_forceinline void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
 	{
-		float32x4x2_t ab = vtrnq_f32(a, b);
-		float32x4x2_t cd = vtrnq_f32(c, d);
+		float32x4x2_t ab = vtrnq_f32(a.imp, b.imp);
+		float32x4x2_t cd = vtrnq_f32(c.imp, d.imp);
 		a.imp = vcombine_f32(vget_low_f32(ab.val[0]), vget_low_f32(cd.val[0]));
 		b.imp = vcombine_f32(vget_low_f32(ab.val[1]), vget_low_f32(cd.val[1]));
 		c.imp = vcombine_f32(vget_high_f32(ab.val[0]), vget_high_f32(cd.val[0]));
@@ -258,66 +258,66 @@ struct Float4
 
 struct Float4
 {
-	float imp[4];
+	float a, b, c, d;
 
 	static sf_forceinline Float4 zero() { return { 0.0f, 0.0f, 0.0f, 0.0f }; }
 	static sf_forceinline Float4 loadu(const float *ptr) { return { ptr[0], ptr[1], ptr[2], ptr[3] }; }
-	sf_forceinline void storeu(float *ptr) const { ptr[0] = imp[0]; ptr[1] = imp[1]; ptr[2] = imp[2]; ptr[3] = imp[3]; }
+	sf_forceinline void storeu(float *ptr) const { ptr[0] = a; ptr[1] = b; ptr[2] = c; ptr[3] = d; }
 
 	sf_forceinline Float4() { }
-	sf_forceinline Float4(float f) { imp[0] = f; imp[1] = f; imp[2] = f; imp[3] = f; }
-	sf_forceinline Float4(float a, float b, float c, float d) { imp[0] = a; imp[1] = b; imp[2] = c; imp[3] = d; }
-	sf_forceinline Float4 operator+(const Float4 &rhs) const { return { imp[0] + rhs.imp[0], imp[1] + rhs.imp[1], imp[2] + rhs.imp[2], imp[3] + rhs.imp[3] }; }
-	sf_forceinline Float4 operator-(const Float4 &rhs) const { return { imp[0] - rhs.imp[0], imp[1] - rhs.imp[1], imp[2] - rhs.imp[2], imp[3] - rhs.imp[3] }; }
-	sf_forceinline Float4 operator*(const Float4 &rhs) const { return { imp[0] * rhs.imp[0], imp[1] * rhs.imp[1], imp[2] * rhs.imp[2], imp[3] * rhs.imp[3] }; }
-	sf_forceinline Float4 operator/(const Float4 &rhs) const { return { imp[0] / rhs.imp[0], imp[1] / rhs.imp[1], imp[2] / rhs.imp[2], imp[3] / rhs.imp[3] }; }
-	sf_forceinline Float4 &operator+=(const Float4 &rhs) { imp[0] += rhs.imp[0]; imp[1] += rhs.imp[1]; imp[2] += rhs.imp[2]; imp[3] += rhs.imp[3]; return *this; }
-	sf_forceinline Float4 &operator-=(const Float4 &rhs) { imp[0] -= rhs.imp[0]; imp[1] -= rhs.imp[1]; imp[2] -= rhs.imp[2]; imp[3] -= rhs.imp[3]; return *this; }
-	sf_forceinline Float4 &operator*=(const Float4 &rhs) { imp[0] *= rhs.imp[0]; imp[1] *= rhs.imp[1]; imp[2] *= rhs.imp[2]; imp[3] *= rhs.imp[3]; return *this; }
-	sf_forceinline Float4 &operator/=(const Float4 &rhs) { imp[0] /= rhs.imp[0]; imp[1] /= rhs.imp[1]; imp[2] /= rhs.imp[2]; imp[3] /= rhs.imp[3]; return *this; }
+	sf_forceinline Float4(float f) : a(f), b(f), c(f), d(f) { }
+	sf_forceinline Float4(float a, float b, float c, float d) : a(a), b(b), c(c), d(d) { }
+	sf_forceinline Float4 operator+(const Float4 &rhs) const { return { a + rhs.a, b + rhs.b, c + rhs.c, d + rhs.d }; }
+	sf_forceinline Float4 operator-(const Float4 &rhs) const { return { a - rhs.a, b - rhs.b, c - rhs.c, d - rhs.d }; }
+	sf_forceinline Float4 operator*(const Float4 &rhs) const { return { a * rhs.a, b * rhs.b, c * rhs.c, d * rhs.d }; }
+	sf_forceinline Float4 operator/(const Float4 &rhs) const { return { a / rhs.a, b / rhs.b, c / rhs.c, d / rhs.d }; }
+	sf_forceinline Float4 &operator+=(const Float4 &rhs) { a += rhs.a; b += rhs.b; c += rhs.c; d += rhs.d; return *this; }
+	sf_forceinline Float4 &operator-=(const Float4 &rhs) { a -= rhs.a; b -= rhs.b; c -= rhs.c; d -= rhs.d; return *this; }
+	sf_forceinline Float4 &operator*=(const Float4 &rhs) { a *= rhs.a; b *= rhs.b; c *= rhs.c; d *= rhs.d; return *this; }
+	sf_forceinline Float4 &operator/=(const Float4 &rhs) { a /= rhs.a; b /= rhs.b; c /= rhs.c; d /= rhs.d; return *this; }
 
-	sf_forceinline Float4 broadcastX() const { return { imp[0], imp[0], imp[0], imp[0] }; }
-	sf_forceinline Float4 broadcastY() const { return { imp[1], imp[1], imp[1], imp[1] }; }
-	sf_forceinline Float4 broadcastZ() const { return { imp[2], imp[2], imp[2], imp[2] }; }
-	sf_forceinline Float4 broadcastW() const { return { imp[3], imp[3], imp[3], imp[3] }; }
-	sf_forceinline Float4 rotateLeft() const { return { imp[1], imp[2], imp[3], imp[0] }; }
-	sf_forceinline Float4 clearW() const { return { imp[0], imp[1], imp[2], 0.0f }; }
+	sf_forceinline Float4 broadcastX() const { return { a, a, a, a }; }
+	sf_forceinline Float4 broadcastY() const { return { b, b, b, b }; }
+	sf_forceinline Float4 broadcastZ() const { return { c, c, c, c }; }
+	sf_forceinline Float4 broadcastW() const { return { d, d, d, d }; }
+	sf_forceinline Float4 rotateLeft() const { return { b, c, d, a }; }
+	sf_forceinline Float4 clearW() const { return { a, b, c, 0.0f }; }
 
 	#if SF_CC_GNU || SF_CC_CLANG
-		sf_forceinline Float4 sqrt() const { return { __builtin_sqrtf(imp[0]), __builtin_sqrtf(imp[1]), __builtin_sqrtf(imp[2]), __builtin_sqrtf(imp[3]) }; }
-		sf_forceinline Float4 rsqrt() const { return { 1.0f / __builtin_sqrtf(imp[0]), 1.0f / __builtin_sqrtf(imp[1]), 1.0f / __builtin_sqrtf(imp[2]), 1.0f / __builtin_sqrtf(imp[3]) }; }
-		sf_forceinline Float4 abs() const { return { __builtin_fabsf(imp[0]), __builtin_fabsf(imp[1]), __builtin_fabsf(imp[2]), __builtin_fabsf(imp[3]) }; }
+		sf_forceinline Float4 sqrt() const { return { __builtin_sqrtf(a), __builtin_sqrtf(b), __builtin_sqrtf(c), __builtin_sqrtf(d) }; }
+		sf_forceinline Float4 rsqrt() const { return { 1.0f / __builtin_sqrtf(a), 1.0f / __builtin_sqrtf(b), 1.0f / __builtin_sqrtf(c), 1.0f / __builtin_sqrtf(d) }; }
+		sf_forceinline Float4 abs() const { return { __builtin_fabsf(a), __builtin_fabsf(b), __builtin_fabsf(c), __builtin_fabsf(d) }; }
 		#if SF_ARCH_WASM
-			sf_forceinline Float4 round() const { return { __builtin_rintf(imp[0]), __builtin_rintf(imp[1]), __builtin_rintf(imp[2]), __builtin_rintf(imp[3]) }; }
+			sf_forceinline Float4 round() const { return { __builtin_rintf(a), __builtin_rintf(b), __builtin_rintf(c), __builtin_rintf(d) }; }
 		#else
-			sf_forceinline Float4 round() const { return { __builtin_roundf(imp[0]), __builtin_roundf(imp[1]), __builtin_roundf(imp[2]), __builtin_roundf(imp[3]) }; }
+			sf_forceinline Float4 round() const { return { __builtin_roundf(a), __builtin_roundf(b), __builtin_roundf(c), __builtin_roundf(d) }; }
 		#endif
 	#else
-		sf_forceinline Float4 sqrt() const { return { sqrtf(imp[0]), sqrtf(imp[1]), sqrtf(imp[2]), sqrtf(imp[3]) }; }
-		sf_forceinline Float4 rsqrt() const { return { 1.0f / sqrtf(imp[0]), 1.0f / sqrtf(imp[1]), 1.0f / sqrtf(imp[2]), 1.0f / sqrtf(imp[3]) }; }
-		sf_forceinline Float4 abs() const { return { fabsf(imp[0]), fabsf(imp[1]), fabsf(imp[2]), fabsf(imp[3]) }; }
-		sf_forceinline Float4 round() const { return { roundf(imp[0]), roundf(imp[1]), roundf(imp[2]), roundf(imp[3]) }; }
+		sf_forceinline Float4 sqrt() const { return { sqrtf(a), sqrtf(b), sqrtf(c), sqrtf(d) }; }
+		sf_forceinline Float4 rsqrt() const { return { 1.0f / sqrtf(a), 1.0f / sqrtf(b), 1.0f / sqrtf(c), 1.0f / sqrtf(d) }; }
+		sf_forceinline Float4 abs() const { return { fabsf(a), fabsf(b), fabsf(c), fabsf(d) }; }
+		sf_forceinline Float4 round() const { return { roundf(a), roundf(b), roundf(c), roundf(d) }; }
 	#endif
 
-	sf_forceinline Float4 min(const Float4 &rhs) const { return { imp[0]<rhs.imp[0]?imp[0]:rhs.imp[0], imp[1]<rhs.imp[1]?imp[1]:rhs.imp[1], imp[2]<rhs.imp[2]?imp[2]:rhs.imp[2], imp[3]<rhs.imp[3]?imp[3]:rhs.imp[3] }; }
-	sf_forceinline Float4 max(const Float4 &rhs) const { return { imp[0]<rhs.imp[0]?rhs.imp[0]:imp[0], imp[1]<rhs.imp[1]?rhs.imp[1]:imp[1], imp[2]<rhs.imp[2]?rhs.imp[2]:imp[2], imp[3]<rhs.imp[3]?rhs.imp[3]:imp[3] }; }
+	sf_forceinline Float4 min(const Float4 &rhs) const { return { a<rhs.a?a:rhs.a, b<rhs.b?b:rhs.b, c<rhs.c?c:rhs.c, d<rhs.d?d:rhs.d }; }
+	sf_forceinline Float4 max(const Float4 &rhs) const { return { a<rhs.a?rhs.a:a, b<rhs.b?rhs.b:b, c<rhs.c?rhs.c:c, d<rhs.d?rhs.d:d }; }
 
-	sf_forceinline bool anyGreaterThanZero() const { return imp[0]>0.0f || imp[1]>0.0f || imp[2]>0.0f || imp[3]>0.0f; }
-	sf_forceinline bool allGreaterThanZero() const { return imp[0]>0.0f && imp[1]>0.0f && imp[2]>0.0f && imp[3]>0.0f; }
+	sf_forceinline bool anyGreaterThanZero() const { return a>0.0f || b>0.0f || c>0.0f || d>0.0f; }
+	sf_forceinline bool allGreaterThanZero() const { return a>0.0f && b>0.0f && c>0.0f && d>0.0f; }
 
 	sf_forceinline Vec3 asVec3() const {
-		return sf::Vec3(imp[0], imp[1], imp[2]);
+		return sf::Vec3(a, b, c);
 	}
 
 	static sf_forceinline void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
 	{
 		float t;
-		t = a.imp[1]; a.imp[1] = b.imp[0]; b.imp[0] = t;
-		t = a.imp[2]; a.imp[2] = c.imp[0]; c.imp[0] = t;
-		t = a.imp[3]; a.imp[3] = d.imp[0]; d.imp[0] = t;
-		t = b.imp[2]; b.imp[2] = c.imp[1]; c.imp[1] = t;
-		t = b.imp[3]; b.imp[3] = d.imp[1]; d.imp[1] = t;
-		t = c.imp[3]; c.imp[3] = d.imp[2]; d.imp[2] = t;
+		t = a.b; a.b = b.a; b.a = t;
+		t = a.c; a.c = c.a; c.a = t;
+		t = a.d; a.d = d.a; d.a = t;
+		t = b.c; b.c = c.b; c.b = t;
+		t = b.d; b.d = d.b; d.b = t;
+		t = c.d; c.d = d.c; d.c = t;
 	}
 };
 
@@ -325,7 +325,7 @@ struct Float4
 
 sf_inline Float4 horizontalSumXYZ(const Float4 rhs) {
 #if SF_FLOAT4_SCALAR
-	return rhs.imp[0] + rhs.imp[1] + rhs.imp[2];
+	return rhs.a + rhs.b + rhs.c;
 #else
 	return rhs.broadcastX() + rhs.broadcastY() + rhs.broadcastZ();
 #endif
@@ -333,7 +333,7 @@ sf_inline Float4 horizontalSumXYZ(const Float4 rhs) {
 
 sf_inline Float4 broadcastRcpLengthXYZ(const Float4 rhs) {
 #if SF_FLOAT4_SCALAR
-	return 1.0f / sf::sqrt(rhs.imp[0]*rhs.imp[0] + rhs.imp[1]*rhs.imp[1] + rhs.imp[2]*rhs.imp[2]);
+	return 1.0f / sf::sqrt(rhs.a*rhs.a + rhs.b*rhs.b + rhs.c*rhs.c);
 #else
 	return horizontalSumXYZ(rhs * rhs).rsqrt();
 #endif
