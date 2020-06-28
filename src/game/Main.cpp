@@ -154,6 +154,8 @@ void spEvent(const sapp_event *e)
 	}
 
 	if (e->type == SAPP_EVENTTYPE_KEY_DOWN && !e->key_repeat && !ImGui::GetIO().WantCaptureKeyboard) {
+
+#if 0
 		if (e->key_code == SAPP_KEYCODE_C) {
 			sf::SmallStringBuf<64> name;
 			name.format("Client %u", clients.size + 1);
@@ -166,9 +168,13 @@ void spEvent(const sapp_event *e)
 		} else if (e->key_code == SAPP_KEYCODE_M) {
 			MainClient &client = clients.back();
 			clientDoMoveTemp(client.client);
-		} else if (e->key_code == SAPP_KEYCODE_F3) {
+		}
+#endif
+
+		if (e->key_code == SAPP_KEYCODE_F3) {
 			g_showStats = !g_showStats;
 		}
+
 	} else if (e->type == SAPP_EVENTTYPE_MOUSE_MOVE) {
 		g_mousePos.x = e->mouse_x;
 		g_mousePos.y = e->mouse_y;
