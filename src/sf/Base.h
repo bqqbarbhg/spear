@@ -111,7 +111,7 @@ sf_inline float lerp(float a, float b, float t) { return a * (1.0f - t) + b * t;
 	sf_inline double sqrt(double a) { return _mm_cvtsd_f64(_mm_sqrt_sd(_mm_setzero_pd(), _mm_set_sd(a))); }
 	sf_inline float abs(float a) { return _mm_cvtss_f32(_mm_andnot_ps(_mm_set_ss(-0.0f), _mm_set_ss(a))); }
 	sf_inline double abs(double a) { return _mm_cvtsd_f64(_mm_andnot_pd(_mm_set_sd(-0.0), _mm_set_sd(a))); }
-#elif SF_CC_GCC || SF_CC_CLANG
+#elif SF_CC_GNU || SF_CC_CLANG
 	sf_inline float sqrt(float a) { return __builtin_sqrtf(a); }
 	sf_inline double sqrt(double a) { return __builtin_sqrt(a); }
 	sf_inline float abs(float a) { return __builtin_fabsf(a); }

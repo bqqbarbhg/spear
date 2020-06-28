@@ -275,11 +275,15 @@ struct Float4
 	sf_forceinline Float4 broadcastW() const { return { imp[3], imp[3], imp[3], imp[3] }; }
 	sf_forceinline Float4 rotateLeft() const { return { imp[1], imp[2], imp[3], imp[0] }; }
 
-	#if SF_CC_GCC || SF_CC_CLANG
+	#if SF_CC_GNU || SF_CC_CLANG
 		sf_forceinline Float4 sqrt() const { return { __builtin_sqrtf(imp[0]), __builtin_sqrtf(imp[1]), __builtin_sqrtf(imp[2]), __builtin_sqrtf(imp[3]) }; }
 		sf_forceinline Float4 rsqrt() const { return { 1.0f / __builtin_sqrtf(imp[0]), 1.0f / __builtin_sqrtf(imp[1]), 1.0f / __builtin_sqrtf(imp[2]), 1.0f / __builtin_sqrtf(imp[3]) }; }
 		sf_forceinline Float4 abs() const { return { __builtin_fabsf(imp[0]), __builtin_fabsf(imp[1]), __builtin_fabsf(imp[2]), __builtin_fabsf(imp[3]) }; }
-		sf_forceinline Float4 round() const { return { __builtin_roundf(imp[0]), __builtin_roundf(imp[1]), __builtin_roundf(imp[2]), __builtin_roundf(imp[3]) }; }
+		#if SF_ARCH_WASM
+			sf_forceinline Float4 round() const { return { __builtin_rintf(imp[0]), __builtin_rintf(imp[1]), __builtin_rintf(imp[2]), __builtin_rintf(imp[3]) }; }
+		#else
+			sf_forceinline Float4 round() const { return { __builtin_roundf(imp[0]), __builtin_roundf(imp[1]), __builtin_roundf(imp[2]), __builtin_roundf(imp[3]) }; }
+		#endif
 	#else
 		sf_forceinline Float4 sqrt() const { return { sqrtf(imp[0]), sqrtf(imp[1]), sqrtf(imp[2]), sqrtf(imp[3]) }; }
 		sf_forceinline Float4 rsqrt() const { return { 1.0f / sqrtf(imp[0]), 1.0f / sqrtf(imp[1]), 1.0f / sqrtf(imp[2]), 1.0f / sqrtf(imp[3]) }; }
