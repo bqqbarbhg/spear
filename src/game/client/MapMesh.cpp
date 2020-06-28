@@ -11,7 +11,7 @@ struct MapGeometryBuilder
 	sf::Array<uint32_t> indices32;
 	uint16_t *indicesDst16 = nullptr;
 	uint32_t *indicesDst32 = nullptr;
-	sf::Vec3 aabbMin = sf::Vec3(+HUGE_VALF), aabbMax = sf::Vec3(-HUGE_VALF);
+	sf::Float4 aabbMin = sf::Float4(+HUGE_VALF), aabbMax = sf::Float4(-HUGE_VALF);
 	bool loading = false;
 
 	void count(sp::Model *model) {
@@ -54,9 +54,9 @@ struct MapGeometryBuilder
 		}
 	}
 
-	sf_forceinline void updateBounds(const sf::Vec3 &pos) {
-		aabbMin = sf::min(aabbMin, pos);
-		aabbMax = sf::max(aabbMax, pos);
+	sf_forceinline void updateBounds(const sf::Float4 &pos) {
+		aabbMin = aabbMin.min(pos);
+		aabbMax = aabbMax.max(pos);
 	}
 
 	void finish(const char *indexName, MapGeometry &dst) {
@@ -70,7 +70,7 @@ struct MapGeometryBuilder
 			dst.largeIndices = false;
 		}
 		dst.numInidces = numIndices;
-		dst.bounds = sf::Bounds3::minMax(aabbMin, aabbMax);
+		dst.bounds = sf::Bounds3::minMax(aabbMin.asVec3(), aabbMax.asVec3());
 	}
 };
 
@@ -116,10 +116,10 @@ bool MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 		sf::Mat33 tangentTransform = transform.get33();
 		sf::Mat33 normalTransform = transform.get33();
 
-		sf::Float4 col0 = sf::Float4::loadu(transform.cols[0].v);
-		sf::Float4 col1 = sf::Float4::loadu(transform.cols[1].v);
-		sf::Float4 col2 = sf::Float4::loadu(transform.cols[2].v);
-		sf::Float4 col3 = sf::Float4::loadu(transform.cols[3].v - 1).rotateLeft();
+		sf::Float4 col0 = sf::Float4::loadu(transform.cols[0].v).clearW();
+		sf::Float4 col1 = sf::Float4::loadu(transform.cols[1].v).clearW();
+		sf::Float4 col2 = sf::Float4::loadu(transform.cols[2].v).clearW();
+		sf::Float4 col3 = sf::Float4::loadu(transform.cols[3].v - 1).rotateLeft().clearW();
 
 		const constexpr float roundScale = 1000.0f;
 		const constexpr float rcpRoundScale = 1.0f / roundScale;
@@ -148,7 +148,7 @@ bool MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 					dst.tangent = sf::Vec4(tt.asVec3(), vertex.tangent.w);
 					dst.uv = vertex.uv * material->uvScale + material->uvBase;
 					dst.tint = mapMesh.tint;
-					mainBuilder.updateBounds(dst.position);
+					mainBuilder.updateBounds(tp);
 				}
 			}
 		}
@@ -166,7 +166,7 @@ bool MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 					tp = (tp * roundScale).round() * rcpRoundScale;
 
 					dst = tp.asVec3();
-					shadowBuilder.updateBounds(dst);
+					shadowBuilder.updateBounds(tp);
 				}
 			}
 		}

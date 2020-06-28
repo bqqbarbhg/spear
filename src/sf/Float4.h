@@ -4,7 +4,7 @@
 #include "sf/Vector.h"
 
 #ifndef SF_FLOAT4_FORCE_SCALAR
-#define SF_FLOAT4_FORCE_SCALAR 1
+#define SF_FLOAT4_FORCE_SCALAR 0
 #endif
 
 #if SF_ARCH_WASM && SF_WASM_USE_SIMD && !SF_FLOAT4_FORCE_SCALAR
@@ -55,6 +55,7 @@ struct Float4
 	sf_forceinline Float4 broadcastZ() const { return wasm_v32x4_shuffle(imp, imp, 2,2,2,2); }
 	sf_forceinline Float4 broadcastW() const { return wasm_v32x4_shuffle(imp, imp, 3,3,3,3); }
 	sf_forceinline Float4 rotateLeft() const { return wasm_v32x4_shuffle(imp, imp, 1,2,3,0); }
+	sf_forceinline Float4 clearW() const { return wasm_v32x4_replace_lane(imp, 0, 0.0f); }
 
 	sf_forceinline Float4 sqrt() const { return wasm_f32x4_sqrt(imp); }
 	sf_forceinline Float4 rsqrt() const { return Float4(1.0f) / wasm_f32x4_sqrt(imp); }
@@ -106,6 +107,7 @@ struct Float4
 	sf_forceinline Float4(float f) : imp(_mm_set1_ps(f)) { }
 	sf_forceinline Float4(__m128 m) : imp(m) { }
 	sf_forceinline Float4(float a, float b, float c, float d) : imp(_mm_set_ps(a, b, c, d)) { }
+
 	sf_forceinline Float4 operator+(const Float4 &rhs) const { return _mm_add_ps(imp, rhs.imp); }
 	sf_forceinline Float4 operator-(const Float4 &rhs) const { return _mm_sub_ps(imp, rhs.imp); }
 	sf_forceinline Float4 operator*(const Float4 &rhs) const { return _mm_mul_ps(imp, rhs.imp); }
@@ -114,11 +116,14 @@ struct Float4
 	sf_forceinline Float4 &operator-=(const Float4 &rhs) { imp = _mm_sub_ps(imp, rhs.imp); return *this; }
 	sf_forceinline Float4 &operator*=(const Float4 &rhs) { imp = _mm_mul_ps(imp, rhs.imp); return *this; }
 	sf_forceinline Float4 &operator/=(const Float4 &rhs) { imp = _mm_div_ps(imp, rhs.imp); return *this; }
+
 	sf_forceinline Float4 broadcastX() const { return _mm_shuffle_ps(imp, imp, _MM_SHUFFLE(0,0,0,0)); }
 	sf_forceinline Float4 broadcastY() const { return _mm_shuffle_ps(imp, imp, _MM_SHUFFLE(1,1,1,1)); }
 	sf_forceinline Float4 broadcastZ() const { return _mm_shuffle_ps(imp, imp, _MM_SHUFFLE(2,2,2,2)); }
 	sf_forceinline Float4 broadcastW() const { return _mm_shuffle_ps(imp, imp, _MM_SHUFFLE(3,3,3,3)); }
 	sf_forceinline Float4 rotateLeft() const { return _mm_shuffle_ps(imp, imp, _MM_SHUFFLE(0,3,2,1)); }
+	sf_forceinline Float4 clearW() const { return _mm_blend_ps(imp, _mm_setzero_ps(), 0x8); }
+
 	sf_forceinline Float4 sqrt() const { return _mm_sqrt_ps(imp); }
 	sf_forceinline Float4 rsqrt() const {
 		const __m128 mm3 = _mm_set1_ps(3.0f), mmRcp2 = _mm_set1_ps(0.5f);
@@ -196,6 +201,8 @@ struct Float4
 	sf_forceinline Float4 broadcastZ() const { return vdupq_lane_f32(imp, 2); }
 	sf_forceinline Float4 broadcastW() const { return vdupq_lane_f32(imp, 3); }
 	sf_forceinline Float4 rotateLeft() const { return vextq_f32(imp, imp, 1); }
+	sf_forceinline Float4 clearW() const { return vsetq_lane_f32(0.0f, imp, 3); }
+
 	sf_forceinline Float4 rsqrt() const {
 		float32x4_t e = vrsqrteq_f32(imp);
 		e = vmulq_f32(vrsqrtsq_f32(vmulq_f32(e, e), imp), e);
@@ -274,6 +281,7 @@ struct Float4
 	sf_forceinline Float4 broadcastZ() const { return { imp[2], imp[2], imp[2], imp[2] }; }
 	sf_forceinline Float4 broadcastW() const { return { imp[3], imp[3], imp[3], imp[3] }; }
 	sf_forceinline Float4 rotateLeft() const { return { imp[1], imp[2], imp[3], imp[0] }; }
+	sf_forceinline Float4 clearW() const { return { imp[0], imp[1], imp[2], 0.0f }; }
 
 	#if SF_CC_GNU || SF_CC_CLANG
 		sf_forceinline Float4 sqrt() const { return { __builtin_sqrtf(imp[0]), __builtin_sqrtf(imp[1]), __builtin_sqrtf(imp[2]), __builtin_sqrtf(imp[3]) }; }
