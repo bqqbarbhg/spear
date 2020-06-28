@@ -140,8 +140,8 @@ bool MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 					sf::Float4 tt = col0*vt.x + col1*vt.y + col2*vt.z;
 
 					tp = (tp * roundScale).round() * rcpRoundScale;
-					tn *= sf::horizontalSumXYZ(tn * tn).rsqrt();
-					tt *= sf::horizontalSumXYZ(tt * tt).rsqrt();
+					tn *= sf::broadcastRcpLengthXYZ(tn);
+					tt *= sf::broadcastRcpLengthXYZ(tt);
 
 					dst.position = tp.asVec3();
 					dst.normal = tn.asVec3();
