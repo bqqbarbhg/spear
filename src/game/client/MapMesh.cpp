@@ -1,5 +1,7 @@
 #include "MapMesh.h"
 
+#include "sf/Float4.h"
+
 namespace cl {
 
 struct MapGeometryBuilder
@@ -114,6 +116,14 @@ bool MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 		sf::Mat33 tangentTransform = transform.get33();
 		sf::Mat33 normalTransform = transform.get33();
 
+		sf::Float4 col0 = sf::Float4::loadu(transform.cols[0].v);
+		sf::Float4 col1 = sf::Float4::loadu(transform.cols[1].v);
+		sf::Float4 col2 = sf::Float4::loadu(transform.cols[2].v);
+		sf::Float4 col3 = sf::Float4::loadu(transform.cols[3].v - 1).rotateLeft();
+
+		const constexpr float roundScale = 1000.0f;
+		const constexpr float rcpRoundScale = 1.0f / roundScale;
+
 		if (mapMesh.model.isLoaded() && mapMesh.material.isLoaded()) {
 			cl::TileMaterial *material = mapMesh.material;
 			for (sp::Mesh &mesh : mapMesh.model->meshes) {
@@ -121,9 +131,21 @@ bool MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 				mainBuilder.appendIndices(sf::slice(mesh.cpuIndexData16, mesh.numIndices), (uint32_t)(vertexDst - vertices.data));
 				for (MapSrcVertex &vertex : sf::slice((MapSrcVertex*)mesh.streams[0].cpuData, mesh.numVertices)) {
 					MapVertex &dst = *vertexDst++;
-					dst.position = sf::transformPoint(transform, vertex.position);
-					dst.normal = sf::normalizeOrZero(sf::transformPoint(normalTransform, vertex.normal));
-					dst.tangent = sf::Vec4(sf::normalizeOrZero(sf::transformPoint(tangentTransform, sf::Vec3(vertex.tangent.v))), vertex.tangent.w);
+					const sf::Vec3 &vp = vertex.position;
+					const sf::Vec3 &vn = vertex.normal;
+					const sf::Vec4 &vt = vertex.tangent;
+
+					sf::Float4 tp = col0*vp.x + col1*vp.y + col2*vp.z + col3;
+					sf::Float4 tn = col0*vn.x + col1*vn.y + col2*vn.z;
+					sf::Float4 tt = col0*vt.x + col1*vt.y + col2*vt.z;
+
+					tp = (tp * roundScale).round() * rcpRoundScale;
+					tn *= sf::horizontalSumXYZ(tn * tn).rsqrt();
+					tt *= sf::horizontalSumXYZ(tt * tt).rsqrt();
+
+					dst.position = tp.asVec3();
+					dst.normal = tn.asVec3();
+					dst.tangent = sf::Vec4(tt.asVec3(), vertex.tangent.w);
 					dst.uv = vertex.uv * material->uvScale + material->uvBase;
 					dst.tint = mapMesh.tint;
 					mainBuilder.updateBounds(dst.position);
@@ -136,7 +158,14 @@ bool MapChunkGeometry::build(sf::Slice<MapMesh> meshes, const sf::Vec2i &chunkPo
 				shadowBuilder.appendIndices(sf::slice(mesh.cpuIndexData16, mesh.numIndices), (uint32_t)(shadowVertexDst - shadowVertices.data));
 				for (MapSrcVertex &vertex : sf::slice((MapSrcVertex*)mesh.streams[0].cpuData, mesh.numVertices)) {
 					sf::Vec3 &dst = *shadowVertexDst++;
-					dst = sf::transformPoint(transform, vertex.position);
+
+					const sf::Vec3 &vp = vertex.position;
+
+					sf::Float4 tp = col0*vp.x + col1*vp.y + col2*vp.z + col3;
+
+					tp = (tp * roundScale).round() * rcpRoundScale;
+
+					dst = tp.asVec3();
 					shadowBuilder.updateBounds(dst);
 				}
 			}

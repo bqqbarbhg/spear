@@ -24,7 +24,7 @@ struct Frustum
 		{
 			Float4 a = r3 - r0, b = r3 + r0, c = r3 - r1, d = r3 + r1;
 			Float4::transpose4(a, b, c, d);
-			Float4 rcpLen = Float4(1.0f) / (a*a + b*b + c*c).sqrt();
+			Float4 rcpLen = (a*a + b*b + c*c).rsqrt();
 			a *= rcpLen; b *= rcpLen; c *= rcpLen; d *= rcpLen;
 			side[0] = a; side[1] = b; side[2] = c; side[3] = d;
 		}
@@ -33,7 +33,7 @@ struct Frustum
 			Float4 c0 = Float4::loadu(mat.cols[2].v);
 			Float4 a = r3 * -clipNearW + r2, b = r3 - r2, c = a, d = b;
 			Float4::transpose4(a, b, c, d);
-			Float4 rcpLen = Float4(1.0f) / (a*a + b*b + c*c).sqrt();
+			Float4 rcpLen = (a*a + b*b + c*c).rsqrt();
 			a *= rcpLen; b *= rcpLen; c *= rcpLen; d *= rcpLen;
 			caps[0] = a; caps[1] = b; caps[2] = c; caps[3] = d;
 		}
