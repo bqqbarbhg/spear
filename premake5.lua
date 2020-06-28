@@ -111,9 +111,11 @@ workspace "spear"
 
 	filter "platforms:x86"
 		architecture "x86"
+		vectorextensions "SSE4.1"
 
 	filter "platforms:x64"
 		architecture "x86_64"
+		vectorextensions "SSE4.1"
 
 	filter { "platforms:not wasm",  "system:windows" }
 		libdirs { "dep/lib/windows_%{cfg.platform}" }
