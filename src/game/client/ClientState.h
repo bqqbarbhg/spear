@@ -131,6 +131,12 @@ struct Object
 	sv::Object svObject;
 };
 
+struct PickObject
+{
+	float rayT;
+	uint32_t objectId;
+};
+
 struct State
 {
 	sf::Array<sf::Box<Entity>> entities;
@@ -147,7 +153,7 @@ struct State
 	sf::Mat34 getObjectTransform(const sv::Object &object);
 	void getObjectBounds(const ObjectType &type, const sf::Mat34 &transform, sf::Array<sf::Mat34> &bounds);
 
-	uint32_t pickObject(float &outT, const sf::Ray &ray);
+	void pickObjects(sf::Array<PickObject> &pickObjects, const sf::Ray &ray);
 
 	void reset(sv::State *svState);
 

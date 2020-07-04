@@ -21,6 +21,7 @@
 #include "game/ImguiSerialization.h"
 #include "sf/Reflection.h"
 #include "sf/HashSet.h"
+#include "sf/Sort.h"
 
 #include "GameConfig.h"
 
@@ -139,15 +140,20 @@ struct ClientMain
 	uint32_t clientObjectIdCounter = 0x80000000;
 
 	uint32_t selectedObject = 0;
+	sf::HashSet<uint32_t> ignoreObjects;
 	uint32_t dragObject = 0;
 	uint32_t tempShadowUpdateIndex = 0;
 	sf::Vec2i dragBaseTile;
 	sf::Vec3 dragOrigin;
 	sf::Vec2i dragDstTile;
+	sf::Vec2i dragPrevTile;
 	uint8_t dragBaseRotation = 0;
 	uint8_t dragDstRotation = 0;
+	uint8_t dragPrevRotation = 0;
 	sv::Object dragOriginalObject;
 	bool dragDoesClone = false;
+	bool clickedSelected = false;
+	bool dragDidModify = false;
 
 	float cameraZoomVel = 0.0f;
 	float cameraZoom = 0.5f;
@@ -1362,13 +1368,19 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				sf::Vec2 dragTile = sf::Vec2(dragPos.x, dragPos.z) - sf::Vec2(c->dragOrigin.x, c->dragOrigin.z);
 				c->dragDstTile = sf::Vec2i(sf::floor(dragTile + sf::Vec2(0.5f))) + c->dragBaseTile;
 
-				sv::EventUpdateObject event;
-				event.id = c->dragObject;
-				event.object = object->svObject;
-				event.object.x = c->dragDstTile.x;
-				event.object.y = c->dragDstTile.y;
-				event.object.rotation = c->dragDstRotation;
-				c->clientState.applyEvent(&event);
+				if (c->dragDstTile != c->dragPrevTile || c->dragDstRotation != c->dragPrevRotation) {
+					sv::EventUpdateObject event;
+					event.id = c->dragObject;
+					event.object = object->svObject;
+					event.object.x = c->dragDstTile.x;
+					event.object.y = c->dragDstTile.y;
+					event.object.rotation = c->dragDstRotation;
+					c->clientState.applyEvent(&event);
+					c->dragDidModify = true;
+				}
+
+				c->dragPrevTile = c->dragDstTile;
+				c->dragPrevRotation = c->dragDstRotation;
 			}
 		}
 
@@ -1473,6 +1485,10 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 			ImGui::EndMainMenuBar();
 		}
 
+		handleImgui(c->selectedObject, "selectedObject");
+		handleImgui(c->clickedSelected, "clickedSelected");
+		handleImgui(c->ignoreObjects, "ignoreObjects");
+
 		for (sapp_event &e : input.events) {
 			if (e.type == SAPP_EVENTTYPE_MOUSE_DOWN && !ImGui::GetIO().WantCaptureMouse) {
 				if (e.mouse_button == 0) {
@@ -1483,16 +1499,43 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 						c->selectedCard = -1;
 
 						// HACK
-						float t;
-						uint32_t id = c->clientState.pickObject(t, mouseRay);
-						c->selectedObject = id;
+						sf::SmallArray<cl::PickObject, 16> picks;
+						c->clientState.pickObjects(picks, mouseRay);
 
-						if (id) {
+						sf::sortBy(picks, [](const cl::PickObject &o) { return o.rayT; });
+
+						c->clickedSelected = false;
+						c->dragDidModify = false;
+
+						cl::PickObject *chosenPick = nullptr;
+						if (c->selectedObject) {
+							for (cl::PickObject &pick : picks) {
+								if (pick.objectId == c->selectedObject) {
+									chosenPick = &pick;
+									c->clickedSelected = true;
+								}
+							}
+						}
+
+						if (!c->clickedSelected) {
+							c->ignoreObjects.clear();
+						}
+
+						if (!chosenPick && picks.size > 0) {
+							chosenPick = &picks[0];
+						}
+
+						if (chosenPick) {
+							uint32_t id = chosenPick->objectId;
+							float t = chosenPick->rayT;
+
+							c->selectedObject = id;
+
 							c->dragOrigin = mouseRay.origin + mouseRay.direction * t;
 							if (cl::Object *object = c->clientState.objects.findValue(id)) {
 								c->dragOriginalObject = object->svObject;
-								c->dragDstTile = c->dragBaseTile = sf::Vec2i(object->svObject.x, object->svObject.y);
-								c->dragDstRotation = c->dragBaseRotation = object->svObject.rotation;
+								c->dragPrevTile = c->dragDstTile = c->dragBaseTile = sf::Vec2i(object->svObject.x, object->svObject.y);
+								c->dragPrevRotation = c->dragDstRotation = c->dragBaseRotation = object->svObject.rotation;
 								if (keyDown(SAPP_KEYCODE_LEFT_CONTROL) || keyDown(SAPP_KEYCODE_RIGHT_CONTROL)) {
 									uint32_t cloneId = ++c->clientObjectIdCounter;
 									c->dragDoesClone = true;
@@ -1509,6 +1552,8 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 									c->dragDoesClone = false;
 								}
 							}
+						} else {
+							c->selectedObject = 0;
 						}
 					}
 				}
@@ -1557,6 +1602,8 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 						if (c->dragDstRotation != c->dragBaseRotation) changed = true;
 
 						if (changed) {
+							c->ignoreObjects.clear();
+
 							sv::MessageCommand msg;
 
 							if (c->dragDoesClone) {
@@ -1573,6 +1620,32 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 							}
 
 							writeMessage(c->ws, &msg, c->name, serverName);
+						} else if (c->clickedSelected && !c->dragDidModify) {
+							c->ignoreObjects.insert(c->selectedObject);
+
+							sf::SmallArray<cl::PickObject, 16> picks;
+							c->clientState.pickObjects(picks, mouseRay);
+
+							sf::sortBy(picks, [](const cl::PickObject &o) { return o.rayT; });
+
+							bool foundNew = false;
+							for (cl::PickObject &pick : picks) {
+								if (c->ignoreObjects.find(pick.objectId)) continue;
+								
+								c->selectedObject = pick.objectId;
+								foundNew = true;
+								break;
+							}
+
+							if (!foundNew) {
+								c->ignoreObjects.clear();
+
+								if (picks.size > 0) {
+									c->selectedObject = picks[0].objectId;
+								}
+							}
+						} else if (c->dragDidModify) {
+							c->ignoreObjects.clear();
 						}
 
 						if (c->dragDoesClone) {

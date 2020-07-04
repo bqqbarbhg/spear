@@ -215,11 +215,8 @@ void State::getObjectBounds(const ObjectType &type, const sf::Mat34 &transform, 
 	}
 }
 
-uint32_t State::pickObject(float &outT, const sf::Ray &ray)
+void State::pickObjects(sf::Array<PickObject> &pickObjects, const sf::Ray &ray)
 {
-	uint32_t minId = 0;
-	float minT = HUGE_VALF;
-
 	for (ObjectType &type : objectTypes) {
 		sf::Sphere bounds = getObjectTypeBounds(type);
 
@@ -232,28 +229,22 @@ uint32_t State::pickObject(float &outT, const sf::Ray &ray)
 
 			float t;
 			if (sf::intesersectRay(t, ray, objectBounds)) {
-				if (t < minT) {
-					sf::SmallArray<sf::Mat34, 32> obbs;
-					getObjectBounds(type, transform, obbs);
+				sf::SmallArray<sf::Mat34, 32> obbs;
+				getObjectBounds(type, transform, obbs);
 
-					float realT = HUGE_VALF;
-					for (sf::Mat34 &obb : obbs) {
-						if (sf::intesersectRayObb(t, ray, obb) && t >= 0.0f) {
-							realT = sf::min(realT, t);
-						}
+				float realT = HUGE_VALF;
+				for (sf::Mat34 &obb : obbs) {
+					if (sf::intesersectRayObb(t, ray, obb) && t >= 0.0f) {
+						realT = sf::min(realT, t);
 					}
+				}
 
-					if (realT < minT) {
-						minT = realT;
-						minId = id;
-					}
+				if (realT < HUGE_VALF) {
+					pickObjects.push({ realT, id });
 				}
 			}
 		}
 	}
-
-	outT = minT;
-	return minId;
 }
 
 static void updateObjectImp(State &state, uint32_t id, const ObjectType &prevType, const Object &prev, const sv::Object &next)
