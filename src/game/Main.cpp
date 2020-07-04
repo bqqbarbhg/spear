@@ -222,7 +222,7 @@ void spFrame(float dt)
 		float y = 40.0f;
 		for (ProcessingAsset &asset : processingAssets) {
 			sf::SmallStringBuf<128> text;
-			text.format("%s %u/%u", asset.name, asset.tasksDone, asset.tasksPending);
+            text.format("%s %u/%u", asset.name.data, asset.tasksDone, asset.tasksPending);
 			sp::TextDraw td;
 			td.font = font;
 			td.string = text;

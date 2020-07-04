@@ -818,7 +818,7 @@ static float drawRichText(sp::Canvas &canvas, const RichTextDesc &desc, sf::Slic
 		float currentWidth = 0.0f;
 		for (; end <= draw.text.size; end++) {
 
-			if (end >= begin && end == draw.text.size || draw.text.data[end] == ' ') {
+			if (end >= begin && (end == draw.text.size || draw.text.data[end] == ' ')) {
 				sf::String piece { draw.text.data + prevEnd, end - prevEnd };
 				float width = draw.font->measureText(piece, draw.fontHeight).x;
 
@@ -2015,7 +2015,7 @@ sg_image clientRender(ClientMain *c)
 				sg_update_buffer(c->sphereInstanceBuffer.buffer, sphereData.data, (int)sphereData.byteSize());
 			}
 
-			{
+            if (lines.size) {
 				c->linePipe.bind();
 
 				Line_Vertex_t vu;
@@ -2029,7 +2029,7 @@ sg_image clientRender(ClientMain *c)
 				sg_draw(0, (int)lines.size * 2, 1);
 			}
 
-			{
+            if (spheres.size) {
 				c->spherePipe.bind();
 
 				Sphere_Vertex_t vu;
