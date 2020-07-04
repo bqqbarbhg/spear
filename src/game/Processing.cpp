@@ -259,6 +259,7 @@ struct Processor
 	sf::StringBuf toolRoot;
 
 	sf::HashSet<sf::Symbol> assetsToReload;
+	sf::HashMap<sf::Symbol, ProcessingAsset> processingAssets;
 
 	sf::DirectoryMonitor dataMonitor;
 
@@ -327,6 +328,7 @@ void Processor::updateTasks()
 		ti->processing = true;
 		for (const sf::Symbol &sym : ti->assets) {
 			assetsToReload.insert(sym);
+			processingAssets[sym].tasksPending++;
 		}
 		ti->task->process(*this, *ti);
 		dirtyTaskInstances.removeSwap(i--);
@@ -352,6 +354,10 @@ static Job::Status processActiveQueue(Processor &p, ActiveJobQueue &active)
 					ti->dirty = true;
 					p.dirtyTaskInstances.push(ti);
 				}
+			} else {
+				for (const sf::Symbol &sym : ti->assets) {
+					p.processingAssets[sym].tasksDone++;
+				}
 			}
 
 			return Job::Failed;
@@ -359,8 +365,12 @@ static Job::Status processActiveQueue(Processor &p, ActiveJobQueue &active)
 		case Job::Running: return Job::Running;
 		case Job::Succeeded:
 			if (active.queue.isEmpty()) {
-				active.queue.taskInstance->failCounter = 0;
-				active.queue.taskInstance->processing = false;
+				TaskInstance *ti = active.queue.taskInstance;
+				ti->failCounter = 0;
+				ti->processing = false;
+				for (const sf::Symbol &sym : ti->assets) {
+					p.processingAssets[sym].tasksDone++;
+				}
 				return Job::Succeeded;
 			}
 			active.job = active.queue.dequeue();
@@ -1022,18 +1032,32 @@ void initializeProcessing(const ProcessingDesc &desc)
 	sf::appendPath(p.toolRoot, "linux");
 #endif
 
+	bool doAstc = true;
+	bool doRgba = true;
+	bool doBc3Normal = true;
+
+#if SF_OS_WINDOWS
+	if (desc.localProcessing) {
+		doAstc = false;
+		doRgba = false;
+		doBc3Normal = false;
+	}
+#endif
+
 	int materialResolution = 512;
 	p.tasks.push(sf::box<AlbedoTextureTask>("bc1", materialResolution));
 	p.tasks.push(sf::box<AlbedoTextureTask>("bc7", materialResolution));
-	p.tasks.push(sf::box<AlbedoTextureTask>("astc4x4", materialResolution));
-	p.tasks.push(sf::box<AlbedoTextureTask>("rgba8", materialResolution));
+	if (doAstc) p.tasks.push(sf::box<AlbedoTextureTask>("astc4x4", materialResolution));
+	if (doRgba) p.tasks.push(sf::box<AlbedoTextureTask>("rgba8", materialResolution));
+
 	p.tasks.push(sf::box<NormalTextureTask>("bc5", false, materialResolution));
-	p.tasks.push(sf::box<NormalTextureTask>("bc3", true, materialResolution));
-	p.tasks.push(sf::box<NormalTextureTask>("astc4x4", true, materialResolution));
-	p.tasks.push(sf::box<NormalTextureTask>("rgba8", false, materialResolution));
+	if (doBc3Normal) p.tasks.push(sf::box<NormalTextureTask>("bc3", true, materialResolution));
+	if (doAstc) p.tasks.push(sf::box<NormalTextureTask>("astc4x4", true, materialResolution));
+	if (doRgba) p.tasks.push(sf::box<NormalTextureTask>("rgba8", false, materialResolution));
+
 	p.tasks.push(sf::box<MaskTextureTask>("bc3", materialResolution));
-	p.tasks.push(sf::box<MaskTextureTask>("rgba8", materialResolution));
-	p.tasks.push(sf::box<MaskTextureTask>("astc8x8", materialResolution));
+	if (doAstc) p.tasks.push(sf::box<MaskTextureTask>("astc8x8", materialResolution));
+	if (doRgba) p.tasks.push(sf::box<MaskTextureTask>("rgba8", materialResolution));
 
 	int maxGuiExtent = 512;
 	int maxCardExtent = 256;
@@ -1145,6 +1169,21 @@ bool updateProcessing()
 		p.assetsToReload.clear();
 	}
 
+	p.processingAssets.clear();
+
 	return false;
+}
+
+void queryProcessingAssets(sf::Array<ProcessingAsset> &assets)
+{
+	Processor &p = g_processor;
+
+	for (auto &pair : p.processingAssets) {
+		if (pair.val.tasksDone == pair.val.tasksPending) continue;
+		ProcessingAsset &asset = assets.push();
+		asset.name = pair.key;
+		asset.tasksPending = pair.val.tasksPending;
+		asset.tasksDone = pair.val.tasksDone;
+	}
 }
 

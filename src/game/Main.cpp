@@ -127,7 +127,11 @@ void spInit()
 
 	upscalePipe.init(gameShaders.upscaleFast, sp::PipeVertexFloat2);
 
-	initializeProcessing();
+	{
+		ProcessingDesc desc = { };
+		desc.localProcessing = true;
+		initializeProcessing(desc);
+	}
 }
 
 void spCleanup()
@@ -210,6 +214,25 @@ void spFrame(float dt)
 	}
     
 	canvas.clear();
+
+	{
+		sf::SmallArray<ProcessingAsset, 32> processingAssets;
+		queryProcessingAssets(processingAssets);
+
+		float y = 40.0f;
+		for (ProcessingAsset &asset : processingAssets) {
+			sf::SmallStringBuf<128> text;
+			text.format("%s %u/%u", asset.name, asset.tasksDone, asset.tasksPending);
+			sp::TextDraw td;
+			td.font = font;
+			td.string = text;
+			td.transform.m02 = 40.0f;
+			td.transform.m12 = y; y += 18.0f;
+			td.height = 18.0f;
+			canvas.drawText(td);
+		}
+	}
+
 	if (g_showStats) {
 		float y = 50.0f;
 		for (const sp::PassTime &time : sp::getPassTimes()) {
@@ -223,9 +246,9 @@ void spFrame(float dt)
 			td.height = 30.0f;
 			canvas.drawText(td);
 		}
-		
-		canvas.prepareForRendering();
 	}
+
+	canvas.prepareForRendering();
    
     sp::Font::updateAtlasesForRendering();
 
