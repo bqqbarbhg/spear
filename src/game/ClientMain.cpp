@@ -102,7 +102,7 @@ struct ClientMain
 	Shader2 testMeshShader;
 	Shader2 testSkinShader;
 
-	sp::Pipeline tempMeshPipe;
+	sp::Pipeline tempMeshPipe[2];
 	sp::Pipeline tempSkinnedMeshPipe;
 
 	sf::Mat44 worldToClip;
@@ -596,9 +596,10 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 	c->testMeshShader = getShader2(SpShader_TestMesh, permutation);
 	c->testSkinShader = getShader2(SpShader_TestSkin, permutation);
 
-	{
-		uint32_t flags = sp::PipeDepthWrite|sp::PipeIndex16|sp::PipeCullCCW;
-		auto &d = c->tempMeshPipe.init(c->testMeshShader.handle, flags);
+	for (uint32_t ix = 0; ix < 2; ix++) {
+		uint32_t flags = sp::PipeDepthWrite|sp::PipeCullCCW;
+		flags |= ix == 1 ? sp::PipeIndex32 : sp::PipeIndex16;
+		auto &d = c->tempMeshPipe[ix].init(c->testMeshShader.handle, flags);
 		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
 		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
 		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT4;
@@ -1714,7 +1715,7 @@ sg_image clientRender(ClientMain *c)
 			if (!chunkGeo.main.vertexBuffer.buffer.id) continue;
 			if (!frustum.intersects(chunkGeo.main.bounds)) continue;
 
-			c->tempMeshPipe.bind();
+			c->tempMeshPipe[chunkGeo.main.largeIndices].bind();
 
 #if 0
 
