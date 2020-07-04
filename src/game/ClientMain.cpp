@@ -1161,6 +1161,12 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
 	if (c->windowAssets && ImGui::Begin("Assets", &c->windowAssets)) {
+		if (ImGui::Button("Refresh")) {
+			g_assets.expanded = false;
+			g_assets.dirs.clear();
+			g_assets.files.clear();
+		}
+
 		handleImguiAssetDir(c, g_assets);
 		ImGui::End();
 	}
