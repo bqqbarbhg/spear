@@ -1485,10 +1485,6 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 			ImGui::EndMainMenuBar();
 		}
 
-		handleImgui(c->selectedObject, "selectedObject");
-		handleImgui(c->clickedSelected, "clickedSelected");
-		handleImgui(c->ignoreObjects, "ignoreObjects");
-
 		for (sapp_event &e : input.events) {
 			if (e.type == SAPP_EVENTTYPE_MOUSE_DOWN && !ImGui::GetIO().WantCaptureMouse) {
 				if (e.mouse_button == 0) {
@@ -1591,6 +1587,10 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 						msg.command = cmd;
 						writeMessage(c->ws, &msg, c->name, serverName);
 					}
+				}
+
+				if (e.key_code == SAPP_KEYCODE_Q) {
+					c->selectedObject = 0;
 				}
 
 			} else if (e.type == SAPP_EVENTTYPE_MOUSE_UP) {
