@@ -2447,6 +2447,10 @@ _SOKOL_PRIVATE void _sapp_run(const sapp_desc* desc) {
     attrs.premultipliedAlpha = _sapp.desc.html5_premultiplied_alpha;
     attrs.preserveDrawingBuffer = _sapp.desc.html5_preserve_drawing_buffer;
     attrs.enableExtensionsByDefault = true;
+
+    // bqq patch: Prefer HIHG_PERFORMANCE
+    attrs.powerPreference = EM_WEBGL_POWER_PREFERENCE_HIGH_PERFORMANCE;
+
     #if defined(SOKOL_GLES3)
         if (_sapp.desc.gl_force_gles2) {
             attrs.majorVersion = 1;
