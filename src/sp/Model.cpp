@@ -64,6 +64,7 @@ static void loadImp(void *user, const ContentFile &file)
 	char *strings = spmdl_decode_strings(&su);
 	spmdl_node *nodes = spmdl_decode_nodes(&su);
 	spmdl_bone *bones = spmdl_decode_bones(&su);
+	spmdl_material *materials = spmdl_decode_materials(&su);
 	spmdl_mesh *meshes = spmdl_decode_meshes(&su);
 	char *vertex, *index;
 
@@ -102,8 +103,11 @@ static void loadImp(void *user, const ContentFile &file)
 	imp->meshes.reserve(header.info.num_meshes);
 	for (uint32_t i = 0; i < header.info.num_meshes; i++) {
 		spmdl_mesh &sp_mesh = meshes[i];
+		spmdl_material &sp_material = materials[sp_mesh.material];
+
 		sp::Mesh &mesh = imp->meshes.push();
 
+		mesh.materialName = toSymbol(strings, sp_material.name);
 		mesh.numIndices = sp_mesh.num_indices;
 		mesh.numVertices = sp_mesh.num_vertices;
 		mesh.indexBufferOffset = sp_mesh.index_buffer.offset;

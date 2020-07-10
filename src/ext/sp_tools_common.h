@@ -137,6 +137,7 @@ typedef enum spfile_section_magic {
 	SPFILE_SECTION_STRINGS   = 0x73727473, // 'strs'
 	SPFILE_SECTION_BONES     = 0x656e6f62, // 'bone'
 	SPFILE_SECTION_NODES     = 0x65646f6e, // 'node'
+	SPFILE_SECTION_MATERIALS = 0x7374616d, // 'mats'
 	SPFILE_SECTION_MESHES    = 0x6873656d, // 'mesh'
 	SPFILE_SECTION_GEOMETRY  = 0x6d6f6567, // 'geom'
 	SPFILE_SECTION_MIP       = 0x2070696d, // 'mip '
@@ -263,18 +264,20 @@ typedef struct spmdl_mesh
 typedef struct spmdl_info {
 	uint32_t num_nodes;
 	uint32_t num_bones;
+	uint32_t num_materials;
 	uint32_t num_meshes;
 } spmdl_info;
 
 typedef struct spmdl_header {
 	spfile_header header;
 	spmdl_info info;
-	spfile_section s_nodes;    // spmdl_node[info.num_nodes]
-	spfile_section s_bones;    // spmdl_bone[info.num_bones]
-	spfile_section s_meshes;   // spmdl_mesh[info.num_meshes]
-	spfile_section s_strings;  // char[uncompressed_size]
-	spfile_section s_vertex;   // char[uncompressed_size]
-	spfile_section s_index;    // char[uncompressed_size]
+	spfile_section s_nodes;     // spmdl_node[info.num_nodes]
+	spfile_section s_bones;     // spmdl_bone[info.num_bones]
+	spfile_section s_materials; // spmdl_material[info.num_materials]
+	spfile_section s_meshes;    // spmdl_mesh[info.num_meshes]
+	spfile_section s_strings;   // char[uncompressed_size]
+	spfile_section s_vertex;    // char[uncompressed_size]
+	spfile_section s_index;     // char[uncompressed_size]
 } spmdl_header;
 
 typedef struct sptex_mip {
@@ -341,6 +344,7 @@ bool spmdl_util_init(spmdl_util *su, const void *data, size_t size);
 bool spmdl_decode_strings_to(spmdl_util *su, char *buffer);
 bool spmdl_decode_nodes_to(spmdl_util *su, spmdl_node *buffer);
 bool spmdl_decode_bones_to(spmdl_util *su, spmdl_bone *buffer);
+bool spmdl_decode_materials_to(spmdl_util *su, spmdl_material *buffer);
 bool spmdl_decode_meshes_to(spmdl_util *su, spmdl_mesh *buffer);
 bool spmdl_decode_vertex_to(spmdl_util *su, char *buffer);
 bool spmdl_decode_index_to(spmdl_util *su, char *buffer);
@@ -349,6 +353,7 @@ spmdl_header spmdl_decode_header(spmdl_util *su);
 char *spmdl_decode_strings(spmdl_util *su);
 spmdl_node *spmdl_decode_nodes(spmdl_util *su);
 spmdl_bone *spmdl_decode_bones(spmdl_util *su);
+spmdl_material *spmdl_decode_materials(spmdl_util *su);
 spmdl_mesh *spmdl_decode_meshes(spmdl_util *su);
 char *spmdl_decode_vertex(spmdl_util *su);
 char *spmdl_decode_index(spmdl_util *su);

@@ -466,6 +466,7 @@ bool spmdl_util_init(spmdl_util *su, const void *data, size_t size)
 
 	spfile_check(header->s_nodes.uncompressed_size / sizeof(spmdl_node) == header->info.num_nodes);
 	spfile_check(header->s_bones.uncompressed_size / sizeof(spmdl_bone) == header->info.num_bones);
+	spfile_check(header->s_materials.uncompressed_size / sizeof(spmdl_material) == header->info.num_materials);
 	spfile_check(header->s_meshes.uncompressed_size / sizeof(spmdl_mesh) == header->info.num_meshes);
 	return true;
 }
@@ -493,6 +494,18 @@ bool spmdl_check_bones(spmdl_util *su, spmdl_bone *bones)
 	if (!su->file.failed) {
 		for (spmdl_bone *b = bones, *end = b + header->info.num_bones; b != end; b++) {
 			spfile_check(b->node < header->info.num_nodes);
+		}
+	}
+	return true;
+}
+
+bool spmdl_check_materials(spmdl_util *su, spmdl_material *materials)
+{
+	if (su->file.failed) return false;
+	spmdl_header *header = (spmdl_header*)su->file.data;
+	if (!su->file.failed) {
+		for (spmdl_material *b = materials, *end = b + header->info.num_materials; b != end; b++) {
+			spfile_check_string(su, &b->name);
 		}
 	}
 	return true;
@@ -545,6 +558,17 @@ bool spmdl_decode_bones_to(spmdl_util *su, spmdl_bone *buffer)
 	spmdl_header *header = (spmdl_header*)su->file.data;
 	if (spfile_decode_section_to(&su->file, &header->s_bones, buffer)) {
 		return spmdl_check_bones(su, buffer);
+	} else {
+		return false;
+	}
+}
+
+bool spmdl_decode_materials_to(spmdl_util *su, spmdl_material *buffer)
+{
+	if (su->file.failed) return false;
+	spmdl_header *header = (spmdl_header*)su->file.data;
+	if (spfile_decode_section_to(&su->file, &header->s_materials, buffer)) {
+		return spmdl_check_materials(su, buffer);
 	} else {
 		return false;
 	}
@@ -616,6 +640,20 @@ spmdl_bone *spmdl_decode_bones(spmdl_util *su)
 		return NULL;
 	}
 }
+
+spmdl_material *spmdl_decode_materials(spmdl_util *su)
+{
+	if (su->file.failed) return NULL;
+	spmdl_header *header = (spmdl_header*)su->file.data;
+	spmdl_material *buffer = spfile_decode_section(&su->file, &header->s_materials);
+	if (buffer) {
+		if (!spmdl_check_materials(su, buffer)) return NULL;
+		return buffer;
+	} else {
+		return NULL;
+	}
+}
+
 
 spmdl_mesh *spmdl_decode_meshes(spmdl_util *su)
 {
