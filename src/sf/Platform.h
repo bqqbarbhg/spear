@@ -161,12 +161,15 @@
 #if SF_CC_MSC
 	#define sf_forceinline __forceinline inline
 	#define sf_noinline __declspec(noinline)
+	#define sf_malloc_like __declspec(restrict)
 #elif SF_CC_GNU
 	#define sf_forceinline __attribute__((always_inline)) inline
 	#define sf_noinline __attribute__((noinline))
+	#define sf_malloc_like __attribute__((malloc))
 #else
 	#define sf_forceinline
 	#define sf_noinline
+	#define sf_malloc_like
 #endif
 
 #define sf_inline static sf_forceinline
