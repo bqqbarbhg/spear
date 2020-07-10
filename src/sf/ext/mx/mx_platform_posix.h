@@ -3,6 +3,7 @@
 
 #define MX_PLATFORM_POSIX
 
+#include <errno.h>
 #include <semaphore.h>
 #include <stdint.h>
 #include <string.h>
@@ -106,7 +107,11 @@ static void mx_os_semaphore_free(mx_os_semaphore *s)
 
 static void mx_os_semaphore_wait(mx_os_semaphore *s)
 {
-	sem_wait(s);
+	while (sem_wait(s) != 0) {
+		if (errno != EINTR) {
+			__builtin_trap();
+		}
+	}
 }
 
 static void mx_os_semaphore_signal(mx_os_semaphore *s)
