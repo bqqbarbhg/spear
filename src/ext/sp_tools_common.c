@@ -505,7 +505,7 @@ bool spmdl_check_materials(spmdl_util *su, spmdl_material *materials)
 	spmdl_header *header = (spmdl_header*)su->file.data;
 	if (!su->file.failed) {
 		for (spmdl_material *b = materials, *end = b + header->info.num_materials; b != end; b++) {
-			spfile_check_string(su, &b->name);
+			spfile_check_string(&su->file, &b->name);
 		}
 	}
 	return true;
