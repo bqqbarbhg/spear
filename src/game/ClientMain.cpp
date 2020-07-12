@@ -162,12 +162,14 @@ struct ClientMain
 
 void clientGlobalInit()
 {
+	cl::MeshMaterial::globalInit();
 	cl::TileMaterial::globalInit();
 }
 
 void clientGlobalCleanup()
 {
 	cl::TileMaterial::globalCleanup();
+	cl::MeshMaterial::globalCleanup();
 }
 
 static bool useNormalRemap(sg_pixel_format format)
@@ -1956,6 +1958,10 @@ sg_image clientRender(ClientMain *c)
 				// sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_TestSkin_FragUniform, &fragUniform, sizeof(fragUniform));
 
 				for (sp::Mesh &mesh : model->meshes) {
+					cl::MeshMaterialRef *materialRef = modelInfo.materialRefs.findValue(mesh.materialName);
+					if (!materialRef) continue;
+					cl::MeshMaterial *material = *materialRef;
+
 					UBO_Bones bones;
 					for (uint32_t i = 0; i < mesh.bones.size; i++) {
 						sp::MeshBone &meshBone = mesh.bones[i];
@@ -1973,6 +1979,11 @@ sg_image clientRender(ClientMain *c)
 					binds.index_buffer_offset = mesh.indexBufferOffset;
 					binds.vertex_buffer_offsets[0] = mesh.streams[0].offset;
 					bindImageFS(c->testMeshShader, binds, CL_SHADOWCACHE_TEX, c->clientState.shadowCache.shadowCache.image);
+
+					bindImageFS(c->testSkinShader, binds, TEX_albedoTexture, material->getImage(cl::MaterialTexture::Albedo));
+					bindImageFS(c->testSkinShader, binds, TEX_normalTexture, material->getImage(cl::MaterialTexture::Normal));
+					bindImageFS(c->testSkinShader, binds, TEX_maskTexture, material->getImage(cl::MaterialTexture::Mask));
+
 					sg_apply_bindings(&binds);
 
 					sg_draw(0, mesh.numIndices, 1);

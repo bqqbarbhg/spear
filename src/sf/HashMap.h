@@ -47,6 +47,27 @@ struct HashMap
 		rhs.data = nullptr;
 	}
 
+	HashMap& operator=(const HashMap &rhs)
+	{
+		if (&rhs == this) return *this;
+		clear();
+		reserve(rhs.size);
+		for (auto &pair : rhs) {
+			insert(pair.key, pair.value);
+		}
+		return *this;
+	}
+
+	HashMap& operator=(HashMap &&rhs)
+	{
+		if (&rhs == this) return *this;
+		data = rhs.data;
+		map = rhs.map;
+		rhmap_reset(&rhs.map);
+		rhs.data = nullptr;
+		return *this;
+	}
+
 	~HashMap()
 	{
 		destructRangeImp<Entry>(data, map.size);

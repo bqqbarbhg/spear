@@ -98,23 +98,20 @@ uniform Pixel
 
 out vec4 o_color;
 
-// uniform sampler2D albedoAtlas;
-// uniform sampler2D normalAtlas;
-// uniform sampler2D maskAtlas;
+uniform sampler2D albedoTexture;
+uniform sampler2D normalTexture;
+uniform sampler2D maskTexture;
 
 void main()
 {
 	vec3 result = asVec3(0.0);
 	int end = int(numLightsF) * SP_POINTLIGHT_DATA_SIZE;
 
-	// vec2 matNormal = sampleNormalMap(normalAtlas, v_uv);
-	vec2 matNormal = asVec2(0.0);
+	vec2 matNormal = sampleNormalMap(normalTexture, v_uv);
 	float matNormalY = sqrt(clamp(1.0 - dot(matNormal, matNormal), 0.0, 1.0));
 
-	// vec3 matAlbedo = texture(albedoAtlas, v_uv).xyz;
-	// vec4 matMask = texture(maskAtlas, v_uv);
-	vec3 matAlbedo = asVec3(0.5);
-	vec4 matMask = vec4(0.0, 1.0, 0.0, 0.5);
+	vec3 matAlbedo = texture(albedoTexture, v_uv).xyz;
+	vec4 matMask = texture(maskTexture, v_uv);
 	
 	vec3 P = v_position;
 	vec3 N = normalize(matNormal.x * v_tangent + matNormal.y * v_bitangent + matNormalY * v_normal);

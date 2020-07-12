@@ -18,7 +18,10 @@ void AnimationInfo::refresh()
 void ModelInfo::refresh()
 {
 	modelRef.load(model);
-	skinRef.load(skin);
+	materialRefs.clear();
+	for (auto &pair : materials) {
+		materialRefs[pair.key].load(pair.val);
+	}
 }
 
 void TileVariantInfo::refresh()
@@ -76,11 +79,15 @@ void AssetInfoBase::loadCallback(void *user, const sp::ContentFile &file)
 		return;
 	}
 
-	sp::readInstJson(value, imp + 1, imp->type);
+	bool ok = sp::readInstJson(value, imp + 1, imp->type);
 
 	jsi_free(value);
 
-	imp->assetFinishLoading();
+	if (ok) {
+		imp->assetFinishLoading();
+	} else {
+		imp->assetFailLoading();
+	}
 }
 
 void AssetInfoBase::assetStartLoading()
@@ -109,7 +116,7 @@ template<> void initType<cl::ModelInfo>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(cl::ModelInfo, model),
-		sf_field(cl::ModelInfo, skin),
+		sf_field(cl::ModelInfo, materials),
 		sf_field(cl::ModelInfo, scale),
 		sf_field(cl::ModelInfo, animations),
 	};

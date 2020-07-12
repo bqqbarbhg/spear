@@ -9,25 +9,6 @@
 
 namespace cl {
 
-static const char *getPixelFormatSuffix(sg_pixel_format format)
-{
-    switch (format) {
-    case SG_PIXELFORMAT_RGBA8: return "rgba8";
-    case SG_PIXELFORMAT_BQQ_SRGBA8: return "rgba8";
-    case SG_PIXELFORMAT_BC1_RGBA: return "bc1";
-    case SG_PIXELFORMAT_BQQ_BC1_SRGB: return "bc1";
-    case SG_PIXELFORMAT_BC3_RGBA: return "bc3";
-    case SG_PIXELFORMAT_BQQ_BC3_SRGB: return "bc3";
-    case SG_PIXELFORMAT_BC5_RG: return "bc5";
-    case SG_PIXELFORMAT_BC5_RGSN: return "bc5";
-    case SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA: return "astc4x4";
-    case SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB: return "astc4x4";
-    case SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA: return "astc8x8";
-    case SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB: return "astc8x8";
-    default: return "";
-    }
-}
-
 struct TileMaterialAtlasTexture
 {
 	sp::Texture texture;
@@ -185,8 +166,6 @@ void TileMaterialImp::assetStartLoading()
     uvBase = sf::Vec2(offset) * rcpSize;
     uvScale = rcpSize;
 
-	// TODO: Formats
-
     path.clear(); path.format("%s_albedo.%s.sptex", name.data, getPixelFormatSuffix(ctx.atlases[(uint32_t)MaterialTexture::Albedo].pixelFormat));
 	sp::ContentFile::loadMainThread(path, &loadAlbedoImp, this);
 
@@ -224,43 +203,9 @@ void TileMaterial::globalInit()
 {
 	TileMaterialContext &ctx = g_tileMaterialContext;
 
-    sg_pixel_format albedoFormats[] = {
-        // SG_PIXELFORMAT_BQQ_BC7_SRGB, Broken atm
-        SG_PIXELFORMAT_BQQ_BC1_SRGB,
-        SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB,
-        SG_PIXELFORMAT_BQQ_SRGBA8,
-    };
-    
-    sg_pixel_format normalFormats[] = {
-        SG_PIXELFORMAT_BC5_RG,
-        SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA,
-        SG_PIXELFORMAT_BC3_RGBA,
-        SG_PIXELFORMAT_RGBA8,
-    };
-    
-    sg_pixel_format maskFormats[] = {
-        SG_PIXELFORMAT_BC3_RGBA,
-        SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB,
-        SG_PIXELFORMAT_RGBA8,
-    };
-
-    for (sg_pixel_format format : albedoFormats) {
-        if (!sg_query_pixelformat(format).sample) continue;
-        ctx.atlases[(uint32_t)MaterialTexture::Albedo].init(ctx.numSlotsX, ctx.numSlotsY, 512, format, "TileMaterial albedo");
-        break;
-    }
-
-    for (sg_pixel_format format : normalFormats) {
-        if (!sg_query_pixelformat(format).sample) continue;
-    	ctx.atlases[(uint32_t)MaterialTexture::Normal].init(ctx.numSlotsX, ctx.numSlotsY, 512, format, "TileMaterial normal");
-        break;
-    }
-    
-    for (sg_pixel_format format : maskFormats) {
-        if (!sg_query_pixelformat(format).sample) continue;
-    	ctx.atlases[(uint32_t)MaterialTexture::Mask].init(ctx.numSlotsX, ctx.numSlotsY, 512, format, "TileMaterial mask");
-        break;
-    }
+	ctx.atlases[(uint32_t)MaterialTexture::Albedo].init(ctx.numSlotsX, ctx.numSlotsY, 512, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Albedo], "TileMaterial albedo");
+	ctx.atlases[(uint32_t)MaterialTexture::Normal].init(ctx.numSlotsX, ctx.numSlotsY, 512, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Normal], "TileMaterial normal");
+	ctx.atlases[(uint32_t)MaterialTexture::Mask].init(ctx.numSlotsX, ctx.numSlotsY, 512, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Mask], "TileMaterial mask");
 }
 
 void TileMaterial::globalCleanup()

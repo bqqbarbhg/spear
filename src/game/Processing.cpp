@@ -252,7 +252,7 @@ struct Processor
 {
 	bool verbose = false;
 
-	int level = 5;
+	int level = 10;
 	sf::StringBuf dataRoot;
 	sf::StringBuf tempRoot;
 	sf::StringBuf buildRoot;

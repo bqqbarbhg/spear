@@ -4,18 +4,9 @@
 #include "sf/Vector.h"
 #include "sf/Array.h"
 #include "ext/sokol/sokol_defs.h"
+#include "MeshMaterial.h"
 
 namespace cl {
-
-// TODO: Move to sp::
-enum class MaterialTexture
-{
-	Albedo,
-	Normal,
-	Mask,
-
-	Count,
-};
 
 struct TileMaterial : sp::Asset
 {

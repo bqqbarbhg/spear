@@ -7,6 +7,7 @@
 #include "sp/Sprite.h"
 #include "sp/Asset.h"
 #include "TileMaterial.h"
+#include "MeshMaterial.h"
 
 namespace sp { struct ContentFile; }
 
@@ -26,10 +27,10 @@ struct AnimationInfo
 struct ModelInfo
 {
 	sp::ModelRef modelRef;
-	sp::SpriteRef skinRef;
+	sf::HashMap<sf::Symbol, MeshMaterialRef> materialRefs;
 
 	sf::Symbol model;
-	sf::Symbol skin;
+	sf::HashMap<sf::Symbol, sf::Symbol> materials;
 	float scale = 1.0f;
 	sf::Array<AnimationInfo> animations;
 
