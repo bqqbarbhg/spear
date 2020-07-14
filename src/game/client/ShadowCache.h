@@ -24,12 +24,12 @@ struct ShadowTile
 
 struct ShadowCache
 {
-	uint32_t cacheTileExtent = 64;
+	uint32_t cacheTileExtent = 128;
 	uint32_t cacheTileSlices = 8;
 	uint32_t cacheNumTilesX = 8;
 	uint32_t cacheNumTilesY = 8;
 
-	uint32_t depthRenderExtent = 256;
+	uint32_t depthRenderExtent = 512;
 
 	sp::Texture shadowCache;
 

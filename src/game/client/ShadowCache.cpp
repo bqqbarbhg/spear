@@ -108,15 +108,15 @@ void ShadowCache::updatePointLight(State &cs, PointLight &light)
 	}
 
 	float radius = light.radius;
-	float height = 8.0f;
+	float height = 4.0f;
 
 	sf::Vec3 f = sf::Vec3((float)cacheTileExtent, (float)cacheTileSlices, (float)cacheTileExtent) / (light.radius*2.0f);
 	// f = sf::Vec3(1.0f);
 	sf::Vec3 p = light.position * f;
 	p.x = p.x - floorf(p.x);
-	p.y = p.y - floorf(p.y);
+	// p.y = p.y - floorf(p.y);
 	p.z = p.z - floorf(p.z);
-	sf::Vec3 volumeOrigin = sf::Vec3(-radius, -height, -radius) - p / f;
+	sf::Vec3 volumeOrigin = sf::Vec3(-radius, -1.0f, -radius) - p / f;
 	sf::Vec3 volumeExtent = sf::Vec3(radius*2.0f, height, radius*2.0f);
 
 	uint32_t offsetX = light.shadowIndex % cacheNumTilesX;

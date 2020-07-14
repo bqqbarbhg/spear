@@ -23,6 +23,6 @@ float evaluateShadowGrid(vec3 p)
 
 uniform sampler3D shadowGrid3D;
 
-#define evaluateShadowGrid(p) textureLod(shadowGrid3D, (p).xzy, 0.0).x
+#define evaluateShadowGrid(p) textureLod(shadowGrid3D, (p).xzy + vec3(0.0, 0.0, 0.5/8.0), 0.0).x
 
 #endif
