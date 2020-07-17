@@ -22,6 +22,7 @@
 #include "sf/Reflection.h"
 #include "sf/HashSet.h"
 #include "sf/Sort.h"
+#include "sf/Random.h"
 
 #include "GameConfig.h"
 
@@ -43,6 +44,215 @@
 #include "sf/File.h"
 #include "ext/json_output.h"
 #include "sp/Json.h"
+
+#include "game/client/ParticleSystem.h"
+
+#define IMGUI_DEFINE_MATH_OPERATORS
+
+#include "ext/imgui/imgui_internal.h"
+
+namespace ImGui {
+
+int CurveEditor(const char *label, ImVec2 editorSize, float *values, int *p_numPoints, int maxPoints)
+{
+	ImVec2 *points = (ImVec2*)values;
+
+	if (editorSize.x <= 0.0f) editorSize.x = CalcItemWidth();
+
+	const ImGuiStyle& Style = GetStyle();
+	const ImGuiIO& IO = GetIO();
+	ImDrawList* DrawList = GetWindowDrawList();
+	ImGuiWindow* Window = GetCurrentWindow();
+	ImRect bb { Window->DC.CursorPos, Window->DC.CursorPos + editorSize };
+	ItemSize(bb);
+	if (!ItemAdd(bb, NULL)) return 0;
+
+	const ImGuiID id = Window->GetID(label);
+	static const ImGuiID ID_DragPointX = 1000;
+	static const ImGuiID ID_DragPointY = 1001;
+
+	bool areaHovered = IsItemHovered();
+	bool areaActive = GetActiveID() == id;
+
+	RenderFrame(bb.Min, bb.Max, GetColorU32(ImGuiCol_FrameBg), true, Style.FrameRounding);
+
+	ImVec2 relBase = ImVec2(bb.Min.x + 5.0f, bb.Max.y - 5.0f);
+	ImVec2 relScale = ImVec2(bb.Max.x - bb.Min.x - 10.0f, bb.Min.y - bb.Max.y + 10.0f);
+
+	ImU32 baseCol = ImColor(Style.Colors[ImGuiCol_Button]);
+	ImU32 hoverCol = ImColor(Style.Colors[ImGuiCol_ButtonHovered]);
+	ImU32 activeCol = ImColor(Style.Colors[ImGuiCol_ButtonActive]);
+
+	float dragRadius = 8.0f;
+	int closestPoint = -1;
+	float closestDistSq = dragRadius * dragRadius;
+
+	int numPoints = *p_numPoints;
+	bool dragging = false;
+	bool changed = false;
+
+	float prevX = Window->StateStorage.GetFloat(ID_DragPointX, -1.0f);
+	float prevY = Window->StateStorage.GetFloat(ID_DragPointY, -1.0f);
+	if (areaHovered || areaActive) {
+
+		for (int i = 0; i < numPoints; i++) {
+			ImVec2 &point = points[i];
+			ImVec2 relPoint = point * relScale + relBase;
+
+			float dist = ImLengthSqr(relPoint - IO.MousePos);
+
+			if (point.x == prevX && point.y == prevY) {
+				dist = 0.0f;
+			}
+
+			if (dist < closestDistSq) {
+				closestPoint = i;
+				closestDistSq = dist;
+			}
+		}
+
+		if (closestPoint >= 0 && (ImGui::IsMouseDown(0))) {
+			ImVec2 &point = points[closestPoint];
+			point += IO.MouseDelta / relScale;
+			point = ImClamp(point, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f));
+			ClearActiveID();
+			SetActiveID(id, Window);
+			FocusWindow(Window);
+
+			Window->StateStorage.SetFloat(ID_DragPointX, point.x);
+			Window->StateStorage.SetFloat(ID_DragPointY, point.y);
+
+			dragging = true;
+			changed = true;
+		}
+
+		if (ImGui::IsMouseDoubleClicked(0)) {
+			ClearActiveID();
+			SetActiveID(id, Window);
+			FocusWindow(Window);
+
+			if (closestPoint >= 0) {
+				points[closestPoint] = points[numPoints - 1];
+				numPoints--;
+				--*p_numPoints;
+			} else {
+				if (numPoints < maxPoints) {
+					ImVec2 point = (IO.MousePos - relBase) / relScale;
+					point = ImClamp(point, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f));
+					points[numPoints] = point;
+					numPoints++;
+					++*p_numPoints;
+				}
+			}
+			changed = true;
+		}
+	}
+
+	if (!ImGui::IsMouseDown(0)) {
+		if (areaActive) {
+			ClearActiveID();
+		}
+		if (prevX >= 0.0f) Window->StateStorage.SetFloat(ID_DragPointX, -1.0f);
+		if (prevY >= 0.0f) Window->StateStorage.SetFloat(ID_DragPointY, -1.0f);
+	}
+
+	for (int i = 0; i < numPoints; i++) {
+		ImVec2 &point = points[i];
+		ImVec2 relPoint = point * relScale + relBase;
+
+		ImU32 color = baseCol;
+		if (closestPoint == i) color = dragging ? activeCol : hoverCol;
+
+		DrawList->AddCircle(relPoint, 5.0f, color);
+	}
+
+	if (changed) {
+		qsort(points, numPoints, sizeof(ImVec2), [](const void *va, const void *vb) {
+			const ImVec2 &a = *(const ImVec2*)va, &b = *(const ImVec2*)vb;
+			if (a.x < b.x) return -1;
+			if (a.x > b.x) return +1;
+			return 0;
+		});
+	}
+
+	if (numPoints > 0) {
+		ImU32 plotCol = GetColorU32(ImGuiCol_PlotLines);
+
+		bool hasP0 = false;
+		ImVec2 p0;
+
+		for (int i = -1; i < numPoints; i++) {
+			ImVec2 a = points[i - 1 >= 0 ? i - 1 : 0];
+			ImVec2 b = points[i >= 0 ? i : 0];
+			ImVec2 c = points[i + 1 < numPoints ? i + 1 : numPoints - 1];
+			ImVec2 d = points[i + 2 < numPoints ? i + 2 : numPoints - 1];
+
+			int steps = 100;
+			for (int s = 0; s < steps; s++) {
+				float t = (float)s / (float)(steps - 1);
+				float nt = 1.0f - t;
+				float t2 = t*t;
+				float t3 = t2*t;
+				float nt2 = nt*nt;
+				float nt3 = nt2*nt;
+
+				ImVec2 p1;
+				p1 += a * (nt3 / 6.0f);
+				p1 += b * ((3.0f*t3 - 6.0f*t2 + 4.0f) / 6.0f);
+				p1 += c * ((-3.0f*t3 + 3.0f*t2 + 3.0f*t + 1.0f) / 6.0f);
+				p1 += d * (t3 / 6.0f);
+				
+				p1 = p1 * relScale + relBase;
+
+				float dist = ImLengthSqr(p0 - p1);
+				const float minDist = 3.0f;
+				if (hasP0 && (dist > minDist * minDist || (s == steps - 1 && i == numPoints - 1))) {
+					DrawList->AddLine(p0, p1, plotCol);
+					p0 = p1;
+				}
+
+				if (!hasP0) {
+					p0 = p1;
+					hasP0 = true;
+				}
+			}
+		}
+
+#if 0
+		int steps = 40;
+		ImVec2 p0;
+		for (int i = 0; i < steps; i++) {
+			float x = (float)i / (float)(steps - 1);
+			float y = 0.0f;
+
+			if (pointIx + 1 < numPoints && points[pointIx + 1].x < x) {
+				pointIx++;
+			}
+
+			if (pointIx < 0) {
+				y = points[0].y;
+			} else if (pointIx >= numPoints) {
+				y = points[numPoints - 1].y;
+			} else {
+
+				float t = (x - b.x) / (c.x - b.x);
+
+			}
+
+			ImVec2 p1 = ImVec2(x, y) * relScale + relBase;
+			if (i > 0) {
+				DrawList->AddLine(p0, p1, plotCol);
+			}
+			p0 = p1;
+		}
+#endif
+	}
+
+
+	return 1;
+}
+
+}
 
 #if SF_OS_EMSCRIPTEN
 EM_JS(int, sp_emUpdateUrl, (int id, int secret), {
@@ -158,18 +368,29 @@ struct ClientMain
 	float cameraZoomVel = 0.0f;
 	float cameraZoom = 0.5f;
 	float cameraLogZoom = 0.5f;
+
+
+	// TMEP TEMP
+	cl::ParticleSystem *TEMP_particleSystem;
 };
 
 void clientGlobalInit()
 {
+	gameShaders.load();
 	cl::MeshMaterial::globalInit();
 	cl::TileMaterial::globalInit();
+	cl::ParticleSystem::globalInit();
 }
 
 void clientGlobalCleanup()
 {
 	cl::TileMaterial::globalCleanup();
 	cl::MeshMaterial::globalCleanup();
+}
+
+void clientGlobalUpdate()
+{
+	cl::ParticleSystem::globalUpdate();
 }
 
 static bool useNormalRemap(sg_pixel_format format)
@@ -555,7 +776,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 	c->name = name;
 	c->playerId = ++playerIdCounter;
 
-	gameShaders.load();
+
 
 	{
         sf::SmallStringBuf<128> url;
@@ -670,6 +891,10 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 
 	c->lineBuffer.initDynamicVertex("Line buffer", sizeof(sf::Vec3) * 2 * 2 * MaxLinesPerFrame);
 	c->sphereInstanceBuffer.initDynamicVertex("Sphere instance buffer", sizeof(sf::Vec4) * 4 * MaxSpheresPerFrame);
+
+	c->TEMP_particleSystem = cl::ParticleSystem::create();
+
+	c->TEMP_particleSystem->spawnPosition.origin.y = 4.0f;
 
 #if 0
 	{
@@ -1209,6 +1434,18 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		ImGui::End();
 	}
 
+#if 0
+	if (ImGui::Begin("WOOP")) {
+		static sf::Vec2 vals[128] = {
+			sf::Vec2(0.0f, 0.0f),
+			sf::Vec2(1.0f, 1.0f),
+		};
+		static int valCount = 2;
+		ImGui::CurveEditor("TEST", ImVec2(400.0f, 400.0f), (float*)vals, &valCount, sf_arraysize(vals));
+		ImGui::End();
+	}
+#endif
+
 	#if SF_DEBUG
 	if (c->windowMessages && ImGui::Begin("Messages", &c->windowMessages)) {
 		uint32_t index = 0;
@@ -1735,6 +1972,11 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		}
 	}
 
+	handleImgui(*c->TEMP_particleSystem, "ParticleSystem");
+
+	static sf::Random HACKrng;
+	c->TEMP_particleSystem->update(dt, HACKrng);
+
 	return false;
 }
 
@@ -1797,7 +2039,7 @@ sg_image clientRender(ClientMain *c)
 		float zoomC = cosf(zoomAngle);
 		float zoomS = sinf(zoomAngle);
 		sf::Vec3 cameraPosition = sf::Vec3(c->cameraPos.x, 0.0f, c->cameraPos.y) + sf::Vec3(0.0f, zoom * cameraZoomY + cameraBaseY, zoom * cameraZoomZ + cameraBaseZ);
-		sf::Mat44 view = sf::mat::look(cameraPosition, sf::Vec3(0.0f, zoomC, zoomS));
+		sf::Mat34 view = sf::mat::look(cameraPosition, sf::Vec3(0.0f, zoomC, zoomS));
 		sf::Mat44 proj = sf::mat::perspectiveD3D(1.0f, (float)c->resolution.x/(float)c->resolution.y, 0.1f, 20.0f);
 		sf::Mat44 viewProj = proj * view;
 
@@ -2004,6 +2246,10 @@ sg_image clientRender(ClientMain *c)
 					sg_draw(0, mesh.numIndices, 1);
 				}
 			}
+		}
+
+		{
+			c->TEMP_particleSystem->render(view, proj, frustum);
 		}
 
 		{

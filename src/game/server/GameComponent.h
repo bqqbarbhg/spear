@@ -19,6 +19,7 @@ struct Component
 		Error,
 		Model,
 		PointLight,
+		ParticleSystem,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -55,6 +56,15 @@ struct ModelComponent : ComponentBase<Component::Model>
 
 struct PointLightComponent : ComponentBase<Component::PointLight>
 {
+	sf::Vec3 color = sf::Vec3(1.0f);
+	float intensity = 1.0f;
+	float radius = 1.0f;
+	sf::Vec3 position;
+};
+
+struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
+{
+	sf::Symbol sprite;
 	sf::Vec3 color = sf::Vec3(1.0f);
 	float intensity = 1.0f;
 	float radius = 1.0f;

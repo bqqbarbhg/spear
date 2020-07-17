@@ -17,6 +17,7 @@ struct ClientInput
 
 void clientGlobalInit();
 void clientGlobalCleanup();
+void clientGlobalUpdate();
 
 ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uint32_t sessionSecret);
 void clientQuit(ClientMain *client);

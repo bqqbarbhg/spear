@@ -93,6 +93,8 @@ struct Float4
 	}
 };
 
+using ScalarFloat4 = Float4;
+
 #elif SF_ARCH_X86 && !SF_FLOAT4_FORCE_SCALAR
 
 struct Float4
@@ -159,6 +161,8 @@ struct Float4
 		d.imp = _mm_movehl_ps(t3, t1);
 	}
 };
+
+using ScalarFloat4 = Float4;
 
 #elif SF_ARCH_ARM && !SF_FLOAT4_FORCE_SCALAR
 
@@ -254,6 +258,8 @@ struct Float4
 	sf_forceinline Float4 &operator*=(float rhs) { imp = vmulq_n_f32(imp, rhs); return *this; }
 };
 
+using ScalarFloat4 = float;
+
 #else
 
 struct Float4
@@ -270,6 +276,7 @@ struct Float4
 	sf_forceinline Float4 operator+(const Float4 &rhs) const { return { a + rhs.a, b + rhs.b, c + rhs.c, d + rhs.d }; }
 	sf_forceinline Float4 operator-(const Float4 &rhs) const { return { a - rhs.a, b - rhs.b, c - rhs.c, d - rhs.d }; }
 	sf_forceinline Float4 operator*(const Float4 &rhs) const { return { a * rhs.a, b * rhs.b, c * rhs.c, d * rhs.d }; }
+	sf_forceinline Float4 operator*(float rhs) const { return { a * rhs, b * rhs, c * rhs, d * rhs }; }
 	sf_forceinline Float4 operator/(const Float4 &rhs) const { return { a / rhs.a, b / rhs.b, c / rhs.c, d / rhs.d }; }
 	sf_forceinline Float4 &operator+=(const Float4 &rhs) { a += rhs.a; b += rhs.b; c += rhs.c; d += rhs.d; return *this; }
 	sf_forceinline Float4 &operator-=(const Float4 &rhs) { a -= rhs.a; b -= rhs.b; c -= rhs.c; d -= rhs.d; return *this; }
@@ -321,6 +328,8 @@ struct Float4
 	}
 };
 
+using ScalarFloat4 = float;
+
 #endif
 
 sf_inline Float4 horizontalSumXYZ(const Float4 rhs) {
@@ -337,6 +346,10 @@ sf_inline Float4 broadcastRcpLengthXYZ(const Float4 rhs) {
 #else
 	return horizontalSumXYZ(rhs * rhs).rsqrt();
 #endif
+}
+
+sf_inline void setLaneInMemory(Float4 &dst, size_t index, float value) {
+	((float*)&dst)[index] = value;
 }
 
 }

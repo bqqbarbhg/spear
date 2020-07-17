@@ -20,6 +20,7 @@ struct GameShaders
 	sg_shader shadowGrid;
 	sg_shader line;
 	sg_shader sphere;
+	sg_shader particle;
 
 	sg_buffer fullscreenTriangleBuffer;
 

@@ -186,6 +186,10 @@ struct Array
 		if (size > this->capacity) impGrowTo(size);
 	}
 
+	void reserveGeometric(size_t size) {
+		if (size > this->capacity) impGrowToGeometric(size);
+	}
+
 	void resize(size_t size) {
 		if (size > this->capacity) impGrowTo(size);
 		if (size > this->size) {

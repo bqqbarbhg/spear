@@ -17,6 +17,7 @@
 #include "ShadowGrid.h"
 #include "Line.h"
 #include "Sphere.h"
+#include "Particle.h"
 
 #include "GameShaders.h"
 
@@ -39,6 +40,7 @@ void GameShaders::load()
 	shadowGrid = sg_make_shader(ShadowGrid_ShadowGrid_shader_desc());
 	line = sg_make_shader(Line_Line_shader_desc());
 	sphere = sg_make_shader(Sphere_Sphere_shader_desc());
+	particle = sg_make_shader(Particle_Particle_shader_desc());
 
 	{
 		sf::Vec2 verts[] = {

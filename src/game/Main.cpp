@@ -195,6 +195,8 @@ void spFrame(float dt)
 
 	if (server) serverUpdate(server);
 
+	clientGlobalUpdate();
+
 	for (uint32_t i = 0; i < clients.size; i++) {
 		MainClient &client = clients[i];
 
