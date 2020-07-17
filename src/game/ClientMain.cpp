@@ -1175,6 +1175,12 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
 	if (c->windowObjects && ImGui::Begin("Objects", &c->windowObjects)) {
+		if (ImGui::Button("Refresh")) {
+			g_objects.expanded = false;
+			g_objects.dirs.clear();
+			g_objects.files.clear();
+		}
+		ImGui::SameLine();
 
 		if (ImGui::Button("Save all")) {
 			saveModifiedObjects(c);
@@ -1186,6 +1192,13 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 
 	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
 	if (c->windowRooms && ImGui::Begin("Rooms", &c->windowRooms)) {
+		if (ImGui::Button("Refresh")) {
+			g_rooms.expanded = false;
+			g_rooms.dirs.clear();
+			g_rooms.files.clear();
+		}
+		ImGui::SameLine();
+
 		if (ImGui::Button("Save room")) {
 			if (c->editRoomPath) {
 				saveRoom(*c->serverState, c->editRoomPath);
