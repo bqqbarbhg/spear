@@ -414,6 +414,8 @@ struct ParticleSystemImp : ParticleSystem
 		ubo.u_ScaleAnim = scaleAnim.packShader();
 		ubo.u_AlphaAnim = alphaAnim.packShader();
 		ubo.u_RotationControl = sf::Vec4(angle, angleVariance, spin, spinVariance) * (sf::F_PI / 180.0f);
+		ubo.u_Additive = additive;
+		ubo.u_StartFrame = randomStartFrame ? 1.0f : 0.0f;
 
 		g_particleContext.particlePipe.bind();
 
@@ -549,6 +551,8 @@ void initType<cl::ParticleSystem>(Type *t)
 		sf_field(cl::ParticleSystem, angleVariance),
 		sf_field(cl::ParticleSystem, spin),
 		sf_field(cl::ParticleSystem, spinVariance),
+		sf_field(cl::ParticleSystem, additive),
+		sf_field(cl::ParticleSystem, randomStartFrame),
 	};
 	sf_struct(t, cl::ParticleSystem, fields);
 }

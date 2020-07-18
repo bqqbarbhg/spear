@@ -73,6 +73,10 @@ struct ParticleSystem
 	float spin = 0.0f;
 	float spinVariance = 0.0f;
 
+	float additive = 0.0f;
+
+	bool randomStartFrame = false;
+
 	void update(float dt, sf::Random &rng);
 	void render(const sf::Mat34 &worldToView, const sf::Mat44 &viewToClip, const sf::Frustum &frustum);
 

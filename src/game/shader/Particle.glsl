@@ -25,6 +25,8 @@ uniform Vertex
 	vec4 u_ScaleAnim;
 	vec4 u_AlphaAnim;
 	vec4 u_RotationControl;
+	float u_Additive;
+	float u_StartFrame;
 };
 
 float evaluateAnim(vec4 control, float t, float seed)
@@ -78,15 +80,19 @@ void main()
 
 	float alpha = evaluateAnim(u_AlphaAnim, lifeTime, seed.y);
 
-	float frame = lifeTime * u_FrameRate;
+	float frame = lifeTime * u_FrameRate + floor(seed.x*64.0 + seed.z*4096) * u_StartFrame;
 	float frameI = floor(frame);
 	float frameD = frame - frameI;
 
 	vec2 frame0 = vec2(mod(frameI, u_FrameCount.x), mod(floor(frameI / u_FrameCount.x), u_FrameCount.y));
 	vec2 frame1 = vec2(mod(frameI + 1, u_FrameCount.x), mod(floor((frameI + 1) / u_FrameCount.x), u_FrameCount.y));
 
+	vec4 color = vec4(1.0) * clamp(alpha, 0.0, 1.0);
+
+	color.a *= 1.0 - u_Additive;
+
 	gl_Position = ndc;
-	v_Color = vec4(1.0) * clamp(alpha, 0.0, 1.0);
+	v_Color = color;
 	v_Uv0 = (frame0 + uv) / u_FrameCount;
 	v_Uv1 = (frame1 + uv) / u_FrameCount;
 	v_FrameBlend = frameD;
