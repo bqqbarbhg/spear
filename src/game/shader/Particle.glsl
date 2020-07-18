@@ -6,10 +6,10 @@
 
 @vs vs
 
-@glsl_options flip_vert_y
-
 layout(location=0) in vec4 a_PositionLife;
 layout(location=1) in vec4 a_VelocitySeed;
+
+out vec4 v_Color;
 
 uniform Vertex
 {
@@ -20,10 +20,11 @@ uniform Vertex
 void main()
 {
 	uint id = uint(gl_VertexID);
+	float invDelta = u_InvDelta;
+
 	vec3 position = vec3(a_PositionLife.xyz);
 	vec3 velocity = vec3(a_VelocitySeed.xyz);
-	float life = a_PositionLife.w;
-	float invDelta = u_InvDelta;
+	float life = a_PositionLife.w + invDelta;
 
 	position -= velocity * invDelta;
 
@@ -36,17 +37,20 @@ void main()
 	}
 
 	gl_Position = ndc;
+	v_Color = vec4(1.0) * clamp(life, 0.0, 1.0);
 }
 
 @end
 
 @fs fs
 
+in vec4 v_Color;
+
 out vec4 o_color;
 
 void main()
 {
-	o_color = vec4(1.0, 0.0, 0.0, 1.0);
+	o_color = v_Color;
 }
 
 @end

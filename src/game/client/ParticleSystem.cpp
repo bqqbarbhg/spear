@@ -320,7 +320,7 @@ void ParticleSystem::globalInit()
 	}
 
 	{
-		uint32_t flags = sp::PipeIndex16|sp::PipeDepthTest;
+		uint32_t flags = sp::PipeIndex16|sp::PipeDepthTest|sp::PipeBlendPremultiply;
 		sg_pipeline_desc &d = g_particleContext.particlePipe.init(gameShaders.particle, flags);
 		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT4;
 		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT4;
