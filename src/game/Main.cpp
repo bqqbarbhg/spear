@@ -206,6 +206,11 @@ void spFrame(float dt)
 		input.resolution = client.resolution;
 		input.events = g_events;
 
+		// TODO: Behind a debug mode
+		if (!ImGui::GetIO().WantCaptureKeyboard && ImGui::IsKeyDown(SAPP_KEYCODE_TAB)) {
+			input.dt *= 0.1f;
+		}
+
 		if (clientUpdate(client.client, input)) {
 			clientFree(client.client);
 			clients.removeSwap(i--);

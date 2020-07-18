@@ -378,6 +378,7 @@ void clientGlobalInit()
 {
 	gameShaders.load();
 	cl::MeshMaterial::globalInit();
+	cl::ParticleTexture::globalInit();
 	cl::TileMaterial::globalInit();
 	cl::ParticleSystem::globalInit();
 }
@@ -385,6 +386,7 @@ void clientGlobalInit()
 void clientGlobalCleanup()
 {
 	cl::TileMaterial::globalCleanup();
+	cl::ParticleTexture::globalCleanup();
 	cl::MeshMaterial::globalCleanup();
 }
 
@@ -894,7 +896,9 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 
 	c->TEMP_particleSystem = cl::ParticleSystem::create();
 
-	c->TEMP_particleSystem->spawnPosition.origin.y = 4.0f;
+	c->TEMP_particleSystem->spawnPosition.origin.y = 2.0f;
+	c->TEMP_particleSystem->texture.load(sf::Symbol("Assets/Particles/Test/Fireball_8x8.png"));
+	c->TEMP_particleSystem->frameCount = sf::Vec2i(8, 8);
 
 #if 0
 	{

@@ -10,6 +10,13 @@
 
 #include "game/shader/GameShaders.h"
 #include "game/shader/Particle.h"
+#include "ext/sokol/sokol_gfx.h"
+
+#include "sp/ContentFile.h"
+#include "ext/sp_tools_common.h"
+
+// TODO: Refactor, for getPixelFormatSuffix()
+#include "game/client/MeshMaterial.h"
 
 // TEMP HACK
 #include "sf/Reflection.h"
@@ -22,7 +29,122 @@ static const constexpr uint32_t MaxParticleCacheFrames = 16;
 static const constexpr float HugeParticleLife = 1e20f;
 static const constexpr float HugeParticleLifeCmp = 1e19f;
 
-sf::Vec3 RandomVec3::sample(sf::Random &rng)
+sg_pixel_format ParticleTexture::pixelFormat;
+sg_image ParticleTexture::defaultImage;
+
+struct ParticleTextureImp : ParticleTexture
+{
+	virtual void assetStartLoading() final;
+	virtual void assetUnload() final;
+};
+
+sp::AssetType ParticleTexture::SelfType = { "ParticleTexture", sizeof(ParticleTextureImp), sizeof(ParticleTexture::PropType),
+	[](Asset *a) { new ((ParticleTextureImp*)a) ParticleTextureImp(); }
+};
+
+static void loadTextureImp(void *user, const sp::ContentFile &file)
+{
+	ParticleTextureImp *imp = (ParticleTextureImp*)user;
+
+	if (file.size > 0) {
+		sptex_util su;
+		sptex_util_init(&su, file.data, file.size);
+
+		sptex_header header = sptex_decode_header(&su);
+
+		sg_image_desc d = { };
+		d.pixel_format = ParticleTexture::pixelFormat;
+		d.num_mipmaps = header.info.num_mips;
+		d.width = header.info.width;
+		d.height = header.info.height;
+		d.mag_filter = SG_FILTER_LINEAR;
+		d.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
+		d.label = imp->name.data;
+
+		// TODO: Config
+		d.max_anisotropy = 4;
+
+		uint32_t mipDrop = 0;
+
+        // TODO: Mip drop
+#if 0
+		while (extent > atlas.textureExtent) {
+			extent /= 2;
+			mipDrop++;
+		}
+		sf_assert(extent == atlas.textureExtent);
+#endif
+
+		for (uint32_t mipI = 0; mipI < (uint32_t)d.num_mipmaps; mipI++) {
+			d.content.subimage[0][mipI].ptr = sptex_decode_mip(&su, mipDrop + mipI);
+			d.content.subimage[0][mipI].size = header.s_mips[mipDrop + mipI].uncompressed_size;
+		}
+
+        imp->image = sg_make_image(&d);
+
+		spfile_util_free(&su.file);
+	}
+
+	imp->assetFinishLoading();
+}
+
+void ParticleTextureImp::assetStartLoading()
+{
+	sf::SmallStringBuf<256> path;
+
+    path.clear(); path.format("%s.%s.sptex", name.data, getPixelFormatSuffix(ParticleTexture::pixelFormat));
+	sp::ContentFile::loadMainThread(path, &loadTextureImp, this);
+}
+
+void ParticleTextureImp::assetUnload()
+{
+	if (image.id != 0) {
+		sg_destroy_image(image);
+		image.id = 0;
+	}
+}
+
+
+void ParticleTexture::globalInit()
+{
+    sg_pixel_format formats[] = {
+        SG_PIXELFORMAT_BQQ_BC3_SRGB,
+        SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB,
+        SG_PIXELFORMAT_BQQ_SRGBA8,
+    };
+
+    for (sg_pixel_format format : formats) {
+        if (!sg_query_pixelformat(format).sample) continue;
+        ParticleTexture::pixelFormat = format;
+        break;
+    }
+
+    {
+        sg_image_desc desc = { };
+		desc.width = 1;
+		desc.height = 1;
+		desc.num_mipmaps = 1;
+		desc.mag_filter = SG_FILTER_LINEAR;
+		desc.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
+		desc.max_anisotropy = 4;
+
+		{
+			const unsigned char content[] = { 0xff, 0xff, 0xff, 0xff };
+			desc.pixel_format = SG_PIXELFORMAT_BQQ_SRGBA8;
+            desc.content.subimage[0][0].ptr = content;
+            desc.content.subimage[0][0].size = sizeof(content);
+			ParticleTexture::defaultImage = sg_make_image(&desc);
+		}
+
+    }
+}
+
+void ParticleTexture::globalCleanup()
+{
+	sg_destroy_image(ParticleTexture::defaultImage);
+}
+
+sf::Vec3 RandomVec3::sample(sf::Random &rng) const
 {
 	sf::Vec3 p = origin;
 
@@ -43,6 +165,13 @@ sf::Vec3 RandomVec3::sample(sf::Random &rng)
 	}
 
 	return p;
+}
+
+sf::Vec4 ParticleFloat::packShader() const
+{
+	float rcpIn = fadeIn > 0.0f ? 1.0f / fadeIn : 1e18f;
+	float rcpOut = fadeOut > 0.0f ? 1.0f / fadeOut : 1e18f;
+	return { base, variance, rcpIn, rcpOut };
 }
 
 struct Particle4
@@ -118,8 +247,8 @@ struct ParticleSystemImp : ParticleSystem
 			sf::setLaneInMemory(p.vx, lane, vel.x);
 			sf::setLaneInMemory(p.vy, lane, vel.y);
 			sf::setLaneInMemory(p.vz, lane, vel.z);
-			sf::setLaneInMemory(p.life, lane, 0.5f);
-			sf::setLaneInMemory(p.seed, lane, rng.nextFloat());
+			sf::setLaneInMemory(p.life, lane, 1.0f);
+			sf::setLaneInMemory(p.seed, lane, rng.nextFloat() * 16777216.0f);
 		}
 		spawnTimer = sf::max(spawnTimer, 0.0f);
 
@@ -133,8 +262,6 @@ struct ParticleSystemImp : ParticleSystem
 		for (Particle4 &p : particles) {
 
 			sf::Float4 life = p.life;
-			life -= dt4;
-			p.life = life;
 
 			if (!life.allGreaterThanZero()) {
 				uint32_t base = (uint32_t)(&p - particles.data) * 4;
@@ -148,6 +275,9 @@ struct ParticleSystemImp : ParticleSystem
 				}
 				life = sf::Float4::loadu(lifes);
 			}
+
+			life -= dt4;
+			p.life = life;
 
 			sf::Float4 px = p.px, py = p.py, pz = p.pz;
 			sf::Float4 vx = p.vx, vy = p.vy, vz = p.vz;
@@ -278,15 +408,27 @@ struct ParticleSystemImp : ParticleSystem
 		Particle_Vertex_t ubo;
 		worldToClip.writeColMajor44(ubo.u_WorldToClip);
 		ubo.u_InvDelta = timeStep - timeDelta;
+		ubo.u_FrameCount = sf::Vec2(frameCount);
+		ubo.u_FrameRate = frameRate;
+		ubo.u_Aspect = viewToClip.m00 / viewToClip.m11;
+		ubo.u_ScaleAnim = scaleAnim.packShader();
+		ubo.u_AlphaAnim = alphaAnim.packShader();
+		ubo.u_RotationControl = sf::Vec4(angle, angleVariance, spin, spinVariance) * (sf::F_PI / 180.0f);
 
 		g_particleContext.particlePipe.bind();
 
 		sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Particle_Vertex, &ubo, sizeof(ubo));
 
+		sg_image image = ParticleTexture::defaultImage;
+		if (texture.isLoaded() && texture->image.id) {
+			image = texture->image;
+		}
+
 		sg_bindings binds = { };
 		binds.vertex_buffers[0] = vertexBuffer.buffer;
 		binds.vertex_buffer_offsets[0] = uploadedByteOffset;
 		binds.index_buffer = g_particleContext.indexBuffer.buffer;
+		binds.fs_images[SLOT_Particle_u_Texture] = image;
 		sg_apply_bindings(&binds);
 
 		sg_draw(0, numParticles * 6, 1);
@@ -376,6 +518,18 @@ void initType<cl::RandomVec3>(Type *t)
 }
 
 template<>
+void initType<cl::ParticleFloat>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(cl::ParticleFloat, base),
+		sf_field(cl::ParticleFloat, variance),
+		sf_field(cl::ParticleFloat, fadeIn),
+		sf_field(cl::ParticleFloat, fadeOut),
+	};
+	sf_struct(t, cl::ParticleFloat, fields);
+}
+
+template<>
 void initType<cl::ParticleSystem>(Type *t)
 {
 	static Field fields[] = {
@@ -387,6 +541,14 @@ void initType<cl::ParticleSystem>(Type *t)
 		sf_field(cl::ParticleSystem, spawnTimeVariance),
 		sf_field(cl::ParticleSystem, cullPadding),
 		sf_field(cl::ParticleSystem, timeStep),
+		sf_field(cl::ParticleSystem, frameCount),
+		sf_field(cl::ParticleSystem, frameRate),
+		sf_field(cl::ParticleSystem, alphaAnim),
+		sf_field(cl::ParticleSystem, scaleAnim),
+		sf_field(cl::ParticleSystem, angle),
+		sf_field(cl::ParticleSystem, angleVariance),
+		sf_field(cl::ParticleSystem, spin),
+		sf_field(cl::ParticleSystem, spinVariance),
 	};
 	sf_struct(t, cl::ParticleSystem, fields);
 }

@@ -36,6 +36,8 @@ template<> void initType<sv::PointLightComponent>(Type *t)
 		sf_field(sv::PointLightComponent, intensity),
 		sf_field(sv::PointLightComponent, radius),
 		sf_field(sv::PointLightComponent, position),
+		sf_field(sv::PointLightComponent, flickerFrequency),
+		sf_field(sv::PointLightComponent, flickerIntensity),
 	};
 	sf_struct_base(t, sv::PointLightComponent, sv::Component, fields);
 }

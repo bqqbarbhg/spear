@@ -60,6 +60,8 @@ struct PointLightComponent : ComponentBase<Component::PointLight>
 	float intensity = 1.0f;
 	float radius = 1.0f;
 	sf::Vec3 position;
+	float flickerFrequency = 0.0f;
+	float flickerIntensity = 0.0f;
 };
 
 struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>

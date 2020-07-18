@@ -535,6 +535,69 @@ struct GuiTextureTask : Task
 	}
 };
 
+struct ParticleTextureTask : Task
+{
+	sf::Symbol format;
+	int maxExtent;
+	sf::SmallStringBuf<32> maxExtentStr;
+	sf::StringBuf directory;
+
+	ParticleTextureTask(sf::String format, sf::String directory, int maxExtent)
+		: format(format), directory(directory), maxExtent(maxExtent)
+	{
+		name.format("ParticleTextureTask (%s) %s %d", directory.data, format.data, maxExtent);
+		maxExtentStr.format("%d", maxExtent);
+		tools.push("sp-texcomp");
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (!sf::containsDirectory(path, directory)) return false;
+		if (!sf::endsWith(path, ".png")) return false;
+		ti.outputs[s_dst] = symf("%s.%s.sptex", path.data, format.data);
+		ti.inputs[s_src] = path;
+		ti.assets.insert(path);
+		return true;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		sf::Array<sf::StringBuf> args;
+
+		sf::StringBuf tempFile, dstFile;
+		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+
+		args.push("--level");
+		args.push().format("%d", p.level);
+
+		args.push("--format");
+		args.push(sf::String(format));
+
+		args.push("--max-extent");
+		args.push(maxExtentStr);
+
+		{
+			sf::SmallStringBuf<512> path;
+			sf::appendPath(path, p.dataRoot, ti.inputs[s_src]);
+			args.push("--input");
+			args.push(path);
+		}
+
+		args.push("--output");
+		args.push(tempFile);
+
+		JobPriority priority = getPriorityForTextureFormat(format);
+
+		JobQueue jq;
+		jq.mkdirsToFile(tempFile);
+		jq.mkdirsToFile(dstFile);
+		jq.exec("sp-texcomp", std::move(args));
+		jq.move(tempFile, dstFile);
+		p.addJobs(priority, ti, jq);
+	}
+};
+
 struct AlbedoTextureTask : Task
 {
 	sf::Symbol format;
@@ -1063,6 +1126,11 @@ void initializeProcessing(const ProcessingDesc &desc)
 	int maxCardExtent = 256;
 	p.tasks.push(sf::box<GuiTextureTask>("rgba8", "Gui", maxGuiExtent));
 	p.tasks.push(sf::box<GuiTextureTask>("rgba8", "Cards", maxCardExtent));
+
+	int maxParticleExtent = 1024;
+	p.tasks.push(sf::box<ParticleTextureTask>("bc3", "Particles", maxParticleExtent));
+	if (doAstc) p.tasks.push(sf::box<ParticleTextureTask>("astc4x4", "Particles", maxParticleExtent));
+	if (doRgba) p.tasks.push(sf::box<ParticleTextureTask>("rgba8", "Particles", maxParticleExtent));
 
 	p.tasks.push(sf::box<AnimationTask>());
 	p.tasks.push(sf::box<CharacterModelTask>());

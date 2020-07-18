@@ -68,6 +68,16 @@ static void loadTextureImp(void *user, const sp::ContentFile &file, MaterialText
 		d.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
 		d.max_anisotropy = 4;
 
+        sf::SmallStringBuf<128> name;
+        name.append(imp->name);
+        switch (texture) {
+        case MaterialTexture::Albedo: name.append(" albedo"); break;
+        case MaterialTexture::Normal: name.append(" normal"); break;
+        case MaterialTexture::Mask: name.append(" mask"); break;
+        case MaterialTexture::Count: /* nop */ break;
+        }
+        d.label = name.data;
+
 		uint32_t mipDrop = 0;
 
         // TODO: Mip drop
