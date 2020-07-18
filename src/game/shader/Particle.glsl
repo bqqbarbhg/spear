@@ -9,9 +9,10 @@
 layout(location=0) in vec4 a_PositionLife;
 layout(location=1) in vec4 a_VelocitySeed;
 
-noperspective out vec4 v_Color;
-noperspective out vec2 v_Uv0;
-noperspective out vec2 v_Uv1;
+out vec4 v_Color;
+out vec2 v_Uv0;
+out vec2 v_Uv1;
+
 flat out float v_FrameBlend;
 
 uniform Vertex
@@ -97,9 +98,9 @@ void main()
 
 uniform sampler2D u_Texture;
 
-noperspective in vec4 v_Color;
-noperspective in vec2 v_Uv0;
-noperspective in vec2 v_Uv1;
+in vec4 v_Color;
+in vec2 v_Uv0;
+in vec2 v_Uv1;
 flat in float v_FrameBlend;
 
 out vec4 o_color;
