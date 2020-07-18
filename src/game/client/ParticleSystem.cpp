@@ -19,6 +19,8 @@ namespace cl {
 static const constexpr uint32_t MaxParticlesPerDraw = 4*1024;
 static const constexpr uint32_t MaxParticlesPerFrame = 4*1024;
 static const constexpr uint32_t MaxParticleCacheFrames = 16;
+static const constexpr float HugeParticleLife = 1e20f;
+static const constexpr float HugeParticleLifeCmp = 1e19f;
 
 sf::Vec3 RandomVec3::sample(sf::Random &rng)
 {
@@ -116,7 +118,7 @@ struct ParticleSystemImp : ParticleSystem
 			sf::setLaneInMemory(p.vx, lane, vel.x);
 			sf::setLaneInMemory(p.vy, lane, vel.y);
 			sf::setLaneInMemory(p.vz, lane, vel.z);
-			sf::setLaneInMemory(p.life, lane, 4.0f);
+			sf::setLaneInMemory(p.life, lane, 0.5f);
 			sf::setLaneInMemory(p.seed, lane, rng.nextFloat());
 		}
 		spawnTimer = sf::max(spawnTimer, 0.0f);
@@ -129,6 +131,23 @@ struct ParticleSystemImp : ParticleSystem
 		sf::Float4 pMin = +HUGE_VALF, pMax = -HUGE_VALF;
 
 		for (Particle4 &p : particles) {
+
+			sf::Float4 life = p.life;
+			life -= dt4;
+			p.life = life;
+
+			if (!life.allGreaterThanZero()) {
+				uint32_t base = (uint32_t)(&p - particles.data) * 4;
+				float lifes[4];
+				life.storeu(lifes);
+				for (uint32_t i = 0; i < 4; i++) {
+					if (lifes[i] <= 0.0f) {
+						freeIndices.push(base + i);
+						lifes[i] = HugeParticleLife;
+					}
+				}
+				life = sf::Float4::loadu(lifes);
+			}
 
 			sf::Float4 px = p.px, py = p.py, pz = p.pz;
 			sf::Float4 vx = p.vx, vy = p.vy, vz = p.vz;
@@ -152,69 +171,69 @@ struct ParticleSystemImp : ParticleSystem
 
 			p.px = px; p.py = py; p.pz = pz;
 
-			sf::Float4 life = p.life;
-			sf::Float4 oldLife = life;
-			life -= dt4;
-			p.life = life;
-
-			if (!life.allGreaterThanZero()) {
-				uint32_t base = (uint32_t)(&p - particles.data) * 4;
-				float lifes[4], oldLifes[4];
-				life.storeu(lifes);
-				oldLife.storeu(oldLifes);
-				for (uint32_t i = 0; i < 4; i++) {
-					if (lifes[i] <= 0.0f && oldLifes[i] > 0.0f) {
-						freeIndices.push(base + i);
-					}
-				}
-			}
-
 			sf::Float4::transpose4(px, py, pz, life);
-
-			pMin = pMin.min(px.min(py).min(pz.min(life)));
-			pMax = pMax.max(px.max(py).max(pz.max(life)));
 
 			sf::Float4 seed = p.seed;
 			sf::Float4::transpose4(vx, vy, vz, seed);
 
-			px.storeu((float*)&dst[0] + 0);
-			vx.storeu((float*)&dst[0] + 4);
-			px.storeu((float*)&dst[1] + 0);
-			vx.storeu((float*)&dst[1] + 4);
-			px.storeu((float*)&dst[2] + 0);
-			vx.storeu((float*)&dst[2] + 4);
-			px.storeu((float*)&dst[3] + 0);
-			vx.storeu((float*)&dst[3] + 4);
+			if (px.getW() < HugeParticleLifeCmp) {
+				px.storeu((float*)&dst[0] + 0);
+				vx.storeu((float*)&dst[0] + 4);
+				px.storeu((float*)&dst[1] + 0);
+				vx.storeu((float*)&dst[1] + 4);
+				px.storeu((float*)&dst[2] + 0);
+				vx.storeu((float*)&dst[2] + 4);
+				px.storeu((float*)&dst[3] + 0);
+				vx.storeu((float*)&dst[3] + 4);
+				pMin = pMin.min(px);
+				pMax = pMax.max(px);
+				dst += 4;
+			}
 
-			py.storeu((float*)&dst[4] + 0);
-			vy.storeu((float*)&dst[4] + 4);
-			py.storeu((float*)&dst[5] + 0);
-			vy.storeu((float*)&dst[5] + 4);
-			py.storeu((float*)&dst[6] + 0);
-			vy.storeu((float*)&dst[6] + 4);
-			py.storeu((float*)&dst[7] + 0);
-			vy.storeu((float*)&dst[7] + 4);
+			if (py.getW() < HugeParticleLifeCmp) {
+				py.storeu((float*)&dst[0] + 0);
+				vy.storeu((float*)&dst[0] + 4);
+				py.storeu((float*)&dst[1] + 0);
+				vy.storeu((float*)&dst[1] + 4);
+				py.storeu((float*)&dst[2] + 0);
+				vy.storeu((float*)&dst[2] + 4);
+				py.storeu((float*)&dst[3] + 0);
+				vy.storeu((float*)&dst[3] + 4);
+				pMin = pMin.min(py);
+				pMax = pMax.max(py);
+				dst += 4;
+			}
 
-			pz.storeu((float*)&dst[8] + 0);
-			vz.storeu((float*)&dst[8] + 4);
-			pz.storeu((float*)&dst[9] + 0);
-			vz.storeu((float*)&dst[9] + 4);
-			pz.storeu((float*)&dst[10] + 0);
-			vz.storeu((float*)&dst[10] + 4);
-			pz.storeu((float*)&dst[11] + 0);
-			vz.storeu((float*)&dst[11] + 4);
+			if (pz.getW() < HugeParticleLifeCmp) {
+				pz.storeu((float*)&dst[0] + 0);
+				vz.storeu((float*)&dst[0] + 4);
+				pz.storeu((float*)&dst[1] + 0);
+				vz.storeu((float*)&dst[1] + 4);
+				pz.storeu((float*)&dst[2] + 0);
+				vz.storeu((float*)&dst[2] + 4);
+				pz.storeu((float*)&dst[3] + 0);
+				vz.storeu((float*)&dst[3] + 4);
+				pMin = pMin.min(pz);
+				pMax = pMax.max(pz);
+				dst += 4;
+			}
 
-			life.storeu((float*)&dst[12] + 0);
-			seed.storeu((float*)&dst[12] + 4);
-			life.storeu((float*)&dst[13] + 0);
-			seed.storeu((float*)&dst[13] + 4);
-			life.storeu((float*)&dst[14] + 0);
-			seed.storeu((float*)&dst[14] + 4);
-			life.storeu((float*)&dst[15] + 0);
-			seed.storeu((float*)&dst[15] + 4);
-
-			dst += 16;
+			if (life.getW() < HugeParticleLifeCmp) {
+				life.storeu((float*)&dst[0] + 0);
+				seed.storeu((float*)&dst[0] + 4);
+				life.storeu((float*)&dst[1] + 0);
+				seed.storeu((float*)&dst[1] + 4);
+				life.storeu((float*)&dst[2] + 0);
+				seed.storeu((float*)&dst[2] + 4);
+				life.storeu((float*)&dst[3] + 0);
+				seed.storeu((float*)&dst[3] + 4);
+				pMin = pMin.min(life);
+				pMax = pMax.max(life);
+				dst += 4;
+			}
 		}
+
+		gpuParticles.resizeUninit(dst - gpuParticles.data);
 
 		gpuBounds.origin = ((pMin + pMax) * 0.5f).asVec3();
 		gpuBounds.extent = ((pMax - pMin) * 0.5f + cullPadding).asVec3();

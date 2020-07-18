@@ -28,7 +28,7 @@ struct ParticleSystem
 	float spawnTime = 1.0f;
 	float spawnTimeVariance = 0.0f;
 
-	float cullPadding = 5.0f;
+	float cullPadding = 1.0f;
 
 	float timeStep = 0.1f;
 

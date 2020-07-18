@@ -57,6 +57,11 @@ struct Float4
 	sf_forceinline Float4 rotateLeft() const { return wasm_v32x4_shuffle(imp, imp, 1,2,3,0); }
 	sf_forceinline Float4 clearW() const { return wasm_v32x4_replace_lane(imp, 0, 0.0f); }
 
+	sf_forceinline float getX() const { return wasm_f32x4_extract_lane(imp, 0); }
+	sf_forceinline float getY() const { return wasm_f32x4_extract_lane(imp, 1); }
+	sf_forceinline float getZ() const { return wasm_f32x4_extract_lane(imp, 2); }
+	sf_forceinline float getW() const { return wasm_f32x4_extract_lane(imp, 3); }
+
 	sf_forceinline Float4 sqrt() const { return wasm_f32x4_sqrt(imp); }
 	sf_forceinline Float4 rsqrt() const { return Float4(1.0f) / wasm_f32x4_sqrt(imp); }
 	sf_forceinline Float4 abs() const { return wasm_f32x4_abs(imp); }
@@ -125,6 +130,11 @@ struct Float4
 	sf_forceinline Float4 broadcastW() const { return _mm_shuffle_ps(imp, imp, _MM_SHUFFLE(3,3,3,3)); }
 	sf_forceinline Float4 rotateLeft() const { return _mm_shuffle_ps(imp, imp, _MM_SHUFFLE(0,3,2,1)); }
 	sf_forceinline Float4 clearW() const { return _mm_blend_ps(imp, _mm_setzero_ps(), 0x8); }
+
+	sf_forceinline float getX() const { return _mm_cvtss_f32(imp); }
+	sf_forceinline float getY() const { return _mm_cvtss_f32(_mm_shuffle_ps(imp, imp, _MM_SHUFFLE(3,2,1,1))); }
+	sf_forceinline float getZ() const { return _mm_cvtss_f32(_mm_shuffle_ps(imp, imp, _MM_SHUFFLE(3,2,1,2))); }
+	sf_forceinline float getW() const { return _mm_cvtss_f32(_mm_shuffle_ps(imp, imp, _MM_SHUFFLE(3,2,1,3))); }
 
 	sf_forceinline Float4 sqrt() const { return _mm_sqrt_ps(imp); }
 	sf_forceinline Float4 rsqrt() const {
@@ -206,6 +216,11 @@ struct Float4
 	sf_forceinline Float4 broadcastW() const { return vdupq_laneq_f32(imp, 3); }
 	sf_forceinline Float4 rotateLeft() const { return vextq_f32(imp, imp, 1); }
 	sf_forceinline Float4 clearW() const { return vsetq_lane_f32(0.0f, imp, 3); }
+
+	sf_forceinline float getX() const { return vgetq_lane_f32(imp, 0); }
+	sf_forceinline float getY() const { return vgetq_lane_f32(imp, 1); }
+	sf_forceinline float getZ() const { return vgetq_lane_f32(imp, 2); }
+	sf_forceinline float getW() const { return vgetq_lane_f32(imp, 3); }
 
 	sf_forceinline Float4 rsqrt() const {
 		float32x4_t e = vrsqrteq_f32(imp);
@@ -289,6 +304,11 @@ struct Float4
 	sf_forceinline Float4 broadcastW() const { return { d, d, d, d }; }
 	sf_forceinline Float4 rotateLeft() const { return { b, c, d, a }; }
 	sf_forceinline Float4 clearW() const { return { a, b, c, 0.0f }; }
+
+	sf_forceinline float getX() const { return a; }
+	sf_forceinline float getY() const { return b; }
+	sf_forceinline float getZ() const { return c; }
+	sf_forceinline float getW() const { return d; }
 
 	#if SF_CC_GNU || SF_CC_CLANG
 		sf_forceinline Float4 sqrt() const { return { __builtin_sqrtf(a), __builtin_sqrtf(b), __builtin_sqrtf(c), __builtin_sqrtf(d) }; }
