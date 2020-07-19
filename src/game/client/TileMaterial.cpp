@@ -166,13 +166,13 @@ void TileMaterialImp::assetStartLoading()
     uvBase = sf::Vec2(offset) * rcpSize;
     uvScale = rcpSize;
 
-    path.clear(); path.format("%s_albedo.%s.sptex", name.data, getPixelFormatSuffix(ctx.atlases[(uint32_t)MaterialTexture::Albedo].pixelFormat));
+    path.clear(); path.format("%s_albedo.%s.%u.sptex", name.data, getPixelFormatSuffix(ctx.atlases[(uint32_t)MaterialTexture::Albedo].pixelFormat), ctx.atlases[(uint32_t)MaterialTexture::Albedo].textureExtent);
 	sp::ContentFile::loadMainThread(path, &loadAlbedoImp, this);
 
-    path.clear(); path.format("%s_normal.%s.sptex", name.data, getPixelFormatSuffix(ctx.atlases[(uint32_t)MaterialTexture::Normal].pixelFormat));
+    path.clear(); path.format("%s_normal.%s.%u.sptex", name.data, getPixelFormatSuffix(ctx.atlases[(uint32_t)MaterialTexture::Normal].pixelFormat), ctx.atlases[(uint32_t)MaterialTexture::Normal].textureExtent);
 	sp::ContentFile::loadMainThread(path, &loadNormalImp, this);
 
-    path.clear(); path.format("%s_mask.%s.sptex", name.data, getPixelFormatSuffix(ctx.atlases[(uint32_t)MaterialTexture::Mask].pixelFormat));
+    path.clear(); path.format("%s_mask.%s.%u.sptex", name.data, getPixelFormatSuffix(ctx.atlases[(uint32_t)MaterialTexture::Mask].pixelFormat), ctx.atlases[(uint32_t)MaterialTexture::Mask].textureExtent);
 	sp::ContentFile::loadMainThread(path, &loadMaskImp, this);
 }
 
@@ -203,9 +203,9 @@ void TileMaterial::globalInit()
 {
 	TileMaterialContext &ctx = g_tileMaterialContext;
 
-	ctx.atlases[(uint32_t)MaterialTexture::Albedo].init(ctx.numSlotsX, ctx.numSlotsY, 512, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Albedo], "TileMaterial albedo");
-	ctx.atlases[(uint32_t)MaterialTexture::Normal].init(ctx.numSlotsX, ctx.numSlotsY, 512, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Normal], "TileMaterial normal");
-	ctx.atlases[(uint32_t)MaterialTexture::Mask].init(ctx.numSlotsX, ctx.numSlotsY, 512, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Mask], "TileMaterial mask");
+	ctx.atlases[(uint32_t)MaterialTexture::Albedo].init(ctx.numSlotsX, ctx.numSlotsY, 1024, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Albedo], "TileMaterial albedo");
+	ctx.atlases[(uint32_t)MaterialTexture::Normal].init(ctx.numSlotsX, ctx.numSlotsY, 1024, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Normal], "TileMaterial normal");
+	ctx.atlases[(uint32_t)MaterialTexture::Mask].init(ctx.numSlotsX, ctx.numSlotsY, 1024, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Mask], "TileMaterial mask");
 }
 
 void TileMaterial::globalCleanup()

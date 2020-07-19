@@ -447,6 +447,12 @@ static const sf::Symbol s_normal_gl{"normal_gl"};
 static const sf::Symbol s_normal_dx{"normal_dx"};
 static const sf::Symbol s_src{"src"};
 static const sf::Symbol s_dst{"dst"};
+static const sf::Symbol s_drop_arr[] = {
+	sf::Symbol("drop0"),  sf::Symbol("drop1"),  sf::Symbol("drop2"),  sf::Symbol("drop3"),
+	sf::Symbol("drop4"),  sf::Symbol("drop5"),  sf::Symbol("drop6"),  sf::Symbol("drop7"),
+	sf::Symbol("drop8"),  sf::Symbol("drop9"),  sf::Symbol("drop10"), sf::Symbol("drop11"),
+	sf::Symbol("drop12"), sf::Symbol("drop13"), sf::Symbol("drop14"), sf::Symbol("drop15"),
+};
 
 bool endsWithStrip(sf::Symbol &base, sf::String path, sf::String suffix)
 {
@@ -598,44 +604,35 @@ struct ParticleTextureTask : Task
 	}
 };
 
-struct AlbedoTextureTask : Task
+struct MaterialTextureTask : Task
 {
 	sf::Symbol format;
+	sf::Symbol suffix;
 	int resolution;
+	int mipDrops;
 	sf::SmallStringBuf<16> resolutionString;
+	sf::SmallStringBuf<16> mipDropString;
 
-	AlbedoTextureTask(sf::String format, int resolution)
-		: format(format), resolution(resolution)
+	MaterialTextureTask(sf::String type, sf::String suffix, sf::String format, int resolution, int mipDrops)
+		: format(format), suffix(suffix), resolution(resolution), mipDrops(mipDrops)
 	{
-		name.append("AlbedoTextureTask ", format);
+		name.append(type, "TextureTask ", format);
 		resolutionString.format("%d", resolution);
+		mipDropString.format("%d", mipDrops);
 		tools.push("sp-texcomp");
 	}
 
-	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	void postAddInput(TaskInstance &ti)
 	{
-		if (endsWithStrip(ti.key, path, "_BaseColor.png")) {
-			ti.inputs[s_albedo] = path;
-		} else if (endsWithStrip(ti.key, path, "_Base_Color.png")) {
-			ti.inputs[s_albedo] = path;
-		} else {
-			return false;
+		for (int drop = 0; drop < mipDrops; drop++) {
+			ti.outputs[s_drop_arr[drop]] = symf("%s_%s.%s.%d.sptex", ti.key.data, suffix.data, format.data, resolution >> drop);
 		}
-		ti.outputs[s_dst] = symf("%s_albedo.%s.sptex", ti.key.data, format.data);
+		ti.params[s_dst] = symf("%s_%s.%s.:width:.sptex", ti.key.data, suffix.data, format.data);
 		ti.assets.insert(ti.key);
-		return true;
 	}
 
-	virtual void process(Processor &p, TaskInstance &ti)
+	void addCommonTexcompArgs(Processor &p, TaskInstance &ti, sf::Array<sf::StringBuf> &args)
 	{
-		sf::Array<sf::StringBuf> args;
-
-		sf::StringBuf tempFile, dstFile;
-		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
-		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
-
-		args.push("--output-ignores-alpha");
-
 		args.push("--level");
 		args.push().format("%d", p.level);
 
@@ -648,40 +645,88 @@ struct AlbedoTextureTask : Task
 		args.push(resolutionString);
 		args.push(resolutionString);
 
-		{
-			sf::SmallStringBuf<512> path;
-			sf::appendPath(path, p.dataRoot, ti.inputs[s_albedo]);
-			args.push("--input");
-			args.push(path);
-		}
+		sf::StringBuf tempPattern;
+		sf::appendPath(tempPattern, p.tempRoot, ti.params[s_dst]);
 
 		args.push("--output");
-		args.push(tempFile);
+		args.push(tempPattern);
+
+		args.push("--mip-drop-copies");
+		args.push(mipDropString);
+	}
+
+	void addTexcompInputArg(Processor &p, sf::Array<sf::StringBuf> &args, const sf::Symbol &name)
+	{
+		sf::StringBuf path;
+		sf::appendPath(path, p.dataRoot, name);
+		args.push("--input");
+		args.push(std::move(path));
+	}
+
+	void pushJobs(Processor &p, TaskInstance &ti, sf::Array<sf::StringBuf> &&args)
+	{
+		JobQueue jq;
+		{
+			sf::SmallStringBuf<256> tempFile, dstFile;
+			sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_drop_arr[0]]);
+			sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_drop_arr[0]]);
+			jq.mkdirsToFile(tempFile);
+			jq.mkdirsToFile(dstFile);
+		}
+		jq.exec("sp-texcomp", std::move(args));
+		for (int i = 0; i < mipDrops; i++) {
+			sf::SmallStringBuf<256> tempFile, dstFile;
+			sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_drop_arr[i]]);
+			sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_drop_arr[i]]);
+			jq.move(tempFile, dstFile);
+		}
 
 		JobPriority priority = getPriorityForTextureFormat(format);
-
-		JobQueue jq;
-		jq.mkdirsToFile(tempFile);
-		jq.mkdirsToFile(dstFile);
-		jq.exec("sp-texcomp", std::move(args));
-		jq.move(tempFile, dstFile);
 		p.addJobs(priority, ti, jq);
 	}
 };
 
-struct NormalTextureTask : Task
+struct AlbedoTextureTask : MaterialTextureTask
 {
-	sf::Symbol format;
-	bool remap;
-	int resolution;
-	sf::SmallStringBuf<16> resolutionString;
-
-	NormalTextureTask(sf::String format, bool remap, int resolution)
-		: format(format), remap(remap), resolution(resolution)
+	AlbedoTextureTask(sf::String format, int resolution, int mipDrops)
+		: MaterialTextureTask("Albedo", "albedo", format, resolution, mipDrops)
 	{
-		name.append("NormalTextureTask ", format);
-		resolutionString.format("%d", resolution);
-		tools.push("sp-texcomp");
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (endsWithStrip(ti.key, path, "_BaseColor.png")) {
+			ti.inputs[s_albedo] = path;
+		} else if (endsWithStrip(ti.key, path, "_Base_Color.png")) {
+			ti.inputs[s_albedo] = path;
+		} else {
+			return false;
+		}
+		postAddInput(ti);
+		return true;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		sf::Array<sf::StringBuf> args;
+
+		addCommonTexcompArgs(p, ti, args);
+		addTexcompInputArg(p, args, ti.inputs[s_albedo]);
+
+		args.push("--output-ignores-alpha");
+
+		pushJobs(p, ti, std::move(args));
+	}
+};
+
+struct NormalTextureTask : MaterialTextureTask
+{
+	bool remap;
+
+	NormalTextureTask(sf::String format, bool remap, int resolution, int mipDrops)
+		: MaterialTextureTask("Normal", "normal", format, resolution, mipDrops)
+		, remap(remap)
+	{
 	}
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
@@ -695,8 +740,7 @@ struct NormalTextureTask : Task
 		} else {
 			return false;
 		}
-		ti.outputs[s_dst] = symf("%s_normal.%s.sptex", ti.key.data, format.data);
-		ti.assets.insert(ti.key);
+		postAddInput(ti);
 		return true;
 	}
 
@@ -704,68 +748,30 @@ struct NormalTextureTask : Task
 	{
 		sf::Array<sf::StringBuf> args;
 
-		sf::StringBuf tempFile, dstFile;
-		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
-		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+		addCommonTexcompArgs(p, ti, args);
 
 		args.push("--linear");
 		args.push("--normal-map");
-		if (remap) {
-			args.push("--decorrelate-remap");
+		if (remap) args.push("--decorrelate-remap");
+
+		if (sf::Symbol *dx = ti.inputs.findValue(s_normal_dx)) {
+			args.push("--invert-g");
+			addTexcompInputArg(p, args, *dx);
+		} else if (sf::Symbol *gl = ti.inputs.findValue(s_normal_gl)) {
+			addTexcompInputArg(p, args, *gl);
+		} else {
+			addTexcompInputArg(p, args, ti.inputs[s_normal]);
 		}
 
-		args.push("--level");
-		args.push().format("%d", p.level);
-
-		args.push("--format");
-		args.push(sf::String(format));
-
-		args.push("--flip-y");
-
-		args.push("--resolution");
-		args.push(resolutionString);
-		args.push(resolutionString);
-
-		{
-			sf::SmallStringBuf<512> path;
-			if (sf::Symbol *dx = ti.inputs.findValue(s_normal_dx)) {
-				args.push("--invert-g");
-				sf::appendPath(path, p.dataRoot, *dx);
-			} else if (sf::Symbol *gl = ti.inputs.findValue(s_normal_gl)) {
-				sf::appendPath(path, p.dataRoot, *gl);
-			} else {
-				sf::appendPath(path, p.dataRoot, ti.inputs[s_normal]);
-			}
-			args.push("--input");
-			args.push(path);
-		}
-
-		args.push("--output");
-		args.push(tempFile);
-
-		JobPriority priority = getPriorityForTextureFormat(format);
-
-		JobQueue jq;
-		jq.mkdirsToFile(tempFile);
-		jq.mkdirsToFile(dstFile);
-		jq.exec("sp-texcomp", std::move(args));
-		jq.move(tempFile, dstFile);
-		p.addJobs(priority, ti, jq);
+		pushJobs(p, ti, std::move(args));
 	}
 };
 
-struct MaskTextureTask : Task
+struct MaskTextureTask : MaterialTextureTask
 {
-	sf::Symbol format;
-	int resolution;
-	sf::SmallStringBuf<16> resolutionString;
-
-	MaskTextureTask(sf::String format, int resolution)
-		: format(format), resolution(resolution)
+	MaskTextureTask(sf::String format, int resolution, int mipDrops)
+		: MaterialTextureTask("Mask", "mask", format, resolution, mipDrops)
 	{
-		name.append("MaskTextureTask ", format);
-		resolutionString.format("%d", resolution);
-		tools.push("sp-texcomp");
 	}
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
@@ -779,8 +785,7 @@ struct MaskTextureTask : Task
 		} else {
 			return false;
 		}
-		ti.outputs[s_dst] = symf("%s_mask.%s.sptex", ti.key.data, format.data);
-		ti.assets.insert(ti.key);
+		postAddInput(ti);
 		return true;
 	}
 
@@ -788,22 +793,9 @@ struct MaskTextureTask : Task
 	{
 		sf::Array<sf::StringBuf> args;
 
-		sf::StringBuf tempFile, dstFile;
-		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
-		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+		addCommonTexcompArgs(p, ti, args);
 
 		args.push("--linear");
-		args.push("--level");
-		args.push().format("%d", p.level);
-
-		args.push("--format");
-		args.push(sf::String(format));
-
-		args.push("--flip-y");
-
-		args.push("--resolution");
-		args.push(resolutionString);
-		args.push(resolutionString);
 
 		if (auto pair = ti.inputs.find(s_metallic)) {
 			sf::SmallStringBuf<512> path;
@@ -831,17 +823,7 @@ struct MaskTextureTask : Task
 			args.push(path);
 		}
 
-		args.push("--output");
-		args.push(tempFile);
-
-		JobPriority priority = getPriorityForTextureFormat(format);
-
-		JobQueue jq;
-		jq.mkdirsToFile(tempFile);
-		jq.mkdirsToFile(dstFile);
-		jq.exec("sp-texcomp", std::move(args));
-		jq.move(tempFile, dstFile);
-		p.addJobs(priority, ti, jq);
+		pushJobs(p, ti, std::move(args));
 	}
 };
 
@@ -1107,20 +1089,21 @@ void initializeProcessing(const ProcessingDesc &desc)
 	}
 #endif
 
-	int materialResolution = 512;
-	p.tasks.push(sf::box<AlbedoTextureTask>("bc1", materialResolution));
-	p.tasks.push(sf::box<AlbedoTextureTask>("bc7", materialResolution));
-	if (doAstc) p.tasks.push(sf::box<AlbedoTextureTask>("astc4x4", materialResolution));
-	if (doRgba) p.tasks.push(sf::box<AlbedoTextureTask>("rgba8", materialResolution));
+	int materialResolution = 1024;
+	int materialMips = 4;
+	p.tasks.push(sf::box<AlbedoTextureTask>("bc1", materialResolution, materialMips));
+	p.tasks.push(sf::box<AlbedoTextureTask>("bc7", materialResolution, materialMips));
+	if (doAstc) p.tasks.push(sf::box<AlbedoTextureTask>("astc4x4", materialResolution, materialMips));
+	if (doRgba) p.tasks.push(sf::box<AlbedoTextureTask>("rgba8", materialResolution, materialMips));
 
-	p.tasks.push(sf::box<NormalTextureTask>("bc5", false, materialResolution));
-	if (doBc3Normal) p.tasks.push(sf::box<NormalTextureTask>("bc3", true, materialResolution));
-	if (doAstc) p.tasks.push(sf::box<NormalTextureTask>("astc4x4", true, materialResolution));
-	if (doRgba) p.tasks.push(sf::box<NormalTextureTask>("rgba8", false, materialResolution));
+	p.tasks.push(sf::box<NormalTextureTask>("bc5", false, materialResolution, materialMips));
+	if (doBc3Normal) p.tasks.push(sf::box<NormalTextureTask>("bc3", true, materialResolution, materialMips));
+	if (doAstc) p.tasks.push(sf::box<NormalTextureTask>("astc4x4", true, materialResolution, materialMips));
+	if (doRgba) p.tasks.push(sf::box<NormalTextureTask>("rgba8", false, materialResolution, materialMips));
 
-	p.tasks.push(sf::box<MaskTextureTask>("bc3", materialResolution));
-	if (doAstc) p.tasks.push(sf::box<MaskTextureTask>("astc8x8", materialResolution));
-	if (doRgba) p.tasks.push(sf::box<MaskTextureTask>("rgba8", materialResolution));
+	p.tasks.push(sf::box<MaskTextureTask>("bc3", materialResolution, materialMips));
+	if (doAstc) p.tasks.push(sf::box<MaskTextureTask>("astc8x8", materialResolution, materialMips));
+	if (doRgba) p.tasks.push(sf::box<MaskTextureTask>("rgba8", materialResolution, materialMips));
 
 	int maxGuiExtent = 512;
 	int maxCardExtent = 256;

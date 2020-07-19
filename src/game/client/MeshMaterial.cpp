@@ -112,13 +112,15 @@ void MeshMaterialImp::assetStartLoading()
 {
 	sf::SmallStringBuf<256> path;
 
-    path.clear(); path.format("%s_albedo.%s.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Albedo]));
+    uint32_t resolution = 1024;
+
+    path.clear(); path.format("%s_albedo.%s.%u.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Albedo]), resolution);
 	sp::ContentFile::loadMainThread(path, &loadAlbedoImp, this);
 
-    path.clear(); path.format("%s_normal.%s.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Normal]));
+    path.clear(); path.format("%s_normal.%s.%u.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Normal]), resolution);
 	sp::ContentFile::loadMainThread(path, &loadNormalImp, this);
 
-    path.clear(); path.format("%s_mask.%s.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Mask]));
+    path.clear(); path.format("%s_mask.%s.%d.%u.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Mask]), resolution);
 	sp::ContentFile::loadMainThread(path, &loadMaskImp, this);
 }
 
