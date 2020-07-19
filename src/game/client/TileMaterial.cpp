@@ -203,9 +203,11 @@ void TileMaterial::globalInit()
 {
 	TileMaterialContext &ctx = g_tileMaterialContext;
 
-	ctx.atlases[(uint32_t)MaterialTexture::Albedo].init(ctx.numSlotsX, ctx.numSlotsY, 1024, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Albedo], "TileMaterial albedo");
-	ctx.atlases[(uint32_t)MaterialTexture::Normal].init(ctx.numSlotsX, ctx.numSlotsY, 1024, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Normal], "TileMaterial normal");
-	ctx.atlases[(uint32_t)MaterialTexture::Mask].init(ctx.numSlotsX, ctx.numSlotsY, 1024, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Mask], "TileMaterial mask");
+	uint32_t resolution = 512;
+
+	ctx.atlases[(uint32_t)MaterialTexture::Albedo].init(ctx.numSlotsX, ctx.numSlotsY, resolution, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Albedo], "TileMaterial albedo");
+	ctx.atlases[(uint32_t)MaterialTexture::Normal].init(ctx.numSlotsX, ctx.numSlotsY, resolution, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Normal], "TileMaterial normal");
+	ctx.atlases[(uint32_t)MaterialTexture::Mask].init(ctx.numSlotsX, ctx.numSlotsY, resolution, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Mask], "TileMaterial mask");
 }
 
 void TileMaterial::globalCleanup()

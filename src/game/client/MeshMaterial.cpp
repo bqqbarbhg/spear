@@ -112,7 +112,7 @@ void MeshMaterialImp::assetStartLoading()
 {
 	sf::SmallStringBuf<256> path;
 
-    uint32_t resolution = 1024;
+    uint32_t resolution = 512;
 
     path.clear(); path.format("%s_albedo.%s.%u.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Albedo]), resolution);
 	sp::ContentFile::loadMainThread(path, &loadAlbedoImp, this);
