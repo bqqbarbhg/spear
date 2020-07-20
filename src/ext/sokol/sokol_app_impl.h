@@ -2107,8 +2107,21 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_wheel_cb(int emsc_type, const EmscriptenWheelE
         if (emsc_event->mouse.metaKey) {
             _sapp.event.modifiers |= SAPP_MODIFIER_SUPER;
         }
-        _sapp.event.scroll_x = -0.1 * (float)emsc_event->deltaX;
-        _sapp.event.scroll_y = -0.1 * (float)emsc_event->deltaY;
+        float scale = -0.1f;
+        switch (emsc_event->deltaMode) {
+        case DOM_DELTA_PIXEL:
+            scale = -0.04f;
+            break;
+        case DOM_DELTA_LINE:
+            scale = -1.3333f;
+            break;
+        case DOM_DELTA_PAGE:
+            scale = -10.0f;
+            break;
+        default: 
+        }
+        _sapp.event.scroll_x = scale * (float)emsc_event->deltaX;
+        _sapp.event.scroll_y = scale * (float)emsc_event->deltaY;
         _sapp_call_event(&_sapp.event);
     }
     _sapp_emsc_update_keyboard_state();
