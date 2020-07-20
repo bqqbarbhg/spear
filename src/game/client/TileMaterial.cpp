@@ -7,7 +7,7 @@
 #include "ext/sokol/sokol_gfx.h"
 #include "ext/sp_tools_common.h"
 
-extern bool g_hack_hd;
+bool g_hack_hd = false;
 
 namespace cl {
 

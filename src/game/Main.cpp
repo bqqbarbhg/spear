@@ -82,7 +82,6 @@ static uint32_t sessionId;
 static uint32_t sessionSecret;
 
 extern bool g_hack_hd;
-bool g_hack_hd = false;
 
 void spInit()
 {
