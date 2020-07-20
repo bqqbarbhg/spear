@@ -15,6 +15,8 @@
 #include "ext/sokol/sokol_args.h"
 #include "ext/imgui/imgui.h"
 
+#include "game/GameConfig.h"
+
 #include "bq_websocket_platform.h"
 
 #include "Processing.h"
@@ -105,7 +107,14 @@ void spInit()
 
 	clientGlobalInit();
 
-	sp::ContentFile::addRelativeFileRoot("Build", "Assets/");
+	if (sargs_boolean("cdn")) {
+		#if defined(GAME_CDN_URL)
+			sp::ContentFile::addRelativeFileRoot("Build", GAME_CDN_URL);
+		#endif
+	} else {
+		sp::ContentFile::addRelativeFileRoot("Build", "Assets/");
+	}
+
 	sp::ContentFile::addRelativeFileRoot("Game", "Game/");
 	// sp::ContentFile::addRelativeFileRoot("/data");
     // sp::ContentFile::addRelativeFileRoot("http://localhost:5000");
