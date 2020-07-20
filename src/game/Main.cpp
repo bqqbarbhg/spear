@@ -81,6 +81,8 @@ static int port;
 static uint32_t sessionId;
 static uint32_t sessionSecret;
 
+bool g_hack_hd = false;
+
 void spInit()
 {
 	{
@@ -113,6 +115,10 @@ void spInit()
 		#endif
 	} else {
 		sp::ContentFile::addRelativeFileRoot("Build", "Assets/");
+	}
+
+	if (sargs_boolean("hd")) {
+		g_hack_hd = true;
 	}
 
 	sp::ContentFile::addRelativeFileRoot("Game", "Game/");

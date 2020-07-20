@@ -7,6 +7,8 @@
 #include "ext/sokol/sokol_gfx.h"
 #include "ext/sp_tools_common.h"
 
+extern bool g_hack_hd;
+
 namespace cl {
 
 struct TileMaterialAtlasTexture
@@ -203,7 +205,7 @@ void TileMaterial::globalInit()
 {
 	TileMaterialContext &ctx = g_tileMaterialContext;
 
-	uint32_t resolution = 512;
+	uint32_t resolution = g_hack_hd ? 1024u : 512u;
 
 	ctx.atlases[(uint32_t)MaterialTexture::Albedo].init(ctx.numSlotsX, ctx.numSlotsY, resolution, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Albedo], "TileMaterial albedo");
 	ctx.atlases[(uint32_t)MaterialTexture::Normal].init(ctx.numSlotsX, ctx.numSlotsY, resolution, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Normal], "TileMaterial normal");

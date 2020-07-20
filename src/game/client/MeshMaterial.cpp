@@ -5,6 +5,8 @@
 #include "sp/ContentFile.h"
 #include "sf/String.h"
 
+extern bool g_hack_hd;
+
 namespace cl {
 
 const char *getPixelFormatSuffix(sg_pixel_format format)
@@ -112,7 +114,7 @@ void MeshMaterialImp::assetStartLoading()
 {
 	sf::SmallStringBuf<256> path;
 
-    uint32_t resolution = 512;
+    uint32_t resolution = g_hack_hd ? 1024u : 512u;
 
     path.clear(); path.format("%s_albedo.%s.%u.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Albedo]), resolution);
 	sp::ContentFile::loadMainThread(path, &loadAlbedoImp, this);
