@@ -158,7 +158,7 @@ workspace "spear"
 		linkoptions { "-s MIN_WEBGL_VERSION=2" }
 		linkoptions { "-s MAX_WEBGL_VERSION=2" }
 		linkoptions { "-s WASM=1" }
-		linkoptions { "-s INITIAL_MEMORY=268435456" }
+		linkoptions { "-s INITIAL_MEMORY=536870912" }
 		defines { "SP_USE_WEBGL2=1" }
 		objdir "proj/obj/wasm/%{cfg.buildcfg}"
 
