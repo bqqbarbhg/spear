@@ -103,11 +103,6 @@ void spInit()
 		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_bptc");
 	}
 	#endif
-    
-    font.load(sf::Symbol("sp://OpenSans-Ascii.ttf"));
-	gameShaders.load();
-
-	clientGlobalInit();
 
 	if (sargs_boolean("cdn")) {
 		#if defined(GAME_CDN_URL)
@@ -120,6 +115,11 @@ void spInit()
 	if (sargs_boolean("hd")) {
 		g_hack_hd = true;
 	}
+    
+    font.load(sf::Symbol("sp://OpenSans-Ascii.ttf"));
+	gameShaders.load();
+
+	clientGlobalInit();
 
 	sp::ContentFile::addRelativeFileRoot("Game", "Game/");
 	// sp::ContentFile::addRelativeFileRoot("/data");
