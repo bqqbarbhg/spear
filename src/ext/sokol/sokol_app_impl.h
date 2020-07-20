@@ -2118,7 +2118,6 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_wheel_cb(int emsc_type, const EmscriptenWheelE
         case DOM_DELTA_PAGE:
             scale = -10.0f;
             break;
-        default: 
         }
         _sapp.event.scroll_x = scale * (float)emsc_event->deltaX;
         _sapp.event.scroll_y = scale * (float)emsc_event->deltaY;
