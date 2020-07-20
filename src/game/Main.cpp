@@ -117,6 +117,7 @@ void spInit()
 	}
     
     font.load(sf::Symbol("sp://OpenSans-Ascii.ttf"));
+
 	gameShaders.load();
 
 	clientGlobalInit();
