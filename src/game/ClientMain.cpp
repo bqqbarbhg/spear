@@ -256,8 +256,10 @@ int CurveEditor(const char *label, ImVec2 editorSize, float *values, int *p_numP
 
 #if SF_OS_EMSCRIPTEN
 EM_JS(int, sp_emUpdateUrl, (int id, int secret), {
-	var state = { id: id.toString(), secret: secret.toString() };
-	history.replaceState(state, "", "?id=" + state.id + "&secret=" + state.secret);
+	var urlParams = new URLSearchParams(window.location.search);
+	urlParams.set("id", id.toString());
+	urlParams.set("secret", secret.toString());
+	history.replaceState(null, "", "?" + urlParams.toString());
 });
 #endif
 
