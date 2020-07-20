@@ -120,7 +120,7 @@ void MeshMaterialImp::assetStartLoading()
     path.clear(); path.format("%s_normal.%s.%u.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Normal]), resolution);
 	sp::ContentFile::loadMainThread(path, &loadNormalImp, this);
 
-    path.clear(); path.format("%s_mask.%s.%d.%u.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Mask]), resolution);
+    path.clear(); path.format("%s_mask.%s.%u.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Mask]), resolution);
 	sp::ContentFile::loadMainThread(path, &loadMaskImp, this);
 }
 
