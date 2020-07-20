@@ -109,7 +109,7 @@ void spInit()
 
 	if (sargs_boolean("cdn")) {
 		#if defined(GAME_CDN_URL)
-			sp::ContentFile::addRelativeFileRoot("Build", GAME_CDN_URL);
+			sp::ContentFile::addRelativeFileRoot(GAME_CDN_URL, "Assets/");
 		#endif
 	} else {
 		sp::ContentFile::addRelativeFileRoot("Build", "Assets/");
