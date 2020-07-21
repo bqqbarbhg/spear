@@ -458,6 +458,7 @@ const sf::String materialSuffixes[] = {
 	"_Mixed_AO.png",
 	"_Normal_DirectX.png",
 	"_Normal_OpenGL.png",
+	"_Emissive.png",
 };
 
 void setupFileDir(FileDir &dir, sf::StringBuf &queryRoot, sv::QueryDir &queryDir)
