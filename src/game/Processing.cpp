@@ -441,6 +441,7 @@ Job::Status ExecJob::getStatus()
 static const sf::Symbol s_metallic{"metallic"};
 static const sf::Symbol s_ao{"ao"};
 static const sf::Symbol s_roughness{"roughness"};
+static const sf::Symbol s_emissive{"emissive"};
 static const sf::Symbol s_albedo{"albdo"};
 static const sf::Symbol s_normal{"normal"};
 static const sf::Symbol s_normal_gl{"normal_gl"};
@@ -782,6 +783,8 @@ struct MaskTextureTask : MaterialTextureTask
 			ti.inputs[s_ao] = path;
 		} else if (endsWithStrip(ti.key, path, "_Roughness.png")) {
 			ti.inputs[s_roughness] = path;
+		} else if (endsWithStrip(ti.key, path, "_Emissive.png")) {
+			ti.inputs[s_emissive] = path;
 		} else {
 			return false;
 		}
@@ -813,6 +816,13 @@ struct MaskTextureTask : MaterialTextureTask
 			sf::SmallStringBuf<512> path;
 			sf::appendPath(path, p.dataRoot, "Utility", "White.png");
 			args.push("--input-g");
+			args.push(path);
+		}
+
+		if (auto pair = ti.inputs.find(s_emissive)) {
+			sf::SmallStringBuf<512> path;
+			sf::appendPath(path, p.dataRoot, pair->val);
+			args.push("--input-b");
 			args.push(path);
 		}
 

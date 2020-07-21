@@ -81,6 +81,8 @@ void main()
 	float alpha = matMask.w*matMask.w;
 	float alpha2 = alpha*alpha;
 
+	result += matAlbedo * matMask.z;
+
 	for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
 		result += evaluatePointLight(P, N, V, cdiff, f0, alpha2, base);
 	}
