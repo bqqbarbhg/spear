@@ -44,6 +44,7 @@ sp::AssetType ParticleTexture::SelfType = { "ParticleTexture", sizeof(ParticleTe
 static void loadTextureImp(void *user, const sp::ContentFile &file)
 {
 	ParticleTextureImp *imp = (ParticleTextureImp*)user;
+    bool ok = false;
 
 	if (file.size > 0) {
 		sptex_util su;
@@ -78,13 +79,20 @@ static void loadTextureImp(void *user, const sp::ContentFile &file)
 			d.content.subimage[0][mipI].ptr = sptex_decode_mip(&su, mipDrop + mipI);
 			d.content.subimage[0][mipI].size = header.s_mips[mipDrop + mipI].uncompressed_size;
 		}
-
-        imp->image = sg_make_image(&d);
+        
+        if (!spfile_util_failed(&su.file)) {
+            imp->image = sg_make_image(&d);
+            ok = true;
+        }
 
 		spfile_util_free(&su.file);
 	}
 
-	imp->assetFinishLoading();
+    if (ok) {
+    	imp->assetFinishLoading();
+    } else {
+        imp->assetFailLoading();
+    }
 }
 
 void ParticleTextureImp::assetStartLoading()
