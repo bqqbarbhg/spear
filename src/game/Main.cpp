@@ -16,7 +16,7 @@
 #include "ext/sokol/sokol_args.h"
 #include "ext/imgui/imgui.h"
 
-#include "game/GameConfig.h"
+#include "GameConfig.h"
 
 #include "bq_websocket_platform.h"
 
@@ -86,6 +86,13 @@ extern bool g_hack_hd;
 
 void spInit()
 {
+    #if defined(GAME_OVERRIDE_ARGS)
+    static const char *overrideArgs[] = {
+        GAME_OVERRIDE_ARGS
+    };
+    sp::commandLineArgs = sf::slice(overrideArgs);
+    #endif
+    
 	{
 		sargs_desc d = { };
 		d.argv = (char**)sp::commandLineArgs.data;
@@ -131,9 +138,11 @@ void spInit()
 
 	clientGlobalInit();
 
-	sp::ContentFile::addRelativeFileRoot("Game", "Game/");
-	// sp::ContentFile::addRelativeFileRoot("/data");
-    // sp::ContentFile::addRelativeFileRoot("http://localhost:5000");
+    #if defined(GAME_GAME_URL)
+        sp::ContentFile::addRelativeFileRoot(GAME_GAME_URL, "Game/");
+    #else
+    	sp::ContentFile::addRelativeFileRoot("Game", "Game/");
+    #endif
 
 	server = serverInit(port);
 	sf::debugPrintLine("Server: %p", server);
