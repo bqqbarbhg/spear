@@ -474,7 +474,7 @@ void ParticleSystem::globalInit()
 
 void ParticleSystem::globalCleanup()
 {
-	g_particleContext = ParticleContext();
+	sf::reset(g_particleContext);
 }
 
 void ParticleSystem::globalUpdate()

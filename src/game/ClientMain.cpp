@@ -406,6 +406,7 @@ void clientGlobalInit()
 
 void clientGlobalCleanup()
 {
+	cl::ParticleSystem::globalCleanup();
 	cl::TileMaterial::globalCleanup();
 	cl::ParticleTexture::globalCleanup();
 	cl::MeshMaterial::globalCleanup();

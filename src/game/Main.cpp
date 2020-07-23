@@ -152,6 +152,9 @@ void spInit()
 
 void spCleanup()
 {
+	font.reset();
+	sf::reset(canvas);
+
 	for (MainClient &mc : clients) {
 		clientFree(mc.client);
 	}
