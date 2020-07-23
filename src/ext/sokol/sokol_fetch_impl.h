@@ -2017,7 +2017,8 @@ _SOKOL_PRIVATE void _sfetch_curl_add_request(_sfetch_channel_t *chn, _sfetch_ite
         dataTaskWithURL: url
         completionHandler: ^(NSData *data, NSURLResponse *response, NSError *error) {
             item->thread.finished = true;
-            if (error) {
+            int code = (int)[(NSHTTPURLResponse*)response statusCode];
+            if (error || !(code >= 200 && code < 300)) {
                 item->thread.failed = true;
                 item->thread.error_code = SFETCH_ERROR_CURL_FAILED;
                 SOKOL_ASSERT(!_sfetch_ring_full(&chn->thread_outgoing));
