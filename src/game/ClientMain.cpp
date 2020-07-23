@@ -354,6 +354,7 @@ struct ClientMain
 	bool windowRooms = false;
 	bool windowMessages = false;
 	bool windowProperties = false;
+	bool windowOptions = false;
 	bool windowDebug = false;
 
 	sp::Buffer lineBuffer;
@@ -387,6 +388,11 @@ struct ClientMain
 	float cameraZoomVel = 0.0f;
 	float cameraZoom = 0.5f;
 	float cameraLogZoom = 0.5f;
+
+	bool useFxaa = false;
+	int msaaSamples = 4;
+	float resolutionScale = 1.0f;
+	bool forceRecreateTargets = false;
 
 	// TMEP TEMP
 	cl::ParticleSystem *TEMP_particleSystem;
@@ -973,10 +979,10 @@ static void recreateTargets(ClientMain *c, const sf::Vec2i &systemRes)
 {
 	c->resolution = systemRes;
 
-	float scale = 1.0f;
+	float scale = c->resolutionScale;
 	sf::Vec2i mainRes = sf::Vec2i(sf::Vec2(systemRes) * sqrtf(scale));
 
-	int mainSamples = 4;
+	int mainSamples = c->msaaSamples;
 	sg_pixel_format mainFormat = SG_PIXELFORMAT_RGBA8;
 	sg_pixel_format mainDepthFormat = SG_PIXELFORMAT_DEPTH_STENCIL;
 
@@ -1379,7 +1385,8 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		return true;
 	}
 
-	if (input.resolution != c->resolution) {
+	if (input.resolution != c->resolution || c->forceRecreateTargets) {
+		c->forceRecreateTargets = false;
 		recreateTargets(c, input.resolution);
 	}
 
@@ -1470,6 +1477,23 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		}
 
 		handleImguiRoomDir(c, g_rooms);
+		ImGui::End();
+	}
+
+	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
+	if (c->windowOptions && ImGui::Begin("Options", &c->windowOptions)) {
+
+		ImGui::SliderFloat("Scale", &c->resolutionScale, 0.05f, 1.0f);
+		ImGui::Text("MSAA");
+		ImGui::SameLine(); ImGui::RadioButton("1", &c->msaaSamples, 1);
+		ImGui::SameLine(); ImGui::RadioButton("2", &c->msaaSamples, 2);
+		ImGui::SameLine(); ImGui::RadioButton("4", &c->msaaSamples, 4);
+		ImGui::SameLine(); ImGui::RadioButton("8", &c->msaaSamples, 8);
+		ImGui::Checkbox("FXAA", &c->useFxaa);
+
+		if (ImGui::Button("Apply")) {
+			c->forceRecreateTargets = true;
+		}
 		ImGui::End();
 	}
 
@@ -1777,6 +1801,7 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 				if (ImGui::MenuItem("Properties")) c->windowProperties = true;
 				if (ImGui::MenuItem("Messages")) c->windowMessages = true;
 				if (ImGui::MenuItem("Debug")) c->windowDebug = true;
+				if (ImGui::MenuItem("Options")) c->windowOptions = true;
 				ImGui::EndMenu();
 			}
 
@@ -2439,8 +2464,7 @@ sg_image clientRender(ClientMain *c)
 	}
 #endif
 
-#if 0
-	{
+	if (c->useFxaa) {
 		sp::beginPass(c->fxaaPass, nullptr);
 
 		{
@@ -2462,7 +2486,6 @@ sg_image clientRender(ClientMain *c)
 
 		return c->fxaaTarget.image;
 	}
-#endif
 
 	return c->mainTarget.image;
 }
