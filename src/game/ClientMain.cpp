@@ -278,7 +278,7 @@ struct CardGuiState
 	float hover = 0.0f;
 };
 
-static constexpr const uint32_t MaxFakeShadowsPerFrame = 128;
+static constexpr const uint32_t MaxFakeShadowsPerFrame = 1024;
 
 struct FakeShadowQuad
 {
@@ -795,13 +795,22 @@ void handleImguiRoomDir(ClientMain *c, FileDir &dir)
 	}
 }
 
+static void clientSocketError(void *user, bqws_socket *ws, bqws_error error)
+{
+	sf::debugPrint("Client socket error: %s (%u)\n", bqws_error_str(error), (unsigned)error);
+	bqws_pt_error ptErr;
+	if (bqws_pt_get_error(&ptErr)) {
+		char buf[1024];
+		bqws_pt_get_error_desc(buf, sizeof(buf), &ptErr);
+		sf::debugPrint("Client IO error: %s\n", buf);
+	}
+}
+
 ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uint32_t sessionSecret)
 {
 	ClientMain *c = new ClientMain();
 	c->name = name;
 	c->playerId = ++playerIdCounter;
-
-
 
 	{
         sf::SmallStringBuf<128> url;
@@ -815,6 +824,7 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
         
 		bqws_opts opts = { };
 		opts.name = name.data;
+		opts.error_fn = &clientSocketError;
 		if (port > 0) {
 			c->ws = bqws_pt_connect(url.data, NULL, &opts, NULL);
 		} else {
@@ -2313,12 +2323,10 @@ sg_image clientRender(ClientMain *c)
 				float r = quad.radius;
 				float a = quad.alpha;
 
-				if (c->fakeShadowVertices.size * 4 < MaxFakeShadowsPerFrame) {
-					c->fakeShadowVertices.push({ p + sf::Vec3(-r, 0.0f, -r), sf::Vec2(-1.0f, -1.0f), a });
-					c->fakeShadowVertices.push({ p + sf::Vec3(+r, 0.0f, -r), sf::Vec2(+1.0f, -1.0f), a });
-					c->fakeShadowVertices.push({ p + sf::Vec3(-r, 0.0f, +r), sf::Vec2(-1.0f, +1.0f), a });
-					c->fakeShadowVertices.push({ p + sf::Vec3(+r, 0.0f, +r), sf::Vec2(+1.0f, +1.0f), a });
-				}
+				c->fakeShadowVertices.push({ p + sf::Vec3(-r, 0.0f, -r), sf::Vec2(-1.0f, -1.0f), a });
+				c->fakeShadowVertices.push({ p + sf::Vec3(+r, 0.0f, -r), sf::Vec2(+1.0f, -1.0f), a });
+				c->fakeShadowVertices.push({ p + sf::Vec3(-r, 0.0f, +r), sf::Vec2(-1.0f, +1.0f), a });
+				c->fakeShadowVertices.push({ p + sf::Vec3(+r, 0.0f, +r), sf::Vec2(+1.0f, +1.0f), a });
 			}
 
 			c->fakeShadowQuads.clear();
