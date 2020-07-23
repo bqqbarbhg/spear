@@ -5,6 +5,10 @@
 #include "sp/ContentFile.h"
 #include "sf/String.h"
 
+#if SF_OS_EMSCRIPTEN
+	#include <emscripten/emscripten.h>
+#endif
+
 extern bool g_hack_hd;
 
 namespace cl {
@@ -136,6 +140,12 @@ void MeshMaterialImp::assetUnload()
     }
 }
 
+#if SF_OS_EMSCRIPTEN
+EM_JS(int, spear_emHasBC5, (void), {
+    return navigator.userAgent.indexOf("Macintosh") < 0 ? 1 : 0;
+});
+#endif
+
 void MeshMaterial::globalInit()
 {
     sg_pixel_format albedoFormats[] = {
@@ -166,6 +176,11 @@ void MeshMaterial::globalInit()
 
     for (sg_pixel_format format : normalFormats) {
         if (!sg_query_pixelformat(format).sample) continue;
+
+		#if SF_OS_EMSCRIPTEN
+            if (format == SG_PIXELFORMAT_BC5_RG && !spear_emHasBC5()) continue;
+		#endif
+
         MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Normal] = format;
         break;
     }
