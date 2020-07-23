@@ -406,11 +406,12 @@ static void joinSession(Session &session, bqws_socket *ws, sv::MessageJoin *m)
 
 		auto player = sf::box<sv::Character>();
 		player->name = client.name;
-		if (time(NULL) % 2 == 0) {
-			player->model = sf::Symbol("Game/Characters/goblin.js");
-		} else {
-			player->model = sf::Symbol("Game/Characters/dwarf.js");
+		switch (time(NULL) % 3) {
+		case 0: player->model = sf::Symbol("Game/Characters/goblin.js"); break;
+		case 1: player->model = sf::Symbol("Game/Characters/dwarf.js"); break;
+		case 2: player->model = sf::Symbol("Game/Characters/slime.js"); break;
 		}
+
 		player->position = findSpawnPos(session.state, sf::Vec2i(0, 0));
 		player->players.push(client.playerId);
 		player->cards.push({ shortsword });
