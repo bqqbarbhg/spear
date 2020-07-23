@@ -28,6 +28,7 @@
 #include "Font.h"
 #include "ContentFile.h"
 #include "Canvas.h"
+#include "Args.h"
 
 namespace sp {
 
@@ -137,6 +138,7 @@ sapp_desc sokol_main(int argc, char **argv)
 	spConfig(config);
 
 	sp::impSampleCount = config.sappDesc.sample_count;
+	sp::commandLineArgs = sf::slice((const char**)argv, (size_t)argc);
 
 	return config.sappDesc;
 }

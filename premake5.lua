@@ -120,6 +120,7 @@ workspace "spear"
 	filter { "platforms:not wasm",  "system:windows" }
 		libdirs { "dep/lib/windows_%{cfg.platform}" }
 		includedirs { "dep/include/windows" }
+		defines { "BQWS_PT_USE_OPENSSL=1" }
 		links {
 			"ws2_32.lib",
 			"crypt32.lib",

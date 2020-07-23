@@ -9,6 +9,7 @@
 #include "sp/Renderer.h"
 #include "sp/Font.h"
 #include "sp/Canvas.h"
+#include "sp/Args.h"
 #include "game/shader/GameShaders.h"
 #include "game/shader/Upscale.h"
 #include "ext/sokol/sokol_imgui.h"
@@ -87,7 +88,15 @@ void spInit()
 {
 	{
 		sargs_desc d = { };
+		d.argv = (char**)sp::commandLineArgs.data;
+		d.argc = sp::commandLineArgs.size;
 		sargs_setup(&d);
+	}
+
+	{
+		bqws_pt_init_opts opts = { };
+		opts.ca_filename = "Misc/cacert.pem";
+		bqws_pt_init(&opts);
 	}
 
     port = 4004;
