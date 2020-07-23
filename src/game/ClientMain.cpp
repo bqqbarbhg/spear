@@ -2312,7 +2312,7 @@ sg_image clientRender(ClientMain *c)
 			}
 		}
 
-		{
+        if (c->fakeShadowQuads.size > 0) {
 			c->fakeShadowVertices.clear();
 			if (c->fakeShadowQuads.size > MaxFakeShadowsPerFrame) {
 				c->fakeShadowQuads.resizeUninit(MaxFakeShadowsPerFrame);
