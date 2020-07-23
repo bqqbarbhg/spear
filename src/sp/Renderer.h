@@ -142,7 +142,6 @@ struct Texture
 	void reset();
 };
 
-
 FramebufferDesc getFramebufferTypeDesc(uint32_t typeIndex);
 
 void beginPass(const RenderPass &pass, const sg_pass_action *action);
@@ -153,5 +152,8 @@ void beginFrame();
 void endFrame();
 
 sf::Slice<const PassTime> getPassTimes();
+
+extern sg_buffer g_hackSharedQuadIndexBuffer;
+sf_inline sg_buffer getSharedQuadIndexBuffer() { return g_hackSharedQuadIndexBuffer; }
 
 }

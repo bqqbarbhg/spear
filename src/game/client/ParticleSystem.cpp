@@ -23,7 +23,6 @@
 
 namespace cl {
 
-static const constexpr uint32_t MaxParticlesPerDraw = 4*1024;
 static const constexpr uint32_t MaxParticlesPerFrame = 4*1024;
 static const constexpr uint32_t MaxParticleCacheFrames = 16;
 static const constexpr float HugeParticleLife = 1e20f;
@@ -193,7 +192,6 @@ struct GpuParticle
 struct ParticleContext
 {
 	sp::Buffer vertexBuffers[MaxParticleCacheFrames];
-	sp::Buffer indexBuffer;
 	sp::Pipeline particlePipe;
 	uint64_t frameIndex = MaxParticleCacheFrames;
 	uint32_t frameParticlesLeft = MaxParticlesPerFrame;
@@ -429,7 +427,7 @@ struct ParticleSystemImp : ParticleSystem
 		sg_bindings binds = { };
 		binds.vertex_buffers[0] = vertexBuffer.buffer;
 		binds.vertex_buffer_offsets[0] = uploadedByteOffset;
-		binds.index_buffer = g_particleContext.indexBuffer.buffer;
+		binds.index_buffer = sp::getSharedQuadIndexBuffer();
 		binds.fs_images[SLOT_Particle_u_Texture] = image;
 		sg_apply_bindings(&binds);
 
@@ -460,22 +458,6 @@ void ParticleSystem::free(ParticleSystem *s)
 
 void ParticleSystem::globalInit()
 {
-	sf::Array<uint16_t> indices;
-	indices.resizeUninit(MaxParticlesPerDraw * 6);
-	uint16_t *dst = indices.data;
-	for (uint32_t i = 0; i < MaxParticlesPerDraw; i++) {
-		uint32_t vi = i * 4;
-		dst[0] = (uint16_t)(vi + 0);
-		dst[1] = (uint16_t)(vi + 1);
-		dst[2] = (uint16_t)(vi + 2);
-		dst[3] = (uint16_t)(vi + 2);
-		dst[4] = (uint16_t)(vi + 1);
-		dst[5] = (uint16_t)(vi + 3);
-		dst += 6;
-	}
-
-	g_particleContext.indexBuffer.initIndex("particle indexBuffer", indices.slice());
-
 	for (uint32_t i = 0; i < MaxParticleCacheFrames; i++) {
 		sf::SmallStringBuf<128> name;
 		name.format("particle vertexBuffer %u", i);

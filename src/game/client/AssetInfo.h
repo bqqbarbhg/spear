@@ -24,6 +24,16 @@ struct AnimationInfo
 	void refresh();
 };
 
+struct ShadowBlob
+{
+	uint32_t boneIndex = ~0u;
+	sf::Symbol bone;
+	sf::Vec3 offset;
+	float radius = 0.0f;
+	float alpha = 0.0f;
+	float fadeHeight = -1.0f;
+};
+
 struct ModelInfo
 {
 	sp::ModelRef modelRef;
@@ -33,6 +43,7 @@ struct ModelInfo
 	sf::HashMap<sf::Symbol, sf::Symbol> materials;
 	float scale = 1.0f;
 	sf::Array<AnimationInfo> animations;
+	sf::Array<ShadowBlob> shadowBlobs;
 
 	void refresh();
 };

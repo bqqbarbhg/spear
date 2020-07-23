@@ -99,6 +99,18 @@ void AssetInfoBase::assetStartLoading()
 
 namespace sf {
 
+template<> void initType<cl::ShadowBlob>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(cl::ShadowBlob, bone),
+		sf_field(cl::ShadowBlob, offset),
+		sf_field(cl::ShadowBlob, radius),
+		sf_field(cl::ShadowBlob, alpha),
+		sf_field(cl::ShadowBlob, fadeHeight),
+	};
+	sf_struct(t, cl::ShadowBlob, fields);
+}
+
 template<> void initType<cl::AnimationInfo>(Type *t)
 {
 	static Field fields[] = {
@@ -119,6 +131,7 @@ template<> void initType<cl::ModelInfo>(Type *t)
 		sf_field(cl::ModelInfo, materials),
 		sf_field(cl::ModelInfo, scale),
 		sf_field(cl::ModelInfo, animations),
+		sf_field(cl::ModelInfo, shadowBlobs),
 	};
 	sf_struct(t, cl::ModelInfo, fields);
 	t->postSerializeFn = [](void *inst, sf::Type *) {

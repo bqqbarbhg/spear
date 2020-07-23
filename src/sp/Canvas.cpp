@@ -69,6 +69,7 @@ struct CanvasContext
 	size_t textQuadsLeftThisFrame = MaxTextQuadsPerFrame;
 };
 
+extern sg_buffer g_hackSharedQuadIndexBuffer;
 CanvasContext g_canvasContext;
 
 struct CanvasImp
@@ -611,6 +612,8 @@ void Canvas::globalInit()
 		desc.size = (int)indices.byteSize();
 		desc.label = "quadIndexBuffer";
 		ctx.quadIndexBuffer = sg_make_buffer(&desc);
+
+		g_hackSharedQuadIndexBuffer = ctx.quadIndexBuffer;
 	}
 
 	// Vertex buffer

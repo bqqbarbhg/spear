@@ -810,6 +810,7 @@ sf::Slice<const PassTime> getPassTimes()
 	return g_passTimes;
 }
 
+sg_buffer g_hackSharedQuadIndexBuffer;
 
 }
 

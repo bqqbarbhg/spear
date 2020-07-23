@@ -16,6 +16,7 @@
 #include "game/shader/Fxaa.h"
 #include "game/shader/Line.h"
 #include "game/shader/Sphere.h"
+#include "game/shader/FakeShadow.h"
 #include "game/client/TileMaterial.h"
 #include "game/server/GameComponent.h"
 #include "game/ImguiSerialization.h"
@@ -277,6 +278,22 @@ struct CardGuiState
 	float hover = 0.0f;
 };
 
+static constexpr const uint32_t MaxFakeShadowsPerFrame = 128;
+
+struct FakeShadowQuad
+{
+	sf::Vec3 position;
+	float radius;
+	float alpha;
+};
+
+struct FakeShadowVertex
+{
+	sf::Vec3 position;
+	sf::Vec2 uv;
+	float alpha;
+};
+
 struct ClientMain
 {
 	bqws_socket *ws;
@@ -371,9 +388,11 @@ struct ClientMain
 	float cameraZoom = 0.5f;
 	float cameraLogZoom = 0.5f;
 
-
 	// TMEP TEMP
 	cl::ParticleSystem *TEMP_particleSystem;
+	sf::Array<FakeShadowQuad> fakeShadowQuads;
+	sf::Array<FakeShadowVertex> fakeShadowVertices;
+	sp::Buffer fakeShadowVertexBuffer;
 };
 
 void clientGlobalInit()
@@ -902,6 +921,8 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 	c->TEMP_particleSystem->spawnPosition.origin.y = 2.0f;
 	c->TEMP_particleSystem->texture.load(sf::Symbol("Assets/Particles/Test/Fireball_8x8.png"));
 	c->TEMP_particleSystem->frameCount = sf::Vec2i(8, 8);
+
+	c->fakeShadowVertexBuffer.initDynamicVertex("fakeShadowVertexBuffer", sizeof(FakeShadowVertex) * 4 * MaxFakeShadowsPerFrame);
 
 #if 0
 	{
@@ -2187,6 +2208,31 @@ sg_image clientRender(ClientMain *c)
 
 				sp::boneTransformToWorld(model, boneWorld, boneTransforms, world);
 
+				for (cl::ShadowBlob &blob : modelInfo.shadowBlobs) {
+					if (blob.boneIndex == ~0u) {
+						uint32_t *index = model->boneNames.findValue(blob.bone);
+						if (index) {
+							blob.boneIndex = *index;
+						} else {
+							continue;
+						}
+					}
+
+					sf::Vec3 pos = sf::transformPoint(boneWorld[blob.boneIndex], blob.offset);
+
+					float fade = 0.0f;
+					if (blob.fadeHeight >= 0.0f) {
+						fade = sf::clamp(pos.y / blob.fadeHeight, 0.0f, 1.0f);
+					}
+
+					pos.y = 0.0f;
+
+					FakeShadowQuad &quad = c->fakeShadowQuads.push();
+					quad.position = pos;
+					quad.radius = blob.radius * (1.0f + fade * 0.5f);
+					quad.alpha = blob.alpha * (1.0f - fade);
+				}
+
 				UBO_Pixel pu = { };
 				pu.numLightsF = (float)c->clientState.pointLights.size;
 				pu.cameraPosition = cameraPosition;
@@ -2253,6 +2299,43 @@ sg_image clientRender(ClientMain *c)
 					sg_draw(0, mesh.numIndices, 1);
 				}
 			}
+		}
+
+		{
+			c->fakeShadowVertices.clear();
+			if (c->fakeShadowQuads.size > MaxFakeShadowsPerFrame) {
+				c->fakeShadowQuads.resizeUninit(MaxFakeShadowsPerFrame);
+			}
+
+			for (FakeShadowQuad &quad : c->fakeShadowQuads) {
+				sf::Vec3 p = quad.position + sf::Vec3(0.0f, 0.01f, 0.0f);
+				float r = quad.radius;
+				float a = quad.alpha;
+
+				if (c->fakeShadowVertices.size * 4 < MaxFakeShadowsPerFrame) {
+					c->fakeShadowVertices.push({ p + sf::Vec3(-r, 0.0f, -r), sf::Vec2(-1.0f, -1.0f), a });
+					c->fakeShadowVertices.push({ p + sf::Vec3(+r, 0.0f, -r), sf::Vec2(+1.0f, -1.0f), a });
+					c->fakeShadowVertices.push({ p + sf::Vec3(-r, 0.0f, +r), sf::Vec2(-1.0f, +1.0f), a });
+					c->fakeShadowVertices.push({ p + sf::Vec3(+r, 0.0f, +r), sf::Vec2(+1.0f, +1.0f), a });
+				}
+			}
+
+			c->fakeShadowQuads.clear();
+
+			sg_update_buffer(c->fakeShadowVertexBuffer.buffer, c->fakeShadowVertices.data, (int)c->fakeShadowVertices.byteSize());
+
+			gameShaders.fakeShadowPipe.bind();
+
+			FakeShadow_Vertex_t vu;
+			viewProj.writeColMajor44(vu.worldToClip);
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_FakeShadow_Vertex, &vu, sizeof(vu));
+
+			sg_bindings binds = { };
+			binds.vertex_buffers[0] = c->fakeShadowVertexBuffer.buffer;
+			binds.index_buffer = sp::getSharedQuadIndexBuffer();
+			sg_apply_bindings(&binds);
+
+			sg_draw(0, (int)(c->fakeShadowVertices.size / 4) * 6, 1);
 		}
 
 		{
