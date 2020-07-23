@@ -10,6 +10,7 @@
 #include "sf/HashMap.h"
 #include "sf/HashSet.h"
 #include "sf/File.h"
+#include "sf/Sort.h"
 
 #include "MessageTransport.h"
 #include "LocalServer.h"
@@ -608,6 +609,9 @@ void serverUpdate(ServerMain *s)
 								file.name = info.name;
 							}
 						}
+
+						sf::sortBy(resMsg.dir.dirs, [](const sv::QueryDir &dir) { return sf::String(dir.name); });
+						sf::sortBy(resMsg.dir.files, [](const sv::QueryFile &file) { return sf::String(file.name); });
 
 						writeMessage(client.ws, &resMsg, serverName, client.name);
 					}
