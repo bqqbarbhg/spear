@@ -22,6 +22,10 @@
 
 #include "Processing.h"
 
+#include "sf/Float4.h"
+
+#include "sf/Mutex.h"
+
 #if SF_OS_EMSCRIPTEN
 	#include <emscripten/emscripten.h>
 	#include <emscripten/html5.h>
@@ -38,6 +42,8 @@ void spConfig(sp::MainConfig &config)
 	config.sgDesc.buffer_pool_size = 10*1024;
 	config.sgDesc.image_pool_size = 10*1024;
 	config.sgDesc.pass_pool_size = 10*1024;
+
+	config.saudioDesc.num_channels = 2;
 }
 
 sp::FontRef font;
@@ -53,6 +59,7 @@ struct MainClient
 
 ServerMain *server;
 sf::Array<MainClient> clients;
+sf::StaticMutex clientMutex;
 
 sp::Pipeline upscalePipe;
 
@@ -92,6 +99,8 @@ void spInit()
     };
     sp::commandLineArgs = sf::slice(overrideArgs);
     #endif
+
+	sf::MutexGuard mg(clientMutex);
     
 	{
 		sargs_desc d = { };
@@ -172,10 +181,18 @@ void spCleanup()
 {
 	font.reset();
 	sf::reset(canvas);
+	upscalePipe.reset();
 
-	for (MainClient &mc : clients) {
-		clientFree(mc.client);
+	{
+		sf::MutexGuard mg(clientMutex);
+		for (MainClient &mc : clients) {
+			clientFree(mc.client);
+		}
+		clients.clear();
 	}
+
+	// TODO: Proper reset
+	sf::reset(gameShaders);
 
 	simgui_shutdown();
 	clientGlobalCleanup();
@@ -198,12 +215,14 @@ void spEvent(const sapp_event *e)
 
 #if 0
 		if (e->key_code == SAPP_KEYCODE_C) {
+			sf::MutexGuard mg(clientMutex);
 			sf::SmallStringBuf<64> name;
 			name.format("Client %u", clients.size + 1);
 			MainClient &client = clients.push();
 			client.client = clientInit(port, sf::Symbol(name), sessionId, sessionSecret);
 			updateLayout();
 		} else if (e->key_code == SAPP_KEYCODE_Q) {
+			sf::MutexGuard mg(clientMutex);
 			MainClient &client = clients.back();
 			clientQuit(client.client);
 		} else if (e->key_code == SAPP_KEYCODE_M) {
@@ -249,6 +268,7 @@ void spFrame(float dt)
 		}
 
 		if (clientUpdate(client.client, input)) {
+			sf::MutexGuard mg(clientMutex);
 			clientFree(client.client);
 			clients.removeSwap(i--);
 			updateLayout();
@@ -335,6 +355,42 @@ void spFrame(float dt)
 	sp::endFrame();
 
 	sg_commit();
+}
+
+static sf::Array<float> mixChannels[2];
+
+void spAudio(float* buffer, int numFrames, int numChannels)
+{
+	sf_assert(numFrames % 4 == 0);
+	uint32_t sampleRate = saudio_sample_rate();
+	sf::MutexGuard mg(clientMutex);
+
+	if (clients.size == 0) {
+		memset(buffer, 0, sizeof(float) * numFrames * numChannels);
+		return;
+	}
+
+	mixChannels[0].resizeUninit(numFrames);
+	mixChannels[1].resizeUninit(numFrames);
+
+	clientAudio(clients[0].client, mixChannels[0].data, mixChannels[1].data, numFrames, sampleRate);
+
+	float *dst = buffer, *srcL = mixChannels[0].data, *srcR = mixChannels[1].data;
+	for (uint32_t i = 0; i < (uint32_t)numFrames / 4; i++) {
+		sf::Float4 l = sf::Float4::loadu(srcL);
+		sf::Float4 r = sf::Float4::loadu(srcR);
+		sf::Float4 d0, d1;
+
+		sf::Float4::interleave2(d0, d1, l, r);
+
+		d0.storeu(dst + 0);
+		d1.storeu(dst + 4);
+
+		srcL += 4;
+		srcR += 4;
+		dst += 8;
+	}
+
 }
 
 #endif

@@ -22,6 +22,7 @@
 #include "ext/sokol/sokol_gfx.h"
 #include "ext/sokol/sokol_gl.h"
 #include "ext/sokol/sokol_time.h"
+#include "ext/sokol/sokol_audio.h"
 
 #include "Asset.h"
 #include "Sprite.h"
@@ -36,6 +37,7 @@ struct MainConfig
 {
 	sg_desc sgDesc = { };
 	sapp_desc sappDesc = { };
+	saudio_desc saudioDesc = { };
 	bool useContentThread = true;
 };
 
@@ -46,6 +48,7 @@ void spInit();
 void spCleanup();
 void spEvent(const sapp_event *e);
 void spFrame(float dt);
+void spAudio(float* buffer, int numFrames, int numChannels);
 
 namespace sp {
 
@@ -80,6 +83,13 @@ void impInit()
 
 	stm_setup();
 
+	{
+		saudio_desc &desc = config.saudioDesc;
+		desc.stream_cb = &spAudio;
+		saudio_setup(&desc);
+	}
+
+
 	sp::ContentFile::globalInit(config.useContentThread);
 	sp::Asset::globalInit();
 	sp::Sprite::globalInit();
@@ -98,6 +108,9 @@ void impCleanup()
 	sp::Font::globalCleanup();
 	sp::Asset::globalCleanup();
 	sp::ContentFile::globalCleanup();
+
+	saudio_shutdown();
+	sg_shutdown();
 }
 
 void impEvent(const sapp_event *e)

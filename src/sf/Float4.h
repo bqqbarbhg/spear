@@ -85,6 +85,12 @@ struct Float4
 		return sf::Vec3(a, b, c);
 	}
 
+	static sf_forceinline void interleave2(Float4 &da, Float4 &db, const Float4 &a, const Float4 &b)
+	{
+		da = wasm_v32x4_shuffle(a.imp, b.imp, 0, 4, 1, 5); // XXYY
+		db = wasm_v32x4_shuffle(a.imp, b.imp, 2, 6, 3, 7); // ZZWW
+	}
+
 	static sf_forceinline void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
 	{
 		v128_t t0 = wasm_v32x4_shuffle(a.imp, b.imp, 0, 4, 1, 5); // XXYY
@@ -157,6 +163,12 @@ struct Float4
 		float b = _mm_cvtss_f32(_mm_shuffle_ps(imp, imp, _MM_SHUFFLE(3,2,1,1)));
 		float c = _mm_cvtss_f32(_mm_shuffle_ps(imp, imp, _MM_SHUFFLE(3,2,1,2)));
 		return sf::Vec3(a, b, c);
+	}
+
+	static sf_forceinline void interleave2(Float4 &da, Float4 &db, const Float4 &a, const Float4 &b)
+	{
+		da = _mm_unpacklo_ps(a.imp, b.imp); // XXYY
+		db = _mm_unpackhi_ps(a.imp, b.imp); // ZZWW
 	}
 
 	static sf_forceinline void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
@@ -258,6 +270,13 @@ struct Float4
 		return sf::Vec3(a, b, c);
 	}
 
+	static sf_forceinline void interleave2(Float4 &da, Float4 &db, Float4 &a, Float4 &b)
+	{
+		float32x4x2_t ab = vzipq_f32(a.imp, b.imp);
+		da.imp = ab.val[0];
+		db.imp = ab.val[1];
+	}
+
 	static sf_forceinline void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
 	{
 		float32x4x2_t ab = vtrnq_f32(a.imp, b.imp);
@@ -334,6 +353,12 @@ struct Float4
 
 	sf_forceinline Vec3 asVec3() const {
 		return sf::Vec3(a, b, c);
+	}
+
+	static sf_forceinline void interleave2(Float4 &da, Float4 &db, const Float4 &a, const Float4 &b)
+	{
+		da.a = a.a; da.b = b.a; da.c = a.b; da.d = b.b;
+		db.a = a.c; db.b = b.c; db.c = a.d; db.d = b.d;
 	}
 
 	static sf_forceinline void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)

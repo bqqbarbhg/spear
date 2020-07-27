@@ -21,9 +21,11 @@
 #include "sokol_time.h"
 #include "sokol_fetch.h"
 #include "sokol_args.h"
+#include "sokol_audio.h"
 
 #include "sokol_gl_impl.h"
 #include "sokol_time_impl.h"
+#include "sokol_audio_impl.h"
 
 #if !SF_OS_APPLE
 	#if !defined(SP_NO_APP)

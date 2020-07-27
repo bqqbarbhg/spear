@@ -1032,6 +1032,43 @@ struct FontTask : Task
 	}
 };
 
+struct VorbisTask : Task
+{
+	VorbisTask()
+	{
+		name = "VorbisTask";
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (sf::endsWith(path, ".ogg")) {
+			ti.inputs[s_src] = path;
+		} else {
+			return false;
+		}
+		ti.outputs[s_dst] = ti.inputs[s_src];
+		ti.assets.insert(path);
+		return true;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		sf::Array<sf::StringBuf> args;
+
+		sf::StringBuf srcFile, tempFile, dstFile;
+		sf::appendPath(srcFile, p.dataRoot, ti.inputs[s_src]);
+		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+
+		JobQueue jq;
+		jq.mkdirsToFile(tempFile);
+		jq.mkdirsToFile(dstFile);
+		jq.copy(srcFile, tempFile);
+		jq.move(tempFile, dstFile);
+		p.addJobs(JobPriority::Normal, ti, jq);
+	}
+};
+
 Processor g_processor;
 
 static void findResourcesImp(Processor &p, sf::String root, sf::StringBuf &prefix)
@@ -1130,6 +1167,7 @@ void initializeProcessing(const ProcessingDesc &desc)
 	p.tasks.push(sf::box<TileModelTask>());
 
 	p.tasks.push(sf::box<FontTask>());
+	p.tasks.push(sf::box<VorbisTask>());
 
 	p.dataMonitor.begin(p.dataRoot);
 

@@ -549,6 +549,17 @@ sg_pipeline_desc &Pipeline::init(sg_shader shader, uint32_t flags)
 	return d;
 }
 
+void Pipeline::reset()
+{
+	for (PipelineImp &imp : imps) {
+		if (imp.pipeline.id) {
+			sg_destroy_pipeline(imp.pipeline);
+			imp.pipeline.id = 0;
+			imp.framebufferType = 0;
+		}
+	}
+}
+
 sf::Array<FramebufferDesc> g_framebufferTypes;
 uint32_t g_activeFramebufferType = 0;
 sg_pipeline g_prevPipeline = { };

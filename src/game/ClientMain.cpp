@@ -45,6 +45,8 @@
 #include "sf/File.h"
 #include "ext/json_output.h"
 #include "sp/Json.h"
+#include "sp/CompressedSound.h"
+#include "sp/AudioUtils.h"
 
 #include "game/client/ParticleSystem.h"
 
@@ -399,6 +401,11 @@ struct ClientMain
 	sf::Array<FakeShadowQuad> fakeShadowQuads;
 	sf::Array<FakeShadowVertex> fakeShadowVertices;
 	sp::Buffer fakeShadowVertexBuffer;
+	sp::CompressedSoundRef tempMusic;
+	float musicVolume = 0.0f;
+
+	// AUDIO THREAD
+	float audioMusicVolume = 0.0f;
 };
 
 void clientGlobalInit()
@@ -940,6 +947,8 @@ ClientMain *clientInit(int port, const sf::Symbol &name, uint32_t sessionId, uin
 	c->TEMP_particleSystem->frameCount = sf::Vec2i(8, 8);
 
 	c->fakeShadowVertexBuffer.initDynamicVertex("fakeShadowVertexBuffer", sizeof(FakeShadowVertex) * 4 * MaxFakeShadowsPerFrame);
+
+	c->tempMusic.load(sf::Symbol("Assets/Audio/Music/Test_Theme.ogg"));
 
 #if 0
 	{
@@ -1490,6 +1499,8 @@ bool clientUpdate(ClientMain *c, const ClientInput &input)
 		ImGui::SameLine(); ImGui::RadioButton("4", &c->msaaSamples, 4);
 		ImGui::SameLine(); ImGui::RadioButton("8", &c->msaaSamples, 8);
 		ImGui::Checkbox("FXAA", &c->useFxaa);
+
+		ImGui::SliderFloat("Music Volume", &c->musicVolume, 0.0f, 1.0f);
 
 		if (ImGui::Button("Apply")) {
 			c->forceRecreateTargets = true;
@@ -2488,6 +2499,40 @@ sg_image clientRender(ClientMain *c)
 	}
 
 	return c->mainTarget.image;
+}
+
+void clientAudio(ClientMain *c, float *left, float *right, uint32_t numSamples, uint32_t sampleRate)
+{
+	if (c->tempMusic.isLoaded()) {
+
+		c->tempMusic->decodeStereo(left, right, numSamples);
+
+		sf::Float4 vol, volInc;
+		float targetVolume = sf::clamp(c->musicVolume, 0.0f, 1.0f);
+		sp::getAudioFloatDelta(vol, volInc, c->audioMusicVolume, targetVolume, numSamples);
+		c->audioMusicVolume = targetVolume;
+
+		float *lp = left, *rp = right;
+		for (uint32_t i = 0; i < numSamples / 4; i++) {
+			sf::Float4 l = sf::Float4::loadu(lp);
+			sf::Float4 r = sf::Float4::loadu(rp);
+
+			l *= vol;
+			r *= vol;
+			vol += volInc;
+
+			l.storeu(lp);
+			r.storeu(rp);
+
+			lp += 4;
+			rp += 4;
+		}
+
+		
+	} else {
+		memset(left, 0, sizeof(float) * numSamples);
+		memset(right, 0, sizeof(float) * numSamples);
+	}
 }
 
 void clientRenderGui(ClientMain *c)

@@ -97,6 +97,8 @@ struct Pipeline
 
 	sg_pipeline_desc &init(sg_shader shader, uint32_t flags);
 	bool bind();
+
+	void reset();
 };
 
 struct Buffer

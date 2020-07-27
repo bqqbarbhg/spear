@@ -27,3 +27,5 @@ sg_image clientRender(ClientMain *client);
 void clientRenderGui(ClientMain *client);
 
 void clientDoMoveTemp(ClientMain *client);
+
+void clientAudio(ClientMain *c, float *left, float *right, uint32_t numSamples, uint32_t sampleRate);
