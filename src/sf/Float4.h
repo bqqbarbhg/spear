@@ -105,6 +105,7 @@ struct Float4
 };
 
 using ScalarFloat4 = Float4;
+using ScalarAddFloat4 = Float4;
 
 #elif SF_ARCH_X86 && !SF_FLOAT4_FORCE_SCALAR
 
@@ -185,6 +186,7 @@ struct Float4
 };
 
 using ScalarFloat4 = Float4;
+using ScalarAddFloat4 = Float4;
 
 #elif SF_ARCH_ARM && !SF_FLOAT4_FORCE_SCALAR
 
@@ -293,6 +295,7 @@ struct Float4
 };
 
 using ScalarFloat4 = float;
+using ScalarAddFloat4 = Float4;
 
 #else
 
@@ -374,6 +377,7 @@ struct Float4
 };
 
 using ScalarFloat4 = float;
+using ScalarAddFloat4 = float;
 
 #endif
 

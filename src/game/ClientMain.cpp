@@ -2507,7 +2507,8 @@ void clientAudio(ClientMain *c, float *left, float *right, uint32_t numSamples, 
 
 		c->tempMusic->decodeStereo(left, right, numSamples);
 
-		sf::Float4 vol, volInc;
+		sf::Float4 vol;
+		sf::ScalarAddFloat4 volInc;
 		float targetVolume = sf::clamp(c->musicVolume, 0.0f, 1.0f);
 		sp::getAudioFloatDelta(vol, volInc, c->audioMusicVolume, targetVolume, numSamples);
 		c->audioMusicVolume = targetVolume;
