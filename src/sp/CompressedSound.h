@@ -14,7 +14,7 @@ struct CompressedSound : Asset
 	uint32_t numChannels = 0;
 	double lengthSeconds = 0.0;
 
-	uint32_t decodeStereo(float *left, float *right, uint32_t numSamples);
+	uint32_t decodeStereo(float *left, float *right, uint32_t numSamples, bool loop);
 };
 
 using CompressedSoundRef = Ref<CompressedSound>;

@@ -38,7 +38,7 @@ static void loadImp(void *user, const ContentFile &file)
 		alloc.alloc_buffer_length_in_bytes = (int)imp->tempMemory.size;
 
 		int error = 0;
-		imp->vorbis = stb_vorbis_open_memory((const unsigned char*)imp->data, file.size, &error, &alloc);
+		imp->vorbis = stb_vorbis_open_memory((const unsigned char*)imp->data, (int)file.size, &error, &alloc);
 		if (imp->vorbis) {
 			stb_vorbis_info info = stb_vorbis_get_info(imp->vorbis);
 			imp->sampleRate = (uint32_t)info.sample_rate;
@@ -81,12 +81,18 @@ void CompressedSoundImp::assetUnload()
 	}
 }
 
-uint32_t CompressedSound::decodeStereo(float *left, float *right, uint32_t numSamples)
+uint32_t CompressedSound::decodeStereo(float *left, float *right, uint32_t numSamples, bool loop)
 {
 	CompressedSoundImp *imp = (CompressedSoundImp*)this;
 
 	float *buffers[] = { left, right };
 	uint32_t num = stb_vorbis_get_samples_float(imp->vorbis, 2, buffers, (int)numSamples);
+
+	if (num < numSamples && loop) {
+		stb_vorbis_seek_start(imp->vorbis);
+		float *buffers2[] = { left + num, right + num };
+		num += stb_vorbis_get_samples_float(imp->vorbis, 2, buffers2, (int)(numSamples - num));
+	}
 
 	if (num < numSamples) {
 		memset(left + num, 0, (numSamples - num) * sizeof(float));

@@ -2505,7 +2505,7 @@ void clientAudio(ClientMain *c, float *left, float *right, uint32_t numSamples, 
 {
 	if (c->tempMusic.isLoaded()) {
 
-		c->tempMusic->decodeStereo(left, right, numSamples);
+		c->tempMusic->decodeStereo(left, right, numSamples, true);
 
 		sf::Float4 vol;
 		sf::ScalarAddFloat4 volInc;
