@@ -2355,7 +2355,7 @@ sg_image clientRender(ClientMain *c)
 			}
 
 			for (FakeShadowQuad &quad : c->fakeShadowQuads) {
-				sf::Vec3 p = quad.position + sf::Vec3(0.0f, 0.01f, 0.0f);
+				sf::Vec3 p = quad.position + sf::Vec3(0.0f, 0.005f, 0.0f);
 				float r = quad.radius;
 				float a = quad.alpha;
 
