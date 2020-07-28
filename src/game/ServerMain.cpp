@@ -406,10 +406,11 @@ static void joinSession(Session &session, bqws_socket *ws, sv::MessageJoin *m)
 
 		auto player = sf::box<sv::Character>();
 		player->name = client.name;
-		switch (time(NULL) % 3) {
+		switch (time(NULL) % 4) {
 		case 0: player->model = sf::Symbol("Game/Characters/goblin.js"); break;
 		case 1: player->model = sf::Symbol("Game/Characters/dwarf.js"); break;
 		case 2: player->model = sf::Symbol("Game/Characters/slime.js"); break;
+		case 3: player->model = sf::Symbol("Game/Characters/rat.js"); break;
 		}
 
 		player->position = findSpawnPos(session.state, sf::Vec2i(0, 0));
