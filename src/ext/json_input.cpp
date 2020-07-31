@@ -1276,7 +1276,7 @@ jsi_parse(jsi_parser *p, jsi_args *args)
 	p->max_depth = p->args->nesting_limit ? p->args->nesting_limit : INT_MAX;
 	if (p->max_depth < 1) p->max_depth = 1;
 	p->depth_left = p->max_depth;
-	p->store_integers_as_int64 = args->store_integers_as_int64;
+	p->store_integers_as_int64 = p->args->store_integers_as_int64;
 
 	if (p->ptr == p->end) {
 		jsi_refill(p);
