@@ -874,6 +874,8 @@ struct AnimationTask : Task
 
 		args.push("--anim");
 
+		args.push("--remove-namespaces");
+
 		args.push("--input");
 		args.push(srcFile);
 
