@@ -456,6 +456,8 @@
     #endif
 #elif defined(__EMSCRIPTEN__)
     #include <emscripten/emscripten.h>
+    #include <emscripten/threading.h>
+    #include <pthread.h>
 #endif
 
 #ifdef _MSC_VER
@@ -578,6 +580,7 @@ typedef struct {
 
 typedef struct {
     uint8_t* buffer;
+    pthread_t thread;
 } _saudio_backend_t;
 
 /*=== DUMMY BACKEND DECLARATIONS =============================================*/
@@ -1218,6 +1221,16 @@ _SOKOL_PRIVATE void _saudio_backend_shutdown(void) {
 /*=== EMSCRIPTEN BACKEND IMPLEMENTATION ======================================*/
 #elif defined(__EMSCRIPTEN__)
 
+typedef struct {
+    int32_t slots_used;
+    int32_t num_slots;
+    int32_t num_channels;
+    int32_t padding;
+} _saudio_emsc_control_t;
+
+// HACKACH
+#include <stdio.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -1243,12 +1256,50 @@ EMSCRIPTEN_KEEPALIVE int _saudio_emsc_pull(int num_frames) {
     }
 }
 
+void *_saudio_emsc_cb(void *arg)
+{
+	emscripten_set_thread_name(pthread_self(), "Sokol Audio");
+	_saudio_emsc_control_t *control = (_saudio_emsc_control_t*)arg;
+    float *data_buffer = (float*)((char*)arg + 16);
+    int32_t num_slots = control->num_slots;
+    int32_t slot = 0;
+
+    for (;;) {
+        int32_t left = (int32_t)emscripten_atomic_load_u32((uint32_t*)&control->slots_used);
+		SOKOL_ASSERT(left <= num_slots);
+        if (left == num_slots) {
+            emscripten_futex_wait(&control->slots_used, num_slots, 10.0);
+        } else {
+            _saudio_emsc_pull(128);
+
+			int32_t num_channels = control->num_channels;
+
+            for (int32_t chan = 0; chan < num_channels; chan++) {
+                volatile float *dst = data_buffer + slot * 128;
+                float *src = (float*)_saudio.backend.buffer + chan;
+                for (int32_t i = 0; i < 128; i++) {
+                    *dst++ = *src;
+                    src += num_channels;
+                }
+
+                // printf("WRITE: %d\n", slot);
+                slot = (slot + 1) % num_slots;
+            }
+
+            int32_t new_left = (int32_t)emscripten_atomic_add_u32((uint32_t*)&control->slots_used, 1);
+            if (new_left < 0) {
+                emscripten_atomic_store_u32((uint32_t*)&control->slots_used, 1);
+            }
+        }
+    }
+}
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
 
 /* setup the WebAudio context and attach a ScriptProcessorNode */
-EM_JS(int, saudio_js_init, (int sample_rate, int num_channels, int buffer_size), {
+EM_JS(int, saudio_js_init, (int sample_rate, int num_channels, int buffer_size, void *worklet_data, int worklet_slots), {
     Module._saudio_context = null;
     Module._saudio_node = null;
     if (typeof AudioContext !== 'undefined') {
@@ -1271,6 +1322,85 @@ EM_JS(int, saudio_js_init, (int sample_rate, int num_channels, int buffer_size),
     }
     if (Module._saudio_context) {
         console.log('sokol_audio.h: sample rate ', Module._saudio_context.sampleRate);
+
+        const src = `
+
+		class SokolAudioWorklet extends AudioWorkletProcessor {
+			constructor() {
+                super();
+                this.ready = false;
+                this.slot = 0;
+                this.HACK = 0;
+                this.port.onmessage = (e) => {
+                    this.buffer = e.data.buffer;
+                    this.offset = e.data.offset;
+                    this.num_slots = e.data.num_slots;
+                    this.control = new Int32Array(this.buffer, this.offset, 4);
+					this.slots = Array(this.num_slots);
+                    for (let i = 0; i < this.num_slots; i++) {
+                        this.slots[i] = new Float32Array(this.buffer, this.offset + 16 + i*128*4, 128);
+                    }
+                    this.ready = true;
+                };
+            }
+
+			process(inputs, outputs, parameters) {
+                let out = outputs[0];
+                let has_data = false;
+                if (this.ready) {
+                    let num = Atomics.load(this.control, 0);
+
+                    if (num > 0) {
+                        let slot = this.slot;
+
+						for (let i = 0; i < out.length; i++) {
+							out[i].set(this.slots[slot]);
+                            slot = (slot + 1) % this.num_slots;
+						}
+                        
+                        this.slot = slot;
+
+						Atomics.sub(this.control, 0, 1);
+						Atomics.notify(this.control, 0);
+                        has_data = true;
+                    }
+                }
+
+                if (!has_data) {
+                    for (let i = 0; i < out.length; i++) {
+						out[i].fill(0.0, 0, 128);
+                    }
+                }
+
+				return true;
+			}
+		}
+
+		registerProcessor("sokol-audio-worklet", SokolAudioWorklet)
+
+		`;
+
+        const blob = new Blob([src], { type: "text/javascript" });
+        const url = URL.createObjectURL(blob);
+
+		Module._saudio_context.audioWorklet.addModule(url).then(() => {
+			let node = new AudioWorkletNode(Module._saudio_context, "sokol-audio-worklet", {
+				numberOfInputs: 0,
+				numberOfOutputs: 1,
+				outputChannelCount: [num_channels],
+			});
+
+            let buffer = Module.buffer || Module.wasmMemory.buffer;
+            node.port.postMessage({
+                buffer: buffer,
+                offset: worklet_data,
+                num_slots: worklet_slots,
+			});
+
+			node.connect(Module._saudio_context.destination);
+		});
+
+#if 0
         Module._saudio_node = Module._saudio_context.createScriptProcessor(buffer_size, 0, num_channels);
         Module._saudio_node.onaudioprocess = function pump_audio(event) {
             var num_frames = event.outputBuffer.length;
@@ -1286,6 +1416,7 @@ EM_JS(int, saudio_js_init, (int sample_rate, int num_channels, int buffer_size),
             }
         };
         Module._saudio_node.connect(Module._saudio_context.destination);
+#endif
 
         // in some browsers, WebAudio needs to be activated on a user action
         var resume_webaudio = function() {
@@ -1317,7 +1448,9 @@ EM_JS(int, saudio_js_sample_rate, (void), {
 
 /* get the actual buffer size in number of frames */
 EM_JS(int, saudio_js_buffer_frames, (void), {
-    if (Module._saudio_node) {
+    if (Module._saudio_context.audioWorklet) {
+		return 128;
+    } else if (Module._saudio_node) {
         return Module._saudio_node.bufferSize;
     }
     else {
@@ -1326,7 +1459,20 @@ EM_JS(int, saudio_js_buffer_frames, (void), {
 });
 
 _SOKOL_PRIVATE bool _saudio_backend_init(void) {
-    if (saudio_js_init(_saudio.sample_rate, _saudio.num_channels, _saudio.buffer_frames)) {
+    // TODO: Buffer frames
+    int32_t num_slots = _saudio.num_channels * 16;
+    void *data = SOKOL_MALLOC(sizeof(_saudio_emsc_control_t) + num_slots * 128 * sizeof(float));
+	_saudio_emsc_control_t *control = (_saudio_emsc_control_t*)data;
+    control->slots_used = 0;
+    control->num_slots = num_slots;
+    control->num_channels = _saudio.num_channels;
+    control->padding = 0;
+
+    if (0 != pthread_create(&_saudio.backend.thread, 0, _saudio_emsc_cb, data)) {
+        return false;
+    }
+
+    if (saudio_js_init(_saudio.sample_rate, _saudio.num_channels, _saudio.buffer_frames, data, num_slots)) {
         _saudio.bytes_per_frame = sizeof(float) * _saudio.num_channels;
         _saudio.sample_rate = saudio_js_sample_rate();
         _saudio.buffer_frames = saudio_js_buffer_frames();

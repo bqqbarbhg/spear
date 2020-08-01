@@ -31,6 +31,10 @@
 	#include <emscripten/html5.h>
 #endif
 
+// TEMP HACK
+#include "server/ServerState.h"
+#include "sp/Json.h"
+
 void spConfig(sp::MainConfig &config)
 {
 	config.sappDesc.window_title = "Spear";
@@ -93,6 +97,43 @@ extern bool g_hack_hd;
 
 void spInit()
 {
+
+#if 0
+	sv::ServerState state;
+	sv::HashTable<sv::StatusEffect> effectCopy;
+
+	{
+		sv::StatusEffect effect = { 1, 10 };
+		state.statusEffects.insert(effect);
+	}
+
+	{
+		sv::StatusEffect effect = { 2, 20 };
+		state.statusEffects.insert(effect);
+	}
+
+	{
+		sv::StatusEffect effect = { 3, 20 };
+		state.statusEffects.insert(effect);
+	}
+
+	{
+		sv::StatusEffect effect = { 4, 10 };
+		state.statusEffects.insert(effect);
+	}
+
+	jso_stream jso;
+	jso_init_growable(&jso);
+	jso.pretty = true;
+
+	sp::writeJson(jso, state.statusEffects);
+	jsi_value *jsi = jsi_parse_memory(jso.data, jso.pos, nullptr);
+
+	sp::readJson(jsi, effectCopy);
+
+	state.statusEffects.removeAll(sv::StatusEffect::EntityId, 20);
+#endif
+
     #if defined(GAME_OVERRIDE_ARGS)
     static const char *overrideArgs[] = {
         GAME_OVERRIDE_ARGS

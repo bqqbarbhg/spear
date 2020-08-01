@@ -2528,7 +2528,6 @@ void clientAudio(ClientMain *c, float *left, float *right, uint32_t numSamples, 
 			lp += 4;
 			rp += 4;
 		}
-
 		
 	} else {
 		memset(left, 0, sizeof(float) * numSamples);
