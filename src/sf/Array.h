@@ -334,6 +334,7 @@ struct SmallArray : Array<T>
 		rhs.data = (T*)rhs.localData;
 		rhs.size = 0;
 		rhs.capacity = N;
+		return *this;
 	}
 
 };
