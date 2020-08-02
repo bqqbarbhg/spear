@@ -3,8 +3,8 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "sp/GameMain.h"
-#include "ClientMain.h"
-#include "ServerMain.h"
+#include "client/Client.h"
+#include "server/Server.h"
 
 #include "sp/Renderer.h"
 #include "sp/Font.h"
@@ -51,13 +51,13 @@ sp::Canvas canvas;
 
 struct MainClient
 {
-	ClientMain *client;
+	cl::Client *client;
 	sf::Vec2i offset;
 	sf::Vec2i resolution;
 	sg_image image;
 };
 
-ServerMain *server;
+sv::Server *server;
 sf::Array<MainClient> clients;
 sf::StaticMutex clientMutex;
 
@@ -105,7 +105,7 @@ void spInit()
 	{
 		sargs_desc d = { };
 		d.argv = (char**)sp::commandLineArgs.data;
-		d.argc = sp::commandLineArgs.size;
+		d.argc = (int)sp::commandLineArgs.size;
 		sargs_setup(&d);
 	}
 
@@ -145,7 +145,7 @@ void spInit()
 
 	gameShaders.load();
 
-	clientGlobalInit();
+	cl::clientGlobalInit();
 
     #if defined(GAME_GAME_URL)
         sp::ContentFile::addRelativeFileRoot(GAME_GAME_URL, "Game/");
@@ -153,11 +153,13 @@ void spInit()
     	sp::ContentFile::addRelativeFileRoot("Game", "Game/");
     #endif
 
-	server = serverInit(port);
+	sv::ServerOpts serverOpts;
+	serverOpts.port = port;
+	server = sv::serverInit(serverOpts);
 	sf::debugPrintLine("Server: %p", server);
 
 	MainClient &client = clients.push();
-	client.client = clientInit(port, sf::Symbol("Client 1"), sessionId, sessionSecret);
+	client.client = cl::clientInit(port, sessionId, sessionSecret);
 
 	{
 		simgui_desc_t d = { };
@@ -186,7 +188,7 @@ void spCleanup()
 	{
 		sf::MutexGuard mg(clientMutex);
 		for (MainClient &mc : clients) {
-			clientFree(mc.client);
+			cl::clientFree(mc.client);
 		}
 		clients.clear();
 	}
@@ -195,7 +197,7 @@ void spCleanup()
 	sf::reset(gameShaders);
 
 	simgui_shutdown();
-	clientGlobalCleanup();
+	cl::clientGlobalCleanup();
 	closeProcessing();
 }
 
@@ -249,14 +251,14 @@ void spFrame(float dt)
 
 	updateProcessing();
 
-	if (server) serverUpdate(server);
+	if (server) sv::serverUpdate(server);
 
-	clientGlobalUpdate();
+	cl::clientGlobalUpdate();
 
 	for (uint32_t i = 0; i < clients.size; i++) {
 		MainClient &client = clients[i];
 
-		ClientInput input;
+		cl::ClientInput input;
 		input.dt = dt;
 		input.mousePosition = (g_mousePos - sf::Vec2(client.offset)) / sf::Vec2(client.resolution);
 		input.resolution = client.resolution;
@@ -269,7 +271,7 @@ void spFrame(float dt)
 
 		if (clientUpdate(client.client, input)) {
 			sf::MutexGuard mg(clientMutex);
-			clientFree(client.client);
+			cl::clientFree(client.client);
 			clients.removeSwap(i--);
 			updateLayout();
 		}
@@ -319,7 +321,7 @@ void spFrame(float dt)
 	sp::beginFrame();
 
 	for (MainClient &client : clients) {
-		client.image = clientRender(client.client);
+		client.image = cl::clientRender(client.client);
 	}
 
 	{
@@ -338,7 +340,7 @@ void spFrame(float dt)
 
 			sg_draw(0, 3, 1);
 
-			clientRenderGui(client.client);
+			cl::clientRenderGui(client.client);
 		}
 
 		if (clients.size > 1) {
@@ -373,7 +375,7 @@ void spAudio(float* buffer, int numFrames, int numChannels)
 	mixChannels[0].resizeUninit(numFrames);
 	mixChannels[1].resizeUninit(numFrames);
 
-	clientAudio(clients[0].client, mixChannels[0].data, mixChannels[1].data, numFrames, sampleRate);
+	cl::clientAudio(clients[0].client, mixChannels[0].data, mixChannels[1].data, numFrames, sampleRate);
 
 	float *dst = buffer, *srcL = mixChannels[0].data, *srcR = mixChannels[1].data;
 	for (uint32_t i = 0; i < (uint32_t)numFrames / 4; i++) {
@@ -394,3 +396,5 @@ void spAudio(float* buffer, int numFrames, int numChannels)
 }
 
 #endif
+
+bool g_hack_hd;

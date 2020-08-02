@@ -136,7 +136,7 @@ struct ImplicitHashMap
 		bool inserted = insertImp(KeyFn()((Entry&)entry), index);
 		Entry *slot = &data[index];
 		if (inserted) {
-			new (&slot) Entry(entry);
+			new (slot) Entry(entry);
 		}
 		return { *slot, inserted };
 	}
@@ -147,7 +147,7 @@ struct ImplicitHashMap
 		bool inserted = insertImp(KeyFn()((Entry&)entry), index);
 		Entry *slot = &data[index];
 		if (inserted) {
-			new (&slot) Entry(std::move(entry));
+			new (slot) Entry(std::move(entry));
 		}
 		return { *slot, inserted };
 	}
@@ -160,7 +160,7 @@ struct ImplicitHashMap
 		if (!inserted) {
 			slot->~Entry();
 		}
-		new (&slot) Entry(entry);
+		new (slot) Entry(entry);
 		return { *slot, inserted };
 	}
 
@@ -235,10 +235,9 @@ void initImplicitHashMapType(Type *t, const TypeInfo &info, Type *entryType, uin
 template <typename T, typename KeyFn>
 struct InitType<ImplicitHashMap<T, KeyFn>> {
 	static void init(Type *t) {
-		return initImplicitHashMapType(t, getTypeInfo<ImplicitHashMap<T>>(), typeOfRecursive<T>(),
+		return initImplicitHashMapType(t, getTypeInfo<ImplicitHashMap<T, KeyFn>>(), typeOfRecursive<T>(),
 		[](void *inst) { return hash(KeyFn()(*(T*)inst)); });
 	}
 };
-
 
 }

@@ -7,9 +7,11 @@
 #include "sp/Json.h"
 #include "sf/File.h"
 
+#include "sf/Reflection.h"
+
 #include <stdarg.h>
 
-namespace sv2 {
+namespace sv {
 
 Component *Prefab::findComponentImp(Component::Type type) const
 {
@@ -96,6 +98,17 @@ static RollInfo rollDice(const DiceRoll &roll, sf::Symbol name)
 sf_inline RollInfo rollDice(const DiceRoll &roll, const char *name)
 {
 	return rollDice(roll, sf::Symbol(name));
+}
+
+ServerState::ServerState()
+{
+	// TODO: Figure something proper out for this
+	prefabs.reserve(1024);
+	props.reserve(1024);
+	characters.reserve(1024);
+	cards.reserve(1024);
+	statuses.reserve(1024);
+	charactersToSelect.reserve(1024);
 }
 
 uint32_t ServerState::allocateId(IdType type)
@@ -191,6 +204,10 @@ void ServerState::applyEvent(const Event &event)
 
 			card->ownerId = e->ownerId;
 		}
+	} else if (auto *e = event.as<AddCharacterToSpawn>()) {
+		charactersToSelect[e->selectPrefab] += e->count;
+	} else if (auto *e = event.as<SelectCharacterToSpawnEvent>()) {
+		charactersToSelect[e->selectPrefab]--;
 	}
 }
 
@@ -233,20 +250,57 @@ static sf::Box<T> loadConfig(sf::String name)
 	return entry;
 }
 
+static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, sf::HashSet<sf::Symbol> *marks, const sf::Symbol &name)
+{
+	if (!name) return;
+	if (marks) {
+		if (!marks->insert(name).inserted) return;
+	}
+	Prefab *prefab = state.prefabs.find(name);
+
+	if (events) {
+		if (prefab) return;
+
+		sf::Box<Prefab> box = loadConfig<Prefab>(name);
+		if (!box) return;
+		
+		{
+			auto e = sf::box<LoadPrefabEvent>();
+			e->prefab = *box;
+			pushEvent(state, *events, e);
+		}
+		prefab = box;
+	}
+
+	for (Component *component : prefab->components) {
+		if (auto *c = component->as<CardAttachComponent>()) {
+			walkPrefabs(state, events, marks, c->prefabName);
+		} else if (auto *c = component->as<CardProjectileComponent>()) {
+			walkPrefabs(state, events, marks, c->prefabName);
+		} else if (auto *c = component->as<CastOnReceiveDamageComponent>()) {
+			walkPrefabs(state, events, marks, c->spellName);
+		} else if (auto *c = component->as<CastOnDealDamageComponent>()) {
+			walkPrefabs(state, events, marks, c->spellName);
+		} else if (auto *c = component->as<CardCastComponent>()) {
+			walkPrefabs(state, events, marks, c->spellName);
+		} else if (auto *c = component->as<SpellStatusComponent>()) {
+			walkPrefabs(state, events, marks, c->statusName);
+		} else if (auto *c = component->as<CharacterTemplateComponent>()) {
+			walkPrefabs(state, events, marks, c->characterPrefab);
+			for (const sf::Symbol &cardPrefab : c->starterCardPrefabs) {
+				walkPrefabs(state, events, marks, cardPrefab);
+			}
+		}
+	}
+}
+
 sf_inline Prefab *loadPrefab(ServerState &state, sf::Array<sf::Box<Event>> &events, const sf::Symbol &name)
 {
 	if (Prefab *prefab = state.prefabs.find(name)) {
 		return prefab;
 	}
 
-	sf::Box<Prefab> box = loadConfig<Prefab>(name);
-	if (!box) return nullptr;
-	
-	{
-		auto e = sf::box<LoadPrefabEvent>();
-		e->prefab = *box;
-		pushEvent(state, events, e);
-	}
+	walkPrefabs(state, &events, nullptr, name);
 
 	return state.prefabs.find(name);
 }
@@ -467,6 +521,41 @@ void ServerState::startCharacterTurn(sf::Array<sf::Box<Event>> &events, uint32_t
 	}
 }
 
+uint32_t ServerState::selectCharacterSpawn(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, uint32_t playerId)
+{
+	int32_t *left = charactersToSelect.findValue(type);
+	if (!left || *left == 0) return 0;
+
+	Prefab *selectPrefab = loadPrefab(*this, events, type);
+	if (!selectPrefab) return 0;
+
+	CharacterTemplateComponent *templateComp = findComponent<CharacterTemplateComponent>(*selectPrefab);
+	if (!templateComp) return 0;
+
+	{
+		auto e = sf::box<SelectCharacterToSpawnEvent>();
+		e->selectPrefab = type;
+		e->playerId = playerId;
+		pushEvent(*this, events, e);
+	}
+
+	Character chrProto = { };
+	chrProto.prefabName = templateComp->characterPrefab;
+	uint32_t chrId = addCharacter(events, chrProto);
+	if (!chrId) return 0 ;
+
+	for (const sf::Symbol &cardPrefab : templateComp->starterCardPrefabs) {
+		Card cardProto = { };
+		cardProto.prefabName = cardPrefab;
+		uint32_t cardId = addCard(events, cardProto);
+		if (!cardId) return 0;
+
+		giveCard(events, cardId, chrId);
+	}
+
+	return chrId;
+}
+
 uint32_t ServerState::addProp(sf::Array<sf::Box<Event>> &events, const Prop &prop)
 {
 	Prefab *prefab = loadPrefab(*this, events, prop.prefabName);
@@ -525,6 +614,22 @@ uint32_t ServerState::addCard(sf::Array<sf::Box<Event>> &events, const Card &car
 	}
 
 	return id;
+}
+
+void ServerState::addCharacterToSelect(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, int32_t count)
+{
+	Prefab *selectPrefab = loadPrefab(*this, events, type);
+	if (!selectPrefab) return;
+
+	CharacterTemplateComponent *templateComp = findComponent<CharacterTemplateComponent>(*selectPrefab);
+	if (!templateComp) return;
+
+	{
+		auto e = sf::box<AddCharacterToSpawn>();
+		e->selectPrefab = type;
+		e->count = count;
+		pushEvent(*this, events, e);
+	}
 }
 
 void ServerState::giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId)
@@ -670,17 +775,7 @@ void ServerState::garbageCollectIds(sf::Array<uint32_t> &garbageIds) const
 
 static void markPrefab(const ServerState &state, sf::HashSet<sf::Symbol> &marks, const sf::Symbol &prefabName)
 {
-	if (!marks.insert(prefabName).inserted) return;
-	const Prefab *prefab = state.prefabs.find(prefabName);
-	if (!prefab) return;
-
-	for (const Component *component : prefab->components) {
-		if (auto *c = component->as<CardAttachComponent>()) {
-			markPrefab(state, marks, c->prefabName);
-		} else if (auto *c = component->as<CardProjectileComponent>()) {
-			markPrefab(state, marks, c->prefabName);
-		}
-	}
+	walkPrefabs((ServerState&)state, nullptr, &marks, prefabName);
 }
 
 void ServerState::garbageCollectPrefabs(sf::Array<sf::Symbol> &garbagePrefabs) const
@@ -694,6 +789,9 @@ void ServerState::garbageCollectPrefabs(sf::Array<sf::Symbol> &garbagePrefabs) c
 	}
 	for (const Card &card : cards) {
 		markPrefab(*this, marks, card.prefabName);
+	}
+	for (const auto &pair : charactersToSelect) {
+		markPrefab(*this, marks, pair.key);
 	}
 
 	if (marks.size() < prefabs.size()) {
@@ -722,6 +820,26 @@ void ServerState::removePrefabs(sf::Slice<const sf::Symbol> names)
 	for (const sf::Symbol &name : names) {
 		prefabs.remove(name);
 	}
+}
+
+}
+
+
+namespace sf {
+using namespace sv;
+
+template<> void initType<ServerState>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(ServerState, prefabs),
+		sf_field(ServerState, props),
+		sf_field(ServerState, characters),
+		sf_field(ServerState, cards),
+		sf_field(ServerState, statuses),
+		sf_field(ServerState, charactersToSelect),
+		sf_field(ServerState, nextIdByType),
+	};
+	sf_struct(t, ServerState, fields);
 }
 
 }

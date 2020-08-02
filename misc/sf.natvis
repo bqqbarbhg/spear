@@ -72,6 +72,16 @@
     </Expand>
   </Type>
 
+  <Type Name="sf::ImplicitHashMap&lt;*&gt;">
+    <DisplayString>{{ size={map.size} capacity={map.capacity} }}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>map.size</Size>
+        <ValuePointer>data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
   <Type Name="sf::Type">
     <DisplayString>{{ name={name} }}</DisplayString>
     <Expand>
@@ -80,6 +90,14 @@
       <Item Name="flags">(sf::Type::Flag)flags</Item>
       <Item Name="elementType" Condition="flags &amp; sf::Type::HasArray">elementType</Item>
       <ExpandedItem Condition="flags &amp; sf::Type::HasFields">fields</ExpandedItem>
+    </Expand>
+  </Type>
+
+  <Type Name="sf::Box&lt;*&gt;">
+    <DisplayString Condition="!ptr">null</DisplayString>
+    <DisplayString Condition="ptr">{ *ptr }</DisplayString>
+    <Expand>
+      <ExpandedItem>ptr</ExpandedItem>
     </Expand>
   </Type>
 

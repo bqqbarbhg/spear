@@ -138,6 +138,7 @@ struct Ref
 
 	// Load asset by name/props
 	explicit Ref(const sf::Symbol &name) { ptr = Asset::load<T>(name); }
+	explicit Ref(const char *name) { ptr = Asset::load<T>(sf::Symbol(name)); }
 	Ref(const sf::Symbol &name, const typename T::PropType &prop) { ptr = Asset::load<T>(name, prop); }
 
 	// Constructor from raw asset pointer

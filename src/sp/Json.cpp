@@ -177,6 +177,9 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 
 			sf::String name { tag->string, jsi_length(tag->string) };
 			const sf::PolymorphType *poly = type->elementType->getPolymorphTypeByName(name);
+			if (!poly) {
+				return false;
+			}
 			char *polyBase = (char*)type->instSetPolymorph(inst, poly->type);
 			if (!readJsonFieldsImp(src, polyBase, poly->type)) return false;
 
@@ -192,7 +195,7 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 	} else if (flags & sf::Type::HasPointer) {
 		if (src->type != jsi_type_null) {
 			void *ptr = type->instSetPointer(inst);
-			readInstJson(src, ptr, type->elementType);
+			if (!readInstJson(src, ptr, type->elementType)) return false;
 		}
 	} else if (flags & sf::Type::HasArrayResize) {
 		if (src->type == jsi_type_array) {
@@ -266,6 +269,31 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 	}
 
 	return true;
+}
+
+static void jsoArrayFlush(jso_stream *s)
+{
+	sf::Array<char> &arr = *(sf::Array<char>*)s->user;
+	arr.size += s->pos;
+	arr.reserveGeometric(arr.capacity + 1);
+	s->data = arr.data + arr.size;
+	s->capacity = arr.capacity - arr.size;
+}
+
+static void jsoArrayClose(jso_stream *s)
+{
+	sf::Array<char> &arr = *(sf::Array<char>*)s->user;
+	arr.size += s->pos;
+}
+
+void jsoInitArray(jso_stream *s, sf::Array<char> &arr)
+{
+	jso_init_custom(s);
+	s->user = &arr;
+	s->data = arr.data + arr.size;
+	s->capacity = arr.capacity - arr.size;
+	s->flush_fn = &jsoArrayFlush;
+	s->close_fn = &jsoArrayClose;
 }
 
 }

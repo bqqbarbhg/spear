@@ -60,7 +60,7 @@ push("#include \"ServerState.h\"")
 push("#include \"sf/Reflection.h\"")
 push("")
 push("namespace sf {")
-push("using namespace sv2;")
+push("using namespace sv;")
 push("")
 
 push("template<> void initType<Component>(Type *t)")

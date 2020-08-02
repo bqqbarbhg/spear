@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sf/Base.h"
+#include "sf/Array.h"
 
 #include "ext/json_input.h"
 #include "ext/json_output.h"
@@ -12,5 +13,7 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type);
 
 template <typename T> sf_inline void writeJson(jso_stream &dst, T &t) { writeInstJson(dst, (void*)&t, sf::typeOf<T>()); }
 template <typename T> sf_inline bool readJson(jsi_value *src, T &t) { return readInstJson(src, (void*)&t, sf::typeOf<T>()); }
+
+void jsoInitArray(jso_stream *s, sf::Array<char> &arr);
 
 }

@@ -30,7 +30,6 @@ struct GameShaders
 	sp::Pipeline fakeShadowPipe;
 
 	void load();
-	void unload();
 };
 
 extern GameShaders gameShaders;

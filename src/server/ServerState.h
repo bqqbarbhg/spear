@@ -10,7 +10,7 @@
 
 #define sv_reflect
 
-namespace sv2 {
+namespace sv {
 
 struct DiceRoll sv_reflect
 {
@@ -34,6 +34,7 @@ struct Component
 		ParticleSystem,
 		Character,
 		CharacterModel,
+		BlobShadow,
 		Card,
 		CardAttach,
 		CardMelee,
@@ -46,6 +47,7 @@ struct Component
 		SpellDamage,
 		SpellStatus,
 		Status,
+		CharacterTemplate,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -101,6 +103,9 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 
 struct CharacterComponent : ComponentBase<Component::Character>
 {
+	sf::Symbol name;
+	sf::Symbol description;
+	sf::Symbol image;
 	uint32_t maxHealth = 0;
 	uint32_t baseArmor = 0;
 	uint32_t minWeightDice = 1;
@@ -110,9 +115,32 @@ struct CharacterComponent : ComponentBase<Component::Character>
 	uint32_t itemSlots = 0;
 };
 
+struct AnimationInfo sv_reflect
+{
+	sf::Symbol name;
+	sf::Array<sf::Symbol> tags;
+	sf::Symbol file;
+};
+
 struct CharacterModelComponent : ComponentBase<Component::CharacterModel>
 {
 	sf::Symbol modelName;
+	sf::HashMap<sf::Symbol, sf::Symbol> materials;
+	float scale = 1.0f;
+	sf::Array<AnimationInfo> animations;
+};
+
+struct ShadowBlob sv_reflect
+{
+	sf::Symbol boneName;
+	float radius = 0.0f;
+	float alpha = 0.0f;
+	sf::Vec3 offset;
+};
+
+struct BlobShadowComponent : ComponentBase<Component::BlobShadow>
+{
+	sf::Array<ShadowBlob> blobs;
 };
 
 struct CardComponent : ComponentBase<Component::Card>
@@ -186,6 +214,14 @@ struct SpellStatusComponent : ComponentBase<Component::SpellStatus>
 struct StatusComponent : ComponentBase<Component::Status>
 {
 	DiceRoll turnsRoll;
+};
+
+struct CharacterTemplateComponent : ComponentBase<Component::CharacterTemplate>
+{
+	sf::Symbol name;
+	sf::Symbol description;
+	sf::Symbol characterPrefab;
+	sf::Array<sf::Symbol> starterCardPrefabs;
 };
 
 struct Prefab sv_reflect
@@ -322,6 +358,8 @@ struct Event
 		AddCard,
 		GiveCard,
 		SelectCard,
+		AddCharacterToSpawn,
+		SelectCharacterToSpawn,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -422,6 +460,18 @@ struct SelectCardEvent : EventBase<Event::SelectCard>
 	uint32_t slot;
 };
 
+struct AddCharacterToSpawn : EventBase<Event::AddCharacterToSpawn>
+{
+	sf::Symbol selectPrefab;
+	int32_t count;
+};
+
+struct SelectCharacterToSpawnEvent : EventBase<Event::SelectCharacterToSpawn>
+{
+	sf::Symbol selectPrefab;
+	uint32_t playerId;
+};
+
 enum class IdType {
 	Null,
 	Prop,
@@ -456,11 +506,14 @@ using StatusMap = sf::ImplicitHashMap<Status, KeyId>;
 
 struct ServerState
 {
+	ServerState();
+
 	PrefabMap prefabs;
 	PropMap props;
 	CharacterMap characters;
 	CardMap cards;
 	StatusMap statuses;
+	sf::HashMap<sf::Symbol, int32_t> charactersToSelect;
 
 	uint32_t nextIdByType[NumIdTypes] = { };
 
@@ -476,9 +529,12 @@ struct ServerState
 	void meleeAttack(sf::Array<sf::Box<Event>> &events, const MeleeInfo &meleeInfo);
 	void startCharacterTurn(sf::Array<sf::Box<Event>> &events, uint32_t characterId);
 
+	uint32_t selectCharacterSpawn(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, uint32_t playerId);
+
 	uint32_t addProp(sf::Array<sf::Box<Event>> &events, const Prop &prop);
 	uint32_t addCharacter(sf::Array<sf::Box<Event>> &events, const Character &chr);
 	uint32_t addCard(sf::Array<sf::Box<Event>> &events, const Card &card);
+	void addCharacterToSelect(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, int32_t count);
 
 	void giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId);
 	void selectCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId, uint32_t slot);

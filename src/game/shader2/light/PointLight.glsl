@@ -20,6 +20,7 @@ vec3 evaluatePointLight(vec3 P, vec3 N, vec3 V, vec3 cdiff, vec3 f0, float alpha
 	vec3 result = asVec3(0.0);
 
 	float radiusSq = lightRadius*lightRadius;
+
 	if (distSq < radiusSq) {
 		vec3 lightColor = data1.xyz;
 		vec3 shadowMul = data2.xyz;

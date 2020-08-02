@@ -2,7 +2,7 @@
 #include "sf/Reflection.h"
 
 namespace sf {
-using namespace sv2;
+using namespace sv;
 
 template<> void initType<Component>(Type *t)
 {
@@ -12,6 +12,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, ParticleSystem, ParticleSystemComponent),
 		sf_poly(Component, Character, CharacterComponent),
 		sf_poly(Component, CharacterModel, CharacterModelComponent),
+		sf_poly(Component, BlobShadow, BlobShadowComponent),
 		sf_poly(Component, Card, CardComponent),
 		sf_poly(Component, CardAttach, CardAttachComponent),
 		sf_poly(Component, CardMelee, CardMeleeComponent),
@@ -24,6 +25,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, SpellDamage, SpellDamageComponent),
 		sf_poly(Component, SpellStatus, SpellStatusComponent),
 		sf_poly(Component, Status, StatusComponent),
+		sf_poly(Component, CharacterTemplate, CharacterTemplateComponent),
 	};
 	sf_struct_poly(t, Component, type, { }, polys);
 }
@@ -45,6 +47,8 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, AddCard, AddCardEvent),
 		sf_poly(Event, GiveCard, GiveCardEvent),
 		sf_poly(Event, SelectCard, SelectCardEvent),
+		sf_poly(Event, AddCharacterToSpawn, AddCharacterToSpawn),
+		sf_poly(Event, SelectCharacterToSpawn, SelectCharacterToSpawnEvent),
 	};
 	sf_struct_poly(t, Event, type, { }, polys);
 }
@@ -93,6 +97,9 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 template<> void initType<CharacterComponent>(Type *t)
 {
 	static Field fields[] = {
+		sf_field(CharacterComponent, name),
+		sf_field(CharacterComponent, description),
+		sf_field(CharacterComponent, image),
 		sf_field(CharacterComponent, maxHealth),
 		sf_field(CharacterComponent, baseArmor),
 		sf_field(CharacterComponent, minWeightDice),
@@ -108,8 +115,18 @@ template<> void initType<CharacterModelComponent>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(CharacterModelComponent, modelName),
+		sf_field(CharacterModelComponent, scale),
+		sf_field(CharacterModelComponent, animations),
 	};
 	sf_struct_base(t, CharacterModelComponent, Component, fields);
+}
+
+template<> void initType<BlobShadowComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(BlobShadowComponent, blobs),
+	};
+	sf_struct_base(t, BlobShadowComponent, Component, fields);
 }
 
 template<> void initType<CardComponent>(Type *t)
@@ -218,6 +235,17 @@ template<> void initType<StatusComponent>(Type *t)
 		sf_field(StatusComponent, turnsRoll),
 	};
 	sf_struct_base(t, StatusComponent, Component, fields);
+}
+
+template<> void initType<CharacterTemplateComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(CharacterTemplateComponent, name),
+		sf_field(CharacterTemplateComponent, description),
+		sf_field(CharacterTemplateComponent, characterPrefab),
+		sf_field(CharacterTemplateComponent, starterCardPrefabs),
+	};
+	sf_struct_base(t, CharacterTemplateComponent, Component, fields);
 }
 
 template<> void initType<CardCooldownTickEvent>(Type *t)
@@ -341,6 +369,24 @@ template<> void initType<SelectCardEvent>(Type *t)
 	sf_struct_base(t, SelectCardEvent, Event, fields);
 }
 
+template<> void initType<AddCharacterToSpawn>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(AddCharacterToSpawn, selectPrefab),
+		sf_field(AddCharacterToSpawn, count),
+	};
+	sf_struct_base(t, AddCharacterToSpawn, Event, fields);
+}
+
+template<> void initType<SelectCharacterToSpawnEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(SelectCharacterToSpawnEvent, selectPrefab),
+		sf_field(SelectCharacterToSpawnEvent, playerId),
+	};
+	sf_struct_base(t, SelectCharacterToSpawnEvent, Event, fields);
+}
+
 template<> void initType<DiceRoll>(Type *t)
 {
 	static Field fields[] = {
@@ -350,6 +396,27 @@ template<> void initType<DiceRoll>(Type *t)
 		sf_field(DiceRoll, check),
 	};
 	sf_struct(t, DiceRoll, fields);
+}
+
+template<> void initType<AnimationInfo>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(AnimationInfo, name),
+		sf_field(AnimationInfo, tags),
+		sf_field(AnimationInfo, file),
+	};
+	sf_struct(t, AnimationInfo, fields);
+}
+
+template<> void initType<ShadowBlob>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(ShadowBlob, boneName),
+		sf_field(ShadowBlob, radius),
+		sf_field(ShadowBlob, alpha),
+		sf_field(ShadowBlob, offset),
+	};
+	sf_struct(t, ShadowBlob, fields);
 }
 
 template<> void initType<Prefab>(Type *t)
