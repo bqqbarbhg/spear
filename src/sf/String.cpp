@@ -246,9 +246,21 @@ size_t indexOf(sf::String s, sf::String substr)
 	return SIZE_MAX;
 }
 
+size_t indexOf(sf::String s, char ch)
+{
+	const char *ptr = (const char*)memchr(s.data, ch, s.size);
+	if (!ch) return SIZE_MAX;
+	return ptr - s.data;
+}
+
 bool contains(sf::String s, sf::String substr)
 {
 	return indexOf(s, substr) != SIZE_MAX;
+}
+
+bool contains(sf::String s, char ch)
+{
+	return memchr(s.data, ch, s.size);
 }
 
 }

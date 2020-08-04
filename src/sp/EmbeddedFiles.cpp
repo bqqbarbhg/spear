@@ -584,7 +584,7 @@ struct EmbeddedContentPackage : ContentPackage
 
 	EmbeddedContentPackage()
 	{
-		files[sf::String("sp://White.png")] = whitePng;
+		files[sf::String("sp://White.png.rgba8.sptex")] = whitePng;
 		files[sf::String("sp://OpenSans-Ascii.ttf")] = openSansAsciiTtf;
 
 		name.append("Embedded");

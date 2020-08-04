@@ -191,6 +191,19 @@ static void updateCharacterPicking(Client *c, const ClientInput &input)
 	sp::RichTextStyle richStyle = { };
 	richStyle.font = c->font;
 
+	sp::RichFont &font = richStyle.fontTags[sf::String("fire")];
+	font.color = sf::Vec4(1.0f, 0.7f, 0.6f, 1.0f);
+	font.hasColor = true;
+	font.noBreak = true;
+
+	sp::SpriteRef fire { "Assets/Gui/Icons/Fire.png" };
+	sp::RichTagSprite &sprite = richStyle.spriteTags[sf::String("fire")];
+	sprite.close.sprite = fire;
+	sprite.close.anchor = sf::Vec2(0.5f, 0.5f);
+	sprite.close.transform = sf::mat2D::translate(sf::Vec2(0.5f, -0.25f)) * sf::mat2D::scale(0.75f);
+	sprite.close.layoutWidth = 0.85f;
+	sprite.close.useFontColor = true;
+
 	float x = 50.0f;
 	float y = 50.0f;
 	for (const auto &pair : svState.charactersToSelect) {
@@ -210,17 +223,20 @@ static void updateCharacterPicking(Client *c, const ClientInput &input)
 
 		c->canvas.draw(sprite, sf::Vec2(x, y), sf::Vec2(200.0f));
 
-		sf::String paragraphs[] = { tmplComp->description };
+		float wrapWidth = input.mousePosition.x * 400.0f;
 
 		sp::RichTextDesc desc = { };
 		desc.style = &richStyle;
 		desc.offset = sf::Vec2(x, y + 250.0f);
 		desc.fontHeight = 30.0f;
 		desc.baseColor = sf::Vec4(1.0f);
-		desc.wrapWidth = 200.0f;
-		sp::drawRichText(c->canvas, desc, paragraphs);
+		desc.wrapWidth = wrapWidth;
+		sp::drawRichText(c->canvas, desc, tmplComp->description);
 
-		x += 230.0f;
+		sp::SpriteRef white { "Assets/Gui/Misc/White.png" };
+		c->canvas.draw(white, desc.offset + sf::Vec2(wrapWidth, 0.0f), sf::Vec2(2.0f, 100.0f));
+
+		x += 330.0f;
 	}
 }
 

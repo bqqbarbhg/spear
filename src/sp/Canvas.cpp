@@ -298,15 +298,18 @@ static void spriteToQuad(Quad &quad, const SpriteDraw &draw, const CanvasRenderO
 
 	const sf::Mat23 &t = draw.transform;
 
-	float xx0 = sprite->minVert.x*t.m00 + t.m02;
-	float xx1 = sprite->maxVert.x*t.m00 + t.m02;
-	float yy0 = sprite->minVert.y*t.m11 + t.m12;
-	float yy1 = sprite->maxVert.y*t.m11 + t.m12;
+	sf::Vec2 minVert = sprite->minVert - draw.anchor;
+	sf::Vec2 maxVert = sprite->maxVert - draw.anchor;
 
-	float xy0 = sprite->minVert.y*t.m01;
-	float xy1 = sprite->maxVert.y*t.m01;
-	float yx0 = sprite->minVert.x*t.m10;
-	float yx1 = sprite->maxVert.x*t.m10;
+	float xx0 = minVert.x*t.m00 + t.m02;
+	float xx1 = maxVert.x*t.m00 + t.m02;
+	float yy0 = minVert.y*t.m11 + t.m12;
+	float yy1 = maxVert.y*t.m11 + t.m12;
+
+	float xy0 = minVert.y*t.m01;
+	float xy1 = maxVert.y*t.m01;
+	float yx0 = minVert.x*t.m10;
+	float yx1 = maxVert.x*t.m10;
 
 	quad.v[0].position.x = xx0 + xy0;
 	quad.v[0].position.y = yx0 + yy0;

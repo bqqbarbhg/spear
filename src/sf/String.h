@@ -29,8 +29,8 @@ struct String
 
 	sf::Slice<const char> slice() const { return sf::Slice<const char>(data, size); }
 
-	sf::String substring(size_t begin, size_t length) {
-		sf_assert(begin + length < size);
+	sf::String substring(size_t begin, size_t length) const {
+		sf_assert(begin + length <= size);
 		return sf::String(data + begin, length);
 	}
 
@@ -298,6 +298,8 @@ template <> struct IsZeroInitializable<String> { enum { value = 1 }; };
 bool beginsWith(sf::String s, sf::String prefix);
 bool endsWith(sf::String s, sf::String suffix);
 size_t indexOf(sf::String s, sf::String substr);
+size_t indexOf(sf::String s, char ch);
 bool contains(sf::String s, sf::String substr);
+bool contains(sf::String s, char ch);
 
 }
