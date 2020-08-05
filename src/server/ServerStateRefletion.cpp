@@ -33,6 +33,7 @@ template<> void initType<Component>(Type *t)
 template<> void initType<Event>(Type *t)
 {
 	static PolymorphType polys[] = {
+		sf_poly(Event, AllocateId, AllocateIdEvent),
 		sf_poly(Event, CardCooldownTick, CardCooldownTickEvent),
 		sf_poly(Event, StatusAdd, StatusAddEvent),
 		sf_poly(Event, StatusTick, StatusTickEvent),
@@ -246,6 +247,14 @@ template<> void initType<CharacterTemplateComponent>(Type *t)
 		sf_field(CharacterTemplateComponent, starterCardPrefabs),
 	};
 	sf_struct_base(t, CharacterTemplateComponent, Component, fields);
+}
+
+template<> void initType<AllocateIdEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(AllocateIdEvent, id),
+	};
+	sf_struct_base(t, AllocateIdEvent, Event, fields);
 }
 
 template<> void initType<CardCooldownTickEvent>(Type *t)
