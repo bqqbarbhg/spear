@@ -75,6 +75,12 @@ sf_inline bool check(bool cond, const char *msg)
 
 #define sv_check(cond) check((cond), #cond)
 
+sf_inline void pushEvent(ServerState &state, sf::Array<sf::Box<Event>> &events, const sf::Box<Event> &event)
+{
+	state.applyEvent(*event);
+	events.push(event);
+}
+
 static uint32_t rollDie(uint32_t max)
 {
 	// TODO: Proper random
@@ -111,9 +117,9 @@ ServerState::ServerState()
 	charactersToSelect.reserve(1024);
 }
 
-uint32_t ServerState::allocateId(IdType type)
+uint32_t ServerState::allocateId(sf::Array<sf::Box<Event>> &events, IdType type)
 {
-	uint32_t &nextId = nextIdByType[(uint32_t)type];
+	uint32_t nextId = nextIdByType[(uint32_t)type];
 	for (;;) {
 		nextId++;
 		if (nextId >= MaxIdIndex) nextId = 1;
@@ -129,14 +135,21 @@ uint32_t ServerState::allocateId(IdType type)
 		default: sf_failf("Unhandled ID type %u", (uint32_t)type);
 		}
 
-		if (!exists) return id;
+		if (!exists) {
+			auto e = sf::box<AllocateIdEvent>();
+			e->id = id;
+			pushEvent(*this, events, e);
+			return id;
+		}
 	}
 }
 
 void ServerState::applyEvent(const Event &event)
 {
 	// TODO: What to do about reallocations?
-	if (auto *e = event.as<CardCooldownTickEvent>()) {
+	if (auto *e = event.as<AllocateIdEvent>()) {
+		nextIdByType[(uint32_t)getIdType(e->id)] = getIdIndex(e->id);
+	} else if (auto *e = event.as<CardCooldownTickEvent>()) {
 		if (Card *card = findCard(*this, e->cardId)) {
 			if (sv_check(card->cooldownLeft > 0)) {
 				card->cooldownLeft--;
@@ -197,24 +210,25 @@ void ServerState::applyEvent(const Event &event)
 			}
 
 			if (e->ownerId) {
-				if (Character *chr = findCharacter(*this, card->ownerId)) {
+				if (Character *chr = findCharacter(*this, e->ownerId)) {
 					chr->cards.push(e->cardId);
 				}
 			}
 
 			card->ownerId = e->ownerId;
 		}
+	} else if (auto *e = event.as<SelectCardEvent>()) {
+		if (Character *chr = findCharacter(*this, e->ownerId)) {
+			bool found = sf::find(chr->cards, e->cardId);
+			if (sv_check(found)) {
+				chr->selectedCards[e->slot] = e->cardId;
+			}
+		}
 	} else if (auto *e = event.as<AddCharacterToSpawn>()) {
 		charactersToSelect[e->selectPrefab] += e->count;
 	} else if (auto *e = event.as<SelectCharacterToSpawnEvent>()) {
 		charactersToSelect[e->selectPrefab]--;
 	}
-}
-
-sf_inline void pushEvent(ServerState &state, sf::Array<sf::Box<Event>> &events, const sf::Box<Event> &event)
-{
-	state.applyEvent(*event);
-	events.push(event);
 }
 
 static sf::StaticRecursiveMutex g_configMutex;
@@ -313,7 +327,7 @@ void ServerState::putStatus(sf::Array<sf::Box<Event>> &events, const StatusInfo 
 	StatusComponent *statusComp = findComponent<StatusComponent>(*statusPrefab);
 	if (!statusComp) return;
 
-	uint32_t id = allocateId(IdType::Status);
+	uint32_t id = allocateId(events, IdType::Status);
 
 	{
 		auto e = sf::box<StatusAddEvent>();
@@ -561,7 +575,7 @@ uint32_t ServerState::addProp(sf::Array<sf::Box<Event>> &events, const Prop &pro
 	Prefab *prefab = loadPrefab(*this, events, prop.prefabName);
 	if (!prefab) return 0;
 
-	uint32_t id = allocateId(IdType::Prop);
+	uint32_t id = allocateId(events, IdType::Prop);
 
 	{
 		auto e = sf::box<AddPropEvent>();
@@ -581,7 +595,7 @@ uint32_t ServerState::addCharacter(sf::Array<sf::Box<Event>> &events, const Char
 	CharacterComponent *chrComp = findComponent<CharacterComponent>(*prefab);
 	if (!chrComp) return 0;
 
-	uint32_t id = allocateId(IdType::Character);
+	uint32_t id = allocateId(events, IdType::Character);
 
 	{
 		auto e = sf::box<AddCharacterEvent>();
@@ -600,10 +614,7 @@ uint32_t ServerState::addCard(sf::Array<sf::Box<Event>> &events, const Card &car
 	Prefab *prefab = loadPrefab(*this, events, card.prefabName);
 	if (!prefab) return 0;
 
-	CharacterComponent *chrComp = findComponent<CharacterComponent>(*prefab);
-	if (!chrComp) return 0;
-
-	uint32_t id = allocateId(IdType::Card);
+	uint32_t id = allocateId(events, IdType::Card);
 
 	{
 		auto e = sf::box<AddCardEvent>();
@@ -695,7 +706,7 @@ void ServerState::selectCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId,
 		e->cardId = cardId;
 		e->ownerId = ownerId;
 		e->slot = slot;
-
+		pushEvent(*this, events, e);
 	}
 }
 

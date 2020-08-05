@@ -344,6 +344,7 @@ struct Event
 	enum Type
 	{
 		Error,
+		AllocateId,
 		CardCooldownTick,
 		StatusAdd,
 		StatusTick,
@@ -379,6 +380,11 @@ struct EventBase : Event
 {
 	static constexpr Type EventType = SelfType;
 	EventBase() : Event(SelfType) { }
+};
+
+struct AllocateIdEvent : EventBase<Event::AllocateId>
+{
+	uint32_t id;
 };
 
 struct CardCooldownTickEvent : EventBase<Event::CardCooldownTick>
@@ -495,6 +501,11 @@ sf_inline IdType getIdType(uint32_t id)
 	return (IdType)(id % NumIdTypes);
 }
 
+sf_inline uint32_t getIdIndex(uint32_t id)
+{
+	return id / NumIdTypes;
+}
+
 struct KeyName { template <typename T> decltype(T::name)& operator()(T &t) { return t.name; } };
 struct KeyId { template <typename T> decltype(T::id)& operator()(T &t) { return t.id; } };
 
@@ -517,7 +528,7 @@ struct ServerState
 
 	uint32_t nextIdByType[NumIdTypes] = { };
 
-	uint32_t allocateId(IdType type);
+	uint32_t allocateId(sf::Array<sf::Box<Event>> &events, IdType type);
 
 	void applyEvent(const Event &event);
 
