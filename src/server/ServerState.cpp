@@ -653,7 +653,7 @@ void ServerState::giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, u
 	{
 		auto e = sf::box<GiveCardEvent>();
 		e->cardId = cardId;
-		e->previousOwnerId = ownerId;
+		e->previousOwnerId = card->ownerId;
 		e->ownerId = ownerId;
 		pushEvent(*this, events, e);
 	}
