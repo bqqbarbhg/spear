@@ -119,7 +119,7 @@ ServerState::ServerState()
 
 uint32_t ServerState::allocateId(sf::Array<sf::Box<Event>> &events, IdType type)
 {
-	uint32_t nextId = nextIdByType[(uint32_t)type];
+	uint32_t nextId = lastAllocatedIdByType[(uint32_t)type];
 	for (;;) {
 		nextId++;
 		if (nextId >= MaxIdIndex) nextId = 1;
@@ -148,7 +148,7 @@ void ServerState::applyEvent(const Event &event)
 {
 	// TODO: What to do about reallocations?
 	if (auto *e = event.as<AllocateIdEvent>()) {
-		nextIdByType[(uint32_t)getIdType(e->id)] = getIdIndex(e->id);
+		lastAllocatedIdByType[(uint32_t)getIdType(e->id)] = getIdIndex(e->id);
 	} else if (auto *e = event.as<CardCooldownTickEvent>()) {
 		if (Card *card = findCard(*this, e->cardId)) {
 			if (sv_check(card->cooldownLeft > 0)) {
@@ -231,6 +231,84 @@ void ServerState::applyEvent(const Event &event)
 	}
 }
 
+void ServerState::getAsEvents(EventCallbackFn *callback, void *user) const
+{
+	for (const Prefab &prefab : prefabs) {
+		LoadPrefabEvent e = { };
+		e.prefab = prefab;
+		callback(user, e);
+	}
+
+	for (const Prop &prop : props) {
+		AddPropEvent e = { };
+		e.prop = prop;
+		callback(user, e);
+	}
+
+	for (const Character &chr : characters) {
+		AddCharacterEvent e = { };
+		e.character = chr;
+		e.character.cards.clear();
+		sf::memZero(e.character.selectedCards);
+		callback(user, e);
+	}
+
+	for (const Card &card : cards) {
+		AddCardEvent e = { };
+		e.card = card;
+		e.card.ownerId = 0;
+		callback(user, e);
+	}
+
+	for (const auto &pair : charactersToSelect) {
+		AddCharacterToSpawn e = { };
+		e.selectPrefab = pair.key;
+		e.count = pair.val;
+		callback(user, e);
+	}
+
+	for (uint32_t i = 0; i < NumServerIdTypes; i++) {
+		AllocateIdEvent e = { };
+		e.id = makeId((IdType)i, lastAllocatedIdByType[i]);
+		callback(user, e);
+	}
+
+	for (const Character &chr : characters) {
+		for (uint32_t cardId : chr.cards) {
+			GiveCardEvent e = { };
+			e.previousOwnerId = 0;
+			e.ownerId = chr.id;
+			e.cardId = cardId;
+			callback(user, e);
+		}
+
+		for (uint32_t slot = 0; slot < NumSelectedCards; slot++) {
+			uint32_t cardId = chr.selectedCards[slot];
+			if (cardId == 0) continue;
+
+			SelectCardEvent e = { };
+			e.ownerId = chr.id;
+			e.cardId = cardId;
+			e.slot = slot;
+			callback(user, e);
+		}
+	}
+
+	for (const auto &pair : charactersToSelect) {
+		AddCharacterToSpawn e = { };
+		e.selectPrefab = pair.key;
+		e.count = pair.val;
+		callback(user, e);
+	}
+
+	for (const Status &status : statuses) {
+		StatusAddEvent e = { };
+		sf::memZero(e.turnsRoll);
+		e.status = status;
+		callback(user, e);
+	}
+}
+
 static sf::StaticRecursiveMutex g_configMutex;
 
 template <typename T>
@@ -299,6 +377,10 @@ static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, s
 			walkPrefabs(state, events, marks, c->spellName);
 		} else if (auto *c = component->as<SpellStatusComponent>()) {
 			walkPrefabs(state, events, marks, c->statusName);
+		} else if (auto *c = component->as<StatusComponent>()) {
+			walkPrefabs(state, events, marks, c->startEffect);
+			walkPrefabs(state, events, marks, c->activeEffect);
+			walkPrefabs(state, events, marks, c->endEffect);
 		} else if (auto *c = component->as<CharacterTemplateComponent>()) {
 			walkPrefabs(state, events, marks, c->characterPrefab);
 			for (const sf::Symbol &cardPrefab : c->starterCardPrefabs) {
@@ -374,6 +456,38 @@ void ServerState::doDamage(sf::Array<sf::Box<Event>> &events, const DamageInfo &
 		e->finalDamage = e->damageRoll.total;
 	}
 
+	for (uint32_t statusId : causeChr->statuses) {
+		Status *status = findStatus(*this, statusId);
+		if (!status) continue;
+		Prefab *statusPrefab = loadPrefab(*this, events, status->prefabName);
+		if (!statusPrefab) continue;
+
+		for (Component *statusComponent : statusPrefab->components) {
+			if (auto *c = statusComponent->as<ResistDamageComponent>()) {
+				if ((c->onSpell && damageInfo.magic) || (c->onMelee && damageInfo.melee)) {
+					RollInfo roll = rollDice(c->successRoll, "success");
+
+					bool success = roll.total >= roll.roll.check;
+
+					int32_t resistDamage = 0;
+					if (success) {
+						resistDamage = sf::clamp((int32_t)(c->resistAmount * e->finalDamage), 0, e->finalDamage);
+						e->finalDamage -= resistDamage;
+					}
+
+					auto e2 = sf::box<ResistDamageEvent>();
+					e2->cardName = status->cardName;
+					e2->effectName = c->effectName;
+					e2->successRoll = roll;
+					e2->resistAmount = c->resistAmount;
+					e2->resistDamage = resistDamage;
+					e2->success = success;
+					pushEvent(*this, events, e2);
+				}
+			}
+		}
+	}
+
 	pushEvent(*this, events, e);
 
 	for (uint32_t statusId : causeChr->statuses) {
@@ -393,9 +507,14 @@ void ServerState::doDamage(sf::Array<sf::Box<Event>> &events, const DamageInfo &
 					spell.targetId = damageInfo.targetId;
 					castSpell(events, spell);
 				}
+			} else if (auto *c = statusComponent->as<ResistDamageComponent>()) {
+				if ((c->onSpell && damageInfo.magic) || (c->onMelee && damageInfo.melee)) {
+					auto e2 = sf::box<ResistDamageEvent>();
+				}
 			}
 		}
 	}
+
 
 	for (uint32_t statusId : targetChr->statuses) {
 		Status *status = findStatus(*this, statusId);
@@ -476,6 +595,13 @@ void ServerState::meleeAttack(sf::Array<sf::Box<Event>> &events, const MeleeInfo
 
 	CardMeleeComponent *meleeComponent = findComponent<CardMeleeComponent>(*cardPrefab);
 	if (!meleeComponent) return;
+
+	{
+		auto e = sf::box<MeleeAttackEvent>();
+		e->meleeInfo = meleeInfo;
+		e->hitRoll = meleeComponent->hitRoll;
+		pushEvent(*this, events, e);
+	}
 
 	DamageInfo damage = { };
 	damage.melee = true;
@@ -848,7 +974,7 @@ template<> void initType<ServerState>(Type *t)
 		sf_field(ServerState, cards),
 		sf_field(ServerState, statuses),
 		sf_field(ServerState, charactersToSelect),
-		sf_field(ServerState, nextIdByType),
+		sf_field(ServerState, lastAllocatedIdByType),
 	};
 	sf_struct(t, ServerState, fields);
 }

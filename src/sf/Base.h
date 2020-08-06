@@ -180,6 +180,12 @@ sf_inline void reset(T &t)
 	new (&t) T();
 }
 
+template <typename T>
+sf_inline void memZero(T &t)
+{
+	memset(&t, 0, sizeof(t));
+}
+
 // -- Type traits
 
 // Can the type be initialized by calling `memset(0)`

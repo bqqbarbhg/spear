@@ -42,6 +42,7 @@ struct Component
 		CastOnTurnStart,
 		CastOnReceiveDamage,
 		CastOnDealDamage,
+		ResistDamage,
 		CardCast,
 		Spell,
 		SpellDamage,
@@ -90,6 +91,7 @@ struct PointLightComponent : ComponentBase<Component::PointLight>
 	sf::Vec3 position;
 	float flickerFrequency = 0.0f;
 	float flickerIntensity = 0.0f;
+	bool castShadows = true;
 };
 
 struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
@@ -99,6 +101,8 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 	float intensity = 1.0f;
 	float radius = 1.0f;
 	sf::Vec3 position;
+	bool updateOutOfCamera = false;
+	float prewarmTime = 0.0f;
 };
 
 struct CharacterComponent : ComponentBase<Component::Character>
@@ -169,6 +173,7 @@ struct CardMeleeComponent : ComponentBase<Component::CardMelee>
 struct CardProjectileComponent : ComponentBase<Component::CardProjectile>
 {
 	sf::Symbol prefabName;
+	sf::Symbol hitEffect;
 	float flightSpeed = 0.0f;
 };
 
@@ -189,6 +194,16 @@ struct CastOnDealDamageComponent : ComponentBase<Component::CastOnDealDamage>
 	bool onMelee = false;
 	bool onSpell = false;
 	sf::Symbol spellName;
+};
+
+struct ResistDamageComponent : ComponentBase<Component::ResistDamage>
+{
+	// TODO: Enum
+	bool onSpell = false;
+	bool onMelee = false;
+	float resistAmount = 1.0f;
+	DiceRoll successRoll;
+	sf::Symbol effectName;
 };
 
 struct CardCastComponent : ComponentBase<Component::CardCast>
@@ -214,6 +229,9 @@ struct SpellStatusComponent : ComponentBase<Component::SpellStatus>
 struct StatusComponent : ComponentBase<Component::Status>
 {
 	DiceRoll turnsRoll;
+	sf::Symbol startEffect;
+	sf::Symbol activeEffect;
+	sf::Symbol endEffect;
 };
 
 struct CharacterTemplateComponent : ComponentBase<Component::CharacterTemplate>
@@ -349,7 +367,9 @@ struct Event
 		StatusAdd,
 		StatusTick,
 		StatusRemove,
+		ResistDamage,
 		CastSpell,
+		MeleeAttack,
 		Damage,
 		LoadPrefab,
 		RemoveGarbageIds,
@@ -361,6 +381,7 @@ struct Event
 		SelectCard,
 		AddCharacterToSpawn,
 		SelectCharacterToSpawn,
+		Move,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -408,18 +429,34 @@ struct StatusRemoveEvent : EventBase<Event::StatusRemove>
 	uint32_t statusId;
 };
 
+struct ResistDamageEvent : EventBase<Event::ResistDamage>
+{
+	sf::Symbol cardName;
+	sf::Symbol effectName;
+	float resistAmount;
+	int32_t resistDamage;
+	RollInfo successRoll;
+	bool success;
+};
+
 struct CastSpellEvent : EventBase<Event::CastSpell>
 {
 	SpellInfo spellInfo;
 	RollInfo successRoll;
 };
 
+struct MeleeAttackEvent : EventBase<Event::CastSpell>
+{
+	MeleeInfo meleeInfo;
+	DiceRoll hitRoll;
+};
+
 struct DamageEvent : EventBase<Event::Damage>
 {
 	DamageInfo damageInfo;
 	RollInfo damageRoll;
-	uint32_t finalDamage = 0;
-	uint32_t meleeArmor = 0;
+	int32_t finalDamage = 0;
+	int32_t meleeArmor = 0;
 };
 
 struct LoadPrefabEvent : EventBase<Event::LoadPrefab>
@@ -478,16 +515,24 @@ struct SelectCharacterToSpawnEvent : EventBase<Event::SelectCharacterToSpawn>
 	uint32_t playerId;
 };
 
+struct MoveEvent : EventBase<Event::Move>
+{
+	uint32_t characterId;
+	sf::Vec2i position;
+};
+
 enum class IdType {
 	Null,
 	Prop,
 	Character,
 	Card,
 	Status,
+	ClientStart,
 };
 
-static const constexpr uint32_t NumIdTypes = 10;
-static const constexpr uint32_t MaxIdIndex = 100000000;
+static const constexpr uint32_t NumServerIdTypes = 100;
+static const constexpr uint32_t NumIdTypes = 100;
+static const constexpr uint32_t MaxIdIndex = 10000000;
 static_assert(MaxIdIndex < UINT32_MAX / NumIdTypes, "MaxIdIndex overflow");
 
 sf_inline uint32_t makeId(IdType type, uint32_t index)
@@ -515,6 +560,8 @@ using CharacterMap = sf::ImplicitHashMap<Character, KeyId>;
 using CardMap = sf::ImplicitHashMap<Card, KeyId>;
 using StatusMap = sf::ImplicitHashMap<Status, KeyId>;
 
+typedef void EventCallbackFn(void *user, const Event &event);
+
 struct ServerState
 {
 	ServerState();
@@ -526,13 +573,15 @@ struct ServerState
 	StatusMap statuses;
 	sf::HashMap<sf::Symbol, int32_t> charactersToSelect;
 
-	uint32_t nextIdByType[NumIdTypes] = { };
-
-	uint32_t allocateId(sf::Array<sf::Box<Event>> &events, IdType type);
+	uint32_t lastAllocatedIdByType[NumServerIdTypes] = { };
 
 	void applyEvent(const Event &event);
 
+	void getAsEvents(EventCallbackFn *callback, void *user) const;
+
 	// -- Server only
+
+	uint32_t allocateId(sf::Array<sf::Box<Event>> &events, IdType type);
 
 	void putStatus(sf::Array<sf::Box<Event>> &events, const StatusInfo &statusInfo);
 	void doDamage(sf::Array<sf::Box<Event>> &events, const DamageInfo &damageInfo);

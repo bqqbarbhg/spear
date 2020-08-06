@@ -63,6 +63,26 @@ bool intesersectRayObb(float &outT, const Ray &ray, const Mat34 &obb)
 	return true;
 }
 
+bool intersect(const sf::Bounds3 &a, const sf::Bounds3 &b)
+{
+	sf::Vec3 delta = sf::abs(a.origin - b.origin) - a.extent - b.extent;
+	return sf::min(sf::min(delta.x, delta.y), delta.z) <= 0.0f;
+}
+
+bool intersect(const sf::Bounds3 &a, const sf::Sphere &b)
+{
+	sf::Vec3 delta = sf::abs(b.origin - a.origin);
+	sf::Vec3 distance = delta - sf::min(delta, a.extent);
+	return sf::lengthSq(distance) <= b.radius * b.radius;
+}
+
+bool intersect(const sf::Sphere &a, const sf::Sphere &b)
+{
+	float distSq = sf::lengthSq(a.origin - b.origin);
+	float radius = a.radius + b.radius;
+	return distSq <= radius * radius;
+}
+
 Sphere sphereFromBounds3(const Bounds3 &bounds)
 {
 	Sphere s;

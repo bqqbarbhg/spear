@@ -217,15 +217,16 @@ struct Array
 
 	void removeSwapPtr(T *t) { removeSwap((size_t)(t - data)); }
 
-	void removeOrdered(size_t index) {
-		sf_assert(index < size);
-		uint32_t end = --size;
+	void removeOrdered(size_t index, size_t amount=1) {
+		sf_assert(index + amount <= size);
+		size -= amount;
+		uint32_t end = size;
 		while (index < end) {
 			data[index].~T();
-			new (&data[index]) T(std::move(data[index + 1]));
+			new (&data[index]) T(std::move(data[index + amount]));
 			index++;
 		}
-		data[index].~T();
+		sf::destructRange(data + index, amount);
 	}
 
 	void removeOrderedPtr(T *t) { removeOrdered((size_t)(t - data)); }

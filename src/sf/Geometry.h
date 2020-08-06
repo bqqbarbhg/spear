@@ -29,11 +29,18 @@ struct Bounds3
 
 Ray transformRay(const sf::Mat34 &transform, const Ray &ray);
 
-
 bool intesersectRay(float &outT, const Ray &ray, const Sphere &sphere);
 bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds);
 bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, const Mat34 &transform);
 bool intesersectRayObb(float &outT, const Ray &ray, const Mat34 &obb);
+
+bool intersect(const sf::Bounds3 &a, const sf::Bounds3 &b);
+bool intersect(const sf::Bounds3 &a, const sf::Sphere &b);
+bool intersect(const sf::Sphere &a, const sf::Sphere &b);
+
+sf_inline bool intersect(const sf::Sphere &a, const sf::Bounds3 &b) {
+	return intersect(b, a);
+}
 
 Sphere sphereFromBounds3(const Bounds3 &bounds);
 Sphere sphereFromBounds3(const Bounds3 &bounds, const sf::Mat34 &transform);
