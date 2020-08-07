@@ -19,6 +19,9 @@
 #include "sp/Font.h"
 #include "sp/RichText.h"
 
+#include "sf/License.h"
+#include "sp/SpLicense.h"
+
 namespace cl {
 
 struct Client
@@ -204,6 +207,8 @@ static void updateCharacterPicking(Client *c, const ClientInput &input)
 	sprite.close.layoutWidth = 0.85f;
 	sprite.close.useFontColor = true;
 
+	float wrapWidth = input.mousePosition.x * 400.0f;
+
 	float x = 50.0f;
 	float y = 50.0f;
 	for (const auto &pair : svState.charactersToSelect) {
@@ -223,8 +228,6 @@ static void updateCharacterPicking(Client *c, const ClientInput &input)
 
 		c->canvas.draw(sprite, sf::Vec2(x, y), sf::Vec2(200.0f));
 
-		float wrapWidth = input.mousePosition.x * 400.0f;
-
 		sp::RichTextDesc desc = { };
 		desc.style = &richStyle;
 		desc.offset = sf::Vec2(x, y + 250.0f);
@@ -237,6 +240,26 @@ static void updateCharacterPicking(Client *c, const ClientInput &input)
 		c->canvas.draw(white, desc.offset + sf::Vec2(wrapWidth, 0.0f), sf::Vec2(2.0f, 100.0f));
 
 		x += 330.0f;
+	}
+
+	sf::SmallArray<sf::License, 32> licenses;
+	sf::getLicenses(licenses);
+	sp::getLicenses(licenses);
+
+	x = 700.0f;
+	y = 50.0f;
+	for (sf::License &license : licenses) {
+		sp::RichTextDesc desc = { };
+		desc.style = &richStyle;
+		desc.offset = sf::Vec2(x, y);
+		desc.fontHeight = 30.0f;
+		desc.baseColor = sf::Vec4(1.0f);
+		desc.wrapWidth = wrapWidth;
+		sp::drawRichText(c->canvas, desc, license.name);
+
+		sp::SpriteRef white { "Assets/Gui/Misc/White.png" };
+		c->canvas.draw(white, desc.offset + sf::Vec2(wrapWidth, 0.0f), sf::Vec2(2.0f, 100.0f));
+		y += 30.0f;
 	}
 }
 
