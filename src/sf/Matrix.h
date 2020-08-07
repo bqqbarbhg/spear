@@ -273,6 +273,8 @@ Vec2 transformPoint(const Mat23 &l, const Vec2 &r);
 
 Vec3 transformDirection(const Mat33 &l, const Vec3 &r);
 Vec3 transformDirection(const Mat34 &l, const Vec3 &r);
+Vec3 transformDirectionAbs(const Mat33 &l, const Vec3 &r);
+Vec3 transformDirectionAbs(const Mat34 &l, const Vec3 &r);
 
 // Determinant
 

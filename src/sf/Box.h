@@ -86,12 +86,12 @@ struct Box
 		if (ptr) { impBoxDecRef(ptr); ptr = nullptr; }
 	}
 
-	bool operator!() const { return ptr == nullptr; }
-	explicit operator bool() const { return ptr != nullptr; }
+	sf_forceinline bool operator!() const { return ptr == nullptr; }
+	sf_forceinline explicit operator bool() const { return ptr != nullptr; }
 
-	operator T*() const { return ptr; }
-	T *operator->() const { return ptr; }
-	typename std::add_lvalue_reference<T>::type operator*() const { return *ptr; }
+	sf_forceinline operator T*() const { return ptr; }
+	sf_forceinline T *operator->() const { return ptr; }
+	sf_forceinline typename std::add_lvalue_reference<T>::type operator*() const { return *ptr; }
 
 	uint64_t getId() const { return impBoxGetId(ptr); }
 };

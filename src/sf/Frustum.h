@@ -74,6 +74,23 @@ struct Frustum
 		return so.min(co).allGreaterThanZero();
 	}
 
+	bool intersects(const sf::Cube3 &cube) const
+	{
+		Float4 so = side[3], co = caps[3];
+		Float4 o, e, s, c;
+
+		o = cube.origin.x; e = cube.extent; s = side[0]; c = caps[0];
+		so += s*o; co += c*o; so += s.abs()*e; co += c.abs()*e;
+
+		o = cube.origin.y; e = cube.extent; s = side[1]; c = caps[1];
+		so += s*o; co += c*o; so += s.abs()*e; co += c.abs()*e;
+
+		o = cube.origin.z; e = cube.extent; s = side[2]; c = caps[2];
+		so += s*o; co += c*o; so += s.abs()*e; co += c.abs()*e;
+
+		return so.min(co).allGreaterThanZero();
+	}
+
 };
 
 }

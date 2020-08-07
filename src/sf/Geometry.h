@@ -27,7 +27,16 @@ struct Bounds3
 	}
 };
 
+struct Cube3
+{
+	sf::Vec3 origin;
+	float extent;
+};
+
 Ray transformRay(const sf::Mat34 &transform, const Ray &ray);
+
+sf::Bounds3 transformBounds(const sf::Mat34 &transform, const sf::Bounds3 &bounds);
+sf::Sphere transformSphere(const sf::Mat34 &transform, const sf::Sphere &sphere);
 
 bool intesersectRay(float &outT, const Ray &ray, const Sphere &sphere);
 bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds);
@@ -46,5 +55,6 @@ Sphere sphereFromBounds3(const Bounds3 &bounds);
 Sphere sphereFromBounds3(const Bounds3 &bounds, const sf::Mat34 &transform);
 sf::Mat34 obbFromBounds3(const Bounds3 &bounds);
 Sphere sphereUnion(const Sphere &a, const Sphere &b);
+
 
 }

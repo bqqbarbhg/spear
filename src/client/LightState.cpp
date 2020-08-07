@@ -2,6 +2,7 @@
 
 #include "client/ClientGlobal.h"
 #include "client/ClientState.h"
+#include "client/AreaState.h"
 #include "sp/Renderer.h"
 
 #include "game/shader/GameShaders.h"
@@ -148,11 +149,15 @@ struct LightStateImp : LightState
 		} else {
 			pointLights.push();
 		}
+
 		PointLightImp &point = pointLights[index];
 		point.localPosition = c.position;
 		point.radius = c.radius;
 		point.color = c.color * c.intensity;
 		point.castShadows = c.castShadows;
+
+		sf::Sphere bounds = { point.localPosition, point.radius };
+		clientGlobalState->areaState->addEntitySphere(AreaPointLight, index, entityId, bounds);
 
 		LightEntityImp& entity = entities[entityId];
 		entity.pointLights.push(index);
@@ -175,30 +180,7 @@ struct LightStateImp : LightState
 
 			if (updateMask & EntityState::UpdateVisibility) {
 				if (state.flags & EntityState::Visible) {
-					if (point.visibleIndex == ~0u) {
-						point.visibleIndex = visiblePointLights.size;
-						visiblePointLights.push(pointIndex);
-					}
-					if (point.shadowIndex == ~0u) {
-						point.shadowIndex = allocateShadowIndex();
-						if (point.shadowIndex != ~0u && !point.dirtyShadows) {
-							dirtyShadowPointLights.push(pointIndex);
-							point.dirtyShadows = true;
-						}
-					}
 				} else {
-					if (point.visibleIndex != ~0u) {
-						visiblePointLights.removeSwap(point.visibleIndex);
-						if (point.visibleIndex < visiblePointLights.size) {
-							PointLightImp &swapPoint = pointLights[visiblePointLights[point.visibleIndex]];
-							swapPoint.visibleIndex = point.visibleIndex;
-						}
-						point.visibleIndex = ~0u;
-					}
-					if (point.shadowIndex != ~0u) {
-						freeShadowIndices.push({ point.shadowIndex, clientGlobal->frameIndex });
-						point.shadowIndex = ~0u;
-					}
 				}
 			}
 		}
@@ -210,6 +192,7 @@ struct LightStateImp : LightState
 
 		for (uint32_t pointIndex : entity.pointLights) {
 			PointLightImp &point = pointLights[pointIndex];
+			clientGlobalState->areaState->removeEntitySphere(AreaPointLight, pointIndex);
 			if (point.visibleIndex != ~0u) {
 				visiblePointLights.removeSwap(point.visibleIndex);
 				if (point.visibleIndex < visiblePointLights.size) {
@@ -342,6 +325,44 @@ struct LightStateImp : LightState
 			dirtyShadowPointLights.removeOrdered(0, maxUpdates);
 		} else {
 			dirtyShadowPointLights.clear();
+		}
+	}
+
+	void updatePointLightVisibility()
+	{
+		const AreaGroupState &state = clientGlobalState->areaState->getGroupState(AreaPointLight);
+
+		for (const AreaIds &ids : state.newVisible) {
+			uint32_t pointIndex = ids.userId;
+			PointLightImp &point = pointLights[pointIndex];
+			if (point.visibleIndex == ~0u) {
+				point.visibleIndex = visiblePointLights.size;
+				visiblePointLights.push(pointIndex);
+			}
+			if (point.shadowIndex == ~0u) {
+				point.shadowIndex = allocateShadowIndex();
+				if (point.shadowIndex != ~0u && !point.dirtyShadows) {
+					dirtyShadowPointLights.push(pointIndex);
+					point.dirtyShadows = true;
+				}
+			}
+		}
+
+		for (const AreaIds &ids : state.newInvisible) {
+			uint32_t pointIndex = ids.userId;
+			PointLightImp &point = pointLights[pointIndex];
+			if (point.visibleIndex != ~0u) {
+				visiblePointLights.removeSwap(point.visibleIndex);
+				if (point.visibleIndex < visiblePointLights.size) {
+					PointLightImp &swapPoint = pointLights[visiblePointLights[point.visibleIndex]];
+					swapPoint.visibleIndex = point.visibleIndex;
+				}
+				point.visibleIndex = ~0u;
+			}
+			if (point.shadowIndex != ~0u) {
+				freeShadowIndices.push({ point.shadowIndex, clientGlobal->frameIndex });
+				point.shadowIndex = ~0u;
+			}
 		}
 	}
 

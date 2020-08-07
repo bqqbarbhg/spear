@@ -26,6 +26,7 @@ struct LightState
 
 	void renderDirtyShadowMaps(uint32_t maxUpdates);
 
+	void updatePointLightVisibility();
 	void queryVisiblePointLights(const sf::Bounds3 &bounds, uint32_t maxPointLights, sf::Array<PointLight> &pointLights);
 
 	sg_image getShadowCache() const;

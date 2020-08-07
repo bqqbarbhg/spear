@@ -56,8 +56,6 @@ sf_inline uint64_t alignUp(uint64_t v, uint64_t align) {
 	return (v + align - 1) & ~(align - 1);
 }
 
-uint32_t roundToPow2(uint32_t v);
-
 template <typename T>
 sf_inline T min(const T &a, const T &b) { return a < b ? a : b; }
 template <typename T>

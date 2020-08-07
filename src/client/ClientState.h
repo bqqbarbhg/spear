@@ -5,6 +5,7 @@
 #include "sf/Array.h"
 #include "sf/Matrix.h"
 #include "sf/Frustum.h"
+#include "sf/HashSet.h"
 
 namespace cl {
 
@@ -15,10 +16,22 @@ struct RenderShadowArgs
 	sf::Mat44 worldToClip;
 };
 
+struct Entity
+{
+	uint32_t id;
+	EntityState state;
+	uint32_t movedIndex = ~0u;
+};
+
 struct LightState;
+struct AreaState;
 struct ClientState
 {
 	sf::Box<LightState> lightState;
+	sf::Box<AreaState> areaState;
+
+	sf::ImplicitHashMap<Entity, sv::KeyId> entities;
+	sf::HashSet<uint32_t> visibleEntities;
 
 	void renderShadows(const RenderShadowArgs &args);
 };

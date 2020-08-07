@@ -517,6 +517,24 @@ Vec3 transformDirection(const Mat34 &l, const Vec3 &r)
 	};
 }
 
+Vec3 transformDirectionAbs(const Mat33 &l, const Vec3 &r)
+{
+	return {
+		sf::abs(l.m00)*r.x + sf::abs(l.m01)*r.y + sf::abs(l.m02)*r.z,
+		sf::abs(l.m10)*r.x + sf::abs(l.m11)*r.y + sf::abs(l.m12)*r.z,
+		sf::abs(l.m20)*r.x + sf::abs(l.m21)*r.y + sf::abs(l.m22)*r.z,
+	};
+}
+
+Vec3 transformDirectionAbs(const Mat34 &l, const Vec3 &r)
+{
+	return {
+		sf::abs(l.m00)*r.x + sf::abs(l.m01)*r.y + sf::abs(l.m02)*r.z,
+		sf::abs(l.m10)*r.x + sf::abs(l.m11)*r.y + sf::abs(l.m12)*r.z,
+		sf::abs(l.m20)*r.x + sf::abs(l.m21)*r.y + sf::abs(l.m22)*r.z,
+	};
+}
+
 // Determinant
 
 float determinant(const Mat34_3 &m) {

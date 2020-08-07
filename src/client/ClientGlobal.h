@@ -21,5 +21,6 @@ struct ClientGlobal
 };
 
 extern thread_local ClientGlobal *clientGlobal;
+extern thread_local ClientState *clientGlobalState;
 
 }

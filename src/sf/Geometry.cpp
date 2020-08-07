@@ -10,6 +10,23 @@ Ray transformRay(const sf::Mat34 &transform, const Ray &ray)
 	return r;
 }
 
+sf::Bounds3 transformBounds(const sf::Mat34 &transform, const sf::Bounds3 &bounds)
+{
+	Bounds3 result;
+	result.origin = sf::transformPoint(transform, bounds.origin);
+	result.extent = sf::transformDirectionAbs(transform, bounds.extent);
+	return result;
+}
+
+sf::Sphere transformSphere(const sf::Mat34 &transform, const sf::Sphere &sphere)
+{
+	Sphere result;
+	float scale = sf::sqrt(sf::max(sf::lengthSq(transform.cols[0]), sf::lengthSq(transform.cols[1]), sf::lengthSq(transform.cols[2])));
+	result.origin = sf::transformPoint(transform, sphere.origin);
+	result.radius = sphere.radius * scale;
+	return result;
+}
+
 bool intesersectRay(float &outT, const Ray &ray, const Sphere &sphere)
 {
 	sf::Vec3 delta = ray.origin - sphere.origin;
