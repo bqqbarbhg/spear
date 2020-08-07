@@ -29,3 +29,7 @@ void sf_set_debug_thread_name(const char *name)
 #ifdef __cplusplus
 }
 #endif
+
+#if SF_USE_MIMALLOC && !defined(MI_MALLOC_OVERRIDE)
+	#include "ext/mimalloc/mimalloc-new-delete.h"
+#endif

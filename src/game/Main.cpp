@@ -91,6 +91,9 @@ static uint32_t sessionSecret;
 
 extern bool g_hack_hd;
 
+static void *imguiAlloc(size_t size, void*) { return sf_malloc(size); }
+static void imguiFree(void *ptr, void*) { return sf_free(ptr); }
+
 void spInit()
 {
     #if defined(GAME_OVERRIDE_ARGS)
@@ -99,6 +102,8 @@ void spInit()
     };
     sp::commandLineArgs = sf::slice(overrideArgs);
     #endif
+
+	ImGui::SetAllocatorFunctions(&imguiAlloc, &imguiFree);
 
 	sf::MutexGuard mg(clientMutex);
     

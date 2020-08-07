@@ -1,3 +1,5 @@
+#if !defined(JSI_USE_IMPL) || defined(JSI_IMPL)
+
 #include "json_input.h"
 
 #include <stdio.h>
@@ -28,6 +30,18 @@
 		#define JSI_SSE_CTZ(dst, mask) _BitScanForward((unsigned long*)&(dst), (mask))
 		#define JSI_USE_SSE 1
 	#endif
+#endif
+
+#ifndef jsi_default_malloc
+#define jsi_default_malloc(size) malloc((size))
+#endif
+
+#ifndef jsi_default_realloc
+#define jsi_default_realloc(ptr, size) realloc((ptr), (size))
+#endif
+
+#ifndef jsi_default_free
+#define jsi_default_free(ptr) free((ptr))
 #endif
 
 #ifndef JSI_USE_SSE
@@ -127,7 +141,7 @@ jsi_mem_alloc(jsi_allocator *a, size_t size)
 	if (a->alloc_fn) {
 		return a->alloc_fn(a->user, size);
 	} else {
-		return malloc(size);
+		return jsi_default_malloc(size);
 	}
 }
 
@@ -151,7 +165,7 @@ jsi_mem_realloc(jsi_allocator *a, void *ptr, size_t new_size, size_t old_size)
 		}
 		return new_ptr;
 	} else {
-		return realloc(ptr, new_size);
+		return jsi_default_realloc(ptr, new_size);
 	}
 }
 
@@ -166,7 +180,7 @@ jsi_mem_free(jsi_allocator *a, void *ptr, size_t size)
 				a->free_fn(a->user, ptr, size);
 			}
 		} else {
-			free(ptr);
+			jsi_default_free(ptr);
 		}
 	}
 }
@@ -1472,7 +1486,7 @@ void jsi_free(jsi_value *value)
 		while (page) {
 			void *to_free = page;
 			page = *(void**)page;
-			free(to_free);
+			jsi_default_free(to_free);
 		}
 	}
 }
@@ -1531,4 +1545,6 @@ jsi_value *jsi_get_len(jsi_obj *obj, const char *key, size_t length)
 
 #if defined(_MSC_VER)
 	#pragma warning(pop)
+#endif
+
 #endif

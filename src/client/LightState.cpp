@@ -127,7 +127,7 @@ struct LightStateImp : LightState
 
 	uint32_t allocateShadowIndex()
 	{
-		if (freeShadowIndices.size == 0) return;
+		if (freeShadowIndices.size == 0) return ~0u;
 		FreeShadowIndex *max = &freeShadowIndices[0];
 		for (FreeShadowIndex &index : freeShadowIndices.slice().drop(1)) {
 			if (max->frameIndex == UINT64_MAX) break;

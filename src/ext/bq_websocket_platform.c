@@ -1,5 +1,7 @@
 #include "bq_websocket_platform.h"
 
+#if !defined(BQWS_USE_IMPL) || defined(BQWS_IMPL)
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -25,6 +27,18 @@ static __thread bqws_pt_error t_err;
 #ifndef bqws_assert
 #include <assert.h>
 #define bqws_assert(x) assert(x)
+#endif
+
+#ifndef bqws_malloc
+#define bqws_malloc(size) malloc((size))
+#endif
+
+#ifndef bqws_realloc
+#define bqws_realloc(ptr, size) realloc((ptr), (size))
+#endif
+
+#ifndef bqws_free
+#define bqws_free(ptr) free((ptr))
 #endif
 
 static void pt_fail_pt(const char *func, bqws_pt_error_code code)
@@ -198,7 +212,7 @@ static bool pt_send_message(void *user, bqws_socket *ws, bqws_msg *msg)
 
 	if (type & BQWS_MSG_PARTIAL_BIT) {
 
-		pt_em_partial *part = malloc(sizeof(pt_em_partial) + size);
+		pt_em_partial *part = bqws_malloc(sizeof(pt_em_partial) + size);
 		part->next = NULL;
 		part->size = size;
 		memcpy(part->data, data, size);
@@ -213,7 +227,7 @@ static bool pt_send_message(void *user, bqws_socket *ws, bqws_msg *msg)
 		}
 
 		if (type & BQWS_MSG_FINAL_BIT) {
-			char *ptr = (char*)malloc(em->partial_size);
+			char *ptr = (char*)bqws_malloc(em->partial_size);
 
 			partial_buf = ptr;
 			data = ptr;
@@ -228,7 +242,7 @@ static bool pt_send_message(void *user, bqws_socket *ws, bqws_msg *msg)
 				memcpy(ptr, part->data, part->size);
 				ptr += part->size;
 
-				free(part);
+				bqws_free(part);
 			}
 
 		} else {
@@ -255,7 +269,7 @@ static bool pt_send_message(void *user, bqws_socket *ws, bqws_msg *msg)
 	}
 
 	if (partial_buf) {
-		free(partial_buf);
+		bqws_free(partial_buf);
 		if (ret) {
 			em->partial_first = NULL;
 			em->partial_last = NULL;
@@ -293,12 +307,12 @@ static void pt_io_close(void *user, bqws_socket *ws)
 	while (next) {
 		pt_em_partial *part = next;
 		next = part->next;
-		free(part);
+		bqws_free(part);
 	}
 
 	pt_em_free_websocket(em->handle);
 	em->magic = BQWS_PT_DELETED_MAGIC;
-	free(em);
+	bqws_free(em);
 }
 
 static bqws_socket *pt_connect(const bqws_url *url, const bqws_pt_connect_opts *pt_opts, const bqws_opts *opts, const bqws_client_opts *client_opts)
@@ -325,7 +339,7 @@ static bqws_socket *pt_connect(const bqws_url *url, const bqws_pt_connect_opts *
 	opt.ping_response_timeout = SIZE_MAX;
 	opt.close_timeout = SIZE_MAX;
 
-	pt_em_socket *em = malloc(sizeof(pt_em_socket));
+	pt_em_socket *em = bqws_malloc(sizeof(pt_em_socket));
 	memset(em, 0, sizeof(pt_em_socket));
 	em->magic = BQWS_PT_EM_MAGIC;
 
@@ -338,7 +352,7 @@ static bqws_socket *pt_connect(const bqws_url *url, const bqws_pt_connect_opts *
 
 	bqws_socket *ws = bqws_new_client(&opt, &copt);
 	if (!ws) {
-		free(em);
+		bqws_free(em);
 		return NULL;
 	}
 
@@ -1391,7 +1405,7 @@ static bqws_socket *pt_connect(const bqws_url *url, const bqws_pt_connect_opts *
 	pt_io *io = NULL;
 
 	do {
-        io = malloc(sizeof(pt_io));
+        io = bqws_malloc(sizeof(pt_io));
         if (!io) break;
         
         memset(io, 0, sizeof(pt_io));
@@ -1437,7 +1451,7 @@ static bqws_socket *pt_connect(const bqws_url *url, const bqws_pt_connect_opts *
 
 static bqws_pt_server *pt_listen(const bqws_pt_listen_opts *pt_opts)
 {
-	bqws_pt_server *sv = (bqws_pt_server*)malloc(sizeof(bqws_pt_server));
+	bqws_pt_server *sv = (bqws_pt_server*)bqws_malloc(sizeof(bqws_pt_server));
 	if (!sv) { pt_fail_pt("pt_listen()", BQWS_PT_ERR_OUT_OF_MEMORY); return NULL; }
 	memset(sv, 0, sizeof(bqws_pt_server));
 	sv->magic = BQWS_PT_SERVER_MAGIC;
@@ -1470,7 +1484,7 @@ static bqws_socket *pt_accept(bqws_pt_server *sv, const bqws_opts *opts, const b
 	pt_io *io = NULL;
 
 	do {
-		io = malloc(sizeof(pt_io));
+		io = bqws_malloc(sizeof(pt_io));
 		if (!io) break;
 
 		memset(io, 0, sizeof(pt_io));
@@ -1826,3 +1840,5 @@ const char *bqws_pt_error_code_str(bqws_pt_error_code err)
 	default: return "(unknown)";
 	}
 }
+
+#endif

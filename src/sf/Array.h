@@ -219,7 +219,7 @@ struct Array
 
 	void removeOrdered(size_t index, size_t amount=1) {
 		sf_assert(index + amount <= size);
-		size -= amount;
+		size -= (uint32_t)amount;
 		uint32_t end = size;
 		while (index < end) {
 			data[index].~T();

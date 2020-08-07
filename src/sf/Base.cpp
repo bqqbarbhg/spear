@@ -21,26 +21,6 @@
 
 namespace sf {
 
-#if SF_DEBUG
-
-void *memAlloc(size_t size)
-{
-	return malloc(size);
-}
-
-void *memRealloc(void *ptr, size_t size)
-{
-	return realloc(ptr, size);
-}
-
-void memFree(void *ptr)
-{
-	free(ptr);
-}
-
-
-#endif // SF_DEBUG (for debug allocation)
-
 char *memPrintf(const char *fmt, ...)
 {
 	va_list args1, args2;

@@ -62,7 +62,7 @@ sf_inline T *findComponent(const Prefab &prefab)
 {
 	T *t = (T*)prefab.findComponentImp(T::ComponentType);
 	if (!t) {
-		sf::debugPrintLine("Could not find component %u from %s", (uint32_t)T::ComponentType, prefab.name);
+		sf::debugPrintLine("Could not find component %u from %s", (uint32_t)T::ComponentType, prefab.name.data);
 	}
 	return t;
 }
@@ -471,7 +471,7 @@ void ServerState::doDamage(sf::Array<sf::Box<Event>> &events, const DamageInfo &
 
 					int32_t resistDamage = 0;
 					if (success) {
-						resistDamage = sf::clamp((int32_t)(c->resistAmount * e->finalDamage), 0, e->finalDamage);
+						resistDamage = (uint32_t)sf::clamp((int32_t)(c->resistAmount * e->finalDamage), 0, (int32_t)e->finalDamage);
 						e->finalDamage -= resistDamage;
 					}
 

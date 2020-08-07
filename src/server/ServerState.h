@@ -434,7 +434,7 @@ struct ResistDamageEvent : EventBase<Event::ResistDamage>
 	sf::Symbol cardName;
 	sf::Symbol effectName;
 	float resistAmount;
-	int32_t resistDamage;
+	uint32_t resistDamage;
 	RollInfo successRoll;
 	bool success;
 };
@@ -455,8 +455,8 @@ struct DamageEvent : EventBase<Event::Damage>
 {
 	DamageInfo damageInfo;
 	RollInfo damageRoll;
-	int32_t finalDamage = 0;
-	int32_t meleeArmor = 0;
+	uint32_t finalDamage = 0;
+	uint32_t meleeArmor = 0;
 };
 
 struct LoadPrefabEvent : EventBase<Event::LoadPrefab>

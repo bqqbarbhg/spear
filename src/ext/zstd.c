@@ -1,3 +1,8 @@
+#include "sf/Platform.h"
+#include <stdlib.h>
+#define malloc(size) sf_malloc(size)
+#define free(ptr) sf_free(ptr)
+
 /**
  * \file zstd.c
  * Single-file Zstandard library.

@@ -93,7 +93,6 @@ struct ImplicitHashMap
 		uint32_t index;
 		if (insertImp(key, index)) {
 			new (&data[index]) Entry();
-			new (&KeyFn()(data[index])) Key(key);
 		}
 		return data[index];
 	}
@@ -125,7 +124,6 @@ struct ImplicitHashMap
 		Entry *entry = &data[index];
 		if (inserted) {
 			new (&data[index]) Entry();
-			new (&data[index].implicitKeyRef()) Key(key);
 		}
 		return { *entry, inserted };
 	}

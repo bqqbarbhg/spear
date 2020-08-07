@@ -8,6 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef mx_malloc
+#define mx_malloc(size) malloc(size)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -73,7 +77,7 @@ uint32_t mx_sema_pool_alloc()
 		// ^^^ block->next ^^^
 		if (next == NULL) {
 			// Allocate aligned to 128 bytes to not trash unrelated cache lines
-			char *data = (char*)malloc(sizeof(sema_block) + 128);
+			char *data = (char*)mx_malloc(sizeof(sema_block) + 128);
 			size_t align = (size_t)(-(intptr_t)data & 127);
 			next = (sema_block*)(data + align);
 			memset(next, 0, sizeof(sema_block));

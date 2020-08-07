@@ -2,6 +2,8 @@
 
 namespace cl {
 
+#if 0
+
 void ClientState::applyEvent(const sv::Event &event, bool simulated)
 {
 	if (auto *e = event.as<sv::CardCooldownTickEvent>()) {
@@ -36,6 +38,12 @@ void ClientState::applyEvent(const sv::Event &event, bool simulated)
 	} else if (auto *e = event.as<sv::AddCharacterToSpawn>()) {
 	} else if (auto *e = event.as<sv::SelectCharacterToSpawnEvent>()) {
 	}
+}
+
+#endif
+
+void ClientState::renderShadows(const RenderShadowArgs &args)
+{
 }
 
 }

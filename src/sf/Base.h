@@ -41,19 +41,9 @@ namespace sf {
 // -- Memory allocation
 
 // Generic malloc()-like allocation
-#if SF_DEBUG
-	sf_malloc_like void *memAlloc(size_t size);
-	void *memRealloc(void *ptr, size_t size);
-	void memFree(void *ptr);
-
-	sf_malloc_like void *alignedAlloc(size_t size, size_t align);
-	void *alignedRealloc(void *ptr, size_t size, size_t align);
-	void alignedFree(void *ptr);
-#else
-	sf_inline sf_malloc_like void *memAlloc(size_t size) { return malloc(size); }
-	sf_inline void *memRealloc(void *ptr, size_t size) { return realloc(ptr, size); }
-	sf_inline void memFree(void *ptr) { free(ptr); }
-#endif
+sf_inline sf_malloc_like void *memAlloc(size_t size) { return sf_malloc(size); }
+sf_inline void *memRealloc(void *ptr, size_t size) { return sf_realloc(ptr, size); }
+sf_inline void memFree(void *ptr) { sf_free(ptr); }
 
 // -- Useful inline functions
 

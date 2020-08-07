@@ -88,7 +88,7 @@ static RichSpan findNextWord(sf::Slice<const RichTextDraw> draws, const RichOffs
 		}
 		if (end.offset >= draw.text.size || draw.style.noBreak) {
 			if (draw.softBreak && (begin.draw < end.draw || begin.offset < draw.text.size)) {
-				end.offset = draw.text.size;
+				end.offset = (uint32_t)draw.text.size;
 				break;
 			} else {
 				end.offset = 0;
@@ -520,7 +520,7 @@ sf::Vec2 drawRichText(sp::Canvas &canvas, const RichTextDesc &desc, sf::String t
 			if (split.draw < draws.size) {
 				uint32_t offsetStart = split.draw == line.begin.draw ? line.begin.offset : 0;
 				uint32_t offsetLo = offsetStart;
-				uint32_t offsetHi = draws[split.draw].text.size;
+				uint32_t offsetHi = (uint32_t)draws[split.draw].text.size;
 				while (offsetLo < offsetHi) {
 					uint32_t offsetMid = (offsetLo + offsetHi) >> 1;
 					RichOffset end = { split.draw, offsetMid };

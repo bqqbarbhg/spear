@@ -2,6 +2,10 @@
 
 #define SOKOL_IMPL
 
+#define SOKOL_MALLOC(s) sf_malloc(s)
+#define SOKOL_CALLOC(n, s) sf_calloc(n, s)
+#define SOKOL_FREE(p) sf_free(p)
+
 #include "sokol_fetch.h"
 #include "sokol_app.h"
 #include "sokol_gfx.h"

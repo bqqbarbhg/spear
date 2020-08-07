@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sf/Base.h"
+#include "sf/Box.h"
 
 namespace cl {
 

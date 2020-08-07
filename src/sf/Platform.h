@@ -248,3 +248,21 @@ void sf_set_debug_thread_name(const char *name);
 #endif
 
 #endif
+
+#ifndef SF_USE_MIMALLOC
+#define SF_USE_MIMALLOC 0
+#endif
+
+#if SF_USE_MIMALLOC
+	#include "ext/mimalloc/mimalloc.h"
+	#define sf_malloc(size) mi_malloc((size))
+	#define sf_calloc(num, size) mi_calloc((num), (size))
+	#define sf_realloc(ptr, size) mi_realloc((ptr), (size))
+	#define sf_free(ptr) mi_free((ptr))
+#else
+	#include <stdlib.h>
+	#define sf_malloc(size) malloc((size))
+	#define sf_calloc(num, size) calloc((num), (size))
+	#define sf_realloc(ptr, size) realloc((ptr), (size))
+	#define sf_free(ptr) free((ptr))
+#endif

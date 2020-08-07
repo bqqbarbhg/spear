@@ -274,16 +274,17 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 static void jsoArrayFlush(jso_stream *s)
 {
 	sf::Array<char> &arr = *(sf::Array<char>*)s->user;
-	arr.size += s->pos;
+	arr.size += (uint32_t)s->pos;
 	arr.reserveGeometric(arr.capacity + 1);
 	s->data = arr.data + arr.size;
 	s->capacity = arr.capacity - arr.size;
+	s->pos = 0;
 }
 
 static void jsoArrayClose(jso_stream *s)
 {
 	sf::Array<char> &arr = *(sf::Array<char>*)s->user;
-	arr.size += s->pos;
+	arr.size += (uint32_t)s->pos;
 }
 
 void jsoInitArray(jso_stream *s, sf::Array<char> &arr)

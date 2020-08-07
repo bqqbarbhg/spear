@@ -5,6 +5,10 @@
 #define SOKOL_IMPL
 #define SOKOL_GL_IMPL
 
+#define SOKOL_MALLOC(s) sf_malloc(s)
+#define SOKOL_CALLOC(n, s) sf_calloc(n, s)
+#define SOKOL_FREE(p) sf_free(p)
+
 #define SOKOL_FETCH_THREAD_START() sf_set_debug_thread_name("Fetch Thread")
 
 #if !SF_OS_WASM && !SF_OS_APPLE && !defined(SP_NO_APP)

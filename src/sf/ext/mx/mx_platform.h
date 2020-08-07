@@ -1,5 +1,7 @@
 #pragma once
 
+#include "mx_config.h"
+
 #if defined(_WIN32)
 	#include "mx_platform_win32.h"
 #elif defined(__EMSCRIPTEN_PTHREADS__)

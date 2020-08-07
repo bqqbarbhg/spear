@@ -53,6 +53,10 @@ workspace "spear"
 	exceptionhandling "Off"
 	rtti "Off"
 
+	defines { "BQWS_USE_IMPL=1" }
+	defines { "JSI_USE_IMPL=1" }
+	defines { "SF_USE_MIMALLOC=1" }
+
 	if cppdialect ~= nil then
 		cppdialect "C++14"
 	else
@@ -161,6 +165,7 @@ workspace "spear"
 		linkoptions { "-s WASM=1" }
 		linkoptions { "-s INITIAL_MEMORY=536870912" }
 		defines { "SP_USE_WEBGL2=1" }
+		defines { "MI_MALLOC_OVERRIDE=1" }
 		objdir "proj/obj/wasm/%{cfg.buildcfg}"
 
 	filter { "platforms:wasm", "options:wasm-simd" }
