@@ -468,6 +468,8 @@ bool spmdl_util_init(spmdl_util *su, const void *data, size_t size)
 	spfile_check(header->s_bones.uncompressed_size / sizeof(spmdl_bone) == header->info.num_bones);
 	spfile_check(header->s_materials.uncompressed_size / sizeof(spmdl_material) == header->info.num_materials);
 	spfile_check(header->s_meshes.uncompressed_size / sizeof(spmdl_mesh) == header->info.num_meshes);
+	spfile_check(header->s_bvh_nodes.uncompressed_size / sizeof(spmdl_bvh_node) == header->info.num_bvh_nodes);
+	spfile_check(header->s_bvh_tris.uncompressed_size / sizeof(uint32_t) == header->info.num_bvh_tris * 3);
 	return true;
 }
 
@@ -534,6 +536,28 @@ bool spmdl_check_meshes(spmdl_util *su, spmdl_mesh *meshes)
 	return true;
 }
 
+bool spmdl_check_bvh_nodes(spmdl_util *su, spmdl_bvh_node *nodes)
+{
+	if (su->file.failed) return false;
+	spmdl_header *header = (spmdl_header*)su->file.data;
+	if (!su->file.failed) {
+		for (spmdl_bvh_node *n = nodes, *end = n + header->info.num_bvh_nodes; n != end; n++) {
+			for (uint32_t i = 0; i < 2; i++) {
+				spmdl_bvh_split *s = &n->splits[i];
+				if (s->num_triangles >= 0) {
+					spfile_check((uint32_t)s->num_triangles <= header->info.num_bvh_tris);
+					spfile_check(s->data_index <= header->info.num_bvh_tris - s->num_triangles);
+				} else {
+					spfile_check(s->num_triangles == -1);
+					spfile_check(s->data_index >= (uint32_t)(n - nodes));
+					spfile_check(s->data_index < header->info.num_bvh_nodes);
+				}
+			}
+		}
+	}
+	return true;
+}
+
 bool spmdl_decode_strings_to(spmdl_util *su, char *buffer)
 {
 	if (su->file.failed) return false;
@@ -580,6 +604,28 @@ bool spmdl_decode_meshes_to(spmdl_util *su, spmdl_mesh *buffer)
 	spmdl_header *header = (spmdl_header*)su->file.data;
 	if (spfile_decode_section_to(&su->file, &header->s_meshes, buffer)) {
 		return spmdl_check_meshes(su, buffer);
+	} else {
+		return false;
+	}
+}
+
+bool spmdl_decode_bvh_nodes_to(spmdl_util *su, spmdl_bvh_node *buffer)
+{
+	if (su->file.failed) return false;
+	spmdl_header *header = (spmdl_header*)su->file.data;
+	if (spfile_decode_section_to(&su->file, &header->s_bvh_nodes, buffer)) {
+		return spmdl_check_bvh_nodes(su, buffer);
+	} else {
+		return false;
+	}
+}
+
+bool spmdl_decode_bvh_tris_to(spmdl_util *su, uint32_t *buffer)
+{
+	if (su->file.failed) return false;
+	spmdl_header *header = (spmdl_header*)su->file.data;
+	if (spfile_decode_section_to(&su->file, &header->s_bvh_tris, buffer)) {
+		return true;
 	} else {
 		return false;
 	}
@@ -662,6 +708,31 @@ spmdl_mesh *spmdl_decode_meshes(spmdl_util *su)
 	spmdl_mesh *buffer = spfile_decode_section(&su->file, &header->s_meshes);
 	if (buffer) {
 		if (!spmdl_check_meshes(su, buffer)) return NULL;
+		return buffer;
+	} else {
+		return NULL;
+	}
+}
+
+spmdl_bvh_node *spmdl_decode_bvh_nodes(spmdl_util *su)
+{
+	if (su->file.failed) return NULL;
+	spmdl_header *header = (spmdl_header*)su->file.data;
+	spmdl_bvh_node *buffer = spfile_decode_section(&su->file, &header->s_bvh_nodes);
+	if (buffer) {
+		if (!spmdl_check_bvh_nodes(su, buffer)) return NULL;
+		return buffer;
+	} else {
+		return NULL;
+	}
+}
+
+uint32_t *spmdl_decode_bvh_tris(spmdl_util *su)
+{
+	if (su->file.failed) return NULL;
+	spmdl_header *header = (spmdl_header*)su->file.data;
+	uint32_t *buffer = spfile_decode_section(&su->file, &header->s_bvh_tris);
+	if (buffer) {
 		return buffer;
 	} else {
 		return NULL;

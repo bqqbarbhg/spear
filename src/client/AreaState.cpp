@@ -13,7 +13,7 @@ namespace cl {
 
 static const float SpatialNodeTopLevelSize = 128.0f;
 static const float SpatialNodePaddingRatio = 0.5f;
-static const uint32_t SpatialNodeMaxDepth = 5;
+static const uint32_t SpatialNodeMaxDepth = 6;
 static const sf::Vec3 SpatialNodeGridOrigin = sf::Vec3(0.0f, -2.0f, 0.0f);
 
 struct SpatialChildren;
@@ -101,6 +101,17 @@ struct AreaStateImp : AreaState
 	}
 };
 
+sf_inline bool intesersectRayAabb(const sf::Vec3 &origin, const sf::Vec3 &rcpDir, const sf::Vec3 &min, const sf::Vec3 &max, float tMin)
+{
+	sf::Vec3 loT = (min - origin) * rcpDir;
+	sf::Vec3 hiT = (max - origin) * rcpDir;
+	sf::Vec3 minT = sf::min(loT, hiT);
+	sf::Vec3 maxT = sf::max(loT, hiT);
+	float t0 = sf::max(minT.x, minT.y, minT.z);
+	float t1 = sf::min(maxT.x, maxT.y, maxT.z);
+	return t0 < t1 && t1 >= tMin;
+}
+
 static void walkSpatialNodes(sf::Array<const SpatialNode*> &nodes, const sf::Frustum &frustum)
 {
 	for (uint32_t nodeI = 0; nodeI < nodes.size; nodeI++) {
@@ -114,6 +125,25 @@ static void walkSpatialNodes(sf::Array<const SpatialNode*> &nodes, const sf::Fru
 
 			const SpatialNodeImp *child = &children[index];
 			if (frustum.intersects(sf::Bounds3::minMax(child->min, child->max))) {
+				nodes.push(child);
+			}
+		}
+	}
+}
+
+static void walkSpatialNodesRay(sf::Array<const SpatialNode*> &nodes, sf::Vec3 origin, sf::Vec3 rcpDir, float tMin)
+{
+	for (uint32_t nodeI = 0; nodeI < nodes.size; nodeI++) {
+		const SpatialNodeImp *node = (const SpatialNodeImp*)nodes[nodeI];
+
+		const SpatialNodeImp *children = node->children->child;
+		uint32_t childMask = node->childMask;
+		while (childMask) {
+			uint32_t index = mx_ctz32(childMask);
+			childMask &= childMask - 1;
+
+			const SpatialNodeImp *child = &children[index];
+			if (intesersectRayAabb(origin, rcpDir, child->min, child->max, tMin)) {
 				nodes.push(child);
 			}
 		}
@@ -669,7 +699,7 @@ void AreaState::optimizeSpatialNodes()
 	}
 }
 
-void AreaState::querySpatialNodesFrustum(sf::Array<const SpatialNode*> &nodes, const sf::Frustum &frustum)
+void AreaState::processDirtyNodes()
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
 
@@ -708,6 +738,13 @@ void AreaState::querySpatialNodesFrustum(sf::Array<const SpatialNode*> &nodes, c
 		}
 		dirtyNodes.clear();
 	}
+}
+
+void AreaState::querySpatialNodesFrustum(sf::Array<const SpatialNode*> &nodes, const sf::Frustum &frustum)
+{
+	AreaStateImp *imp = (AreaStateImp*)this;
+
+	processDirtyNodes();
 
 	for (auto &pair : imp->topSpatialNodes) {
 		if (frustum.intersects(sf::Bounds3::minMax(pair.val->min, pair.val->max))) {
@@ -715,6 +752,23 @@ void AreaState::querySpatialNodesFrustum(sf::Array<const SpatialNode*> &nodes, c
 		}
 	}
 	walkSpatialNodes(nodes, frustum);
+}
+
+void AreaState::querySpatialNodesRay(sf::Array<const SpatialNode*> &nodes, const sf::Ray &ray, float tMin)
+{
+	AreaStateImp *imp = (AreaStateImp*)this;
+
+	processDirtyNodes();
+
+	sf::Vec3 origin = ray.origin;
+	sf::Vec3 rcpDir = sf::Vec3(1.0f) / ray.direction;
+
+	for (auto &pair : imp->topSpatialNodes) {
+		if (intesersectRayAabb(origin, rcpDir, pair.val->min, pair.val->max, tMin)) {
+			nodes.push(pair.val);
+		}
+	}
+	walkSpatialNodesRay(nodes, origin, rcpDir, tMin);
 }
 
 const AreaGroupState &AreaState::getGroupState(uint32_t groupId) const

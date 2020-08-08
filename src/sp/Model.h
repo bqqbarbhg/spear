@@ -29,6 +29,11 @@ struct VertexStream
 	char *cpuData = nullptr;
 };
 
+struct MeshCollisionTriangle
+{
+	uint32_t v[3];
+};
+
 struct Mesh
 {
 	sf::Symbol materialName;
@@ -36,11 +41,13 @@ struct Mesh
 	sf::SmallArray<VertexStream, 2> streams;
 	sf::SmallArray<spmdl_attrib, 8> attribs;
 	sf::Array<MeshBone> bones;
+	sf::Array<MeshCollisionTriangle> collision;
 	sf::Bounds3 bounds;
 
 	uint32_t numIndices = 0;
 	uint32_t numVertices = 0;
 	uint32_t indexBufferOffset = 0;
+	uint32_t bvhRootNodeIndex = ~0u;
 	uint16_t *cpuIndexData16 = nullptr;
 	uint32_t *cpuIndexData32 = nullptr;
 };
@@ -83,6 +90,15 @@ struct Model : Asset
 
 	sf::Array<char> cpuVertexData;
 	sf::Array<char> cpuIndexData;
+
+	sf::Array<spmdl_bvh_node> bvhNodes;
+	sf::Array<uint32_t> bvhTriangles;
+
+	float castMeshRay(uint32_t rootNode, const sf::Ray &ray, float tMin=0.0f) const;
+	float castMeshRay(uint32_t rootNode, const sf::Ray &ray, const sf::Mat34 &transform, float tMin=0.0f) const;
+
+	float castModelRay(const sf::Ray &ray, float tMin=0.0f) const;
+	float castModelRay(const sf::Ray &ray, const sf::Mat34 &transform, float tMin=0.0f) const;
 };
 
 using ModelRef = Ref<Model>;

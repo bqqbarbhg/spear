@@ -4,6 +4,8 @@
 #include "sf/Matrix.h"
 #include "server/ServerState.h"
 
+namespace sf { struct Ray; }
+
 namespace cl {
 
 struct RenderArgs;
@@ -21,6 +23,8 @@ struct MeshState
 
 	void renderShadows(sf::Slice<const SpatialNode*> visibleNodes, const RenderArgs &args);
 	void renderMeshses(const RenderArgs &args);
+
+	float castRay(uint32_t meshId, const sf::Ray &ray, float tMin=0.0f) const;
 };
 
 }

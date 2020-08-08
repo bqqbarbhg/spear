@@ -27,7 +27,7 @@ sf::Sphere transformSphere(const sf::Mat34 &transform, const sf::Sphere &sphere)
 	return result;
 }
 
-bool intesersectRay(float &outT, const Ray &ray, const Sphere &sphere)
+bool intesersectRay(float &outT, const Ray &ray, const Sphere &sphere, float tMin)
 {
 	sf::Vec3 delta = ray.origin - sphere.origin;
 	float a = sf::dot(ray.direction, ray.direction);
@@ -37,11 +37,12 @@ bool intesersectRay(float &outT, const Ray &ray, const Sphere &sphere)
 	if (radicand <= 0.0f) return false;
 	float root = sf::sqrt(radicand);
 	float denom = 0.5f / a;
+	if ((-b + root) * denom < tMin) return false;
 	outT = (-b - root) * denom;
 	return true;
 }
 
-bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds)
+bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, float tMin)
 {
 	sf::Vec3 rcpDir = sf::Vec3(1.0f) / ray.direction;
 	sf::Vec3 relOrigin = bounds.origin - ray.origin;
@@ -51,19 +52,19 @@ bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds)
 	sf::Vec3 maxT = sf::max(loT, hiT);
 	float t0 = sf::max(minT.x, minT.y, minT.z);
 	float t1 = sf::min(maxT.x, maxT.y, maxT.z);
-	if (t0 >= t1) return false;
+	if (t0 >= t1 || t1 < tMin) return false;
 	outT = t0;
 	return true;
 }
 
-bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, const Mat34 &transform)
+bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, const Mat34 &transform, float tMin)
 {
 	sf::Mat34 invTransform = sf::inverse(transform);
 	Ray localRay = transformRay(invTransform, ray);
-	return intesersectRay(outT, localRay, bounds);
+	return intesersectRay(outT, localRay, bounds, tMin);
 }
 
-bool intesersectRayObb(float &outT, const Ray &ray, const Mat34 &obb)
+bool intesersectRayObb(float &outT, const Ray &ray, const Mat34 &obb, float tMin)
 {
 	sf::Mat34 invTransform = sf::inverse(obb);
 	Ray localRay = transformRay(invTransform, ray);
@@ -75,7 +76,7 @@ bool intesersectRayObb(float &outT, const Ray &ray, const Mat34 &obb)
 	sf::Vec3 maxT = sf::max(loT, hiT);
 	float t0 = sf::max(minT.x, minT.y, minT.z);
 	float t1 = sf::min(maxT.x, maxT.y, maxT.z);
-	if (t0 >= t1) return false;
+	if (t0 >= t1 || t1 < tMin) return false;
 	outT = t0;
 	return true;
 }

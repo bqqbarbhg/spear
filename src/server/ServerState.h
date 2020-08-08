@@ -372,11 +372,13 @@ struct Event
 		MeleeAttack,
 		Damage,
 		LoadPrefab,
+		ReloadPrefab,
 		RemoveGarbageIds,
 		RemoveGarbagePrefabs,
 		AddProp,
 		AddCharacter,
 		AddCard,
+		ReloadProp,
 		MoveProp,
 		GiveCard,
 		SelectCard,
@@ -465,6 +467,11 @@ struct LoadPrefabEvent : EventBase<Event::LoadPrefab>
 	Prefab prefab;
 };
 
+struct ReloadPrefabEvent : EventBase<Event::LoadPrefab>
+{
+	Prefab prefab;
+};
+
 struct RemoveGarbageIdsEvent : EventBase<Event::RemoveGarbageIds>
 {
 	sf::Array<uint32_t> ids;
@@ -488,6 +495,11 @@ struct AddCharacterEvent : EventBase<Event::AddCharacter>
 struct AddCardEvent : EventBase<Event::AddCard>
 {
 	Card card;
+};
+
+struct ReloadPropEvent : EventBase<Event::ReloadProp>
+{
+	Prop prop;
 };
 
 struct MovePropEvent : EventBase<Event::MoveProp>
@@ -598,6 +610,8 @@ struct ServerState
 	void castSpell(sf::Array<sf::Box<Event>> &events, const SpellInfo &spellInfo);
 	void meleeAttack(sf::Array<sf::Box<Event>> &events, const MeleeInfo &meleeInfo);
 	void startCharacterTurn(sf::Array<sf::Box<Event>> &events, uint32_t characterId);
+
+	void reloadPrefab(sf::Array<sf::Box<Event>> &events, const Prefab &prefab);
 
 	uint32_t selectCharacterSpawn(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, uint32_t playerId);
 

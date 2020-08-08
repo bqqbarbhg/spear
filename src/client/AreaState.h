@@ -109,7 +109,11 @@ struct AreaState
 
 	void optimizeSpatialNodes();
 
+	void processDirtyNodes();
+
 	void querySpatialNodesFrustum(sf::Array<const SpatialNode*> &nodes, const sf::Frustum &frustum);
+	void querySpatialNodesRay(sf::Array<const SpatialNode*> &nodes, const sf::Ray &ray, float tMin=0.0f);
+
 	const AreaGroupState &getGroupState(uint32_t groupId) const;
 
 	void updateMainVisibility(sf::Slice<const SpatialNode*> nodes, const sf::Frustum &frustum);

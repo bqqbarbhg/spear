@@ -190,6 +190,8 @@ void ServerState::applyEvent(const Event &event)
 	} else if (auto *e = event.as<LoadPrefabEvent>()) {
 		auto res = prefabs.insertOrAssign(e->prefab);
 		sv_check(res.inserted);
+	} else if (auto *e = event.as<ReloadPrefabEvent>()) {
+		prefabs[e->prefab.name] = e->prefab;
 	} else if (auto *e = event.as<RemoveGarbageIdsEvent>()) {
 		removeIds(e->ids.slice());
 	} else if (auto *e = event.as<RemoveGarbagePrefabsEvent>()) {
@@ -674,6 +676,38 @@ void ServerState::startCharacterTurn(sf::Array<sf::Box<Event>> &events, uint32_t
 			e->statusId = status->id;
 			pushEvent(*this, events, std::move(e));
 		}
+	}
+}
+
+void ServerState::reloadPrefab(sf::Array<sf::Box<Event>> &events, const Prefab &prefab)
+{
+	// If the prefab doesn't exist just load it
+	Prefab *existing = prefabs.find(prefab.name);
+	if (!existing) {
+		{
+			auto e = sf::box<LoadPrefabEvent>();
+			e->prefab = prefab;
+			pushEvent(*this, events, e);
+		}
+		loadPrefab(*this, events, prefab.name);
+		return;
+	}
+
+	// Reload prefab + load potential dependencies
+	{
+		auto e = sf::box<ReloadPrefabEvent>();
+		e->prefab = prefab;
+		pushEvent(*this, events, e);
+	}
+	loadPrefab(*this, events, prefab.name);
+
+	// Reload props
+	for (Prop &prop : props) {
+		if (prop.prefabName != prefab.name) continue;
+
+		auto e = sf::box<ReloadPropEvent>();
+		e->prop = prop;
+		pushEvent(*this, events, e);
 	}
 }
 

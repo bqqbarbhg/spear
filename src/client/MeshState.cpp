@@ -220,4 +220,12 @@ void MeshState::renderMeshses(const RenderArgs &args)
 	}
 }
 
+float MeshState::castRay(uint32_t meshId, const sf::Ray &ray, float tMin) const
+{
+	const MeshStateImp *imp = (const MeshStateImp*)this;
+	const MeshImp &meshImp = imp->meshes[meshId];
+	float t = meshImp.model->castModelRay(ray, meshImp.worldTransform, tMin);
+	return t;
+}
+
 }

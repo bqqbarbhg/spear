@@ -9,27 +9,60 @@ struct DebugDrawDataImp
 	sf::Array<DebugSphere> spheres;
 };
 
+struct DebugDrawThread
+{
+	sf::Mat34 transform;
+	sf::SmallArray<sf::Mat34, 8> transformStack;
+};
+
 static sf::StaticMutex g_mutex;
 static DebugDrawDataImp g_appendData, g_renderData;
+thread_local DebugDrawThread *t_debugDrawData;
+
+static sf::Mat34 getDebugDrawTransform()
+{
+	if (!t_debugDrawData) return { };
+	return t_debugDrawData->transform;
+}
+
+void debugDrawPushTransform(const sf::Mat34 &transform)
+{
+	if (!t_debugDrawData) t_debugDrawData = new DebugDrawThread();
+	t_debugDrawData->transformStack.push(t_debugDrawData->transform);
+	t_debugDrawData->transform = t_debugDrawData->transform * transform;
+}
+
+void debugDrawPopTransform()
+{
+	if (!t_debugDrawData) t_debugDrawData = new DebugDrawThread();
+	t_debugDrawData->transform = t_debugDrawData->transformStack.popValue();
+}
 
 void debugDrawLine(const DebugLine &line)
 {
+	sf::Mat34 transform = getDebugDrawTransform();
 	sf::MutexGuard mg(g_mutex);
-	g_appendData.lines.push(line);
+	DebugLine &dst = g_appendData.lines.push();
+	dst.a = sf::transformPoint(transform, line.a);
+	dst.b = sf::transformPoint(transform, line.b);
+	dst.color = line.color;
 }
 
 void debugDrawLine(const sf::Vec3 &a, const sf::Vec3 &b, const sf::Vec3 &color)
 {
+	sf::Mat34 transform = getDebugDrawTransform();
 	sf::MutexGuard mg(g_mutex);
 	DebugLine &line = g_appendData.lines.push();
-	line.a = a;
-	line.b = b;
+	line.a = sf::transformPoint(transform, a);
+	line.b = sf::transformPoint(transform, b);
 	line.color = color;
 }
 
-void debugDrawBox(const sf::Mat34 &transform, const sf::Vec3 &color)
+void debugDrawBox(const sf::Mat34 &boxTransform, const sf::Vec3 &color)
 {
 	sf::MutexGuard mg(g_mutex);
+
+	sf::Mat34 transform = getDebugDrawTransform() * boxTransform;
 
 	sf::Vec3 c000 = transform.cols[3] - transform.cols[0] - transform.cols[1] - transform.cols[2];
 	sf::Vec3 c100 = transform.cols[3] + transform.cols[0] - transform.cols[1] - transform.cols[2];
@@ -64,7 +97,7 @@ void debugDrawBox(const sf::Bounds3 &bounds, const sf::Vec3 &color)
 void debugDrawSphere(const sf::Mat34 &transform, const sf::Vec3 &color)
 {
 	sf::MutexGuard mg(g_mutex);
-	g_appendData.spheres.push({ transform, color });
+	g_appendData.spheres.push({ getDebugDrawTransform() * transform, color });
 }
 
 void debugDrawSphere(const sf::Vec3 &origin, float radius, const sf::Vec3 &color)

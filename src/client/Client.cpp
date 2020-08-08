@@ -25,7 +25,153 @@
 #include "client/ClientState.h"
 #include "client/ClientGlobal.h"
 
+#include "client/AreaState.h"
+#include "client/MeshState.h"
+
+#include "game/DebugDraw.h"
+#include "game/shader/Line.h"
+#include "game/shader/Sphere.h"
+
 namespace cl {
+
+
+struct DebugRenderHandles
+{
+	static constexpr const uint32_t MaxLinesPerFrame = 4096;
+	static constexpr const uint32_t MaxSpheresPerFrame = 1024;
+
+	bool initialized = false;
+	sp::Buffer lineBuffer;
+	sp::Buffer sphereVertexBuffer;
+	sp::Buffer sphereIndexBuffer;
+	sp::Buffer sphereInstanceBuffer;
+	sp::Pipeline linePipe;
+	sp::Pipeline spherePipe;
+
+	void init()
+	{
+		if (initialized) return;
+		initialized = true;
+
+		{
+			float phi = 1.61803398875f;
+			sf::Vec3 sphereVertices[] = {
+				{-1,phi,0}, {1,phi,0}, {-1,-phi,0}, {1,-phi,0}, 
+				{0,-1,phi}, {0,1,phi}, {0,-1,-phi}, {0,1,-phi},
+				{phi,0,-1}, {phi,0,1}, {-phi,0,-1}, {-phi,0,1},
+			};
+			uint16_t sphereIndices[] = {
+				0, 1, 0, 5, 0, 7, 0, 10, 0, 11, 1, 5, 1, 7, 1, 8,
+				1, 9, 2, 3, 2, 4, 2, 6, 2, 10, 2, 11, 3, 4, 3, 6,
+				3, 8, 3, 9, 4, 5, 4, 9, 4, 11, 5, 9, 5, 11, 6, 7,
+				6, 8, 6, 10, 7, 8, 7, 10, 8, 9, 10, 11
+			};
+
+			for (sf::Vec3 &v : sphereVertices) {
+				v = sf::normalize(v);
+			}
+
+			sphereVertexBuffer.initVertex("Sphere vertex buffer", sf::slice(sphereVertices));
+			sphereIndexBuffer.initIndex("Sphere index buffer", sf::slice(sphereIndices));
+		}
+
+		lineBuffer.initDynamicVertex("Line buffer", sizeof(sf::Vec3) * 2 * 2 * MaxLinesPerFrame);
+		sphereInstanceBuffer.initDynamicVertex("Sphere instance buffer", sizeof(sf::Vec4) * 4 * MaxSpheresPerFrame);
+
+		{
+			uint32_t flags = sp::PipeDepthWrite;
+			auto &d = linePipe.init(gameShaders.line, flags);
+			d.primitive_type = SG_PRIMITIVETYPE_LINES;
+			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+			d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+		}
+
+		{
+			uint32_t flags = sp::PipeDepthWrite | sp::PipeIndex16;
+			auto &d = spherePipe.init(gameShaders.sphere, flags);
+			d.primitive_type = SG_PRIMITIVETYPE_LINES;
+			d.layout.buffers[1].step_func = SG_VERTEXSTEP_PER_INSTANCE;
+			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+			for (uint32_t i = 1; i <= 4; i++) {
+				d.layout.attrs[i].format = SG_VERTEXFORMAT_FLOAT4;
+				d.layout.attrs[i].buffer_index = 1;
+			}
+		}
+	}
+
+	void render(const sf::Mat44 &worldToClip)
+	{
+		debugDrawFlipBuffers();
+		DebugDrawData data = debugDrawGetData();
+
+		sf::Slice<DebugLine> lines = data.lines.take(sf::min(MaxLinesPerFrame, (uint32_t)data.lines.size));
+		sf::Slice<DebugSphere> spheres = data.spheres.take(sf::min(MaxSpheresPerFrame, (uint32_t)data.spheres.size));
+
+		if (!lines.size && !spheres.size) return;
+
+		if (!initialized) {
+			init();
+		}
+
+		{
+			sf::Array<sf::Vec3> lineData;
+			lineData.resizeUninit(lines.size * 2 * 2);
+			sf::Vec3 *dst = lineData.data;
+			for (DebugLine &line : lines) {
+				dst[0] = line.a;
+				dst[1] = line.color;
+				dst[2] = line.b;
+				dst[3] = line.color;
+				dst += 4;
+			}
+			sg_update_buffer(lineBuffer.buffer, lineData.data, (int)lineData.byteSize());
+		}
+
+		{
+			sf::Array<sf::Vec4> sphereData;
+			sphereData.resizeUninit(spheres.size * 4);
+			sf::Vec4 *dst = sphereData.data;
+			for (DebugSphere &sphere : spheres) {
+				dst[0] = sf::Vec4(sphere.color, 0.0f);
+				dst[1] = sphere.transform.getRow(0);
+				dst[2] = sphere.transform.getRow(1);
+				dst[3] = sphere.transform.getRow(2);
+				dst += 4;
+			}
+			sg_update_buffer(sphereInstanceBuffer.buffer, sphereData.data, (int)sphereData.byteSize());
+		}
+
+		if (lines.size) {
+			linePipe.bind();
+
+			Line_Vertex_t vu;
+			worldToClip.writeColMajor44(vu.worldToClip);
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Line_Vertex, &vu, sizeof(vu));
+
+			sg_bindings binds = { };
+			binds.vertex_buffers[0] = lineBuffer.buffer;
+			sg_apply_bindings(&binds);
+
+			sg_draw(0, (int)lines.size * 2, 1);
+		}
+
+		if (spheres.size) {
+			spherePipe.bind();
+
+			Sphere_Vertex_t vu;
+			worldToClip.writeColMajor44(vu.worldToClip);
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Sphere_Vertex, &vu, sizeof(vu));
+
+			sg_bindings binds = { };
+			binds.index_buffer = sphereIndexBuffer.buffer;
+			binds.vertex_buffers[0] = sphereVertexBuffer.buffer;
+			binds.vertex_buffers[1] = sphereInstanceBuffer.buffer;
+			sg_apply_bindings(&binds);
+
+			sg_draw(0, 60, (int)spheres.size);
+		}
+	}
+};
 
 struct Client
 {
@@ -67,6 +213,9 @@ struct Client
 		sp::FontRef{ "Assets/Gui/Font/NotoSans-Italic.ttf" },
 		sp::FontRef{ "Assets/Gui/Font/NotoSans-BoldItalic.ttf" },
 	};
+
+	// Debug draw
+	DebugRenderHandles debugRender;
 
 	// Misc
 	uint32_t reloadCount = 0;
@@ -317,15 +466,46 @@ bool clientUpdate(Client *c, const ClientInput &input)
 		}
 	}
 
-	sf::Vec3 eye = sf::Vec3(0.0f, 2.0f, 3.0f);
-	sf::Mat34 worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.5f));
-	sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.7f, (float)sapp_width()/(float)sapp_height(), 1.0f, 30.0f);
+	sf::Vec3 eye = sf::Vec3(0.0f, 5.0f, 10.0f);
+	sf::Mat34 worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.2f));
+	sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.3f, (float)sapp_width()/(float)sapp_height(), 1.0f, 100.0f);
 	sf::Mat44 worldToClip = viewToClip * worldToView;
 
 	sf::Frustum viewFrustum { worldToClip, 0.0f };
 
+	sf::Mat44 clipToWorld = sf::inverse(worldToClip);
+
 	c->clState->updateAssetLoading();
 	c->clState->updateVisibility(viewFrustum);
+
+	sf::Vec2 clipMouse = input.mousePosition * sf::Vec2(+2.0f, -2.0f) + sf::Vec2(-1.0f, +1.0f);
+	sf::Vec4 rayBegin = clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 0.0f, 1.0f);
+	sf::Vec4 rayEnd = clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 1.0f, 1.0f);
+	sf::Vec3 rayOrigin = sf::Vec3(rayBegin.v) / rayBegin.w;
+	sf::Vec3 rayDirection = sf::normalize(sf::Vec3(rayEnd.v) / rayEnd.w - rayOrigin);
+
+	sf::Ray mouseRay = { rayOrigin, rayDirection };
+
+	sf::SmallArray<const cl::SpatialNode*, 64> nodes;
+	c->clState->areaState->querySpatialNodesRay(nodes, mouseRay);
+
+	for (const cl::SpatialNode *node : nodes) {
+		debugDrawBox(sf::Bounds3::minMax(node->min, node->max), sf::Vec3(0.8f, 0.6f, 0.6f));
+
+		float t;
+		for (const cl::BoxArea &area : node->boxes) {
+			if (area.groupId != AreaMesh) continue;
+
+			if (sf::intesersectRay(t, mouseRay, area.bounds)) {
+				debugDrawBox(area.bounds, sf::Vec3(0.7f, 0.3f, 0.3f));
+
+				t = c->clState->meshState->castRay(area.userId, mouseRay);
+				if (t < 1000.0f) {
+					debugDrawBox(area.bounds, sf::Vec3(1.0f, 1.0f, 1.0f));
+				}
+			}
+		}
+	}
 
 	c->canvas.clear();
 
@@ -354,9 +534,9 @@ sg_image clientRender(Client *c)
 
 		sp::beginPass(c->mainPass, &action);
 
-		sf::Vec3 eye = sf::Vec3(0.0f, 2.0f, 3.0f);
-		sf::Mat34 worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.5f));
-		sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.7f, (float)sapp_width()/(float)sapp_height(), 1.0f, 30.0f);
+		sf::Vec3 eye = sf::Vec3(0.0f, 5.0f, 10.0f);
+		sf::Mat34 worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.2f));
+		sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.3f, (float)sapp_width()/(float)sapp_height(), 1.0f, 100.0f);
 		sf::Mat44 worldToClip = viewToClip * worldToView;
 
 		sf::Frustum viewFrustum { worldToClip, 0.0f };
@@ -367,6 +547,8 @@ sg_image clientRender(Client *c)
 		args.frustum = viewFrustum;
 
 		c->clState->renderMain(args);
+
+		c->debugRender.render(worldToClip);
 
 		sp::endPass();
 	}

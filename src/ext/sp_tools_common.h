@@ -140,6 +140,10 @@ typedef enum spfile_section_magic {
 	SPFILE_SECTION_MATERIALS = 0x7374616d, // 'mats'
 	SPFILE_SECTION_MESHES    = 0x6873656d, // 'mesh'
 	SPFILE_SECTION_GEOMETRY  = 0x6d6f6567, // 'geom'
+	SPFILE_SECTION_BVH_NODES = 0x6e687662, // 'bvhn'
+	SPFILE_SECTION_BVH_TRIS  = 0x74687662, // 'bvht'
+	SPFILE_SECTION_VERTEX    = 0x78747276, // 'vrtx'
+	SPFILE_SECTION_INDEX     = 0x78646e69, // 'indx'
 	SPFILE_SECTION_MIP       = 0x2070696d, // 'mip '
 	SPFILE_SECTION_ANIMATION = 0x6d696e61, // 'anim'
 
@@ -191,6 +195,7 @@ typedef struct spanim_header {
 
 #define SPMDL_MAX_VERTEX_BUFFERS 4
 #define SPMDL_MAX_VERTEX_ATTRIBS 16
+#define SPMDL_BVH_TRIANGLES 16
 
 typedef struct spmdl_vec3
 {
@@ -254,6 +259,7 @@ typedef struct spmdl_mesh
 	uint32_t num_attribs;
 	uint32_t bone_offset;
 	uint32_t num_bones;
+	uint32_t bvh_index;
 	spmdl_vec3 aabb_min;
 	spmdl_vec3 aabb_max;
 	spmdl_buffer vertex_buffers[SPMDL_MAX_VERTEX_BUFFERS];
@@ -261,11 +267,30 @@ typedef struct spmdl_mesh
 	spmdl_attrib attribs[SPMDL_MAX_VERTEX_ATTRIBS];
 } spmdl_mesh;
 
+typedef struct spmdl_bvh_split
+{
+	spmdl_vec3 aabb_min, aabb_max;
+
+	// If non-negative the split is a leaf node containing `num_triangles`
+	// triangles startin from `data_index`.
+	int32_t num_triangles;
+
+	// Offset to child if `num_triangles>=0`, otherwise offset to triangles array
+	uint32_t data_index;
+} spmdl_bvh_split;
+
+typedef struct spmdl_bvh_node
+{
+	spmdl_bvh_split splits[2];
+} spmdl_bvh_node;
+
 typedef struct spmdl_info {
 	uint32_t num_nodes;
 	uint32_t num_bones;
 	uint32_t num_materials;
 	uint32_t num_meshes;
+	uint32_t num_bvh_nodes;
+	uint32_t num_bvh_tris;
 } spmdl_info;
 
 typedef struct spmdl_header {
@@ -275,6 +300,8 @@ typedef struct spmdl_header {
 	spfile_section s_bones;     // spmdl_bone[info.num_bones]
 	spfile_section s_materials; // spmdl_material[info.num_materials]
 	spfile_section s_meshes;    // spmdl_mesh[info.num_meshes]
+	spfile_section s_bvh_nodes; // spmdl_bvh_node[info.num_bvh_nodes]
+	spfile_section s_bvh_tris;  // uint32_t[info.num_bvh_tris * 3]
 	spfile_section s_strings;   // char[uncompressed_size]
 	spfile_section s_vertex;    // char[uncompressed_size]
 	spfile_section s_index;     // char[uncompressed_size]
@@ -346,6 +373,8 @@ bool spmdl_decode_nodes_to(spmdl_util *su, spmdl_node *buffer);
 bool spmdl_decode_bones_to(spmdl_util *su, spmdl_bone *buffer);
 bool spmdl_decode_materials_to(spmdl_util *su, spmdl_material *buffer);
 bool spmdl_decode_meshes_to(spmdl_util *su, spmdl_mesh *buffer);
+bool spmdl_decode_bvh_nodes_to(spmdl_util *su, spmdl_bvh_node *buffer);
+bool spmdl_decode_bvh_tris_to(spmdl_util *su, uint32_t *buffer);
 bool spmdl_decode_vertex_to(spmdl_util *su, char *buffer);
 bool spmdl_decode_index_to(spmdl_util *su, char *buffer);
 
@@ -355,6 +384,8 @@ spmdl_node *spmdl_decode_nodes(spmdl_util *su);
 spmdl_bone *spmdl_decode_bones(spmdl_util *su);
 spmdl_material *spmdl_decode_materials(spmdl_util *su);
 spmdl_mesh *spmdl_decode_meshes(spmdl_util *su);
+spmdl_bvh_node *spmdl_decode_bvh_nodes(spmdl_util *su);
+uint32_t *spmdl_decode_bvh_tris(spmdl_util *su);
 char *spmdl_decode_vertex(spmdl_util *su);
 char *spmdl_decode_index(spmdl_util *su);
 

@@ -21,6 +21,9 @@ struct DebugDrawData
 	sf::Slice<DebugSphere> spheres;
 };
 
+void debugDrawPushTransform(const sf::Mat34 &transform);
+void debugDrawPopTransform();
+
 void debugDrawLine(const DebugLine &line);
 void debugDrawLine(const sf::Vec3 &a, const sf::Vec3 &b, const sf::Vec3 &color=sf::Vec3(1.0f));
 void debugDrawBox(const sf::Mat34 &transform, const sf::Vec3 &color=sf::Vec3(1.0f));

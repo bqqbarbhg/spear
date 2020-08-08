@@ -982,6 +982,8 @@ struct TileModelTask : Task
 		args.push("--transform-to-root");
 		args.push("--mesh");
 
+		args.push("--bvh");
+
 		args.push("--input");
 		args.push(srcFile);
 
