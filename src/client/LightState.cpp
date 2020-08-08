@@ -20,7 +20,6 @@ struct PointLightImp
 	sf::Vec3 shadowMul;
 	sf::Vec3 shadowBias;
 	uint32_t shadowIndex = ~0u;
-	uint32_t visibleIndex = ~0u;
 	bool castShadows;
 	bool dirtyShadows = true;
 };
@@ -41,7 +40,6 @@ struct LightStateImp : LightState
 	sf::HashMap<uint32_t, LightEntityImp> entities;
 
 	// -- Point lights
-	sf::Array<uint32_t> visiblePointLights;
 	sf::Array<PointLightImp> pointLights;
 	sf::Array<uint32_t> freePointLightIndices;
 	sf::Array<uint32_t> dirtyShadowPointLights;
@@ -177,12 +175,6 @@ struct LightStateImp : LightState
 					point.dirtyShadows = true;
 				}
 			}
-
-			if (updateMask & EntityState::UpdateVisibility) {
-				if (state.flags & EntityState::Visible) {
-				} else {
-				}
-			}
 		}
 	}
 
@@ -193,13 +185,6 @@ struct LightStateImp : LightState
 		for (uint32_t pointIndex : entity.pointLights) {
 			PointLightImp &point = pointLights[pointIndex];
 			clientGlobalState->areaState->removeEntitySphere(AreaPointLight, pointIndex);
-			if (point.visibleIndex != ~0u) {
-				visiblePointLights.removeSwap(point.visibleIndex);
-				if (point.visibleIndex < visiblePointLights.size) {
-					PointLightImp &swapPoint = pointLights[visiblePointLights[point.visibleIndex]];
-					swapPoint.visibleIndex = point.visibleIndex;
-				}
-			}
 			if (point.shadowIndex != ~0u) {
 				freeShadowIndices.push({ point.shadowIndex, UINT64_MAX });
 			}
@@ -237,7 +222,7 @@ struct LightStateImp : LightState
 
 		float clipNearW = sg_query_features().origin_top_left ? -1.0f : 0.0f;
 		for (uint32_t side = 0; side < 6; side++) {
-			RenderShadowArgs args;
+			RenderArgs args;
 
 			const sf::Vec3 *basis = cubeBasis[side];
 			sf::Mat34 view = sf::mat::look(point.worldPosition, basis[0], basis[1]);
@@ -247,7 +232,7 @@ struct LightStateImp : LightState
 			args.frustum = sf::Frustum(args.worldToClip, clipNearW);
 
 			sp::beginPass(depthRenderPass[side], &action);
-			clientGlobal->clientState->renderShadows(args);
+			clientGlobalState->renderShadows(args);
 			sp::endPass();
 		}
 
@@ -328,17 +313,13 @@ struct LightStateImp : LightState
 		}
 	}
 
-	void updatePointLightVisibility()
+	void updateVisibility()
 	{
 		const AreaGroupState &state = clientGlobalState->areaState->getGroupState(AreaPointLight);
 
 		for (const AreaIds &ids : state.newVisible) {
 			uint32_t pointIndex = ids.userId;
 			PointLightImp &point = pointLights[pointIndex];
-			if (point.visibleIndex == ~0u) {
-				point.visibleIndex = visiblePointLights.size;
-				visiblePointLights.push(pointIndex);
-			}
 			if (point.shadowIndex == ~0u) {
 				point.shadowIndex = allocateShadowIndex();
 				if (point.shadowIndex != ~0u && !point.dirtyShadows) {
@@ -351,14 +332,6 @@ struct LightStateImp : LightState
 		for (const AreaIds &ids : state.newInvisible) {
 			uint32_t pointIndex = ids.userId;
 			PointLightImp &point = pointLights[pointIndex];
-			if (point.visibleIndex != ~0u) {
-				visiblePointLights.removeSwap(point.visibleIndex);
-				if (point.visibleIndex < visiblePointLights.size) {
-					PointLightImp &swapPoint = pointLights[visiblePointLights[point.visibleIndex]];
-					swapPoint.visibleIndex = point.visibleIndex;
-				}
-				point.visibleIndex = ~0u;
-			}
 			if (point.shadowIndex != ~0u) {
 				freeShadowIndices.push({ point.shadowIndex, clientGlobal->frameIndex });
 				point.shadowIndex = ~0u;
@@ -368,7 +341,10 @@ struct LightStateImp : LightState
 
 	void queryVisiblePointLights(const sf::Bounds3 &bounds, uint32_t maxPointLights, sf::Array<PointLight> &outPointLights)
 	{
-		for (uint32_t pointIndex : visiblePointLights) {
+		const AreaGroupState &state = clientGlobalState->areaState->getGroupState(AreaPointLight);
+
+		for (const AreaIds &ids : state.visible) {
+			uint32_t pointIndex = ids.userId;
 			PointLightImp &point = pointLights[pointIndex];
 			sf::Sphere sphere = { point.worldPosition, point.radius };
 			if (sf::intersect(bounds, sphere)) {
@@ -409,6 +385,11 @@ void LightState::removeEntity(uint32_t entityId)
 void LightState::renderDirtyShadowMaps(uint32_t maxUpdates)
 {
 	((LightStateImp*)this)->renderDirtyShadowMaps(maxUpdates);
+}
+
+void LightState::updateVisibility()
+{
+	((LightStateImp*)this)->updateVisibility();
 }
 
 void LightState::queryVisiblePointLights(const sf::Bounds3 &bounds, uint32_t maxPointLights, sf::Array<PointLight> &pointLights)

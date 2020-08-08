@@ -62,11 +62,12 @@ void encodeMessage(sf::Array<char> &data, const Message &message, const MessageE
 	if (encoding.compressionLevel > 0) {
 		size_t bound = sp_get_compression_bound(SP_COMPRESSION_ZSTD, dst.size);
 		uint32_t begin = data.size;
-		data.push("zstd\0\0\0\0", 8);
+		data.push("zstd", 4);
+		uint32_t uncompressedSize = (uint32_t)dst.size;
+		data.push((char*)&uncompressedSize, 4);
 		char *dst = data.pushUninit(bound);
 		size_t size = sp_compress_buffer(SP_COMPRESSION_ZSTD, dst, bound, encoded.data, encoded.size, encoding.compressionLevel);
 		data.resizeUninit(begin + 8 + size);
-		*(uint32_t*)(data.data + begin + 4) = (uint32_t)size;
 	}
 }
 

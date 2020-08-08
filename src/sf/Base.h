@@ -111,6 +111,16 @@ sf_inline float lerp(float a, float b, float t) { return a * (1.0f - t) + b * t;
 	sf_inline double abs(double a) { return ::fabs(a); }
 #endif
 
+// -- Misc intrinsics
+
+#if SF_ARCH_X86
+	sf_inline void prefetch(const void *ptr) { _mm_prefetch((const char*)ptr, _MM_HINT_T0); }
+#elif SF_CC_GNU
+	sf_inline void prefetch(const void *ptr) { __builtin_prefetch((const char*)ptr); }
+#else
+	sf_inline void prefetch(const void *ptr) { }
+#endif
+
 // -- Constants
 
 constexpr float F_PI   = 3.14159265358979323846f;

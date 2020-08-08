@@ -260,7 +260,7 @@ struct Prop sv_reflect
 	sf::Vec2i tile;
 	sf::Vec3 offset;
 	sf::Vec3 rotation;
-	float scale;
+	float scale = 1.0f;
 	bool deleted = false;
 };
 
@@ -377,6 +377,7 @@ struct Event
 		AddProp,
 		AddCharacter,
 		AddCard,
+		MoveProp,
 		GiveCard,
 		SelectCard,
 		AddCharacterToSpawn,
@@ -489,6 +490,15 @@ struct AddCardEvent : EventBase<Event::AddCard>
 	Card card;
 };
 
+struct MovePropEvent : EventBase<Event::MoveProp>
+{
+	uint32_t propId;
+	sf::Vec2i tile;
+	sf::Vec3 offset;
+	sf::Vec3 rotation;
+	float scale = 1.0f;
+};
+
 struct GiveCardEvent : EventBase<Event::GiveCard>
 {
 	uint32_t cardId;
@@ -560,7 +570,7 @@ using CharacterMap = sf::ImplicitHashMap<Character, KeyId>;
 using CardMap = sf::ImplicitHashMap<Card, KeyId>;
 using StatusMap = sf::ImplicitHashMap<Status, KeyId>;
 
-typedef void EventCallbackFn(void *user, const Event &event);
+typedef void EventCallbackFn(void *user, Event &event);
 
 struct ServerState
 {

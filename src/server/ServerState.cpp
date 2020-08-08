@@ -30,6 +30,15 @@ sf_inline Prefab *findPrefabExisting(ServerState &state, const sf::Symbol &name)
 	return prefab;
 }
 
+sf_inline Prop *findProp(ServerState &state, uint32_t id)
+{
+	Prop *chr = state.props.find(id);
+	if (!chr) {
+		sf::debugPrintLine("Could not find prop: %u", id);
+	}
+	return chr;
+}
+
 sf_inline Character *findCharacter(ServerState &state, uint32_t id)
 {
 	Character *chr = state.characters.find(id);
@@ -194,6 +203,13 @@ void ServerState::applyEvent(const Event &event)
 	} else if (auto *e = event.as<AddCardEvent>()) {
 		auto res = cards.insertOrAssign(e->card);
 		sv_check(res.inserted);
+	} else if (auto *e = event.as<MovePropEvent>()) {
+		if (Prop *prop = findProp(*this, e->propId)) {
+			prop->tile = e->tile;
+			prop->offset = e->offset;
+			prop->rotation = e->rotation;
+			prop->scale = e->scale;
+		}
 	} else if (auto *e = event.as<GiveCardEvent>()) {
 		if (Card *card = findCard(*this, e->cardId)) {
 			sv_check(card->ownerId == e->previousOwnerId);

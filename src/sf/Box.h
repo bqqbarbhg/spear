@@ -86,6 +86,9 @@ struct Box
 		if (ptr) { impBoxDecRef(ptr); ptr = nullptr; }
 	}
 
+	template <typename U> const Box<U> &cast() const { return *(Box<U>*)this; };
+	template <typename U> Box<U> &cast() { return *(Box<U>*)this; };
+
 	sf_forceinline bool operator!() const { return ptr == nullptr; }
 	sf_forceinline explicit operator bool() const { return ptr != nullptr; }
 

@@ -12,19 +12,25 @@
 namespace cl {
 
 static const float SpatialNodeTopLevelSize = 128.0f;
-static const float SpatialNodePaddingRatio = 0.25f;
-static const uint32_t SpatialNodeMaxDepth = 4;
+static const float SpatialNodePaddingRatio = 0.5f;
+static const uint32_t SpatialNodeMaxDepth = 5;
+static const sf::Vec3 SpatialNodeGridOrigin = sf::Vec3(0.0f, -2.0f, 0.0f);
 
 struct SpatialChildren;
 
 struct SpatialNodeImp : SpatialNode
 {
+	sf::Vec3 origin;
 	float unpaddedExtent;
 	float maxLeafExtent;
 	float minLeafExtent;
 	uint32_t depth;
 	uint32_t childMask;
 	sf::Unique<SpatialChildren> children;
+	SpatialNodeImp *parent;
+	uint32_t optimizeFrame = 0;
+	uint32_t higestOptimizeFrame = 0;
+	bool boundsDirty = false;
 };
 
 struct SpatialChildren
@@ -40,6 +46,7 @@ struct AreaImp
 	uint32_t groupId;
 	uint32_t userId;
 	uint32_t entityId;
+	uint32_t visibleIndex = ~0u;
 };
 
 union AreaLocalBounds
@@ -70,12 +77,13 @@ struct AreaStateImp : AreaState
 	sf::Array<AreaLocalBounds> areaLocalBounds;
 	sf::Array<uint32_t> freeAreaIndices;
 
-	// TODO: Bitmap
 	sf::Array<uint32_t> areaVisibility;
 	sf::Array<uint32_t> prevAreaVisibility;
 
 	sf::HashMap<sf::Vec3i, sf::Unique<SpatialNodeImp>> topSpatialNodes;
 	sf::HashMap<uint32_t, EntityAreasImp> entityAreas;
+
+	sf::Array<SpatialNodeImp*> dirtySpatialNodes[SpatialNodeMaxDepth];
 
 	sf_forceinline uint32_t allocateAreaId()
 	{
@@ -93,25 +101,20 @@ struct AreaStateImp : AreaState
 	}
 };
 
-static void walkSpatialNode(sf::Array<const SpatialNode*> &nodes, const SpatialNodeImp *rootNode, const sf::Frustum &frustum)
+static void walkSpatialNodes(sf::Array<const SpatialNode*> &nodes, const sf::Frustum &frustum)
 {
-	if (!frustum.intersects(rootNode->bounds)) return;
-
-	nodes.push(rootNode);
-
 	for (uint32_t nodeI = 0; nodeI < nodes.size; nodeI++) {
 		const SpatialNodeImp *node = (const SpatialNodeImp*)nodes[nodeI];
 
 		const SpatialNodeImp *children = node->children->child;
 		uint32_t childMask = node->childMask;
-		if (childMask) {
-			for (uint32_t i = 0; i < 8; i++) {
-				if ((childMask & (1 << i)) == 0) continue;
+		while (childMask) {
+			uint32_t index = mx_ctz32(childMask);
+			childMask &= childMask - 1;
 
-				const SpatialNodeImp *child = &children[i];
-				if (frustum.intersects(child->bounds)) {
-					nodes.push(child);
-				}
+			const SpatialNodeImp *child = &children[index];
+			if (frustum.intersects(sf::Bounds3::minMax(child->min, child->max))) {
+				nodes.push(child);
 			}
 		}
 	}
@@ -122,10 +125,13 @@ static sf_noinline sf::Unique<SpatialNodeImp> initializeSpatialRoot(const sf::Ve
 	sf::Unique<SpatialNodeImp> root = sf::unique<SpatialNodeImp>();
 	root->unpaddedExtent = SpatialNodeTopLevelSize;
 	root->maxLeafExtent = SpatialNodeTopLevelSize * SpatialNodePaddingRatio;
+	root->minLeafExtent = root->maxLeafExtent * 0.5f;
 	root->childMask = 0;
 	root->depth = 0;
-	root->bounds.origin = sf::Vec3(key) * SpatialNodeTopLevelSize;
-	root->bounds.extent = SpatialNodeTopLevelSize * SpatialNodePaddingRatio + SpatialNodeTopLevelSize;
+	root->origin = sf::Vec3(key) * SpatialNodeTopLevelSize + SpatialNodeGridOrigin;
+	root->parent = nullptr;
+	root->min = sf::Vec3(+HUGE_VALF);
+	root->max = sf::Vec3(-HUGE_VALF);
 	return root;
 }
 
@@ -137,11 +143,11 @@ static sf_noinline void initializeSpatialChildren(SpatialNodeImp *node)
 	float childMinLeafExtent = childMaxLeafExtent * 0.5f;
 	float childExtent = childUnpaddedExtent + childMaxLeafExtent;
 	uint32_t childDepth = node->depth + 1;
-	if (childDepth == SpatialNodeMaxDepth) {
+	if (childDepth + 1 == SpatialNodeMaxDepth) {
 		childMinLeafExtent = -HUGE_VALF;
 	}
 
-	sf::Vec3 origin = node->bounds.origin;
+	sf::Vec3 origin = node->origin;
 
 	SpatialNodeImp *children = node->children->child;
 	for (uint32_t i = 0; i < 8; i++) {
@@ -152,10 +158,12 @@ static sf_noinline void initializeSpatialChildren(SpatialNodeImp *node)
 		child.minLeafExtent = childMinLeafExtent;
 		child.childMask = 0;
 		child.depth = childDepth;
-		child.bounds.origin.x = origin.x + (i & 1) ? -childUnpaddedExtent : childUnpaddedExtent;
-		child.bounds.origin.y = origin.y + (i & 2) ? -childUnpaddedExtent : childUnpaddedExtent;
-		child.bounds.origin.z = origin.z + (i & 4) ? -childUnpaddedExtent : childUnpaddedExtent;
-		child.bounds.extent = childExtent;
+		child.origin.x = origin.x + ((i & 1) != 0 ? -childUnpaddedExtent : childUnpaddedExtent);
+		child.origin.y = origin.y + ((i & 2) != 0 ? -childUnpaddedExtent : childUnpaddedExtent);
+		child.origin.z = origin.z + ((i & 4) != 0 ? -childUnpaddedExtent : childUnpaddedExtent);
+		child.parent = node;
+		child.min = sf::Vec3(+HUGE_VALF);
+		child.max = sf::Vec3(-HUGE_VALF);
 	}
 }
 
@@ -165,12 +173,12 @@ static SpatialNodeImp *insertSpatialNodeToRoot(SpatialNodeImp *rootNode, const s
 	for (;;) {
 		if (extent < node->minLeafExtent) {
 			if (!node->children) initializeSpatialChildren(node);
-			sf::Vec3 delta = origin - node->bounds.origin;
+			sf::Vec3 delta = origin - node->origin;
 			uint32_t childIx = 0;
 			childIx |= delta.x < 0.0f ? 1 : 0;
 			childIx |= delta.y < 0.0f ? 2 : 0;
 			childIx |= delta.z < 0.0f ? 4 : 0;
-			node->childMask |= childIx;
+			node->childMask |= 1 << childIx;
 			node = &node->children->child[childIx];
 		} else {
 			return node;
@@ -180,7 +188,7 @@ static SpatialNodeImp *insertSpatialNodeToRoot(SpatialNodeImp *rootNode, const s
 
 sf_inline sf::Vec3i getRootSpatialKey(const sf::Vec3 &origin)
 {
-	return sf::Vec3i(sf::floor((origin - sf::Vec3(SpatialNodeTopLevelSize * 0.5f)) * (1.0f / SpatialNodeTopLevelSize)));
+	return sf::Vec3i(sf::floor((origin - SpatialNodeGridOrigin) * (1.0f / SpatialNodeTopLevelSize)));
 }
 
 static SpatialNodeImp *insertSpatialNode(AreaStateImp *imp, const sf::Vec3 &origin, float extent)
@@ -197,12 +205,25 @@ static sf_forceinline bool checkSpatialNodeValid(const SpatialNodeImp *spatialNo
 {
 	if (extent > spatialNode->maxLeafExtent) return false;
 	if (extent < spatialNode->minLeafExtent) return false;
-	sf::Vec3 delta = sf::abs(origin - spatialNode->bounds.origin);
+	sf::Vec3 delta = sf::abs(origin - spatialNode->origin);
 	float maxDelta = sf::max(delta.x, delta.y, delta.z);
-	return maxDelta <= spatialNode->bounds.extent;
+	return maxDelta <= spatialNode->unpaddedExtent + spatialNode->maxLeafExtent;
 }
 
-static sf_forceinline uint32_t addSpatialBox(SpatialNodeImp *spatialNode, uint32_t areaId, uint32_t groupId, uint32_t userId, uint32_t entityId, const sf::Bounds3 &bounds)
+static sf_forceinline void updateSpatialBounds(AreaStateImp *imp, SpatialNodeImp *spatialNode, const sf::Vec3 &min, const sf::Vec3 &max)
+{
+	spatialNode->min = sf::min(spatialNode->min, min);
+	spatialNode->max = sf::max(spatialNode->max, max);
+
+	SpatialNodeImp *parent = spatialNode->parent;
+	while (parent && !parent->boundsDirty) {
+		parent->boundsDirty = true;
+		imp->dirtySpatialNodes[parent->depth].push(parent);
+		parent = parent->parent;
+	}
+}
+
+static sf_forceinline uint32_t addSpatialBox(AreaStateImp *imp, SpatialNodeImp *spatialNode, uint32_t areaId, uint32_t groupId, uint32_t userId, uint32_t entityId, const sf::Bounds3 &bounds)
 {
 	uint32_t index = spatialNode->boxes.size;
 	BoxArea &area = spatialNode->boxes.push();
@@ -211,10 +232,11 @@ static sf_forceinline uint32_t addSpatialBox(SpatialNodeImp *spatialNode, uint32
 	area.userId = userId;
 	area.entityId = entityId;
 	area.bounds = bounds;
+	updateSpatialBounds(imp, spatialNode, bounds.origin - bounds.extent, bounds.origin + bounds.extent);
 	return index;
 }
 
-static sf_forceinline uint32_t addSpatialSphere(SpatialNodeImp *spatialNode, uint32_t areaId, uint32_t groupId, uint32_t userId, uint32_t entityId, const sf::Sphere &bounds)
+static sf_forceinline uint32_t addSpatialSphere(AreaStateImp *imp, SpatialNodeImp *spatialNode, uint32_t areaId, uint32_t groupId, uint32_t userId, uint32_t entityId, const sf::Sphere &bounds)
 {
 	uint32_t index = spatialNode->spheres.size;
 	SphereArea &area = spatialNode->spheres.push();
@@ -223,6 +245,7 @@ static sf_forceinline uint32_t addSpatialSphere(SpatialNodeImp *spatialNode, uin
 	area.userId = userId;
 	area.entityId = entityId;
 	area.bounds = bounds;
+	updateSpatialBounds(imp, spatialNode, bounds.origin - sf::Vec3(bounds.radius), bounds.origin + sf::Vec3(bounds.radius));
 	return index;
 }
 
@@ -265,12 +288,13 @@ static sf_forceinline void removeEntitySphereImp(AreaStateImp *imp, uint32_t ent
 static sf_forceinline uint32_t addBoxImp(AreaStateImp *imp, const sf::Bounds3 &bounds, uint32_t groupId, uint32_t userId, uint32_t entityId, uint32_t attachEntityId)
 {
 	uint32_t areaId = imp->allocateAreaId();
+	imp->groups[groupId].areas.insert(userId, areaId);
 	AreaImp &area = imp->areas[areaId];
 	float extent = sf::max(bounds.extent.x, bounds.extent.y, bounds.extent.z);
 	SpatialNodeImp *spatialNode = insertSpatialNode(imp, bounds.origin, extent);
 	area.attachEntityId = attachEntityId;
 	area.spatialNode = spatialNode;
-	area.spatialIndex = addSpatialBox(spatialNode, areaId, groupId, userId, entityId, bounds);
+	area.spatialIndex = addSpatialBox(imp, spatialNode, areaId, groupId, userId, entityId, bounds);
 	area.groupId = groupId;
 	area.userId = userId;
 	area.entityId = entityId;
@@ -284,26 +308,28 @@ static sf_forceinline void updateBoxImp(AreaStateImp *imp, uint32_t areaId, cons
 	SpatialNodeImp *spatialNode = area.spatialNode;
 	uint32_t spatialIndex = area.spatialIndex;
 	BoxArea &box = spatialNode->boxes[spatialIndex];
-	if (checkSpatialNodeValid(area.spatialNode, bounds.origin, extent)) {
+	if (checkSpatialNodeValid(spatialNode, bounds.origin, extent)) {
 		box.bounds = bounds;
+		updateSpatialBounds(imp, spatialNode, bounds.origin - bounds.extent, bounds.origin + bounds.extent);
 	} else {
 		uint32_t groupId = box.groupId, userId = box.userId;
 		removeSpatialBox(imp, spatialNode, spatialIndex);
 		spatialNode = insertSpatialNode(imp, bounds.origin, extent);
 		area.spatialNode = spatialNode;
-		area.spatialIndex = addSpatialBox(spatialNode, areaId, groupId, userId, area.entityId, bounds);
+		area.spatialIndex = addSpatialBox(imp, spatialNode, areaId, groupId, userId, area.entityId, bounds);
 	}
 }
 
 static sf_forceinline uint32_t addSphereImp(AreaStateImp *imp, const sf::Sphere &bounds, uint32_t groupId, uint32_t userId, uint32_t entityId, uint32_t attachEntityId)
 {
 	uint32_t areaId = imp->allocateAreaId();
+	imp->groups[groupId].areas.insert(userId, areaId);
 	AreaImp &area = imp->areas[areaId];
 	float extent = bounds.radius;
 	SpatialNodeImp *spatialNode = insertSpatialNode(imp, bounds.origin, extent);
 	area.attachEntityId = attachEntityId;
 	area.spatialNode = spatialNode;
-	area.spatialIndex = addSpatialSphere(spatialNode, areaId, groupId, userId, entityId, bounds);
+	area.spatialIndex = addSpatialSphere(imp, spatialNode, areaId, groupId, userId, entityId, bounds);
 	area.groupId = groupId;
 	area.userId = userId;
 	area.entityId = entityId;
@@ -319,12 +345,88 @@ static sf_forceinline void updateSphereImp(AreaStateImp *imp, uint32_t areaId, c
 	SphereArea &sphere = spatialNode->spheres[spatialIndex];
 	if (checkSpatialNodeValid(area.spatialNode, bounds.origin, extent)) {
 		sphere.bounds = bounds;
+		updateSpatialBounds(imp, spatialNode, bounds.origin - sf::Vec3(bounds.radius), bounds.origin + sf::Vec3(bounds.radius));
 	} else {
 		uint32_t groupId = sphere.groupId, userId = sphere.userId;
 		removeSpatialSphere(imp, spatialNode, spatialIndex);
 		spatialNode = insertSpatialNode(imp, bounds.origin, extent);
 		area.spatialNode = spatialNode;
-		area.spatialIndex = addSpatialSphere(spatialNode, areaId, groupId, userId, area.entityId, bounds);
+		area.spatialIndex = addSpatialSphere(imp, spatialNode, areaId, groupId, userId, area.entityId, bounds);
+	}
+}
+
+static void optimizeSpatialNodeImp(AreaStateImp *imp, SpatialNodeImp *rootNode, uint32_t frame)
+{
+	SpatialNodeImp *best = rootNode;
+	uint32_t bestFrame = frame - rootNode->optimizeFrame;
+
+	bool improved;
+	do {
+		improved = false;
+		SpatialNodeImp *children = best->children->child;
+		uint32_t childMask = best->childMask;
+		while (childMask) {
+			uint32_t index = mx_ctz32(childMask);
+			childMask &= childMask - 1;
+
+			SpatialNodeImp *child = &children[index];
+			uint32_t childFrame = frame - child->higestOptimizeFrame;
+			if (childFrame >= bestFrame) {
+				bestFrame = childFrame;
+				best = child;
+				improved = true;
+			}
+		}
+	} while (improved);
+
+	best->optimizeFrame = frame;
+
+	sf::Vec3 min = sf::Vec3(+HUGE_VALF);
+	sf::Vec3 max = sf::Vec3(-HUGE_VALF);
+	for (BoxArea &box : best->boxes) {
+		min = sf::min(min, box.bounds.origin - box.bounds.extent);
+		max = sf::max(max, box.bounds.origin + box.bounds.extent);
+	}
+	for (SphereArea &sphere : best->spheres) {
+		min = sf::min(min, sphere.bounds.origin - sf::Vec3(sphere.bounds.radius));
+		max = sf::max(max, sphere.bounds.origin + sf::Vec3(sphere.bounds.radius));
+	}
+
+	{
+		uint32_t highestFrame = frame - best->optimizeFrame;
+		SpatialNodeImp *children = best->children->child;
+		uint32_t childMask = best->childMask;
+		while (childMask) {
+			uint32_t index = mx_ctz32(childMask);
+			childMask &= childMask - 1;
+
+			SpatialNodeImp *child = &children[index];
+			min = sf::min(min, child->min);
+			max = sf::max(max, child->max);
+			highestFrame = sf::max(highestFrame, frame - child->higestOptimizeFrame);
+		}
+
+		best->higestOptimizeFrame = frame - highestFrame;
+	}
+
+	best->min = min;
+	best->max = max;
+
+	SpatialNodeImp *parent = best->parent;
+	while (parent) {
+		uint32_t highestFrame = frame - parent->optimizeFrame;
+		SpatialNodeImp *children = parent->children->child;
+		uint32_t childMask = parent->childMask;
+		while (childMask) {
+			uint32_t index = mx_ctz32(childMask);
+			childMask &= childMask - 1;
+
+			SpatialNodeImp *child = &children[index];
+			highestFrame = sf::max(highestFrame, frame - child->higestOptimizeFrame);
+		}
+
+		parent->higestOptimizeFrame = frame - highestFrame;
+		parent = parent->parent;
 	}
 }
 
@@ -360,7 +462,7 @@ void AreaState::removeGroup(uint32_t groupId)
 uint32_t AreaState::addEntityBox(uint32_t groupId, uint32_t userId, uint32_t entityId, const sf::Bounds3 &localBounds)
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
-	const Entity *entity = clientGlobal->clientState->entities.find(entityId);
+	const Entity *entity = clientGlobalState->entities.find(entityId);
 	sf::Bounds3 bounds = sf::transformBounds(entity->state.transform, localBounds);
 	uint32_t areaId = addBoxImp(imp, bounds, groupId, userId, entityId, entityId);
 	imp->entityAreas[entityId].boxes.push(areaId);
@@ -371,7 +473,7 @@ void AreaState::updateEntityBox(uint32_t areaId, const sf::Bounds3 &localBounds)
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
 	AreaImp &area = imp->areas[areaId];
-	const Entity *entity = clientGlobal->clientState->entities.find(area.attachEntityId);
+	const Entity *entity = clientGlobalState->entities.find(area.attachEntityId);
 	sf::Bounds3 bounds = sf::transformBounds(entity->state.transform, localBounds);
 	imp->areaLocalBounds[areaId].box = localBounds;
 	updateBoxImp(imp, areaId, bounds);
@@ -381,6 +483,7 @@ void AreaState::removeEntityBox(uint32_t areaId)
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
 	AreaImp &area = imp->areas[areaId];
+	imp->groups[area.groupId].areas.removePair(area.userId, areaId);
 	removeSpatialBox(imp, area.spatialNode, area.spatialIndex);
 	removeEntityBoxImp(imp, area.attachEntityId, areaId);
 	imp->freeAreaIndices.push(areaId);
@@ -402,6 +505,7 @@ void AreaState::removeWorldBox(uint32_t areaId)
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
 	AreaImp &area = imp->areas[areaId];
+	imp->groups[area.groupId].areas.removePair(area.userId, areaId);
 	removeSpatialBox(imp, area.spatialNode, area.spatialIndex);
 	imp->freeAreaIndices.push(areaId);
 }
@@ -412,7 +516,7 @@ void AreaState::updateAnyBox(uint32_t areaId, const sf::Bounds3 &localBounds)
 	AreaImp &area = imp->areas[areaId];
 	sf::Bounds3 bounds = localBounds;
 	if (area.attachEntityId) {
-		const Entity *entity = clientGlobal->clientState->entities.find(area.attachEntityId);
+		const Entity *entity = clientGlobalState->entities.find(area.attachEntityId);
 		bounds = sf::transformBounds(entity->state.transform, bounds);
 		imp->areaLocalBounds[areaId].box = localBounds;
 	}
@@ -423,6 +527,7 @@ void AreaState::removeAnyBox(uint32_t areaId)
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
 	AreaImp &area = imp->areas[areaId];
+	imp->groups[area.groupId].areas.removePair(area.userId, areaId);
 	removeSpatialBox(imp, area.spatialNode, area.spatialIndex);
 	if (area.attachEntityId) {
 		removeEntityBoxImp(imp, area.attachEntityId, areaId);
@@ -433,7 +538,7 @@ void AreaState::removeAnyBox(uint32_t areaId)
 uint32_t AreaState::addEntitySphere(uint32_t groupId, uint32_t userId, uint32_t entityId, const sf::Sphere &localBounds)
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
-	const Entity *entity = clientGlobal->clientState->entities.find(entityId);
+	const Entity *entity = clientGlobalState->entities.find(entityId);
 	sf::Sphere bounds = sf::transformSphere(entity->state.transform, localBounds);
 	uint32_t areaId = addSphereImp(imp, bounds, groupId, userId, entityId, entityId);
 	imp->entityAreas[entityId].boxes.push(areaId);
@@ -445,7 +550,7 @@ void AreaState::updateEntitySphere(uint32_t areaId, const sf::Sphere &localBound
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
 	AreaImp &area = imp->areas[areaId];
-	const Entity *entity = clientGlobal->clientState->entities.find(area.attachEntityId);
+	const Entity *entity = clientGlobalState->entities.find(area.attachEntityId);
 	sf::Sphere bounds = sf::transformSphere(entity->state.transform, localBounds);
 	updateSphereImp(imp, areaId, bounds);
 }
@@ -454,6 +559,7 @@ void AreaState::removeEntitySphere(uint32_t areaId)
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
 	AreaImp &area = imp->areas[areaId];
+	imp->groups[area.groupId].areas.removePair(area.userId, areaId);
 	removeSpatialSphere(imp, area.spatialNode, area.spatialIndex);
 	removeEntitySphereImp(imp, area.attachEntityId, areaId);
 	imp->freeAreaIndices.push(areaId);
@@ -475,6 +581,7 @@ void AreaState::removeWorldSphere(uint32_t areaId)
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
 	AreaImp &area = imp->areas[areaId];
+	imp->groups[area.groupId].areas.removePair(area.userId, areaId);
 	removeSpatialSphere(imp, area.spatialNode, area.spatialIndex);
 	imp->freeAreaIndices.push(areaId);
 }
@@ -485,7 +592,7 @@ void AreaState::updateAnySphere(uint32_t areaId, const sf::Sphere &localBounds)
 	AreaImp &area = imp->areas[areaId];
 	sf::Sphere bounds = localBounds;
 	if (area.entityId) {
-		const Entity *entity = clientGlobal->clientState->entities.find(area.entityId);
+		const Entity *entity = clientGlobalState->entities.find(area.entityId);
 		bounds = sf::transformSphere(entity->state.transform, bounds);
 		imp->areaLocalBounds[areaId].sphere = localBounds;
 	}
@@ -496,6 +603,7 @@ void AreaState::removeAnySphere(uint32_t areaId)
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
 	AreaImp &area = imp->areas[areaId];
+	imp->groups[area.groupId].areas.removePair(area.userId, areaId);
 	removeSpatialSphere(imp, area.spatialNode, area.spatialIndex);
 	if (area.entityId) {
 		removeEntitySphereImp(imp, area.entityId, areaId);
@@ -514,7 +622,9 @@ bool AreaState::isAreaVisible(uint32_t areaId) const
 uint32_t AreaState::findArea(uint32_t groupId, uint32_t userId) const
 {
 	const AreaStateImp *imp = (const AreaStateImp*)this;
-	return imp->groups[groupId].areas.findOne(userId, ~0u);
+	uint32_t areaId = imp->groups[groupId].areas.findOne(userId, ~0u);
+	sf_assert(areaId != ~0u);
+	return areaId;
 }
 
 void AreaState::updateEntityTransform(uint32_t entityId, const sf::Mat34 &transform)
@@ -538,12 +648,73 @@ void AreaState::updateEntityTransform(uint32_t entityId, const sf::Mat34 &transf
 	}
 }
 
-void AreaState::querySpatialNodesFrustum(sf::Array<const SpatialNode*> &nodes, const sf::Frustum &frustum) const
+void AreaState::optimizeSpatialNodes()
 {
-	const AreaStateImp *imp = (const AreaStateImp*)this;
+	AreaStateImp *imp = (AreaStateImp*)this;
+	uint32_t frame = (uint32_t)clientGlobal->frameIndex;
+
+	SpatialNodeImp *bestRoot = nullptr;
+	uint32_t bestFrame = 0;
+
 	for (auto &pair : imp->topSpatialNodes) {
-		walkSpatialNode(nodes, pair.val, frustum);
+		uint32_t rootFrame = frame - pair.val->higestOptimizeFrame;
+		if (rootFrame > bestFrame) {
+			bestFrame = rootFrame;
+			bestRoot = pair.val;
+		}
 	}
+
+	if (bestRoot) {
+		optimizeSpatialNodeImp(imp, bestRoot, frame);
+	}
+}
+
+void AreaState::querySpatialNodesFrustum(sf::Array<const SpatialNode*> &nodes, const sf::Frustum &frustum)
+{
+	AreaStateImp *imp = (AreaStateImp*)this;
+
+	for (uint32_t i = SpatialNodeMaxDepth; i > 0; i--) {
+		sf::Array<SpatialNodeImp*> &dirtyNodes = imp->dirtySpatialNodes[i - 1];
+		for (SpatialNodeImp *node : dirtyNodes) {
+
+			const SpatialNodeImp *children = node->children->child;
+
+			uint32_t childMask = node->childMask;
+
+			sf::Vec3 min, max;
+			if (childMask) {
+				uint32_t index = mx_ctz32(childMask);
+				childMask &= childMask - 1;
+				const SpatialNodeImp *child = &children[index];
+				min = child->min;
+				max = child->max;
+			} else {
+				min = sf::Vec3(+HUGE_VALF);
+				max = sf::Vec3(-HUGE_VALF);
+			}
+
+			while (childMask) {
+				uint32_t index = mx_ctz32(childMask);
+				childMask &= childMask - 1;
+
+				const SpatialNodeImp *child = &children[index];
+				min = sf::min(min, child->min);
+				max = sf::max(max, child->max);
+			}
+
+			node->min = min;
+			node->max = max;
+			node->boundsDirty = false;
+		}
+		dirtyNodes.clear();
+	}
+
+	for (auto &pair : imp->topSpatialNodes) {
+		if (frustum.intersects(sf::Bounds3::minMax(pair.val->min, pair.val->max))) {
+			nodes.push(pair.val);
+		}
+	}
+	walkSpatialNodes(nodes, frustum);
 }
 
 const AreaGroupState &AreaState::getGroupState(uint32_t groupId) const
@@ -598,11 +769,24 @@ void AreaState::updateMainVisibility(sf::Slice<const SpatialNode*> nodes, const 
 			newVisible &= newVisible - 1;
 			uint32_t areaId = (word << 5) | ix;
 			AreaImp &area = imp->areas[areaId];
-			AreaIds &ids = imp->groups[area.groupId].state.newVisible.push();
-			ids.areaId = areaId;
-			ids.groupId = area.groupId;
-			ids.userId = area.userId;
-			ids.entityId = area.entityId;
+			GroupImp &group = imp->groups[area.groupId];
+
+			{
+				AreaIds &ids = group.state.newVisible.push();
+				ids.areaId = areaId;
+				ids.groupId = area.groupId;
+				ids.userId = area.userId;
+				ids.entityId = area.entityId;
+			}
+
+			{
+				area.visibleIndex = group.state.visible.size;
+				AreaIds &ids = group.state.visible.push();
+				ids.areaId = areaId;
+				ids.groupId = area.groupId;
+				ids.userId = area.userId;
+				ids.entityId = area.entityId;
+			}
 		}
 
 		while (newInvisible) {
@@ -610,11 +794,21 @@ void AreaState::updateMainVisibility(sf::Slice<const SpatialNode*> nodes, const 
 			newInvisible &= newInvisible - 1;
 			uint32_t areaId = (word << 5) | ix;
 			AreaImp &area = imp->areas[areaId];
-			AreaIds &ids = imp->groups[area.groupId].state.newInvisible.push();
-			ids.areaId = areaId;
-			ids.groupId = area.groupId;
-			ids.userId = area.userId;
-			ids.entityId = area.entityId;
+			GroupImp &group = imp->groups[area.groupId];
+
+			{
+				AreaIds &ids = group.state.newInvisible.push();
+				ids.areaId = areaId;
+				ids.groupId = area.groupId;
+				ids.userId = area.userId;
+				ids.entityId = area.entityId;
+			}
+
+			if (area.visibleIndex != ~0u) {
+				imp->areas[group.state.visible.back().areaId].visibleIndex = area.visibleIndex;
+				group.state.visible.removeSwap(area.visibleIndex);
+				area.visibleIndex = ~0u;
+			}
 		}
 	}
 

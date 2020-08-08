@@ -101,4 +101,12 @@
     </Expand>
   </Type>
 
+  <Type Name="sf::Unique&lt;*&gt;">
+    <DisplayString Condition="!ptr">null</DisplayString>
+    <DisplayString Condition="ptr">{ *ptr }</DisplayString>
+    <Expand>
+      <ExpandedItem>ptr</ExpandedItem>
+    </Expand>
+  </Type>
+
 </AutoVisualizer>

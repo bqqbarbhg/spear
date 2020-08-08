@@ -22,6 +22,9 @@
 #include "sf/License.h"
 #include "sp/SpLicense.h"
 
+#include "client/ClientState.h"
+#include "client/ClientGlobal.h"
+
 namespace cl {
 
 struct Client
@@ -30,8 +33,12 @@ struct Client
 	sv::MessageEncoding messageEncoding;
 	bqws_socket *ws;
 
+	// Globals
+	cl::ClientGlobal clientGlobal;
+
 	// Game state
 	sf::Box<sv::ServerState> svState;
+	sf::Box<cl::ClientState> clState;
 
 	// Render targets/passes
 	sp::RenderTarget mainTarget;
@@ -137,6 +144,13 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret)
 {
 	Client *c = new Client();
 
+	cl::clientGlobal = &c->clientGlobal;
+
+	c->clState = sf::box<cl::ClientState>();
+
+	cl::clientGlobalState = c->clState;
+
+
 	{
         sf::SmallStringBuf<128> url;
 
@@ -176,10 +190,19 @@ void clientQuit(Client *c)
 {
 }
 
+static void handleLoadEvent(void *user, sv::Event &event)
+{
+	Client *c = (Client*)user;
+	c->clState->applyEvent(event);
+}
+
 void handleMessage(Client *c, sv::Message &msg)
 {
 	if (auto m = msg.as<sv::MessageLoad>()) {
 		c->svState = m->state;
+
+		m->state->getAsEvents(&handleLoadEvent, c);
+
 	} else if (auto m = msg.as<sv::MessageUpdate>()) {
 		for (sv::Event *event : m->events) {
 			c->svState->applyEvent(*event);
@@ -265,6 +288,8 @@ static void updateCharacterPicking(Client *c, const ClientInput &input)
 
 bool clientUpdate(Client *c, const ClientInput &input)
 {
+	c->clientGlobal.frameIndex++;
+
 	float dt = input.dt;
 	if (bqws_is_closed(c->ws)) {
 		return true;
@@ -292,10 +317,23 @@ bool clientUpdate(Client *c, const ClientInput &input)
 		}
 	}
 
+	sf::Vec3 eye = sf::Vec3(0.0f, 2.0f, 3.0f);
+	sf::Mat34 worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.5f));
+	sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.7f, (float)sapp_width()/(float)sapp_height(), 1.0f, 30.0f);
+	sf::Mat44 worldToClip = viewToClip * worldToView;
+
+	sf::Frustum viewFrustum { worldToClip, 0.0f };
+
+	c->clState->updateAssetLoading();
+	c->clState->updateVisibility(viewFrustum);
+
 	c->canvas.clear();
+
+#if 0
 	if (c->svState) {
 		updateCharacterPicking(c, input);
 	}
+#endif
 
 	c->canvas.prepareForRendering();
 
@@ -315,6 +353,21 @@ sg_image clientRender(Client *c)
 		action.depth.val = 1.0f;
 
 		sp::beginPass(c->mainPass, &action);
+
+		sf::Vec3 eye = sf::Vec3(0.0f, 2.0f, 3.0f);
+		sf::Mat34 worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.5f));
+		sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.7f, (float)sapp_width()/(float)sapp_height(), 1.0f, 30.0f);
+		sf::Mat44 worldToClip = viewToClip * worldToView;
+
+		sf::Frustum viewFrustum { worldToClip, 0.0f };
+
+		RenderArgs args;
+		args.cameraPosition = eye;
+		args.worldToClip = worldToClip;
+		args.frustum = viewFrustum;
+
+		c->clState->renderMain(args);
+
 		sp::endPass();
 	}
 

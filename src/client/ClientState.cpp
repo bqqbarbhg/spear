@@ -1,49 +1,77 @@
 #include "ClientState.h"
 
+#include "AreaState.h"
+#include "LightState.h"
+#include "MeshState.h"
+
 namespace cl {
 
-#if 0
-
-void ClientState::applyEvent(const sv::Event &event, bool simulated)
+static sf::Mat34 getPropTransform(const sv::Prop &prop)
 {
-	if (auto *e = event.as<sv::CardCooldownTickEvent>()) {
-		if (Card *c = cards.find(e->cardId)) {
-			if (c->cooldownLeft > 0) {
-				c->cooldownLeft -= 1;
-				c->cooldownAnim = 1.0f;
-			}
+	sf::Vec3 pos = sf::Vec3((float)prop.tile.x, 0.0f, (float)prop.tile.y) + prop.offset;
+	return sf::mat::translate(pos);
+}
+
+ClientState::ClientState()
+{
+	areaState = AreaState::create();
+	lightState = LightState::create();
+	meshState = MeshState::create();
+}
+
+void ClientState::addEntity(uint32_t entityId, const sf::Symbol &prefabName, const sf::Mat34 &transform)
+{
+	Entity &entity = entities[entityId];
+	entity.id = entityId;
+	entity.prefabName = prefabName;
+	entity.state.transform = transform;
+
+	Prefab *prefab = prefabs.find(prefabName);
+	if (!prefab) return;
+
+	for (const sf::Box<sv::Component> &comp : prefab->s.components) {
+
+		if (const auto *c = comp->as<sv::ModelComponent>()) {
+			meshState->addMesh(entityId, comp.cast<sv::ModelComponent>());
 		}
-	} else if (auto *e = event.as<sv::StatusAddEvent>()) {
-		if (Prefab *prefab = prefabs.find(e->status.prefabName)) {
-			if (auto *statusComp = prefab->s.findComponent<sv::StatusComponent>()) {
-				if (statusComp->startEffect && !simulated) {
-					spawnEffect(statusComp->startEffect, e->status.id);
-				}
-				if (statusComp->activeEffect && !simulated) {
-					spawnEffect(statusComp->activeEffect, e->status.id);
-				}
-			}
-		}
-	} else if (auto *e = event.as<sv::StatusTickEvent>()) {
-	} else if (auto *e = event.as<sv::StatusRemoveEvent>()) {
-	} else if (auto *e = event.as<sv::DamageEvent>()) {
-	} else if (auto *e = event.as<sv::LoadPrefabEvent>()) {
-	} else if (auto *e = event.as<sv::RemoveGarbageIdsEvent>()) {
-	} else if (auto *e = event.as<sv::RemoveGarbagePrefabsEvent>()) {
-	} else if (auto *e = event.as<sv::AddPropEvent>()) {
-	} else if (auto *e = event.as<sv::AddCharacterEvent>()) {
-	} else if (auto *e = event.as<sv::AddCardEvent>()) {
-	} else if (auto *e = event.as<sv::GiveCardEvent>()) {
-	} else if (auto *e = event.as<sv::SelectCardEvent>()) {
-	} else if (auto *e = event.as<sv::AddCharacterToSpawn>()) {
-	} else if (auto *e = event.as<sv::SelectCharacterToSpawnEvent>()) {
+
 	}
 }
 
-#endif
-
-void ClientState::renderShadows(const RenderShadowArgs &args)
+void ClientState::applyEvent(const sv::Event &event)
 {
+	if (const auto *e = event.as<sv::LoadPrefabEvent>()) {
+		Prefab &prefab = prefabs[e->prefab.name];
+		prefab.s = e->prefab;
+	} else if (const auto *e = event.as<sv::AddPropEvent>()) {
+		sf::Mat34 transform = getPropTransform(e->prop);
+		addEntity(e->prop.id, e->prop.prefabName, transform);
+	}
+}
+
+void ClientState::updateAssetLoading()
+{
+	meshState->updatePendingMeshes();
+}
+
+void ClientState::updateVisibility(const sf::Frustum &frustum)
+{
+	areaState->optimizeSpatialNodes();
+
+	visibleNodes.clear();
+	areaState->querySpatialNodesFrustum(visibleNodes, frustum);
+	areaState->updateMainVisibility(visibleNodes, frustum);
+
+	lightState->updateVisibility();
+}
+
+void ClientState::renderShadows(const RenderArgs &args)
+{
+}
+
+void ClientState::renderMain(const RenderArgs &args)
+{
+	meshState->renderMeshses(args);
 }
 
 }

@@ -17,7 +17,6 @@ struct ClientGlobal
 {
 	ClientSettings settings;
 	uint64_t frameIndex;
-	sf::Box<ClientState> clientState;
 };
 
 extern thread_local ClientGlobal *clientGlobal;

@@ -32,7 +32,7 @@ struct SphereArea
 
 struct SpatialNode
 {
-	sf::Cube3 bounds;
+	sf::Vec3 min, max;
 	sf::Array<BoxArea> boxes;
 	sf::Array<SphereArea> spheres;
 };
@@ -49,11 +49,13 @@ struct AreaGroupState
 {
 	sf::Array<AreaIds> newVisible;
 	sf::Array<AreaIds> newInvisible;
+	sf::Array<AreaIds> visible;
 };
 
 enum AreaGroup {
 	AreaVisibility,
 	AreaPointLight,
+	AreaMesh,
 	AreaGroup_Count,
 };
 
@@ -105,7 +107,9 @@ struct AreaState
 
 	void updateEntityTransform(uint32_t entityId, const sf::Mat34 &transform);
 
-	void querySpatialNodesFrustum(sf::Array<const SpatialNode*> &nodes, const sf::Frustum &frustum) const;
+	void optimizeSpatialNodes();
+
+	void querySpatialNodesFrustum(sf::Array<const SpatialNode*> &nodes, const sf::Frustum &frustum);
 	const AreaGroupState &getGroupState(uint32_t groupId) const;
 
 	void updateMainVisibility(sf::Slice<const SpatialNode*> nodes, const sf::Frustum &frustum);

@@ -63,6 +63,7 @@ Server *serverInit(const ServerOpts &opts)
 	Server *s = new Server();
 	s->server = server;
 	s->localServer = localServer;
+	s->messageEncoding = opts.messageEncoding;
 
 	return s;
 }
@@ -115,7 +116,23 @@ static Session *setupSession(Server *s, uint32_t id, uint32_t secret)
 		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
 		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Urist.json"), 1);
 
-		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
+		Prop prop;
+		prop.prefabName = sf::Symbol("Game/Props/Test/Barrel.json");
+		prop.tile = sf::Vec2i(0, 0);
+		session.state->addProp(session.events, prop);
+
+		for (int32_t y = -20; y < 20; y++)
+		for (int32_t x = -20; x < 20; x++)
+		{
+			if (x == 0 && y == 0) continue;
+
+			Prop prop;
+			prop.prefabName = sf::Symbol("Game/Props/Test/Barrel.json");
+			prop.tile = sf::Vec2i(x, y) * 3;
+			session.state->addProp(session.events, prop);
+		}
+
+		// session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
 
 		return &session;
 	}

@@ -22,12 +22,14 @@ struct GameShaders
 	sg_shader sphere;
 	sg_shader particle;
 	sg_shader fakeShadow;
+	sg_shader debugMesh;
 
 	sg_buffer fullscreenTriangleBuffer;
 
 	sp::Pipeline mapChunkShadowPipe[2];
 	sp::Pipeline shadowGridPipe;
 	sp::Pipeline fakeShadowPipe;
+	sp::Pipeline debugMeshPipe;
 
 	void load();
 };

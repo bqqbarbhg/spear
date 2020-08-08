@@ -160,6 +160,7 @@ void spInit()
 
 	sv::ServerOpts serverOpts;
 	serverOpts.port = port;
+	serverOpts.messageEncoding.compressionLevel = 5;
 	server = sv::serverInit(serverOpts);
 	sf::debugPrintLine("Server: %p", server);
 

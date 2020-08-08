@@ -86,4 +86,12 @@ uint32_t UintMap::findOne(uint32_t key, uint32_t missing) const
 	}
 }
 
+void UintMap::removePair(uint32_t key, uint32_t value)
+{
+	uint32_t hash = sf::hash(key);
+	uint32_t scan = 0;
+	rhmap_find_value_inline(&map, hash, &scan, value);
+	rhmap_remove_inline(&map, hash, scan);
+}
+
 }

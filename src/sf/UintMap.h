@@ -33,6 +33,8 @@ struct UintMap
 	void insert(uint32_t key, uint32_t value);
 	uint32_t findOne(uint32_t key, uint32_t missing) const;
 
+	void removePair(uint32_t key, uint32_t value);
+
 	sf_forceinline UintFind findAll(uint32_t key) const {
 		UintFind find;
 		find.map = &map;

@@ -19,6 +19,7 @@
 #include "Sphere.h"
 #include "Particle.h"
 #include "FakeShadow.h"
+#include "DebugMesh.h"
 
 #include "GameShaders.h"
 
@@ -43,6 +44,7 @@ void GameShaders::load()
 	sphere = sg_make_shader(Sphere_Sphere_shader_desc());
 	particle = sg_make_shader(Particle_Particle_shader_desc());
 	fakeShadow = sg_make_shader(FakeShadow_FakeShadow_shader_desc());
+	debugMesh = sg_make_shader(DebugMesh_DebugMesh_shader_desc());
 
 	{
 		sf::Vec2 verts[] = {
@@ -71,5 +73,12 @@ void GameShaders::load()
 		sg_pipeline_desc &d = fakeShadowPipe.init(fakeShadow, sp::PipeBlendOver | sp::PipeIndex16 | sp::PipeDepthTest);
 		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
 		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+	}
+
+	{
+		sg_pipeline_desc &d = debugMeshPipe.init(debugMesh, sp::PipeIndex16 | sp::PipeDepthWrite);
+		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.buffers[0].stride = 12 * sizeof(float);
 	}
 }
