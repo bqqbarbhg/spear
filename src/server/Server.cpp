@@ -201,6 +201,10 @@ static void updateSession(Session &session)
 		int y = rand() % 4 - 2;
 		PropTransform t = session.state->props.find(id)->transform;
 		t.tile = sf::Vec2i(x, y);
+		t.visualOffset.y = ((float)rand() / (float)RAND_MAX) * 2.0f - 1.0f;
+		t.visualRotation.x = ((float)rand() / (float)RAND_MAX) * sf::F_2PI;
+		t.visualRotation.y = ((float)rand() / (float)RAND_MAX) * sf::F_2PI;
+		t.visualRotation.z = ((float)rand() / (float)RAND_MAX) * sf::F_2PI;
 		session.state->moveProp(session.events, id, t);
 	}
 

@@ -53,9 +53,12 @@ void ClientState::setEntityTransform(uint32_t entityId, const VisualTransform &t
 	Entity *entity = entities.find(entityId);
 	sf_assert(entity);
 
-	entity->transform = transform;
+	VisualTransform normalized = transform;
+	normalized.rotation = sf::normalize(transform.rotation);
 
-	sf::Mat34 matrix = transform.asMatrix();
+	entity->transform = normalized;
+
+	sf::Mat34 matrix = normalized.asMatrix();
 
 	if (entity->mask & Entity::Mesh) {
 		meshState->updateEntityTransform(entityId, transform, matrix);
