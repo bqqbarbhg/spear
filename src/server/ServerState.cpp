@@ -207,10 +207,7 @@ void ServerState::applyEvent(const Event &event)
 		sv_check(res.inserted);
 	} else if (auto *e = event.as<MovePropEvent>()) {
 		if (Prop *prop = findProp(*this, e->propId)) {
-			prop->tile = e->tile;
-			prop->offset = e->offset;
-			prop->rotation = e->rotation;
-			prop->scale = e->scale;
+			prop->transform = e->transform;
 		}
 	} else if (auto *e = event.as<GiveCardEvent>()) {
 		if (Card *card = findCard(*this, e->cardId)) {
@@ -815,6 +812,16 @@ void ServerState::addCharacterToSelect(sf::Array<sf::Box<Event>> &events, const 
 		auto e = sf::box<AddCharacterToSpawn>();
 		e->selectPrefab = type;
 		e->count = count;
+		pushEvent(*this, events, e);
+	}
+}
+
+void ServerState::moveProp(sf::Array<sf::Box<Event>> &events, uint32_t propId, const PropTransform &transform)
+{
+	{
+		auto e = sf::box<MovePropEvent>();
+		e->propId = propId;
+		e->transform = transform;
 		pushEvent(*this, events, e);
 	}
 }

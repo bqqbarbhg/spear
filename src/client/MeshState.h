@@ -10,13 +10,14 @@ namespace cl {
 
 struct RenderArgs;
 struct SpatialNode;
+struct VisualTransform;
 
 struct MeshState
 {
 	static sf::Box<MeshState> create();
 
 	void addMesh(uint32_t entityId, const sf::Box<sv::ModelComponent> &c);
-	void updateEntityTransform(uint32_t entityId, const sf::Mat34 &transform);
+	void updateEntityTransform(uint32_t entityId, const VisualTransform &transform, const sf::Mat34 &matrix);
 	void removeEntity(uint32_t entityId);
 
 	void updatePendingMeshes();

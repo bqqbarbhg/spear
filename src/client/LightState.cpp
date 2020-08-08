@@ -155,25 +155,24 @@ struct LightStateImp : LightState
 		point.castShadows = c.castShadows;
 
 		sf::Sphere bounds = { point.localPosition, point.radius };
+		clientGlobalState->registerEntity(entityId, Entity::Light);
 		clientGlobalState->areaState->addEntitySphere(AreaPointLight, index, entityId, bounds);
 
 		LightEntityImp& entity = entities[entityId];
 		entity.pointLights.push(index);
 	}
 
-	void updateEntity(uint32_t entityId, const EntityState &state, uint32_t updateMask)
+	void updateEntityTransform(uint32_t entityId, const VisualTransform &transform, const sf::Mat34 &matrix)
 	{
 		LightEntityImp& entity = *entities.findValue(entityId);
 
 		for (uint32_t pointIndex : entity.pointLights) {
 			PointLightImp &point = pointLights[pointIndex];
 
-			if (updateMask & EntityState::UpdateTransform) {
-				point.worldPosition = sf::transformPoint(state.transform, point.localPosition);
-				if (point.shadowIndex != ~0u && !point.dirtyShadows) {
-					dirtyShadowPointLights.push(pointIndex);
-					point.dirtyShadows = true;
-				}
+			point.worldPosition = sf::transformPoint(matrix, point.localPosition);
+			if (point.shadowIndex != ~0u && !point.dirtyShadows) {
+				dirtyShadowPointLights.push(pointIndex);
+				point.dirtyShadows = true;
 			}
 		}
 	}
@@ -372,9 +371,9 @@ void LightState::addPointLight(uint32_t entityId, const sv::PointLightComponent 
 	((LightStateImp*)this)->addPointLight(entityId, c);
 }
 
-void LightState::updateEntity(uint32_t entityId, const EntityState &state, uint32_t updateMask)
+void LightState::updateEntityTransform(uint32_t entityId, const VisualTransform &transform, const sf::Mat34 &matrix)
 {
-	((LightStateImp*)this)->updateEntity(entityId, state, updateMask);
+	((LightStateImp*)this)->updateEntityTransform(entityId, transform, matrix);
 }
 
 void LightState::removeEntity(uint32_t entityId)

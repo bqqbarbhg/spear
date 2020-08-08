@@ -20,6 +20,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, CastOnTurnStart, CastOnTurnStartComponent),
 		sf_poly(Component, CastOnReceiveDamage, CastOnReceiveDamageComponent),
 		sf_poly(Component, CastOnDealDamage, CastOnDealDamageComponent),
+		sf_poly(Component, ResistDamage, ResistDamageComponent),
 		sf_poly(Component, CardCast, CardCastComponent),
 		sf_poly(Component, Spell, SpellComponent),
 		sf_poly(Component, SpellDamage, SpellDamageComponent),
@@ -38,18 +39,24 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, StatusAdd, StatusAddEvent),
 		sf_poly(Event, StatusTick, StatusTickEvent),
 		sf_poly(Event, StatusRemove, StatusRemoveEvent),
+		sf_poly(Event, ResistDamage, ResistDamageEvent),
 		sf_poly(Event, CastSpell, CastSpellEvent),
+		sf_poly(Event, CastSpell, MeleeAttackEvent),
 		sf_poly(Event, Damage, DamageEvent),
 		sf_poly(Event, LoadPrefab, LoadPrefabEvent),
+		sf_poly(Event, LoadPrefab, ReloadPrefabEvent),
 		sf_poly(Event, RemoveGarbageIds, RemoveGarbageIdsEvent),
 		sf_poly(Event, RemoveGarbagePrefabs, RemoveGarbagePrefabsEvent),
 		sf_poly(Event, AddProp, AddPropEvent),
 		sf_poly(Event, AddCharacter, AddCharacterEvent),
 		sf_poly(Event, AddCard, AddCardEvent),
+		sf_poly(Event, ReloadProp, ReloadPropEvent),
+		sf_poly(Event, MoveProp, MovePropEvent),
 		sf_poly(Event, GiveCard, GiveCardEvent),
 		sf_poly(Event, SelectCard, SelectCardEvent),
 		sf_poly(Event, AddCharacterToSpawn, AddCharacterToSpawn),
 		sf_poly(Event, SelectCharacterToSpawn, SelectCharacterToSpawnEvent),
+		sf_poly(Event, Move, MoveEvent),
 	};
 	sf_struct_poly(t, Event, type, { }, polys);
 }
@@ -79,6 +86,7 @@ template<> void initType<PointLightComponent>(Type *t)
 		sf_field(PointLightComponent, position),
 		sf_field(PointLightComponent, flickerFrequency),
 		sf_field(PointLightComponent, flickerIntensity),
+		sf_field(PointLightComponent, castShadows),
 	};
 	sf_struct_base(t, PointLightComponent, Component, fields);
 }
@@ -91,6 +99,8 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		sf_field(ParticleSystemComponent, intensity),
 		sf_field(ParticleSystemComponent, radius),
 		sf_field(ParticleSystemComponent, position),
+		sf_field(ParticleSystemComponent, updateOutOfCamera),
+		sf_field(ParticleSystemComponent, prewarmTime),
 	};
 	sf_struct_base(t, ParticleSystemComponent, Component, fields);
 }
@@ -165,6 +175,7 @@ template<> void initType<CardProjectileComponent>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(CardProjectileComponent, prefabName),
+		sf_field(CardProjectileComponent, hitEffect),
 		sf_field(CardProjectileComponent, flightSpeed),
 	};
 	sf_struct_base(t, CardProjectileComponent, Component, fields);
@@ -196,6 +207,18 @@ template<> void initType<CastOnDealDamageComponent>(Type *t)
 		sf_field(CastOnDealDamageComponent, spellName),
 	};
 	sf_struct_base(t, CastOnDealDamageComponent, Component, fields);
+}
+
+template<> void initType<ResistDamageComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(ResistDamageComponent, onSpell),
+		sf_field(ResistDamageComponent, onMelee),
+		sf_field(ResistDamageComponent, resistAmount),
+		sf_field(ResistDamageComponent, successRoll),
+		sf_field(ResistDamageComponent, effectName),
+	};
+	sf_struct_base(t, ResistDamageComponent, Component, fields);
 }
 
 template<> void initType<CardCastComponent>(Type *t)
@@ -234,6 +257,9 @@ template<> void initType<StatusComponent>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(StatusComponent, turnsRoll),
+		sf_field(StatusComponent, startEffect),
+		sf_field(StatusComponent, activeEffect),
+		sf_field(StatusComponent, endEffect),
 	};
 	sf_struct_base(t, StatusComponent, Component, fields);
 }
@@ -290,6 +316,19 @@ template<> void initType<StatusRemoveEvent>(Type *t)
 	sf_struct_base(t, StatusRemoveEvent, Event, fields);
 }
 
+template<> void initType<ResistDamageEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(ResistDamageEvent, cardName),
+		sf_field(ResistDamageEvent, effectName),
+		sf_field(ResistDamageEvent, resistAmount),
+		sf_field(ResistDamageEvent, resistDamage),
+		sf_field(ResistDamageEvent, successRoll),
+		sf_field(ResistDamageEvent, success),
+	};
+	sf_struct_base(t, ResistDamageEvent, Event, fields);
+}
+
 template<> void initType<CastSpellEvent>(Type *t)
 {
 	static Field fields[] = {
@@ -297,6 +336,15 @@ template<> void initType<CastSpellEvent>(Type *t)
 		sf_field(CastSpellEvent, successRoll),
 	};
 	sf_struct_base(t, CastSpellEvent, Event, fields);
+}
+
+template<> void initType<MeleeAttackEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(MeleeAttackEvent, meleeInfo),
+		sf_field(MeleeAttackEvent, hitRoll),
+	};
+	sf_struct_base(t, MeleeAttackEvent, Event, fields);
 }
 
 template<> void initType<DamageEvent>(Type *t)
@@ -316,6 +364,14 @@ template<> void initType<LoadPrefabEvent>(Type *t)
 		sf_field(LoadPrefabEvent, prefab),
 	};
 	sf_struct_base(t, LoadPrefabEvent, Event, fields);
+}
+
+template<> void initType<ReloadPrefabEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(ReloadPrefabEvent, prefab),
+	};
+	sf_struct_base(t, ReloadPrefabEvent, Event, fields);
 }
 
 template<> void initType<RemoveGarbageIdsEvent>(Type *t)
@@ -358,6 +414,23 @@ template<> void initType<AddCardEvent>(Type *t)
 	sf_struct_base(t, AddCardEvent, Event, fields);
 }
 
+template<> void initType<ReloadPropEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(ReloadPropEvent, prop),
+	};
+	sf_struct_base(t, ReloadPropEvent, Event, fields);
+}
+
+template<> void initType<MovePropEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(MovePropEvent, propId),
+		sf_field(MovePropEvent, transform),
+	};
+	sf_struct_base(t, MovePropEvent, Event, fields);
+}
+
 template<> void initType<GiveCardEvent>(Type *t)
 {
 	static Field fields[] = {
@@ -394,6 +467,15 @@ template<> void initType<SelectCharacterToSpawnEvent>(Type *t)
 		sf_field(SelectCharacterToSpawnEvent, playerId),
 	};
 	sf_struct_base(t, SelectCharacterToSpawnEvent, Event, fields);
+}
+
+template<> void initType<MoveEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(MoveEvent, characterId),
+		sf_field(MoveEvent, position),
+	};
+	sf_struct_base(t, MoveEvent, Event, fields);
 }
 
 template<> void initType<DiceRoll>(Type *t)
@@ -437,15 +519,24 @@ template<> void initType<Prefab>(Type *t)
 	sf_struct(t, Prefab, fields);
 }
 
+template<> void initType<PropTransform>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(PropTransform, tile),
+		sf_field(PropTransform, rotation),
+		sf_field(PropTransform, visualOffset),
+		sf_field(PropTransform, visualRotation),
+		sf_field(PropTransform, scale),
+	};
+	sf_struct(t, PropTransform, fields);
+}
+
 template<> void initType<Prop>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(Prop, id),
 		sf_field(Prop, prefabName),
-		sf_field(Prop, tile),
-		sf_field(Prop, offset),
-		sf_field(Prop, rotation),
-		sf_field(Prop, scale),
+		sf_field(Prop, transform),
 		sf_field(Prop, deleted),
 	};
 	sf_struct(t, Prop, fields);

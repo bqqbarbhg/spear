@@ -118,7 +118,7 @@ static Session *setupSession(Server *s, uint32_t id, uint32_t secret)
 
 		Prop prop;
 		prop.prefabName = sf::Symbol("Game/Props/Test/Barrel.json");
-		prop.tile = sf::Vec2i(0, 0);
+		prop.transform.tile = sf::Vec2i(0, 0);
 		session.state->addProp(session.events, prop);
 
 		for (int32_t y = -20; y < 20; y++)
@@ -128,7 +128,7 @@ static Session *setupSession(Server *s, uint32_t id, uint32_t secret)
 
 			Prop prop;
 			prop.prefabName = sf::Symbol("Game/Props/Test/Barrel.json");
-			prop.tile = sf::Vec2i(x, y) * 3;
+			prop.transform.tile = sf::Vec2i(x, y) * 3;
 			session.state->addProp(session.events, prop);
 		}
 
@@ -192,6 +192,37 @@ static void updateSession(Session &session)
 				}
 			}
 		}
+	}
+
+	static int HACKCOUNT = 0;
+	if (HACKCOUNT++ % 30 == 0) {
+		uint32_t id = 101;
+		int x = rand() % 4 - 2;
+		int y = rand() % 4 - 2;
+		PropTransform t = session.state->props.find(id)->transform;
+		t.tile = sf::Vec2i(x, y);
+		session.state->moveProp(session.events, id, t);
+	}
+
+	sf::HashMap<uint32_t, sf::Array<char>> encodedUpdates;
+	uint32_t totalEvents = session.eventBase + session.events.size;
+
+	for (uint32_t i = 0; i < session.clients.size; i++) {
+		Client &client = session.clients[i];
+		if (client.lastSentEvent == totalEvents) continue;
+		sf_assert(client.lastSentEvent < totalEvents);
+		sf_assert(client.lastSentEvent >= session.eventBase);
+
+		sf::Array<char> &data = encodedUpdates[client.lastSentEvent];
+		if (data.size == 0) {
+			sv::MessageUpdate msg;
+			msg.events.push(session.events.slice().drop(client.lastSentEvent - session.eventBase));
+			encodeMessage(data, msg, session.server->messageEncoding);
+		}
+
+		bqws_send_binary(client.ws, data.data, data.size);
+
+		client.lastSentEvent = totalEvents;
 	}
 }
 

@@ -75,6 +75,8 @@ void MeshState::addMesh(uint32_t entityId, const sf::Box<sv::ModelComponent> &c)
 {
 	MeshStateImp *imp = (MeshStateImp*)this;
 
+	clientGlobalState->registerEntity(entityId, Entity::Mesh);
+
 	PendingMesh &pendingMesh = imp->pendingMeshes.push();
 	pendingMesh.entityId = entityId;
 	pendingMesh.model.load(c->model);
@@ -109,7 +111,7 @@ void MeshState::removeEntity(uint32_t entityId)
 	}
 }
 
-void MeshState::updateEntityTransform(uint32_t entityId, const sf::Mat34 &transform)
+void MeshState::updateEntityTransform(uint32_t entityId, const VisualTransform &transform, const sf::Mat34 &matrix)
 {
 	MeshStateImp *imp = (MeshStateImp*)this;
 
@@ -120,7 +122,7 @@ void MeshState::updateEntityTransform(uint32_t entityId, const sf::Mat34 &transf
 	while (find.next(meshId)) {
 		MeshImp &mesh = imp->meshes[meshId];
 
-		mesh.worldTransform = transform * mesh.localTransform;
+		mesh.worldTransform = matrix * mesh.localTransform;
 
 		sf::Bounds3 bounds = sf::transformBounds(mesh.worldTransform, mesh.bounds);
 		areaState->updateWorldBox(AreaMesh, meshId, bounds);
@@ -161,7 +163,7 @@ void MeshState::updatePendingMeshes()
 			mesh.bounds = sf::Bounds3::minMax(aabbMin, aabbMax);
 			mesh.localTransform = getModelComponentTransform(*pendingMesh.component);
 
-			const sf::Mat34 &entityTransform = clientGlobalState->entities[entityId].state.transform;
+			const sf::Mat34 &entityTransform = clientGlobalState->entities[entityId].transform.asMatrix();
 			mesh.worldTransform = entityTransform * mesh.localTransform;
 
 			sf::Bounds3 bounds = sf::transformBounds(mesh.worldTransform, mesh.bounds);

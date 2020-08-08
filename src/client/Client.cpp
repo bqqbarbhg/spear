@@ -355,6 +355,7 @@ void handleMessage(Client *c, sv::Message &msg)
 	} else if (auto m = msg.as<sv::MessageUpdate>()) {
 		for (sv::Event *event : m->events) {
 			c->svState->applyEvent(*event);
+			c->clState->applyEvent(*event);
 		}
 	}
 }
@@ -466,7 +467,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 		}
 	}
 
-	sf::Vec3 eye = sf::Vec3(0.0f, 5.0f, 10.0f);
+	sf::Vec3 eye = sf::Vec3(0.0f, 10.0f, 3.0f);
 	sf::Mat34 worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.2f));
 	sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.3f, (float)sapp_width()/(float)sapp_height(), 1.0f, 100.0f);
 	sf::Mat44 worldToClip = viewToClip * worldToView;
@@ -476,6 +477,9 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	sf::Mat44 clipToWorld = sf::inverse(worldToClip);
 
 	c->clState->updateAssetLoading();
+
+	c->clState->updateEntityInterpolations(dt);
+
 	c->clState->updateVisibility(viewFrustum);
 
 	sf::Vec2 clipMouse = input.mousePosition * sf::Vec2(+2.0f, -2.0f) + sf::Vec2(-1.0f, +1.0f);
@@ -534,7 +538,7 @@ sg_image clientRender(Client *c)
 
 		sp::beginPass(c->mainPass, &action);
 
-		sf::Vec3 eye = sf::Vec3(0.0f, 5.0f, 10.0f);
+		sf::Vec3 eye = sf::Vec3(0.0f, 10.0f, 3.0f);
 		sf::Mat34 worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.2f));
 		sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.3f, (float)sapp_width()/(float)sapp_height(), 1.0f, 100.0f);
 		sf::Mat44 worldToClip = viewToClip * worldToView;

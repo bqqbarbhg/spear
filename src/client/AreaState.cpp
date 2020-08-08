@@ -492,8 +492,9 @@ void AreaState::removeGroup(uint32_t groupId)
 uint32_t AreaState::addEntityBox(uint32_t groupId, uint32_t userId, uint32_t entityId, const sf::Bounds3 &localBounds)
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
+	clientGlobalState->registerEntity(entityId, Entity::Area);
 	const Entity *entity = clientGlobalState->entities.find(entityId);
-	sf::Bounds3 bounds = sf::transformBounds(entity->state.transform, localBounds);
+	sf::Bounds3 bounds = sf::transformBounds(entity->transform.asMatrix(), localBounds);
 	uint32_t areaId = addBoxImp(imp, bounds, groupId, userId, entityId, entityId);
 	imp->entityAreas[entityId].boxes.push(areaId);
 	return areaId;
@@ -504,7 +505,7 @@ void AreaState::updateEntityBox(uint32_t areaId, const sf::Bounds3 &localBounds)
 	AreaStateImp *imp = (AreaStateImp*)this;
 	AreaImp &area = imp->areas[areaId];
 	const Entity *entity = clientGlobalState->entities.find(area.attachEntityId);
-	sf::Bounds3 bounds = sf::transformBounds(entity->state.transform, localBounds);
+	sf::Bounds3 bounds = sf::transformBounds(entity->transform.asMatrix(), localBounds);
 	imp->areaLocalBounds[areaId].box = localBounds;
 	updateBoxImp(imp, areaId, bounds);
 }
@@ -547,7 +548,7 @@ void AreaState::updateAnyBox(uint32_t areaId, const sf::Bounds3 &localBounds)
 	sf::Bounds3 bounds = localBounds;
 	if (area.attachEntityId) {
 		const Entity *entity = clientGlobalState->entities.find(area.attachEntityId);
-		bounds = sf::transformBounds(entity->state.transform, bounds);
+		bounds = sf::transformBounds(entity->transform.asMatrix(), bounds);
 		imp->areaLocalBounds[areaId].box = localBounds;
 	}
 	updateBoxImp(imp, areaId, bounds);
@@ -568,8 +569,9 @@ void AreaState::removeAnyBox(uint32_t areaId)
 uint32_t AreaState::addEntitySphere(uint32_t groupId, uint32_t userId, uint32_t entityId, const sf::Sphere &localBounds)
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
+	clientGlobalState->registerEntity(entityId, Entity::Area);
 	const Entity *entity = clientGlobalState->entities.find(entityId);
-	sf::Sphere bounds = sf::transformSphere(entity->state.transform, localBounds);
+	sf::Sphere bounds = sf::transformSphere(entity->transform.asMatrix(), localBounds);
 	uint32_t areaId = addSphereImp(imp, bounds, groupId, userId, entityId, entityId);
 	imp->entityAreas[entityId].boxes.push(areaId);
 	imp->areaLocalBounds[areaId].sphere = localBounds;
@@ -581,7 +583,7 @@ void AreaState::updateEntitySphere(uint32_t areaId, const sf::Sphere &localBound
 	AreaStateImp *imp = (AreaStateImp*)this;
 	AreaImp &area = imp->areas[areaId];
 	const Entity *entity = clientGlobalState->entities.find(area.attachEntityId);
-	sf::Sphere bounds = sf::transformSphere(entity->state.transform, localBounds);
+	sf::Sphere bounds = sf::transformSphere(entity->transform.asMatrix(), localBounds);
 	updateSphereImp(imp, areaId, bounds);
 }
 
@@ -623,7 +625,7 @@ void AreaState::updateAnySphere(uint32_t areaId, const sf::Sphere &localBounds)
 	sf::Sphere bounds = localBounds;
 	if (area.entityId) {
 		const Entity *entity = clientGlobalState->entities.find(area.entityId);
-		bounds = sf::transformSphere(entity->state.transform, bounds);
+		bounds = sf::transformSphere(entity->transform.asMatrix(), bounds);
 		imp->areaLocalBounds[areaId].sphere = localBounds;
 	}
 	updateSphereImp(imp, areaId, bounds);
@@ -657,7 +659,7 @@ uint32_t AreaState::findArea(uint32_t groupId, uint32_t userId) const
 	return areaId;
 }
 
-void AreaState::updateEntityTransform(uint32_t entityId, const sf::Mat34 &transform)
+void AreaState::updateEntityTransform(uint32_t entityId, const VisualTransform &transform, const sf::Mat34 &matrix)
 {
 	AreaStateImp *imp = (AreaStateImp*)this;
 	EntityAreasImp *entityAreas = imp->entityAreas.findValue(entityId);
@@ -666,14 +668,14 @@ void AreaState::updateEntityTransform(uint32_t entityId, const sf::Mat34 &transf
 	for (uint32_t areaId : entityAreas->boxes) {
 		AreaImp &area = imp->areas[areaId];
 		BoxArea &box = area.spatialNode->boxes[area.spatialIndex];
-		sf::Bounds3 bounds = sf::transformBounds(transform, imp->areaLocalBounds[areaId].box);
+		sf::Bounds3 bounds = sf::transformBounds(matrix, imp->areaLocalBounds[areaId].box);
 		updateBoxImp(imp, areaId, bounds);
 	}
 
 	for (uint32_t areaId : entityAreas->spheres) {
 		AreaImp &area = imp->areas[areaId];
 		SphereArea &sphere = area.spatialNode->spheres[area.spatialIndex];
-		sf::Sphere bounds = sf::transformSphere(transform, imp->areaLocalBounds[areaId].sphere);
+		sf::Sphere bounds = sf::transformSphere(matrix, imp->areaLocalBounds[areaId].sphere);
 		updateSphereImp(imp, areaId, bounds);
 	}
 }

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "server/ServerState.h"
-#include "client/EntityState.h"
 #include "sf/Geometry.h"
 #include "ext/sokol/sokol_defs.h"
 #include "sf/Geometry.h"
@@ -11,6 +10,8 @@ namespace sf {
 }
 
 namespace cl {
+
+struct VisualTransform;
 
 struct BoxArea
 {
@@ -105,13 +106,15 @@ struct AreaState
 	sf_forceinline void updateAnySphere(uint32_t groupId, uint32_t userId, const sf::Sphere &bounds) { updateAnySphere(findArea(groupId, userId), bounds); }
 	sf_forceinline void removeAnySphere(uint32_t groupId, uint32_t userId) { removeAnySphere(findArea(groupId, userId)); }
 
-	void updateEntityTransform(uint32_t entityId, const sf::Mat34 &transform);
+	void updateEntityTransform(uint32_t entityId, const VisualTransform &transform, const sf::Mat34 &matrix);
 
 	void optimizeSpatialNodes();
 
 	void processDirtyNodes();
 
 	void querySpatialNodesFrustum(sf::Array<const SpatialNode*> &nodes, const sf::Frustum &frustum);
+
+	// TODO: tMax
 	void querySpatialNodesRay(sf::Array<const SpatialNode*> &nodes, const sf::Ray &ray, float tMin=0.0f);
 
 	const AreaGroupState &getGroupState(uint32_t groupId) const;

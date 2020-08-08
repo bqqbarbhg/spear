@@ -70,4 +70,11 @@ sf_inline sf::Vec3 rotate(const sf::Quat &q, const sf::Vec3 &v) {
 	return r;
 }
 
+enum class EulerOrder {
+	XYZ, XZY, YZX, YXZ, ZXY, ZYX
+};
+
+Quat eulerAnglesToQuat(float x, float y, float z, EulerOrder order=EulerOrder::XYZ);
+Quat eulerAnglesToQuat(const sf::Vec3 &v, EulerOrder order=EulerOrder::XYZ);
+
 }

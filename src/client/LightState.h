@@ -1,11 +1,12 @@
 #pragma once
 
 #include "server/ServerState.h"
-#include "client/EntityState.h"
 #include "sf/Geometry.h"
 #include "ext/sokol/sokol_defs.h"
 
 namespace cl {
+
+struct VisualTransform;
 
 struct PointLight
 {
@@ -21,8 +22,9 @@ struct LightState
 	static sf::Box<LightState> create();
 
 	void addPointLight(uint32_t entityId, const sv::PointLightComponent &c);
-	void updateEntity(uint32_t entityId, const EntityState &state, uint32_t updateMask);
 	void removeEntity(uint32_t entityId);
+
+	void updateEntityTransform(uint32_t entityId, const VisualTransform &transform, const sf::Mat34 &matrix);
 
 	void renderDirtyShadowMaps(uint32_t maxUpdates);
 

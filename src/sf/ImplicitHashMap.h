@@ -185,7 +185,7 @@ struct ImplicitHashMap
 
 	Entry *removeAt(Entry *it)
 	{
-		bool res = remove(it->key);
+		bool res = remove(KeyFn()(*it));
 		sf_assert(res);
 		return it;
 	}

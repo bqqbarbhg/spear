@@ -253,14 +253,20 @@ struct Prefab sv_reflect
 	T *findComponent() const { return (T*)findComponentImp(T::ComponentType); }
 };
 
+struct PropTransform sv_reflect
+{
+	sf::Vec2i tile;
+	uint8_t rotation;
+	sf::Vec3 visualOffset;
+	sf::Vec3 visualRotation;
+	float scale = 1.0f;
+};
+
 struct Prop sv_reflect
 {
 	uint32_t id;
 	sf::Symbol prefabName;
-	sf::Vec2i tile;
-	sf::Vec3 offset;
-	sf::Vec3 rotation;
-	float scale = 1.0f;
+	PropTransform transform;
 	bool deleted = false;
 };
 
@@ -505,10 +511,7 @@ struct ReloadPropEvent : EventBase<Event::ReloadProp>
 struct MovePropEvent : EventBase<Event::MoveProp>
 {
 	uint32_t propId;
-	sf::Vec2i tile;
-	sf::Vec3 offset;
-	sf::Vec3 rotation;
-	float scale = 1.0f;
+	PropTransform transform;
 };
 
 struct GiveCardEvent : EventBase<Event::GiveCard>
@@ -619,6 +622,8 @@ struct ServerState
 	uint32_t addCharacter(sf::Array<sf::Box<Event>> &events, const Character &chr);
 	uint32_t addCard(sf::Array<sf::Box<Event>> &events, const Card &card);
 	void addCharacterToSelect(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, int32_t count);
+
+	void moveProp(sf::Array<sf::Box<Event>> &events, uint32_t propId, const PropTransform &transform);
 
 	void giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId);
 	void selectCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId, uint32_t slot);

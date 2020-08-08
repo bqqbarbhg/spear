@@ -247,7 +247,9 @@ static float intersectTriangles(const uint32_t *tris, const spmdl_bvh_split &spl
 			sf::Vec3 q = sf::cross(s, e1);
 			float v = f * sf::dot(ray.direction, q);
 			float w = 1.0f - u - v;
-			if (sf::min(sf::min(u, v), w) >= 0.0f) {
+			// HACK: Allow areas outside of the triangles to combat
+			// potential quantization mismatch issues
+			if (sf::min(sf::min(u, v), w) >= -0.001f) {
 				float t = f * sf::dot(e2, q);
 				if (t >= tMin) {
 					tHit = t;
