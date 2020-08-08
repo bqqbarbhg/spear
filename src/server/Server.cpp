@@ -195,7 +195,7 @@ static void updateSession(Session &session)
 	}
 
 	static int HACKCOUNT = 0;
-	if (HACKCOUNT++ % 30 == 0) {
+	if (HACKCOUNT++ % 100 == 0) {
 		uint32_t id = 101;
 		int x = rand() % 4 - 2;
 		int y = rand() % 4 - 2;
@@ -205,6 +205,7 @@ static void updateSession(Session &session)
 		t.visualRotation.x = ((float)rand() / (float)RAND_MAX) * sf::F_2PI;
 		t.visualRotation.y = ((float)rand() / (float)RAND_MAX) * sf::F_2PI;
 		t.visualRotation.z = ((float)rand() / (float)RAND_MAX) * sf::F_2PI;
+		t.scale = ((float)rand() / (float)RAND_MAX) * 3.0f + 0.25f;
 		session.state->moveProp(session.events, id, t);
 	}
 

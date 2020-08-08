@@ -86,9 +86,11 @@ void ClientState::addEntityInterpolation(uint32_t entityId, const VisualTransfor
 	auto res = entityInterpolations.insert(entityId);
 	EntityInterpolation &interp = res.entry;
 
+	float speed = 1.0f / opts.duration;
+
 	VisualTransform velocity;
 	if (!res.inserted) {
-		velocity = interp.spline.derivative(interp.t) * interp.speed;
+		velocity = interp.spline.derivative(interp.t) * (interp.speed / speed);
 	} else {
 		interp.entityId = entityId;
 	}
@@ -96,7 +98,7 @@ void ClientState::addEntityInterpolation(uint32_t entityId, const VisualTransfor
 	VisualTransform delta = dst - entity->transform;
 
 	interp.t = 0.0f;
-	interp.speed = 1.0f / opts.duration;
+	interp.speed = speed;
 	interp.spline.p0 = entity->transform;
 	interp.spline.d0 = delta * opts.velocityBegin;
 	interp.spline.p1 = dst;
@@ -133,9 +135,8 @@ void ClientState::applyEvent(const sv::Event &event)
 	} else if (const auto *e = event.as<sv::MovePropEvent>()) {
 		VisualTransform transform = getPropTransform(e->transform);
 		EntityInterpolationOpts opts;
-		opts.duration = 1.0f;
+		opts.duration = ((float)rand() / (float)RAND_MAX) * 3.0f + 0.5f;
 		opts.velocityBegin = 0.0f;
-		opts.velocityEnd = -3.0f;
 		addEntityInterpolation(e->propId, transform, opts);
 	}
 }
