@@ -19,6 +19,10 @@ struct Client
 	Server *server;
 	bqws_socket *ws = nullptr;
 	uint32_t lastSentEvent = 0;
+
+	// Editor
+	sf::Array<sf::Array<sf::Box<sv::Edit>>> undoStack;
+	sf::Array<sf::Array<sf::Box<sv::Edit>>> redoStack;
 };
 
 struct Session
@@ -190,13 +194,19 @@ static void updateSession(Session &session)
 					joinSession(*maybeSession, ws, m);
 					break;
 				}
+			} else if (auto m = msg->as<sv::MessageRequestEdit>()) {
+				sf::Array<sf::Box<sv::Edit>> &undoBundle = client.undoStack.push();
+				for (const sv::Edit *edit : m->edits) {
+					session.state->applyEdit(session.events, *edit, undoBundle);
+				}
 			}
 		}
 	}
 
+#if 0
 	static int HACKCOUNT = 0;
 	HACKCOUNT++;
-	if (HACKCOUNT % 30 == 0) {
+	if (HACKCOUNT % 100 == 0) {
 		uint32_t id = 101;
 		int x = rand() % 4 - 2;
 		int y = rand() % 4 - 2;
@@ -217,6 +227,7 @@ static void updateSession(Session &session)
 		prefab.components[0] = newModel;
 		session.state->reloadPrefab(session.events, prefab);
 	}
+#endif
 
 
 	sf::HashMap<uint32_t, sf::Array<char>> encodedUpdates;

@@ -327,15 +327,14 @@ struct AreaSystemImp final : AreaSystem
 		}
 	}
 
-	void castRay(sf::Array<Area> &areas, uint32_t areaFlags, const sf::Ray &ray, float tMin, float tMax) const
+	void castRay(sf::Array<Area> &areas, uint32_t areaFlags, const sf::FastRay &ray, float tMin, float tMax) const
 	{
-		sf::FastRay fastRay { ray };
 		for (const auto &root : spatialRoots) {
 			const Spatial *spatial = root.val;
-			float t = sf::intersectRayFastAabb(fastRay, spatial->aabbMin, spatial->aabbMax, tMin, tMax);
+			float t = sf::intersectRayFastAabb(ray, spatial->aabbMin, spatial->aabbMax, tMin, tMax);
 			if (t >= tMax) continue;
 
-			castRaySpatial(spatial, areas, areaFlags, fastRay, tMin, tMax);
+			castRaySpatial(spatial, areas, areaFlags, ray, tMin, tMax);
 		}
 	}
 };

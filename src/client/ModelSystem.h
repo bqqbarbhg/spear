@@ -4,6 +4,8 @@
 
 #include "client/System.h"
 
+namespace sf { struct FastRay; }
+
 namespace cl {
 
 struct ModelSystem : EntitySystem
@@ -14,6 +16,9 @@ struct ModelSystem : EntitySystem
 	virtual void updateLoadQueue(AreaSystem *areaSystem) = 0;
 
 	virtual void renderMain(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
+
+	virtual void editorPick(sf::Array<EntityHit> &hits, const sf::FastRay &ray, uint32_t userId) const = 0;
+
 };
 
 }

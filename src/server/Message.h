@@ -15,6 +15,7 @@ struct Message
 		Join,
 		Load,
 		Update,
+		RequestEdit,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -52,6 +53,11 @@ struct MessageLoad : MessageBase<Message::Load>
 struct MessageUpdate : MessageBase<Message::Update>
 {
 	sf::Array<sf::Box<Event>> events;
+};
+
+struct MessageRequestEdit : MessageBase<Message::RequestEdit>
+{
+	sf::Array<sf::Box<Edit>> edits;
 };
 
 struct MessageEncoding

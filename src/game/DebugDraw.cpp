@@ -94,6 +94,13 @@ void debugDrawBox(const sf::Bounds3 &bounds, const sf::Vec3 &color)
 		sf::mat::scale(bounds.extent), color);
 }
 
+void debugDrawBox(const sf::Bounds3 &bounds, const sf::Mat34 &transform, const sf::Vec3 &color)
+{
+	debugDrawBox(
+		transform * sf::mat::translate(bounds.origin) *
+		sf::mat::scale(bounds.extent), color);
+}
+
 void debugDrawSphere(const sf::Mat34 &transform, const sf::Vec3 &color)
 {
 	sf::MutexGuard mg(g_mutex);

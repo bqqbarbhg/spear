@@ -126,14 +126,14 @@ ServerState::ServerState()
 	charactersToSelect.reserve(1024);
 }
 
-uint32_t ServerState::allocateId(sf::Array<sf::Box<Event>> &events, IdType type)
+uint32_t ServerState::allocateId(sf::Array<sf::Box<Event>> &events, IdType type, bool local)
 {
-	uint32_t nextId = lastAllocatedIdByType[(uint32_t)type];
+	uint32_t nextId = local ? lastLocalAllocatedIdByType[(uint32_t)type] : lastAllocatedIdByType[(uint32_t)type];
 	for (;;) {
 		nextId++;
 		if (nextId >= MaxIdIndex) nextId = 1;
 
-		uint32_t id = makeId(type, nextId);
+		uint32_t id = makeId(type, local ? nextId + MaxServerIdIndex : nextId);
 
 		bool exists = false;
 		switch (type) {
@@ -153,11 +153,22 @@ uint32_t ServerState::allocateId(sf::Array<sf::Box<Event>> &events, IdType type)
 	}
 }
 
+sf_inline bool propDeleted(const ServerState &state, uint32_t propId)
+{
+	const Prop *prop = state.props.find(propId);
+	return !prop || prop->deleted;
+}
+
 void ServerState::applyEvent(const Event &event)
 {
 	// TODO: What to do about reallocations?
 	if (auto *e = event.as<AllocateIdEvent>()) {
-		lastAllocatedIdByType[(uint32_t)getIdType(e->id)] = getIdIndex(e->id);
+		uint32_t index = getIdIndex(e->id);
+		if (index < MaxServerIdIndex) {
+			lastAllocatedIdByType[(uint32_t)getIdType(e->id)] = index;
+		} else {
+			lastLocalAllocatedIdByType[(uint32_t)getIdType(e->id)] = index - MaxServerIdIndex;
+		}
 	} else if (auto *e = event.as<CardCooldownTickEvent>()) {
 		if (Card *card = findCard(*this, e->cardId)) {
 			if (sv_check(card->cooldownLeft > 0)) {
@@ -197,8 +208,17 @@ void ServerState::applyEvent(const Event &event)
 	} else if (auto *e = event.as<RemoveGarbagePrefabsEvent>()) {
 		removePrefabs(e->names.slice());
 	} else if (auto *e = event.as<AddPropEvent>()) {
-		auto res = props.insertOrAssign(e->prop);
-		sv_check(res.inserted);
+		sv_check(propDeleted(*this, e->prop.id));
+		props.insertOrAssign(e->prop);
+	} else if (auto *e = event.as<RemovePropEvent>()) {
+		bool found = props.remove(e->propId);
+		sv_check(found);
+	} else if (auto *e = event.as<ReplaceLocalPropEvent>()) {
+		sv_check(propDeleted(*this, e->prop.id));
+		props.insertOrAssign(e->prop);
+		if (localClientId == e->clientId) {
+			props.remove(e->localId);
+		}
 	} else if (auto *e = event.as<AddCharacterEvent>()) {
 		auto res = characters.insertOrAssign(e->character);
 		sv_check(res.inserted);
@@ -285,6 +305,12 @@ void ServerState::getAsEvents(EventCallbackFn *callback, void *user) const
 	for (uint32_t i = 0; i < NumServerIdTypes; i++) {
 		AllocateIdEvent e = { };
 		e.id = makeId((IdType)i, lastAllocatedIdByType[i]);
+		callback(user, e);
+	}
+
+	for (uint32_t i = 0; i < NumServerIdTypes; i++) {
+		AllocateIdEvent e = { };
+		e.id = makeId((IdType)i, lastLocalAllocatedIdByType[i]);
 		callback(user, e);
 	}
 
@@ -424,7 +450,7 @@ void ServerState::putStatus(sf::Array<sf::Box<Event>> &events, const StatusInfo 
 	StatusComponent *statusComp = findComponent<StatusComponent>(*statusPrefab);
 	if (!statusComp) return;
 
-	uint32_t id = allocateId(events, IdType::Status);
+	uint32_t id = allocateId(events, IdType::Status, false);
 
 	{
 		auto e = sf::box<StatusAddEvent>();
@@ -734,12 +760,12 @@ uint32_t ServerState::selectCharacterSpawn(sf::Array<sf::Box<Event>> &events, co
 	return chrId;
 }
 
-uint32_t ServerState::addProp(sf::Array<sf::Box<Event>> &events, const Prop &prop)
+uint32_t ServerState::addProp(sf::Array<sf::Box<Event>> &events, const Prop &prop, bool local)
 {
 	Prefab *prefab = loadPrefab(*this, events, prop.prefabName);
 	if (!prefab) return 0;
 
-	uint32_t id = allocateId(events, IdType::Prop);
+	uint32_t id = allocateId(events, IdType::Prop, local);
 
 	{
 		auto e = sf::box<AddPropEvent>();
@@ -751,7 +777,35 @@ uint32_t ServerState::addProp(sf::Array<sf::Box<Event>> &events, const Prop &pro
 	return id;
 }
 
-uint32_t ServerState::addCharacter(sf::Array<sf::Box<Event>> &events, const Character &chr)
+void ServerState::removeProp(sf::Array<sf::Box<Event>> &events, uint32_t propId)
+{
+	{
+		auto e = sf::box<RemovePropEvent>();
+		e->propId = propId;
+		pushEvent(*this, events, e);
+	}
+}
+
+uint32_t ServerState::replaceLocalProp(sf::Array<sf::Box<Event>> &events, const Prop &prop, uint32_t clientId, uint32_t localId)
+{
+	Prefab *prefab = loadPrefab(*this, events, prop.prefabName);
+	if (!prefab) return 0;
+
+	uint32_t id = allocateId(events, IdType::Prop, false);
+
+	{
+		auto e = sf::box<ReplaceLocalPropEvent>();
+		e->clientId = clientId;
+		e->localId = localId;
+		e->prop = prop;
+		e->prop.id = id;
+		pushEvent(*this, events, e);
+	}
+
+	return id;
+}
+
+uint32_t ServerState::addCharacter(sf::Array<sf::Box<Event>> &events, const Character &chr, bool local)
 {
 	Prefab *prefab = loadPrefab(*this, events, chr.prefabName);
 	if (!prefab) return 0;
@@ -759,7 +813,7 @@ uint32_t ServerState::addCharacter(sf::Array<sf::Box<Event>> &events, const Char
 	CharacterComponent *chrComp = findComponent<CharacterComponent>(*prefab);
 	if (!chrComp) return 0;
 
-	uint32_t id = allocateId(events, IdType::Character);
+	uint32_t id = allocateId(events, IdType::Character, local);
 
 	{
 		auto e = sf::box<AddCharacterEvent>();
@@ -773,12 +827,12 @@ uint32_t ServerState::addCharacter(sf::Array<sf::Box<Event>> &events, const Char
 	return id;
 }
 
-uint32_t ServerState::addCard(sf::Array<sf::Box<Event>> &events, const Card &card)
+uint32_t ServerState::addCard(sf::Array<sf::Box<Event>> &events, const Card &card, bool local)
 {
 	Prefab *prefab = loadPrefab(*this, events, card.prefabName);
 	if (!prefab) return 0;
 
-	uint32_t id = allocateId(events, IdType::Card);
+	uint32_t id = allocateId(events, IdType::Card, local);
 
 	{
 		auto e = sf::box<AddCardEvent>();
@@ -1004,6 +1058,56 @@ void ServerState::removePrefabs(sf::Slice<const sf::Symbol> names)
 {
 	for (const sf::Symbol &name : names) {
 		prefabs.remove(name);
+	}
+}
+
+void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit, sf::Array<sf::Box<Edit>> &undoBuf)
+{
+	if (const auto *ed = edit.as<AddPropEdit>()) {
+
+		uint32_t propId = addProp(events, ed->prop);
+
+		{
+			auto ud = sf::box<RemovePropEdit>();
+			ud->propId = propId;
+			undoBuf.push(ud);
+		}
+
+	} else if (const auto *ed = edit.as<ClonePropEdit>()) {
+
+		uint32_t propId = replaceLocalProp(events, ed->prop, ed->clientId, ed->localId);
+
+		{
+			auto ud = sf::box<RemovePropEdit>();
+			ud->propId = propId;
+			undoBuf.push(ud);
+		}
+
+	} else if (const auto *ed = edit.as<MovePropEdit>()) {
+		if (Prop *prop = props.find(ed->propId)) {
+
+			{
+				auto ud = sf::box<MovePropEdit>();
+				ud->propId = ed->propId;
+				ud->transform = prop->transform;
+				undoBuf.push(ud);
+			}
+
+			moveProp(events, ed->propId, ed->transform);
+		}
+	} else if (const auto *ed = edit.as<RemovePropEdit>()) {
+		if (Prop *prop = props.find(ed->propId)) {
+
+			{
+				auto ud = sf::box<AddPropEdit>();
+				ud->prop = *prop;
+				undoBuf.push(ud);
+			}
+
+			removeProp(events, ed->propId);
+		}
+	} else {
+		sf_failf("Unhandled edit type: %u", edit.type);
 	}
 }
 

@@ -1129,7 +1129,7 @@ static void cf_free(pt_cf *cf)
 {
     if (cf->read) CFRelease(cf->read);
     if (cf->write) CFRelease(cf->write);
-    free(cf);
+    bqws_free(cf);
 }
 
 static size_t cf_send(pt_cf *cf, const void *data, size_t size)
@@ -1325,7 +1325,7 @@ static void io_free(pt_io *io)
 	if (io->secure) tls_free(&io->tls);
     if (io->s != OS_BAD_SOCKET) os_socket_close(io->s);
 	io->magic = BQWS_PT_DELETED_MAGIC;
-	free(io);
+	bqws_free(io);
 }
 
 static size_t pt_io_send(void *user, bqws_socket *ws, const void *data, size_t size)
@@ -1459,14 +1459,14 @@ static bqws_pt_server *pt_listen(const bqws_pt_listen_opts *pt_opts)
 	if (pt_opts->secure) {
 		sv->secure = true;
 		if (!tls_init_server(&sv->tls, pt_opts)) {
-			free(sv);
+			bqws_free(sv);
 			return NULL;
 		}
 	}
 
 	sv->s = os_socket_listen(pt_opts);
 	if (sv->s == OS_BAD_SOCKET) {
-		free(sv);
+		bqws_free(sv);
 		return NULL;
 	}
 
@@ -1532,7 +1532,7 @@ static void pt_free_server(bqws_pt_server *sv)
 	}
 	os_socket_close(sv->s);
 	sv->magic = BQWS_PT_DELETED_MAGIC;
-	free(sv);
+	bqws_free(sv);
 }
 
 static bqws_pt_address pt_get_address(const bqws_socket *ws)

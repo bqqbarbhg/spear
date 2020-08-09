@@ -59,6 +59,23 @@ static uint32_t addEntity(Systems &systems, PrefabMap &prefabs, uint32_t svId, c
 	return entityId;
 }
 
+static void removeEntities(Systems &systems, uint32_t svId)
+{
+	sf::SmallArray<uint32_t, 64> entityIds;
+
+	{
+		uint32_t entityId;
+		sf::UintFind find = systems.entities.svToEntity.findAll(svId);
+		while (find.next(entityId)) {
+			entityIds.push(entityId);
+		}
+	}
+
+	for (uint32_t entityId : entityIds) {
+		systems.entities.removeEntity(systems, entityId);
+	}
+}
+
 ClientState::ClientState()
 {
 	systems.area = AreaSystem::create();
@@ -71,6 +88,12 @@ void ClientState::applyEvent(const sv::Event &event)
 		Prefab &prefab = prefabs[e->prefab.name];
 		prefab.s = e->prefab;
 	} else if (const auto *e = event.as<sv::AddPropEvent>()) {
+		Transform transform = getPropTransform(e->prop.transform);
+		addEntity(systems, prefabs, e->prop.id, transform, e->prop.prefabName);
+	} else if (const auto *e = event.as<sv::ReplaceLocalPropEvent>()) {
+		if (localClientId == e->clientId) {
+			removeEntities(systems, e->localId);
+		}
 		Transform transform = getPropTransform(e->prop.transform);
 		addEntity(systems, prefabs, e->prop.id, transform, e->prop.prefabName);
 	} else if (const auto *e = event.as<sv::MovePropEvent>()) {
@@ -89,6 +112,32 @@ void ClientState::applyEvent(const sv::Event &event)
 			systems.entities.removeComponents(systems, entityId);
 			addEntityComponents(systems, entityId, transform, prefab);
 		}
+	}
+}
+
+void ClientState::editorPick(sf::Array<EntityHit> &hits, const sf::Ray &ray) const
+{
+	sf::FastRay fastRay { ray };
+
+	sf::Array<Area> areas;
+	systems.area->castRay(areas, Area::EditorPick, fastRay);
+
+	for (Area &area : areas) {
+		switch (area.group)
+		{
+		case AreaGroup::Model: systems.model->editorPick(hits, fastRay, area.userId); break;
+		default:
+			sf_failf("Unhandled EditorPick group: %u", area.group);
+			break;
+		}
+	}
+}
+
+void ClientState::editorHighlight(uint32_t entityId, EditorHighlight type)
+{
+	Entity &entity = systems.entities.entities[entityId];
+	for (const EntityComponent &ec : entity.components) {
+		ec.system->editorHighlight(systems, ec, type);
 	}
 }
 

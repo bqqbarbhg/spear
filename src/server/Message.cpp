@@ -81,6 +81,7 @@ template<> void initType<sv::Message>(Type *t)
 		sf_poly(sv::Message, Join, sv::MessageJoin),
 		sf_poly(sv::Message, Load, sv::MessageLoad),
 		sf_poly(sv::Message, Update, sv::MessageUpdate),
+		sf_poly(sv::Message, RequestEdit, sv::MessageRequestEdit),
 	};
 	sf_struct_poly(t, sv::Message, type, { }, polys);
 }
@@ -112,6 +113,14 @@ template<> void initType<sv::MessageUpdate>(Type *t)
 		sf_field(sv::MessageUpdate, events),
 	};
 	sf_struct_base(t, sv::MessageUpdate, sv::Message, fields);
+}
+
+template<> void initType<sv::MessageRequestEdit>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::MessageRequestEdit, edits),
+	};
+	sf_struct_base(t, sv::MessageRequestEdit, sv::Message, fields);
 }
 
 }

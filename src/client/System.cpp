@@ -2,6 +2,11 @@
 
 namespace cl {
 
+void EntitySystem::editorHighlight(Systems &systems, const EntityComponent &ec, EditorHighlight type)
+{
+	// Nop
+}
+
 uint32_t Entities::addEntity(uint32_t svId, const Transform &transform)
 {
 	uint32_t entityId = entities.size;

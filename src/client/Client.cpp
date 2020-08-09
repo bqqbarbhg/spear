@@ -20,10 +20,13 @@
 #include "sp/RichText.h"
 
 #include "client/ClientState.h"
+#include "client/EditorState.h"
 
 #include "game/DebugDraw.h"
 #include "game/shader/Line.h"
 #include "game/shader/Sphere.h"
+
+#include "ext/imgui/imgui.h"
 
 namespace cl {
 
@@ -211,6 +214,9 @@ struct Client
 	// Debug draw
 	DebugRenderHandles debugRender;
 
+	// Editor
+	EditorState *editor = nullptr;
+
 	// Misc
 	uint32_t reloadCount = 0;
 
@@ -289,7 +295,6 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret)
 
 	c->clState = sf::box<cl::ClientState>();
 
-
 	{
         sf::SmallStringBuf<128> url;
 
@@ -357,6 +362,22 @@ bool clientUpdate(Client *c, const ClientInput &input)
 		return true;
 	}
 
+	// TODO: Don't always create editor
+	for (const sapp_event &event : input.events) {
+		if (event.type == SAPP_EVENTTYPE_KEY_DOWN && !ImGui::GetIO().WantCaptureKeyboard) {
+			if (event.key_code == SAPP_KEYCODE_SPACE) {
+				if (c->svState) {
+					if (c->editor) {
+						editorFree(c->editor);
+						c->editor = nullptr;
+					} else {
+						c->editor = editorCreate(c->svState, c->clState);
+					}
+				}
+			}
+		}
+	}
+
 	c->frameArgs.frameIndex++;
 	c->frameArgs.dt = dt;
 
@@ -399,44 +420,24 @@ bool clientUpdate(Client *c, const ClientInput &input)
 
 	c->clState->update(c->frameArgs);
 
-#if 0
-	sf::Vec2 clipMouse = input.mousePosition * sf::Vec2(+2.0f, -2.0f) + sf::Vec2(-1.0f, +1.0f);
-	sf::Vec4 rayBegin = clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 0.0f, 1.0f);
-	sf::Vec4 rayEnd = clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 1.0f, 1.0f);
-	sf::Vec3 rayOrigin = sf::Vec3(rayBegin.v) / rayBegin.w;
-	sf::Vec3 rayDirection = sf::normalize(sf::Vec3(rayEnd.v) / rayEnd.w - rayOrigin);
+	if (c->editor) {
+		editorUpdate(c->editor, c->frameArgs, input);
 
-	sf::Ray mouseRay = { rayOrigin, rayDirection };
+		sf::Array<sf::Array<sf::Box<sv::Edit>>> &edits = editorPendingEdits(c->editor);
+		for (sf::Array<sf::Box<sv::Edit>> &bundle : edits) {
+			if (bundle.size == 0) continue;
 
-	sf::SmallArray<const cl::SpatialNode*, 64> nodes;
-	c->clState->areaState->querySpatialNodesRay(nodes, mouseRay);
-
-	for (const cl::SpatialNode *node : nodes) {
-		debugDrawBox(sf::Bounds3::minMax(node->min, node->max), sf::Vec3(0.8f, 0.6f, 0.6f));
-
-		float t;
-		for (const cl::BoxArea &area : node->boxes) {
-			if (area.groupId != AreaMesh) continue;
-
-			if (sf::intesersectRay(t, mouseRay, area.bounds)) {
-				debugDrawBox(area.bounds, sf::Vec3(0.7f, 0.3f, 0.3f));
-
-				t = c->clState->meshState->castRay(area.userId, mouseRay);
-				if (t < 1000.0f) {
-					debugDrawBox(area.bounds, sf::Vec3(1.0f, 1.0f, 1.0f));
-				}
-			}
+			sv::MessageRequestEdit msg;
+			msg.edits = std::move(bundle);
+			sendMessage(*c, msg);
 		}
+		edits.clear();
 	}
+
+#if 0
 #endif
 
 	c->canvas.clear();
-
-#if 0
-	if (c->svState) {
-		updateCharacterPicking(c, input);
-	}
-#endif
 
 	c->canvas.prepareForRendering();
 

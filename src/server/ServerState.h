@@ -382,6 +382,8 @@ struct Event
 		RemoveGarbageIds,
 		RemoveGarbagePrefabs,
 		AddProp,
+		RemoveProp,
+		ReplaceLocalProp,
 		AddCharacter,
 		AddCard,
 		MoveProp,
@@ -492,6 +494,18 @@ struct AddPropEvent : EventBase<Event::AddProp>
 	Prop prop;
 };
 
+struct RemovePropEvent : EventBase<Event::AddProp>
+{
+	uint32_t propId;
+};
+
+struct ReplaceLocalPropEvent : EventBase<Event::ReplaceLocalProp>
+{
+	uint32_t clientId;
+	uint32_t localId;
+	Prop prop;
+};
+
 struct AddCharacterEvent : EventBase<Event::AddCharacter>
 {
 	Character character;
@@ -549,9 +563,67 @@ enum class IdType {
 	ClientStart,
 };
 
+struct Edit
+{
+	#if SF_DEBUG
+		virtual void debugForceVtable() { }
+	#endif
+
+	enum Type
+	{
+		Error,
+		AddProp,
+		CloneProp,
+		MoveProp,
+		RemoveProp,
+
+		Type_Count,
+		Type_ForceU32 = 0x7fffffff,
+	};
+
+	Type type;
+
+	Edit() { }
+	Edit(Type type) : type(type) { }
+
+	template <typename T> T *as() { return type == T::EditType ? (T*)this : nullptr; }
+	template <typename T> const T *as() const { return type == T::EditType ? (T*)this : nullptr; }
+};
+
+template <Edit::Type SelfType>
+struct EditBase : Edit
+{
+	static constexpr Type EditType = SelfType;
+	EditBase() : Edit(SelfType) { }
+};
+
+struct AddPropEdit : EditBase<Edit::AddProp>
+{
+	Prop prop;
+};
+
+struct ClonePropEdit : EditBase<Edit::CloneProp>
+{
+	uint32_t clientId;
+	uint32_t localId;
+	Prop prop;
+};
+
+struct MovePropEdit : EditBase<Edit::MoveProp>
+{
+	uint32_t propId;
+	PropTransform transform;
+};
+
+struct RemovePropEdit : EditBase<Edit::RemoveProp>
+{
+	uint32_t propId;
+};
+
 static const constexpr uint32_t NumServerIdTypes = 100;
 static const constexpr uint32_t NumIdTypes = 100;
-static const constexpr uint32_t MaxIdIndex = 10000000;
+static const constexpr uint32_t MaxServerIdIndex = 10000000;
+static const constexpr uint32_t MaxIdIndex = MaxServerIdIndex * 2;
 static_assert(MaxIdIndex < UINT32_MAX / NumIdTypes, "MaxIdIndex overflow");
 
 sf_inline uint32_t makeId(IdType type, uint32_t index)
@@ -585,6 +657,7 @@ struct ServerState
 {
 	ServerState();
 
+	uint32_t localClientId = 0;
 	PrefabMap prefabs;
 	PropMap props;
 	CharacterMap characters;
@@ -593,6 +666,7 @@ struct ServerState
 	sf::HashMap<sf::Symbol, int32_t> charactersToSelect;
 
 	uint32_t lastAllocatedIdByType[NumServerIdTypes] = { };
+	uint32_t lastLocalAllocatedIdByType[NumServerIdTypes] = { };
 
 	void applyEvent(const Event &event);
 
@@ -600,7 +674,7 @@ struct ServerState
 
 	// -- Server only
 
-	uint32_t allocateId(sf::Array<sf::Box<Event>> &events, IdType type);
+	uint32_t allocateId(sf::Array<sf::Box<Event>> &events, IdType type, bool local);
 
 	void putStatus(sf::Array<sf::Box<Event>> &events, const StatusInfo &statusInfo);
 	void doDamage(sf::Array<sf::Box<Event>> &events, const DamageInfo &damageInfo);
@@ -612,9 +686,11 @@ struct ServerState
 
 	uint32_t selectCharacterSpawn(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, uint32_t playerId);
 
-	uint32_t addProp(sf::Array<sf::Box<Event>> &events, const Prop &prop);
-	uint32_t addCharacter(sf::Array<sf::Box<Event>> &events, const Character &chr);
-	uint32_t addCard(sf::Array<sf::Box<Event>> &events, const Card &card);
+	uint32_t addProp(sf::Array<sf::Box<Event>> &events, const Prop &prop, bool local=false);
+	void removeProp(sf::Array<sf::Box<Event>> &events, uint32_t propId);
+	uint32_t replaceLocalProp(sf::Array<sf::Box<Event>> &events, const Prop &prop, uint32_t clientId, uint32_t localId);
+	uint32_t addCharacter(sf::Array<sf::Box<Event>> &events, const Character &chr, bool local=false);
+	uint32_t addCard(sf::Array<sf::Box<Event>> &events, const Card &card, bool local=false);
 	void addCharacterToSelect(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, int32_t count);
 
 	void moveProp(sf::Array<sf::Box<Event>> &events, uint32_t propId, const PropTransform &transform);
@@ -622,11 +698,14 @@ struct ServerState
 	void giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId);
 	void selectCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId, uint32_t slot);
 
+	void applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit, sf::Array<sf::Box<Edit>> &undoBuf);
+
 	void garbageCollectIds(sf::Array<uint32_t> &garbageIds) const;
 	void garbageCollectPrefabs(sf::Array<sf::Symbol> &garbagePrefabs) const;
 
 	void removeIds(sf::Slice<const uint32_t> ids);
 	void removePrefabs(sf::Slice<const sf::Symbol> names);
+
 };
 
 }

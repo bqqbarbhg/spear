@@ -4,6 +4,7 @@
 #include "sf/Box.h"
 #include "sf/UintMap.h"
 #include "sf/Array.h"
+#include "sf/HashSet.h"
 
 #include "client/Transform.h"
 
@@ -11,6 +12,14 @@ namespace cl {
 
 struct Systems;
 struct EntityComponent;
+
+enum class EditorHighlight
+{
+	Debug,
+	Hint,
+	Hover,
+	Select,
+};
 
 struct TransformUpdate
 {
@@ -27,6 +36,8 @@ struct EntitySystem : System
 {
 	virtual void updateTransform(Systems &systems, const EntityComponent &ec, const TransformUpdate &update) = 0;
 	virtual void remove(Systems &systems, const EntityComponent &ec) = 0;
+
+	virtual void editorHighlight(Systems &systems, const EntityComponent &ec, EditorHighlight type);
 };
 
 struct EntityComponent
@@ -97,6 +108,12 @@ struct VisibleAreas
 	sf_forceinline sf::Slice<const uint32_t> get(AreaGroup group) const {
 		return groups[(uint32_t)group].slice();
 	}
+};
+
+struct EntityHit
+{
+	uint32_t entityId = ~0u;
+	float t = 0.0f;
 };
 
 struct Systems

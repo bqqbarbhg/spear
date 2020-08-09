@@ -13,8 +13,13 @@ struct Ray
 
 struct FastRay
 {
-	sf::Vec3 origin;
-	sf::Vec3 direction;
+	union {
+		sf::Ray ray;
+		struct {
+			sf::Vec3 origin;
+			sf::Vec3 direction;
+		};
+	};
 	sf::Vec3 rcpDirection;
 
 	sf_forceinline explicit FastRay(const Ray &ray)

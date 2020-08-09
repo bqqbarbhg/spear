@@ -28,6 +28,7 @@ void debugDrawLine(const DebugLine &line);
 void debugDrawLine(const sf::Vec3 &a, const sf::Vec3 &b, const sf::Vec3 &color=sf::Vec3(1.0f));
 void debugDrawBox(const sf::Mat34 &transform, const sf::Vec3 &color=sf::Vec3(1.0f));
 void debugDrawBox(const sf::Bounds3 &bounds, const sf::Vec3 &color=sf::Vec3(1.0f));
+void debugDrawBox(const sf::Bounds3 &bounds, const sf::Mat34 &transform, const sf::Vec3 &color=sf::Vec3(1.0f));
 void debugDrawSphere(const sf::Mat34 &transform, const sf::Vec3 &color=sf::Vec3(1.0f));
 void debugDrawSphere(const sf::Vec3 &origin, float radius, const sf::Vec3 &color=sf::Vec3(1.0f));
 void debugDrawSphere(const sf::Sphere &sphere, const sf::Vec3 &color=sf::Vec3(1.0f));

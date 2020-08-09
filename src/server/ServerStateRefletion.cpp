@@ -48,6 +48,8 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, RemoveGarbageIds, RemoveGarbageIdsEvent),
 		sf_poly(Event, RemoveGarbagePrefabs, RemoveGarbagePrefabsEvent),
 		sf_poly(Event, AddProp, AddPropEvent),
+		sf_poly(Event, AddProp, RemovePropEvent),
+		sf_poly(Event, ReplaceLocalProp, ReplaceLocalPropEvent),
 		sf_poly(Event, AddCharacter, AddCharacterEvent),
 		sf_poly(Event, AddCard, AddCardEvent),
 		sf_poly(Event, MoveProp, MovePropEvent),
@@ -58,6 +60,17 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, Move, MoveEvent),
 	};
 	sf_struct_poly(t, Event, type, { }, polys);
+}
+
+template<> void initType<Edit>(Type *t)
+{
+	static PolymorphType polys[] = {
+		sf_poly(Edit, AddProp, AddPropEdit),
+		sf_poly(Edit, CloneProp, ClonePropEdit),
+		sf_poly(Edit, MoveProp, MovePropEdit),
+		sf_poly(Edit, RemoveProp, RemovePropEdit),
+	};
+	sf_struct_poly(t, Edit, type, { }, polys);
 }
 
 template<> void initType<ModelComponent>(Type *t)
@@ -397,6 +410,24 @@ template<> void initType<AddPropEvent>(Type *t)
 	sf_struct_base(t, AddPropEvent, Event, fields);
 }
 
+template<> void initType<RemovePropEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(RemovePropEvent, propId),
+	};
+	sf_struct_base(t, RemovePropEvent, Event, fields);
+}
+
+template<> void initType<ReplaceLocalPropEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(ReplaceLocalPropEvent, clientId),
+		sf_field(ReplaceLocalPropEvent, localId),
+		sf_field(ReplaceLocalPropEvent, prop),
+	};
+	sf_struct_base(t, ReplaceLocalPropEvent, Event, fields);
+}
+
 template<> void initType<AddCharacterEvent>(Type *t)
 {
 	static Field fields[] = {
@@ -467,6 +498,41 @@ template<> void initType<MoveEvent>(Type *t)
 		sf_field(MoveEvent, position),
 	};
 	sf_struct_base(t, MoveEvent, Event, fields);
+}
+
+template<> void initType<AddPropEdit>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(AddPropEdit, prop),
+	};
+	sf_struct_base(t, AddPropEdit, Event, fields);
+}
+
+template<> void initType<ClonePropEdit>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(ClonePropEdit, clientId),
+		sf_field(ClonePropEdit, localId),
+		sf_field(ClonePropEdit, prop),
+	};
+	sf_struct_base(t, ClonePropEdit, Event, fields);
+}
+
+template<> void initType<MovePropEdit>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(MovePropEdit, propId),
+		sf_field(MovePropEdit, transform),
+	};
+	sf_struct_base(t, MovePropEdit, Event, fields);
+}
+
+template<> void initType<RemovePropEdit>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(RemovePropEdit, propId),
+	};
+	sf_struct_base(t, RemovePropEdit, Event, fields);
 }
 
 template<> void initType<DiceRoll>(Type *t)

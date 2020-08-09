@@ -6,6 +6,8 @@
 
 #include "sp/Model.h"
 
+#include "game/DebugDraw.h"
+
 // TEMP
 #include "game/shader/GameShaders.h"
 #include "game/shader/DebugMesh.h"
@@ -81,7 +83,7 @@ struct ModelSystemImp final : ModelSystem
 
 	// API
 
-	void addModel(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::ModelComponent &c, const Transform &transform)
+	void addModel(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::ModelComponent &c, const Transform &transform) override
 	{
 		uint32_t modelId = models.size;
 		if (freeModelIds.size > 0) {
@@ -105,7 +107,7 @@ struct ModelSystemImp final : ModelSystem
 		systems.entities.addComponent(entityId, this, modelId, 0, componentIndex, Entity::UpdateTransform);
 	}
 
-	void updateTransform(Systems &systems, const EntityComponent &ec, const TransformUpdate &update)
+	void updateTransform(Systems &systems, const EntityComponent &ec, const TransformUpdate &update) override
 	{
 		uint32_t modelId = ec.userId;
 		Model &model = models[modelId];
@@ -117,7 +119,7 @@ struct ModelSystemImp final : ModelSystem
 		}
 	}
 
-	void remove(Systems &systems, const EntityComponent &ec)
+	void remove(Systems &systems, const EntityComponent &ec) override
 	{
 		uint32_t modelId = ec.userId;
 		Model &model = models[modelId];
@@ -130,7 +132,7 @@ struct ModelSystemImp final : ModelSystem
 		sf::reset(model);
 	}
 
-	void updateLoadQueue(AreaSystem *areaSystem)
+	void updateLoadQueue(AreaSystem *areaSystem) override
 	{
 		for (uint32_t i = 0; i < loadQueue.size; i++) {
 			uint32_t modelId = loadQueue[i];
@@ -147,7 +149,7 @@ struct ModelSystemImp final : ModelSystem
 		}
 	}
 
-	void renderMain(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs)
+	void renderMain(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
 	{
 		for (uint32_t modelId : visibleAreas.get(AreaGroup::Model)) {
 			Model &model = models[modelId];
@@ -174,6 +176,33 @@ struct ModelSystemImp final : ModelSystem
 
 		}
 	}
+
+	void editorHighlight(Systems &systems, const EntityComponent &ec, EditorHighlight type) override
+	{
+		uint32_t modelId = ec.userId;
+		const Model &model = models[modelId];
+
+		sf::Vec3 color;
+		switch (type) {
+		case EditorHighlight::Hover: color = sf::Vec3(0.3f, 0.2f, 0.2f); break;
+		default: color = sf::Vec3(1.0f, 0.8f, 0.8f); break;
+		}
+
+		debugDrawBox(model.modelBounds, model.modelToWorld, color);
+	}
+
+	void editorPick(sf::Array<EntityHit> &hits, const sf::FastRay &ray, uint32_t userId) const override
+	{
+		uint32_t modelId = userId;
+		const Model &model = models[modelId];
+		if (!model.isLoaded()) return;
+
+		float t = model.model->castModelRay(ray.ray, model.modelToWorld);
+		if (t < HUGE_VALF) {
+			hits.push({ model.entityId, t });
+		}
+	}
+
 };
 
 sf::Box<ModelSystem> ModelSystem::create() { return sf::box<ModelSystemImp>(); }

@@ -18,11 +18,13 @@ Field = namedtuple("Field", "type_name, name")
 
 RE_COMPONENT = re.compile(r"struct (\w+) : ComponentBase<Component::(\w+)>")
 RE_EVENT = re.compile(r"struct (\w+) : EventBase<Event::(\w+)>")
+RE_EDIT = re.compile(r"struct (\w+) : EditBase<Edit::(\w+)>")
 RE_REFLECT = re.compile(r"struct (\w+).*sv_reflect.*")
 RE_FIELD = re.compile(r"([A-Za-z_][A-Za-z0-9<>:_*]*)\s+([A-Za-z0-9]+).*")
 
 components = []
 events = []
+edits = []
 reflects = []
 last_struct = None
 with open(source_path) as f:
@@ -40,6 +42,11 @@ with open(source_path) as f:
         if m:
             last_struct = Struct(m.group(1), m.group(2), [])
             events.append(last_struct)
+            continue
+        m = RE_EDIT.match(line)
+        if m:
+            last_struct = Struct(m.group(1), m.group(2), [])
+            edits.append(last_struct)
             continue
         m = RE_REFLECT.match(line)
         if m:
@@ -83,6 +90,16 @@ push("\tsf_struct_poly(t, Event, type, { }, polys);")
 push("}")
 push("")
 
+push("template<> void initType<Edit>(Type *t)")
+push("{")
+push("\tstatic PolymorphType polys[] = {")
+for c in edits:
+    push(f"\t\tsf_poly(Edit, {c.enum_name}, {c.type_name}),")
+push("\t};")
+push("\tsf_struct_poly(t, Edit, type, { }, polys);")
+push("}")
+push("")
+
 for s in components:
     push(f"template<> void initType<{s.type_name}>(Type *t)")
     push("{")
@@ -95,6 +112,17 @@ for s in components:
     push("")
 
 for s in events:
+    push(f"template<> void initType<{s.type_name}>(Type *t)")
+    push("{")
+    push("\tstatic Field fields[] = {")
+    for f in s.fields:
+        push(f"\t\tsf_field({s.type_name}, {f.name}),")
+    push("\t};")
+    push(f"\tsf_struct_base(t, {s.type_name}, Event, fields);")
+    push("}")
+    push("")
+
+for s in edits:
     push(f"template<> void initType<{s.type_name}>(Type *t)")
     push("{")
     push("\tstatic Field fields[] = {")
