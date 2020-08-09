@@ -7,9 +7,6 @@
 
 #include "sf/ext/mx/mx_platform.h"
 
-// TEMP TEMPT MPTE
-#include "game/DebugDraw.h"
-
 namespace cl {
 
 static const constexpr float AreaMinY = -2.0f;
@@ -116,7 +113,6 @@ struct AreaSystemImp final : AreaSystem
 
 	static void queryFrustumSpatial(const Spatial *spatial, sf::Array<Area> &areas, uint32_t areaFlags, const sf::Frustum &frustum)
 	{
-		debugDrawBox(sf::Bounds3::minMax(spatial->aabbMin, spatial->aabbMax));
 		if (spatial->boxFlags & areaFlags) {
 			for (const BoxAreaImp &box : spatial->boxes) {
 				if ((box.area.flags & areaFlags) == 0) continue;
