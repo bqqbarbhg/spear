@@ -108,7 +108,10 @@ workspace "spear"
 	filter "configurations:release"
 		defines { "NDEBUG" }
 		optimize "On"
-        flags { "LinkTimeOptimization" }
+        flags { "LinkTimeOptimization", "NoIncrementalLink" }
+
+	filter { "configurations:release", "action:vs*" }
+		linkoptions { "/LTCG" }
 
 	filter { "configurations:debug", "platforms:wasm" }
 		linkoptions { "-g" }
