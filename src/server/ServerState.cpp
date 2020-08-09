@@ -78,7 +78,9 @@ sf_inline T *findComponent(const Prefab &prefab)
 
 sf_inline bool check(bool cond, const char *msg)
 {
-	if (!cond) { sf::debugPrintLine("Error: %s", msg); }
+	if (!cond) {
+		sf::debugPrintLine("Error: %s", msg);
+	}
 	return cond;
 }
 
@@ -734,6 +736,11 @@ void ServerState::startCharacterTurn(sf::Array<sf::Box<Event>> &events, uint32_t
 	}
 }
 
+void ServerState::preloadPrefab(sf::Array<sf::Box<Event>> &events, const sf::Symbol &name)
+{
+	loadPrefab(*this, events, name);
+}
+
 void ServerState::reloadPrefab(sf::Array<sf::Box<Event>> &events, const Prefab &prefab)
 {
 	// If the prefab doesn't exist just load it
@@ -1095,7 +1102,21 @@ void ServerState::removePrefabs(sf::Slice<const sf::Symbol> names)
 
 void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit, sf::Array<sf::Box<Edit>> &undoBuf)
 {
-	if (const auto *ed = edit.as<AddPropEdit>()) {
+	if (const auto *ed = edit.as<PreloadPrefabEdit>()) {
+
+		preloadPrefab(events, ed->prefabName);
+
+	} else if (const auto *ed = edit.as<ModifyPrefabEdit>()) {
+
+		if (Prefab *prefab = prefabs.find(ed->prefab.name)) {
+			auto ud = sf::box<ModifyPrefabEdit>();
+			ud->prefab = *prefab;
+			undoBuf.push(ud);
+		}
+
+		reloadPrefab(events, ed->prefab);
+
+	} else if (const auto *ed = edit.as<AddPropEdit>()) {
 
 		uint32_t propId = addProp(events, ed->prop);
 

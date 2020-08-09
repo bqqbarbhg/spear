@@ -572,6 +572,8 @@ struct Edit
 	enum Type
 	{
 		Error,
+		PreloadPrefab,
+		ModifyPrefab,
 		AddProp,
 		CloneProp,
 		MoveProp,
@@ -595,6 +597,16 @@ struct EditBase : Edit
 {
 	static constexpr Type EditType = SelfType;
 	EditBase() : Edit(SelfType) { }
+};
+
+struct PreloadPrefabEdit : EditBase<Edit::PreloadPrefab>
+{
+	sf::Symbol prefabName;
+};
+
+struct ModifyPrefabEdit : EditBase<Edit::ModifyPrefab>
+{
+	Prefab prefab;
 };
 
 struct AddPropEdit : EditBase<Edit::AddProp>
@@ -684,6 +696,7 @@ struct ServerState
 	void meleeAttack(sf::Array<sf::Box<Event>> &events, const MeleeInfo &meleeInfo);
 	void startCharacterTurn(sf::Array<sf::Box<Event>> &events, uint32_t characterId);
 
+	void preloadPrefab(sf::Array<sf::Box<Event>> &events, const sf::Symbol &name);
 	void reloadPrefab(sf::Array<sf::Box<Event>> &events, const Prefab &prefab);
 
 	uint32_t selectCharacterSpawn(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, uint32_t playerId);

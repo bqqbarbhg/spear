@@ -7,14 +7,18 @@
 
 #include "sf/ext/mx/mx_platform.h"
 
+// TEMP TEMPT MPTE
+#include "game/DebugDraw.h"
+
 namespace cl {
 
 static const constexpr float AreaMinY = -2.0f;
 static const constexpr float AreaMaxY = 8.0f;
 
 static const constexpr float SpatialTopLevelSize = 128.0f;
-static const constexpr float SpatialBottomLevelSize = 32.0f;
 static const constexpr float SpatialPaddingRatio = 0.5f;
+static const constexpr uint32_t SpatialMaxDepth = 7;
+static const constexpr uint32_t SpatialMinOptimizeDepth = 5;
 static const sf::Vec3 SpatialGridOrigin = sf::Vec3(0.0f, AreaMinY, 0.0f);
 
 struct AreaSystemImp final : AreaSystem
@@ -30,6 +34,10 @@ struct AreaSystemImp final : AreaSystem
 	struct Spatial
 	{
 		Spatial	*parent = nullptr;
+
+		// TODO: Pack this somewhere
+		bool inOptimizationQueue = false;
+		uint8_t depth = 0;
 
 		// Static bounds
 		sf::Vec3 staticOrigin;
@@ -49,7 +57,7 @@ struct AreaSystemImp final : AreaSystem
 		uint32_t childMask = 0;
 		sf::Unique<SpatialChildren> children;
 
-		sf_forceinline void expand(sf::Float4 min, sf::Float4 max)
+		sf_forceinline void expandImp(sf::Float4 min, sf::Float4 max, uint32_t level)
 		{
 			Spatial *s = this;
 			do {
@@ -63,23 +71,27 @@ struct AreaSystemImp final : AreaSystem
 				if (!diff.anyGreaterThanZero()) break;
 				newMin.storeu(s->aabbMin.v);
 				newMax.storeu(s->aabbMax.v);
-			} while ((s = s->parent) != nullptr);
+				s = s->parent;
+			} while (--level >= SpatialMinOptimizeDepth);
 		}
 
 		void expand(const sf::Bounds3 &bounds)
 		{
+			uint32_t level = (uint32_t)depth;
+			if (level < SpatialMinOptimizeDepth) return;
+
 			sf::Float4 origin = { bounds.origin.x, bounds.origin.y, bounds.origin.z, 0.0f };
 			sf::Float4 extent = { bounds.extent.x, bounds.extent.y, bounds.extent.z, 0.0f };
 			sf::Float4 min = origin - extent;
 			sf::Float4 max = origin + extent;
-			expand(min, max);
+			expandImp(min, max, level);
 		}
 
 		bool isValidLeaf(const sf::Vec3 &origin, float extent) const
 		{
 			if (extent < minLeafExtent || extent > maxLeafExtent) return false;
 			float maxDelta = sf::max(sf::abs(origin.x - staticOrigin.x),
-				sf::abs(origin.y - staticOrigin.y), sf::abs(origin.z - staticOrigin.y));
+				sf::abs(origin.y - staticOrigin.y), sf::abs(origin.z - staticOrigin.z));
 			return maxDelta <= unpaddedExtent;
 		}
 	};
@@ -99,9 +111,12 @@ struct AreaSystemImp final : AreaSystem
 
 	sf::Array<AreaImp> areaImps;
 	sf::Array<uint32_t> freeAreaIds;
+	sf::Array<Spatial*> optimizationQueues[SpatialMaxDepth];
+	uint32_t optimizationQueueOffsets[SpatialMaxDepth] = { };
 
 	static void queryFrustumSpatial(const Spatial *spatial, sf::Array<Area> &areas, uint32_t areaFlags, const sf::Frustum &frustum)
 	{
+		debugDrawBox(sf::Bounds3::minMax(spatial->aabbMin, spatial->aabbMax));
 		if (spatial->boxFlags & areaFlags) {
 			for (const BoxAreaImp &box : spatial->boxes) {
 				if ((box.area.flags & areaFlags) == 0) continue;
@@ -150,6 +165,19 @@ struct AreaSystemImp final : AreaSystem
 		}
 	}
 
+	sf_forceinline static void initializeSpatialOptimization(Spatial *spatial)
+	{
+		// Set to be sticky in optimization queue with static bounds
+		if (spatial->depth < SpatialMinOptimizeDepth) {
+			float extent = spatial->unpaddedExtent + spatial->maxLeafExtent;
+			spatial->inOptimizationQueue = true;
+			spatial->aabbMin = spatial->staticOrigin - sf::Vec3(extent);
+			spatial->aabbMax = spatial->staticOrigin + sf::Vec3(extent);
+			spatial->aabbMin.y = sf::clamp(spatial->aabbMin.y, AreaMinY, AreaMaxY);
+			spatial->aabbMax.y = sf::clamp(spatial->aabbMax.y, AreaMinY, AreaMaxY);
+		}
+	}
+
 	static sf::Unique<Spatial> initializeSpatialRoot(const sf::Vec3i &key)
 	{
 		sf::Unique<Spatial> root = sf::unique<Spatial>();
@@ -159,6 +187,11 @@ struct AreaSystemImp final : AreaSystem
 		root->staticOrigin = sf::Vec3(key) * SpatialTopLevelSize + SpatialGridOrigin;
 		root->aabbMin = sf::Vec3(+HUGE_VALF);
 		root->aabbMax = sf::Vec3(-HUGE_VALF);
+		initializeSpatialOptimization(root);
+
+		// HACK: Clear the maximum extent to allow huge objects into the last level
+		root->maxLeafExtent = HUGE_VALF;
+
 		return root;
 	}
 
@@ -166,9 +199,10 @@ struct AreaSystemImp final : AreaSystem
 	{
 		spatial->children = sf::unique<SpatialChildren>();
 		float childUnpaddedExtent = spatial->unpaddedExtent * 0.5f;
-		float childMaxLeafExtent = spatial->maxLeafExtent * 0.5f;
+		float childMaxLeafExtent = spatial->minLeafExtent;
 		float childMinLeafExtent = childMaxLeafExtent * 0.5f;
-		if (childUnpaddedExtent <= SpatialBottomLevelSize) {
+		uint8_t childDepth = (uint8_t)(spatial->depth + 1);
+		if (childDepth + 1 == SpatialMaxDepth) {
 			childMinLeafExtent = -HUGE_VALF;
 		}
 
@@ -187,6 +221,8 @@ struct AreaSystemImp final : AreaSystem
 			child.parent = spatial;
 			child.aabbMin = sf::Vec3(+HUGE_VALF);
 			child.aabbMax = sf::Vec3(-HUGE_VALF);
+			child.depth = childDepth;
+			initializeSpatialOptimization(&child);
 		}
 	}
 
@@ -229,6 +265,53 @@ struct AreaSystemImp final : AreaSystem
 		return result;
 	}
 
+	sf_forceinline void addToOptimizationQueue(Spatial *spatial)
+	{
+		if (!spatial->inOptimizationQueue) {
+			spatial->inOptimizationQueue = true;
+			optimizationQueues[spatial->depth].push(spatial);
+		}
+	}
+
+	void optimizeSpatial(Spatial *spatial)
+	{
+		if (spatial->parent) {
+			addToOptimizationQueue(spatial->parent);
+		}
+
+		sf::Float4 aabbMin = +HUGE_VALF;
+		sf::Float4 aabbMax = -HUGE_VALF;
+
+		uint32_t boxFlags = 0;
+		for (BoxAreaImp &box : spatial->boxes) {
+			sf::Float4 origin = { box.bounds.origin.x, box.bounds.origin.y, box.bounds.origin.z, 0.0f };
+			sf::Float4 extent = { box.bounds.extent.x, box.bounds.extent.y, box.bounds.extent.z, 0.0f };
+			aabbMin = aabbMin.min(origin - extent);
+			aabbMax = aabbMax.max(origin + extent);
+			boxFlags |= box.area.flags;
+		}
+		spatial->boxFlags = boxFlags;
+
+		if (spatial->children) {
+			uint32_t childMask = 0;
+			uint32_t childBit = 1;
+			for (Spatial &child : spatial->children->child) {
+				if (child.childMask | child.boxFlags) {
+					childMask |= childBit;
+					aabbMin = aabbMin.min(sf::Float4::loadu(child.aabbMin.v));
+					aabbMax = aabbMax.max(sf::Float4::loadu(child.aabbMax.v));
+				}
+				childBit <<= 1;
+			}
+			spatial->childMask = childMask;
+		} else {
+			sf_assert(spatial->childMask == 0);
+		}
+
+		aabbMin.storeu(spatial->aabbMin.v);
+		aabbMax.storeu(spatial->aabbMax.v);
+	}
+
 	// API
 
 	uint32_t addBoxArea(AreaGroup group, uint32_t userId, const sf::Bounds3 &unclampedBounds, uint32_t areaFlags)
@@ -256,6 +339,8 @@ struct AreaSystemImp final : AreaSystem
 		box.area.userId = userId;
 		spatial->expand(bounds);
 
+		addToOptimizationQueue(spatial);
+
 		return areaId;
 	}
 
@@ -278,6 +363,8 @@ struct AreaSystemImp final : AreaSystem
 			spatial->boxes[spatialIndex].bounds = bounds;
 			spatial->expand(bounds);
 		} else {
+			addToOptimizationQueue(spatial);
+
 			Area area = spatial->boxes[spatialIndex].area;
 
 			areaImps[spatial->boxes.back().areaId].spatialIndex = spatialIndex;
@@ -292,6 +379,7 @@ struct AreaSystemImp final : AreaSystem
 			box.areaId = areaId;
 			box.area = area;
 		}
+		addToOptimizationQueue(spatial);
 	}
 
 	void updateBoxArea(uint32_t areaId, const sf::Bounds3 &bounds, const sf::Mat34 &transform)
@@ -308,12 +396,41 @@ struct AreaSystemImp final : AreaSystem
 		areaImps[spatial->boxes.back().areaId].spatialIndex = spatialIndex;
 		spatial->boxes.removeSwap(spatialIndex);
 
+		addToOptimizationQueue(spatial);
+
 		sf::reset(areaImp);
 		freeAreaIds.push(areaId);
 	}
 
 	void optimize()
 	{
+		static const uint32_t updatesPerLevel[] = { 4, 2 };
+		for (uint32_t invLevel = 0; invLevel < SpatialMaxDepth - SpatialMinOptimizeDepth; invLevel++) {
+			uint32_t level = SpatialMaxDepth - invLevel - 1;
+			uint32_t updates = 1;
+			if (invLevel < sf_arraysize(updatesPerLevel)) {
+				updates = updatesPerLevel[invLevel];
+			}
+
+			sf::Array<Spatial*> &queue = optimizationQueues[level];
+			uint32_t &offset = optimizationQueueOffsets[level];
+
+			while (updates-- > 0) {
+				if (offset == queue.size) break;
+
+				Spatial *spatial = queue[offset];
+				spatial->inOptimizationQueue = false;
+
+				optimizeSpatial(spatial);
+				offset++;
+			}
+
+			if (offset >= 512) {
+				memmove(queue.data, queue.data + offset, (queue.size - offset) * sizeof(Spatial*));
+				queue.size -= offset;
+				offset = 0;
+			}
+		}
 	}
 
 	void queryFrustum(sf::Array<Area> &areas, uint32_t areaFlags, const sf::Frustum &frustum) const
@@ -321,6 +438,7 @@ struct AreaSystemImp final : AreaSystem
 		sf::Frustum local = frustum;
 		for (const auto &root : spatialRoots) {
 			const Spatial *spatial = root.val;
+			if ((spatial->boxFlags | spatial->childMask) == 0) continue;
 			if (!frustum.intersects(sf::Bounds3::minMax(spatial->aabbMin, spatial->aabbMax))) continue;
 
 			queryFrustumSpatial(spatial, areas, areaFlags, frustum);
@@ -331,6 +449,8 @@ struct AreaSystemImp final : AreaSystem
 	{
 		for (const auto &root : spatialRoots) {
 			const Spatial *spatial = root.val;
+			if ((spatial->boxFlags | spatial->childMask) == 0) continue;
+
 			float t = sf::intersectRayFastAabb(ray, spatial->aabbMin, spatial->aabbMax, tMin, tMax);
 			if (t >= tMax) continue;
 

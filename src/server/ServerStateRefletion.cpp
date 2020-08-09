@@ -65,6 +65,8 @@ template<> void initType<Event>(Type *t)
 template<> void initType<Edit>(Type *t)
 {
 	static PolymorphType polys[] = {
+		sf_poly(Edit, PreloadPrefab, PreloadPrefabEdit),
+		sf_poly(Edit, ModifyPrefab, ModifyPrefabEdit),
 		sf_poly(Edit, AddProp, AddPropEdit),
 		sf_poly(Edit, CloneProp, ClonePropEdit),
 		sf_poly(Edit, MoveProp, MovePropEdit),
@@ -498,6 +500,22 @@ template<> void initType<MoveEvent>(Type *t)
 		sf_field(MoveEvent, position),
 	};
 	sf_struct_base(t, MoveEvent, Event, fields);
+}
+
+template<> void initType<PreloadPrefabEdit>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(PreloadPrefabEdit, prefabName),
+	};
+	sf_struct_base(t, PreloadPrefabEdit, Event, fields);
+}
+
+template<> void initType<ModifyPrefabEdit>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(ModifyPrefabEdit, prefab),
+	};
+	sf_struct_base(t, ModifyPrefabEdit, Event, fields);
 }
 
 template<> void initType<AddPropEdit>(Type *t)

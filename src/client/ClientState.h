@@ -8,12 +8,6 @@ namespace sf { struct Ray; }
 
 namespace cl {
 
-struct Prefab
-{
-	sv::Prefab s;
-	sf::HashSet<uint32_t> entityIds;
-};
-
 struct PrefabKey { sf::Symbol& operator()(Prefab &t) { return t.s.name; } };
 
 using PrefabMap = sf::ImplicitHashMap<Prefab, PrefabKey>;
@@ -22,7 +16,6 @@ struct ClientState
 {
 	uint32_t localClientId = 0;
 	Systems systems;
-	PrefabMap prefabs;
 
 	ClientState();
 

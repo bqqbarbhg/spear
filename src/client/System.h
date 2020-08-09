@@ -5,8 +5,14 @@
 #include "sf/UintMap.h"
 #include "sf/Array.h"
 #include "sf/HashSet.h"
+#include "sf/HashMap.h"
+#include "sf/Symbol.h"
+
+#include "server/ServerState.h"
 
 #include "client/Transform.h"
+
+namespace sv { struct Prefab; }
 
 namespace cl {
 
@@ -49,6 +55,12 @@ struct EntityComponent
 	uint8_t componentIndex;
 };
 
+struct Prefab
+{
+	sv::Prefab s;
+	sf::Array<uint32_t> entityIds;
+};
+
 struct Entity
 {
 	enum Flags
@@ -58,6 +70,8 @@ struct Entity
 
 	uint32_t svId = 0;
 	Transform transform;
+	uint32_t prefabId = ~0u;
+	uint32_t indexInPrefab = 0;
 	sf::SmallArray<EntityComponent, 4> components;
 };
 
@@ -67,7 +81,14 @@ struct Entities
 	sf::Array<uint32_t> freeEntityIds;
 	sf::UintMap svToEntity;
 
-	uint32_t addEntity(uint32_t svId, const Transform &transform);
+	sf::Array<Prefab> prefabs;
+	sf::Array<uint32_t> freePrefabIds;
+	sf::HashMap<sf::Symbol, uint32_t> nameToPrefab;
+
+	uint32_t addPrefab(const sv::Prefab &svPrefab);
+	void removePrefab(uint32_t prefabId);
+
+	uint32_t addEntity(uint32_t svId, const Transform &transform, uint32_t prefabId, uint32_t indexInPrefab);
 	void updateTransform(Systems &systems, uint32_t entityId, const Transform &transform);
 	void removeEntity(Systems &systems, uint32_t entityId);
 

@@ -75,6 +75,24 @@ void encodeMessage(sf::Array<char> &data, const Message &message, const MessageE
 
 namespace sf {
 
+template<> void initType<sv::QueryFile>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::QueryFile, name),
+	};
+	sf_struct(t, sv::QueryFile, fields);
+}
+
+template<> void initType<sv::QueryDir>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::QueryDir, name),
+		sf_field(sv::QueryDir, dirs),
+		sf_field(sv::QueryDir, files),
+	};
+	sf_struct(t, sv::QueryDir, fields);
+}
+
 template<> void initType<sv::Message>(Type *t)
 {
 	static PolymorphType polys[] = {
@@ -84,6 +102,8 @@ template<> void initType<sv::Message>(Type *t)
 		sf_poly(sv::Message, RequestEdit, sv::MessageRequestEdit),
 		sf_poly(sv::Message, RequestEditUndo, sv::MessageRequestEditUndo),
 		sf_poly(sv::Message, RequestEditRedo, sv::MessageRequestEditRedo),
+		sf_poly(sv::Message, QueryFiles, sv::MessageQueryFiles),
+		sf_poly(sv::Message, QueryFilesResult, sv::MessageQueryFilesResult),
 	};
 	sf_struct_poly(t, sv::Message, type, { }, polys);
 }
@@ -105,6 +125,7 @@ template<> void initType<sv::MessageLoad>(Type *t)
 		sf_field(sv::MessageLoad, state),
 		sf_field(sv::MessageLoad, sessionId),
 		sf_field(sv::MessageLoad, sessionSecret),
+		sf_field(sv::MessageLoad, clientId),
 	};
 	sf_struct_base(t, sv::MessageLoad, sv::Message, fields);
 }
@@ -133,6 +154,23 @@ template<> void initType<sv::MessageRequestEditUndo>(Type *t)
 template<> void initType<sv::MessageRequestEditRedo>(Type *t)
 {
 	sf_struct_base(t, sv::MessageRequestEditRedo, sv::Message, { });
+}
+
+template<> void initType<sv::MessageQueryFiles>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::MessageQueryFiles, root),
+	};
+	sf_struct_base(t, sv::MessageQueryFiles, sv::Message, fields);
+}
+
+template<> void initType<sv::MessageQueryFilesResult>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::MessageQueryFilesResult, root),
+		sf_field(sv::MessageQueryFilesResult, dir),
+	};
+	sf_struct_base(t, sv::MessageQueryFilesResult, sv::Message, fields);
 }
 
 }

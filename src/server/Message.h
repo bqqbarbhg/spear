@@ -4,6 +4,18 @@
 
 namespace sv {
 
+struct QueryFile
+{
+	sf::StringBuf name;
+};
+
+struct QueryDir
+{
+	sf::StringBuf name;
+	sf::Array<QueryDir> dirs;
+	sf::Array<QueryFile> files;
+};
+
 struct Message
 {
 	#if SF_DEBUG
@@ -18,6 +30,8 @@ struct Message
 		RequestEdit,
 		RequestEditUndo,
 		RequestEditRedo,
+		QueryFiles,
+		QueryFilesResult,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -50,6 +64,7 @@ struct MessageLoad : MessageBase<Message::Load>
 {
 	uint32_t sessionId, sessionSecret;
 	sf::Box<ServerState> state;
+	uint32_t clientId;
 };
 
 struct MessageUpdate : MessageBase<Message::Update>
@@ -68,6 +83,17 @@ struct MessageRequestEditUndo : MessageBase<Message::RequestEditUndo>
 
 struct MessageRequestEditRedo : MessageBase<Message::RequestEditRedo>
 {
+};
+
+struct MessageQueryFiles : MessageBase<Message::QueryFiles>
+{
+	sf::StringBuf root;
+};
+
+struct MessageQueryFilesResult : MessageBase<Message::QueryFilesResult>
+{
+	sf::StringBuf root;
+	QueryDir dir;
 };
 
 struct MessageEncoding

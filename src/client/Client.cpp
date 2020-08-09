@@ -344,6 +344,8 @@ void handleMessage(Client *c, sv::Message &msg)
 {
 	if (auto m = msg.as<sv::MessageLoad>()) {
 		c->svState = m->state;
+		c->svState->localClientId = m->clientId;
+		c->clState->localClientId = m->clientId;
 
 		m->state->getAsEvents(&handleLoadEvent, c);
 
@@ -359,6 +361,13 @@ void handleMessage(Client *c, sv::Message &msg)
 			c->svState->applyEvent(*event);
 			c->clState->applyEvent(*event);
 		}
+
+	} else if (auto m = msg.as<sv::MessageQueryFilesResult>()) {
+
+		if (c->editor) {
+			editorAddQueryDir(c->editor, m->root, m->dir);
+		}
+
 	}
 }
 
@@ -441,6 +450,13 @@ bool clientUpdate(Client *c, const ClientInput &input)
 			sv::MessageRequestEditRedo msg;
 			sendMessage(*c, msg);
 		}
+
+		for (sf::StringBuf &path : requests.queryDirs) {
+			sv::MessageQueryFiles msg;
+			msg.root = path;
+			sendMessage(*c, msg);
+		}
+		requests.queryDirs.clear();
 
 		for (sf::Array<sf::Box<sv::Edit>> &bundle : requests.edits) {
 			if (bundle.size == 0) continue;

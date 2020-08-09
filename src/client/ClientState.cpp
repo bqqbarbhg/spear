@@ -46,15 +46,18 @@ static void addEntityComponents(Systems &systems, uint32_t entityId, const Trans
 }
 
 
-static uint32_t addEntity(Systems &systems, PrefabMap &prefabs, uint32_t svId, const Transform &transform, const sf::Symbol &prefabName)
+static uint32_t addEntity(Systems &systems, uint32_t svId, const Transform &transform, const sf::Symbol &prefabName)
 {
-	Prefab *prefab = prefabs.find(prefabName);
-	if (!prefab) return ~0u;
+	uint32_t *pPrefabId = systems.entities.nameToPrefab.findValue(prefabName);
+	if (!pPrefabId) return ~0u;
+	uint32_t prefabId = *pPrefabId;
 
-	uint32_t entityId = systems.entities.addEntity(svId, transform);
+	Prefab &prefab = systems.entities.prefabs[prefabId];
 
-	prefab->entityIds.insert(entityId);
-	addEntityComponents(systems, entityId, transform, *prefab);
+	uint32_t entityId = systems.entities.addEntity(svId, transform, prefabId, prefab.entityIds.size);
+	prefab.entityIds.push(entityId);
+
+	addEntityComponents(systems, entityId, transform, prefab);
 
 	return entityId;
 }
@@ -85,17 +88,16 @@ ClientState::ClientState()
 void ClientState::applyEvent(const sv::Event &event)
 {
 	if (const auto *e = event.as<sv::LoadPrefabEvent>()) {
-		Prefab &prefab = prefabs[e->prefab.name];
-		prefab.s = e->prefab;
+		systems.entities.addPrefab(e->prefab);
 	} else if (const auto *e = event.as<sv::AddPropEvent>()) {
 		Transform transform = getPropTransform(e->prop.transform);
-		addEntity(systems, prefabs, e->prop.id, transform, e->prop.prefabName);
+		addEntity(systems, e->prop.id, transform, e->prop.prefabName);
 	} else if (const auto *e = event.as<sv::ReplaceLocalPropEvent>()) {
 		if (localClientId == e->clientId) {
 			removeEntities(systems, e->localId);
 		}
 		Transform transform = getPropTransform(e->prop.transform);
-		addEntity(systems, prefabs, e->prop.id, transform, e->prop.prefabName);
+		addEntity(systems, e->prop.id, transform, e->prop.prefabName);
 	} else if (const auto *e = event.as<sv::MovePropEvent>()) {
 		Transform transform = getPropTransform(e->transform);
 		sf::UintFind find = systems.entities.svToEntity.findAll(e->propId);
@@ -106,13 +108,17 @@ void ClientState::applyEvent(const sv::Event &event)
 	} else if (const auto *e = event.as<sv::RemovePropEvent>()) {
 		removeEntities(systems, e->propId);
 	} else if (const auto *e = event.as<sv::ReloadPrefabEvent>()) {
-		Prefab &prefab = prefabs[e->prefab.name];
-		prefab.s = e->prefab;
+		if (uint32_t *pPrefabId = systems.entities.nameToPrefab.findValue(e->prefab.name)) {
+			Prefab &prefab = systems.entities.prefabs[*pPrefabId];
+			prefab.s = e->prefab;
 
-		for (uint32_t entityId : prefab.entityIds) {
-			Transform transform = systems.entities.entities[entityId].transform;
-			systems.entities.removeComponents(systems, entityId);
-			addEntityComponents(systems, entityId, transform, prefab);
+			for (uint32_t entityId : prefab.entityIds) {
+				Transform transform = systems.entities.entities[entityId].transform;
+				systems.entities.removeComponents(systems, entityId);
+				addEntityComponents(systems, entityId, transform, prefab);
+			}
+		} else {
+			systems.entities.addPrefab(e->prefab);
 		}
 	}
 }

@@ -7,7 +7,36 @@ void EntitySystem::editorHighlight(Systems &systems, const EntityComponent &ec, 
 	// Nop
 }
 
-uint32_t Entities::addEntity(uint32_t svId, const Transform &transform)
+uint32_t Entities::addPrefab(const sv::Prefab &svPrefab)
+{
+	auto &res = nameToPrefab.insert(svPrefab.name);
+	if (!res.inserted) return res.entry.val;
+	
+	uint32_t prefabId = prefabs.size;
+	if (freePrefabIds.size > 0) {
+		prefabId = freePrefabIds.popValue();
+	} else {
+		prefabs.push();
+	}
+
+	res.entry.val = prefabId;
+
+	Prefab &prefab = prefabs[prefabId];
+	prefab.s = svPrefab;
+
+	return prefabId;
+}
+
+void Entities::removePrefab(uint32_t prefabId)
+{
+	Prefab &prefab = prefabs[prefabId];
+	sf_assert(prefab.entityIds.size == 0);
+
+	sf::reset(prefab);
+	freePrefabIds.push(prefabId);
+}
+
+uint32_t Entities::addEntity(uint32_t svId, const Transform &transform, uint32_t prefabId, uint32_t indexInPrefab)
 {
 	uint32_t entityId = entities.size;
 	if (freeEntityIds.size > 0) {
@@ -19,6 +48,8 @@ uint32_t Entities::addEntity(uint32_t svId, const Transform &transform)
 	Entity &entity = entities[entityId];
 	entity.svId = svId;
 	entity.transform = transform;
+	entity.prefabId = prefabId;
+	entity.indexInPrefab = indexInPrefab;
 
 	if (svId) {
 		svToEntity.insert(svId, entityId);
@@ -49,6 +80,11 @@ void Entities::removeEntity(Systems &systems, uint32_t entityId)
 	removeComponents(systems, entityId);
 
 	Entity &entity = entities[entityId];
+	if (entity.prefabId != ~0u) {
+		Prefab &prefab = prefabs[entity.prefabId];
+		entities[prefab.entityIds.back()].indexInPrefab = entity.indexInPrefab;
+		prefab.entityIds.removeSwap(entity.indexInPrefab);
+	}
 	if (entity.svId) {
 		svToEntity.removePair(entity.svId, entityId);
 	}

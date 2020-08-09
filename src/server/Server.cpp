@@ -8,6 +8,9 @@
 #include "ext/bq_websocket.h"
 #include "ext/bq_websocket_platform.h"
 
+#include "sf/File.h"
+#include "sf/Sort.h"
+
 namespace sv {
 
 struct Session;
@@ -19,6 +22,7 @@ struct Client
 	Server *server;
 	bqws_socket *ws = nullptr;
 	uint32_t lastSentEvent = 0;
+	uint32_t clientId;
 
 	// Editor
 	sf::Array<sf::Array<sf::Box<sv::Edit>>> undoStack;
@@ -36,6 +40,7 @@ struct Session
 	sf::Array<sf::Box<Event>> events;
 	sf::Box<ServerState> state;
 
+	uint32_t nextClientId = 0;
 	sf::Array<Client> clients;
 };
 
@@ -120,6 +125,7 @@ static Session *setupSession(Server *s, uint32_t id, uint32_t secret)
 		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
 		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Urist.json"), 1);
 
+#if 0
 		Prop prop;
 		prop.prefabName = sf::Symbol("Game/Props/Test/Barrel.json");
 		prop.transform.tile = sf::Vec2i(0, 0);
@@ -137,6 +143,7 @@ static Session *setupSession(Server *s, uint32_t id, uint32_t secret)
 		}
 
 		// session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
+#endif
 
 		return &session;
 	}
@@ -152,6 +159,7 @@ static void joinSession(Session &session, bqws_socket *ws, sv::MessageJoin *m)
 	client.ws = ws;
 	client.session = &session;
 	client.server = session.server;
+	client.clientId = ++session.nextClientId;
 
 	client.lastSentEvent = session.eventBase + session.events.size;
 
@@ -160,6 +168,7 @@ static void joinSession(Session &session, bqws_socket *ws, sv::MessageJoin *m)
 		load.state = session.state;
 		load.sessionId = session.id;
 		load.sessionSecret = session.secret;
+		load.clientId = client.clientId;
 		sendMessage(client, load);
 	}
 }
@@ -219,7 +228,37 @@ static void updateSession(Session &session)
 					client.redoStack.pop();
 					if (undoBundle.size > 0) client.undoStack.push(std::move(undoBundle));
 				}
-			}
+			} else if (auto m = msg->as<sv::MessageQueryFiles>()) {
+
+					if (!sf::contains(m->root, ".")) {
+
+						sf::SmallArray<sf::FileInfo, 64> files;
+						sf::listFiles(m->root, files);
+
+						sv::MessageQueryFilesResult resMsg;
+						resMsg.root = m->root;
+						const char *begin = m->root.data;
+						for (const char &c : m->root) {
+							if (c == '/') begin = &c + 1;
+						}
+						resMsg.dir.name.append(sf::String(begin, m->root.size - (begin - m->root.data)));
+						for (sf::FileInfo &info : files) {
+							if (info.isDirectory) {
+								sv::QueryDir &dir = resMsg.dir.dirs.push();
+								dir.name = info.name;
+							} else {
+								sv::QueryFile &file = resMsg.dir.files.push();
+								file.name = info.name;
+							}
+						}
+
+						sf::sortBy(resMsg.dir.dirs, [](const sv::QueryDir &dir) { return sf::String(dir.name); });
+						sf::sortBy(resMsg.dir.files, [](const sv::QueryFile &file) { return sf::String(file.name); });
+
+						sendMessage(client, resMsg);
+					}
+
+				}
 		}
 	}
 

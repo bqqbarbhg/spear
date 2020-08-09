@@ -26,6 +26,10 @@ VoidSlice Type::instGetArray(void *inst)
 	return { };
 }
 
+void Type::getPolymorphTypeNames(sf::Array<sf::StringBuf> &names)
+{
+}
+
 VoidSlice Type::instArrayReserve(void *inst, size_t size)
 {
 	sf_assert(0 && "Array resize not supported");
@@ -138,6 +142,14 @@ sf::CString TypePolymorphicStructBase::getPolymorphTagName()
 	return data->tagName;
 }
 
+void TypePolymorphicStructBase::getPolymorphTypeNames(sf::Array<sf::StringBuf> &names)
+{
+	names.reserve(names.size + data->valueToName.size());
+	for (auto &pair : data->valueToName) {
+		names.push(pair.val);
+	}
+}
+
 const PolymorphType *TypePolymorphicStructBase::getPolymorphTypeByValue(uint32_t value)
 {
 	auto it = data->valueToType.find(value);
@@ -189,6 +201,16 @@ void writeInstBinary(sf::Array<char> &dst, void *inst, Type *type)
 			dst.push((char*)&tagValue, sizeof(uint32_t));
 		}
 
+	} else if (flags & sf::Type::HasPointer) {
+		void *ptr = type->instGetPointer(inst);
+
+		uint32_t tagValue = ptr != nullptr ? 1 : 0;
+		dst.push((char*)&tagValue, sizeof(uint32_t));
+
+		if (ptr) {
+			writeInstBinary(dst, ptr, type->elementType);
+		}
+
 	} else if (flags & Type::HasFields) {
 		for (const Field &field : type->fields) {
 			writeInstBinary(dst, base + field.offset, field.type);
@@ -232,6 +254,20 @@ bool readInstBinary(sf::Slice<char> &src, void *inst, Type *type)
 		const PolymorphType *polyType = type->elementType->getPolymorphTypeByValue(tagValue);
 		void *ptr = type->instSetPolymorph(inst, polyType->type);
 		return readInstBinary(src, ptr, polyType->type);
+
+	} else if (flags & sf::Type::HasPointer) {
+		void *ptr = type->instGetPointer(inst);
+
+		uint32_t tagValue;
+		if (src.size < sizeof(uint32_t)) return false;
+		memcpy(&tagValue, src.data, sizeof(uint32_t));
+		src = src.drop(sizeof(uint32_t));
+
+		if (ptr) {
+			return readInstBinary(src, ptr, type->elementType);
+		} else {
+			return true;
+		}
 
 	} else if (flags & Type::HasFields) {
 		for (const Field &field : type->fields) {
