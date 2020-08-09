@@ -52,7 +52,7 @@ bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, float tM
 	sf::Vec3 maxT = sf::max(loT, hiT);
 	float t0 = sf::max(minT.x, minT.y, minT.z);
 	float t1 = sf::min(maxT.x, maxT.y, maxT.z);
-	if (t0 >= t1 || t1 < tMin) return false;
+	if (t0 > t1 || t1 < tMin) return false;
 	outT = t0;
 	return true;
 }
@@ -76,7 +76,7 @@ bool intesersectRayObb(float &outT, const Ray &ray, const Mat34 &obb, float tMin
 	sf::Vec3 maxT = sf::max(loT, hiT);
 	float t0 = sf::max(minT.x, minT.y, minT.z);
 	float t1 = sf::min(maxT.x, maxT.y, maxT.z);
-	if (t0 >= t1 || t1 < tMin) return false;
+	if (t0 > t1 || t1 < tMin) return false;
 	outT = t0;
 	return true;
 }
@@ -122,6 +122,13 @@ sf::Mat34 obbFromBounds3(const Bounds3 &bounds)
 	return sf::mat::translate(bounds.origin) * sf::mat::scale(bounds.extent);
 }
 
+Bounds3 boundsUnion(const Bounds3 &a, const Bounds3 &b)
+{
+	return Bounds3::minMax(
+		sf::min(a.origin - a.extent, b.origin - b.extent),
+		sf::min(a.origin + a.extent, b.origin + b.extent));
+}
+
 Sphere sphereUnion(const Sphere &a, const Sphere &b)
 {
 	sf::Vec3 delta = b.origin - a.origin;
@@ -132,6 +139,47 @@ Sphere sphereUnion(const Sphere &a, const Sphere &b)
 	s.radius = (dist + a.radius + b.radius) * 0.5f;
 	s.origin = a.origin + delta * ((s.radius - a.radius) / dist);
 	return s;
+}
+
+float intersectRayFast(const FastRay &ray, const Sphere &sphere, float tMin, float tMax)
+{
+	sf::Vec3 delta = ray.origin - sphere.origin;
+	float a = sf::dot(ray.direction, ray.direction);
+	float b = 2.0f * sf::dot(delta, ray.direction);
+	float c = sf::dot(delta, delta) - sphere.radius*sphere.radius;
+	float radicand = b*b - 4.0f*a*c;
+	if (radicand <= 0.0f) return false;
+	float root = sf::sqrt(radicand);
+	float denom = 0.5f / a;
+	if ((-b + root) * denom < tMin) return false;
+	float t = (-b - root) * denom;
+	if (t >= tMax) return tMax;
+	return sf::max(tMin, t);
+}
+
+float intersectRayFast(const FastRay &ray, const Bounds3 &bounds, float tMin, float tMax)
+{
+	sf::Vec3 relOrigin = bounds.origin - ray.origin;
+	sf::Vec3 loT = (relOrigin - bounds.extent) * ray.rcpDirection;
+	sf::Vec3 hiT = (relOrigin + bounds.extent) * ray.rcpDirection;
+	sf::Vec3 minT = sf::min(loT, hiT);
+	sf::Vec3 maxT = sf::max(loT, hiT);
+	float t0 = sf::max(minT.x, minT.y, minT.z);
+	float t1 = sf::min(maxT.x, maxT.y, maxT.z);
+	if (t0 > t1 || t1 < tMin || t0 >= tMax) return tMax;
+	return sf::max(t0, tMin);
+}
+
+float intersectRayFastAabb(const FastRay &ray, const sf::Vec3 &aabbMin, const sf::Vec3 &aabbMax, float tMin, float tMax)
+{
+	sf::Vec3 loT = (aabbMin - ray.origin) * ray.rcpDirection;
+	sf::Vec3 hiT = (aabbMax - ray.origin) * ray.rcpDirection;
+	sf::Vec3 minT = sf::min(loT, hiT);
+	sf::Vec3 maxT = sf::max(loT, hiT);
+	float t0 = sf::max(minT.x, minT.y, minT.z);
+	float t1 = sf::min(maxT.x, maxT.y, maxT.z);
+	if (t0 > t1 || t1 < tMin || t0 >= tMax) return tMax;
+	return sf::max(t0, tMin);
 }
 
 }

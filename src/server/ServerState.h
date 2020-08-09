@@ -384,7 +384,6 @@ struct Event
 		AddProp,
 		AddCharacter,
 		AddCard,
-		ReloadProp,
 		MoveProp,
 		GiveCard,
 		SelectCard,
@@ -473,7 +472,7 @@ struct LoadPrefabEvent : EventBase<Event::LoadPrefab>
 	Prefab prefab;
 };
 
-struct ReloadPrefabEvent : EventBase<Event::LoadPrefab>
+struct ReloadPrefabEvent : EventBase<Event::ReloadPrefab>
 {
 	Prefab prefab;
 };
@@ -501,11 +500,6 @@ struct AddCharacterEvent : EventBase<Event::AddCharacter>
 struct AddCardEvent : EventBase<Event::AddCard>
 {
 	Card card;
-};
-
-struct ReloadPropEvent : EventBase<Event::ReloadProp>
-{
-	Prop prop;
 };
 
 struct MovePropEvent : EventBase<Event::MoveProp>

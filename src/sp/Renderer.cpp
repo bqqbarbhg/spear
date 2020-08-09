@@ -821,6 +821,12 @@ sf::Slice<const PassTime> getPassTimes()
 	return g_passTimes;
 }
 
+float getClipNearW()
+{
+	static float clipNearW = sg_query_features().origin_top_left ? 0.0f : -1.0f;
+	return clipNearW;
+}
+
 sg_buffer g_hackSharedQuadIndexBuffer;
 
 }

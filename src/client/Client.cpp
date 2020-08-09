@@ -19,14 +19,7 @@
 #include "sp/Font.h"
 #include "sp/RichText.h"
 
-#include "sf/License.h"
-#include "sp/SpLicense.h"
-
 #include "client/ClientState.h"
-#include "client/ClientGlobal.h"
-
-#include "client/AreaState.h"
-#include "client/MeshState.h"
 
 #include "game/DebugDraw.h"
 #include "game/shader/Line.h"
@@ -179,8 +172,9 @@ struct Client
 	sv::MessageEncoding messageEncoding;
 	bqws_socket *ws;
 
-	// Globals
-	cl::ClientGlobal clientGlobal;
+	// Update args
+	cl::FrameArgs frameArgs;
+	cl::RenderArgs mainRenderArgs;
 
 	// Game state
 	sf::Box<sv::ServerState> svState;
@@ -293,11 +287,7 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret)
 {
 	Client *c = new Client();
 
-	cl::clientGlobal = &c->clientGlobal;
-
 	c->clState = sf::box<cl::ClientState>();
-
-	cl::clientGlobalState = c->clState;
 
 
 	{
@@ -360,90 +350,15 @@ void handleMessage(Client *c, sv::Message &msg)
 	}
 }
 
-static void updateCharacterPicking(Client *c, const ClientInput &input)
-{
-	sv::ServerState &svState = *c->svState;
-
-	sp::RichTextStyle richStyle = { };
-	richStyle.font = c->font;
-
-	sp::RichFont &font = richStyle.fontTags[sf::String("fire")];
-	font.color = sf::Vec4(1.0f, 0.7f, 0.6f, 1.0f);
-	font.hasColor = true;
-	font.noBreak = true;
-
-	sp::SpriteRef fire { "Assets/Gui/Icons/Fire.png" };
-	sp::RichTagSprite &sprite = richStyle.spriteTags[sf::String("fire")];
-	sprite.close.sprite = fire;
-	sprite.close.anchor = sf::Vec2(0.5f, 0.5f);
-	sprite.close.transform = sf::mat2D::translate(sf::Vec2(0.5f, -0.25f)) * sf::mat2D::scale(0.75f);
-	sprite.close.layoutWidth = 0.85f;
-	sprite.close.useFontColor = true;
-
-	float wrapWidth = input.mousePosition.x * 400.0f;
-
-	float x = 50.0f;
-	float y = 50.0f;
-	for (const auto &pair : svState.charactersToSelect) {
-		sv::Prefab *tmplFab = svState.prefabs.find(pair.key);
-		if (!tmplFab) continue;
-
-		sv::CharacterTemplateComponent *tmplComp = tmplFab->findComponent<sv::CharacterTemplateComponent>();
-		if (!tmplComp) continue;
-
-		sv::Prefab *chrFab = svState.prefabs.find(tmplComp->characterPrefab);
-		if (!chrFab) continue;
-
-		sv::CharacterComponent *chrComp = chrFab->findComponent<sv::CharacterComponent>();
-		if (!chrComp) continue;
-
-		sp::SpriteRef sprite{chrComp->image};
-
-		c->canvas.draw(sprite, sf::Vec2(x, y), sf::Vec2(200.0f));
-
-		sp::RichTextDesc desc = { };
-		desc.style = &richStyle;
-		desc.offset = sf::Vec2(x, y + 250.0f);
-		desc.fontHeight = 30.0f;
-		desc.baseColor = sf::Vec4(1.0f);
-		desc.wrapWidth = wrapWidth;
-		sp::drawRichText(c->canvas, desc, tmplComp->description);
-
-		sp::SpriteRef white { "Assets/Gui/Misc/White.png" };
-		c->canvas.draw(white, desc.offset + sf::Vec2(wrapWidth, 0.0f), sf::Vec2(2.0f, 100.0f));
-
-		x += 330.0f;
-	}
-
-	sf::SmallArray<sf::License, 32> licenses;
-	sf::getLicenses(licenses);
-	sp::getLicenses(licenses);
-
-	x = 700.0f;
-	y = 50.0f;
-	for (sf::License &license : licenses) {
-		sp::RichTextDesc desc = { };
-		desc.style = &richStyle;
-		desc.offset = sf::Vec2(x, y);
-		desc.fontHeight = 30.0f;
-		desc.baseColor = sf::Vec4(1.0f);
-		desc.wrapWidth = wrapWidth;
-		sp::drawRichText(c->canvas, desc, license.name);
-
-		sp::SpriteRef white { "Assets/Gui/Misc/White.png" };
-		c->canvas.draw(white, desc.offset + sf::Vec2(wrapWidth, 0.0f), sf::Vec2(2.0f, 100.0f));
-		y += 30.0f;
-	}
-}
-
 bool clientUpdate(Client *c, const ClientInput &input)
 {
-	c->clientGlobal.frameIndex++;
-
 	float dt = input.dt;
 	if (bqws_is_closed(c->ws)) {
 		return true;
 	}
+
+	c->frameArgs.frameIndex++;
+	c->frameArgs.dt = dt;
 
 	if (input.resolution != c->resolution || c->forceRecreateTargets) {
 		c->forceRecreateTargets = false;
@@ -472,16 +387,19 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.3f, (float)sapp_width()/(float)sapp_height(), 1.0f, 100.0f);
 	sf::Mat44 worldToClip = viewToClip * worldToView;
 
-	sf::Frustum viewFrustum { worldToClip, 0.0f };
+	c->frameArgs.cameraPosition = eye;
+	c->frameArgs.worldToView = worldToView;
+	c->frameArgs.viewToClip = viewToClip;
+	c->frameArgs.worldToClip = worldToClip;
 
-	sf::Mat44 clipToWorld = sf::inverse(worldToClip);
+	c->mainRenderArgs.cameraPosition = c->frameArgs.cameraPosition;
+	c->mainRenderArgs.worldToView = c->frameArgs.worldToView;
+	c->mainRenderArgs.viewToClip = c->frameArgs.viewToClip;
+	c->mainRenderArgs.worldToClip = c->frameArgs.worldToClip;
 
-	c->clState->updateAssetLoading();
+	c->clState->update(c->frameArgs);
 
-	c->clState->updateEntityInterpolations(dt);
-
-	c->clState->updateVisibility(viewFrustum);
-
+#if 0
 	sf::Vec2 clipMouse = input.mousePosition * sf::Vec2(+2.0f, -2.0f) + sf::Vec2(-1.0f, +1.0f);
 	sf::Vec4 rayBegin = clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 0.0f, 1.0f);
 	sf::Vec4 rayEnd = clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 1.0f, 1.0f);
@@ -510,6 +428,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 			}
 		}
 	}
+#endif
 
 	c->canvas.clear();
 
@@ -538,21 +457,9 @@ sg_image clientRender(Client *c)
 
 		sp::beginPass(c->mainPass, &action);
 
-		sf::Vec3 eye = sf::Vec3(0.0f, 10.0f, 3.0f);
-		sf::Mat34 worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.2f));
-		sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.3f, (float)sapp_width()/(float)sapp_height(), 1.0f, 100.0f);
-		sf::Mat44 worldToClip = viewToClip * worldToView;
+		c->clState->renderMain(c->mainRenderArgs);
 
-		sf::Frustum viewFrustum { worldToClip, 0.0f };
-
-		RenderArgs args;
-		args.cameraPosition = eye;
-		args.worldToClip = worldToClip;
-		args.frustum = viewFrustum;
-
-		c->clState->renderMain(args);
-
-		c->debugRender.render(worldToClip);
+		c->debugRender.render(c->mainRenderArgs.worldToClip);
 
 		sp::endPass();
 	}

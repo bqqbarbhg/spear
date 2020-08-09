@@ -697,15 +697,6 @@ void ServerState::reloadPrefab(sf::Array<sf::Box<Event>> &events, const Prefab &
 		pushEvent(*this, events, e);
 	}
 	loadPrefab(*this, events, prefab.name);
-
-	// Reload props
-	for (Prop &prop : props) {
-		if (prop.prefabName != prefab.name) continue;
-
-		auto e = sf::box<ReloadPropEvent>();
-		e->prop = prop;
-		pushEvent(*this, events, e);
-	}
 }
 
 uint32_t ServerState::selectCharacterSpawn(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, uint32_t playerId)

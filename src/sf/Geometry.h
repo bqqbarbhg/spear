@@ -11,6 +11,17 @@ struct Ray
 	sf::Vec3 direction;
 };
 
+struct FastRay
+{
+	sf::Vec3 origin;
+	sf::Vec3 direction;
+	sf::Vec3 rcpDirection;
+
+	sf_forceinline explicit FastRay(const Ray &ray)
+		: origin(ray.origin), direction(ray.direction), rcpDirection(sf::Vec3(1.0f) / ray.direction)
+	{ }
+};
+
 struct Sphere
 {
 	sf::Vec3 origin;
@@ -54,7 +65,11 @@ sf_inline bool intersect(const sf::Sphere &a, const sf::Bounds3 &b) {
 Sphere sphereFromBounds3(const Bounds3 &bounds);
 Sphere sphereFromBounds3(const Bounds3 &bounds, const sf::Mat34 &transform);
 sf::Mat34 obbFromBounds3(const Bounds3 &bounds);
+Bounds3 boundsUnion(const Bounds3 &a, const Bounds3 &b);
 Sphere sphereUnion(const Sphere &a, const Sphere &b);
 
+float intersectRayFast(const FastRay &ray, const Sphere &sphere, float tMin=0.0f, float tMax=HUGE_VALF);
+float intersectRayFast(const FastRay &ray, const Bounds3 &bounds, float tMin=0.0f, float tMax=HUGE_VALF);
+float intersectRayFastAabb(const FastRay &ray, const sf::Vec3 &aabbMin, const sf::Vec3 &aabbMax, float tMin=0.0f, float tMax=HUGE_VALF);
 
 }

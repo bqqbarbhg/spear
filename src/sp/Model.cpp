@@ -110,6 +110,9 @@ static void loadImp(void *user, const ContentFile &file)
 		imp->boneNames.insert(bone.name, i);
 	}
 
+	sf::Vec3 modelMin = sf::Vec3(+HUGE_VALF);
+	sf::Vec3 modelMax = sf::Vec3(-HUGE_VALF);
+
 	imp->meshes.reserve(header.info.num_meshes);
 	for (uint32_t i = 0; i < header.info.num_meshes; i++) {
 		spmdl_mesh &sp_mesh = meshes[i];
@@ -117,12 +120,18 @@ static void loadImp(void *user, const ContentFile &file)
 
 		sp::Mesh &mesh = imp->meshes.push();
 
+		sf::Vec3 aabbMin = toSF(sp_mesh.aabb_min);
+		sf::Vec3 aabbMax = toSF(sp_mesh.aabb_max);
+
+		modelMin = sf::min(modelMin, aabbMin);
+		modelMax = sf::max(modelMax, aabbMax);
+
 		mesh.materialName = toSymbol(strings, sp_material.name);
 		mesh.numIndices = sp_mesh.num_indices;
 		mesh.numVertices = sp_mesh.num_vertices;
 		mesh.indexBufferOffset = sp_mesh.index_buffer.offset;
 		mesh.bvhRootNodeIndex = sp_mesh.bvh_index;
-		mesh.bounds = sf::Bounds3::minMax(toSF(sp_mesh.aabb_min), toSF(sp_mesh.aabb_max));
+		mesh.bounds = sf::Bounds3::minMax(aabbMin, aabbMax);
 
 		mesh.attribs.reserve(sp_mesh.num_attribs);
 		for (uint32_t attrI = 0; attrI < sp_mesh.num_attribs; attrI++) {
@@ -157,6 +166,8 @@ static void loadImp(void *user, const ContentFile &file)
 			}
 		}
 	}
+
+	imp->bounds = sf::Bounds3::minMax(modelMin, modelMax);
 
 	if (!props.cpuData) {
 		{
@@ -203,7 +214,7 @@ sf_inline float intesersectRayAabb(const sf::Vec3 &origin, const sf::Vec3 &rcpDi
 	sf::Vec3 maxT = sf::max(loT, hiT);
 	float t0 = sf::max(minT.x, minT.y, minT.z);
 	float t1 = sf::min(maxT.x, maxT.y, maxT.z);
-	if (t0 >= t1 || t1 < tMin) return HUGE_VALF;
+	if (t0 > t1 || t1 < tMin) return HUGE_VALF;
 	return t0;
 }
 

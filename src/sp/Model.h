@@ -94,6 +94,8 @@ struct Model : Asset
 	sf::Array<spmdl_bvh_node> bvhNodes;
 	sf::Array<uint32_t> bvhTriangles;
 
+	sf::Bounds3 bounds;
+
 	float castMeshRay(uint32_t rootNode, const sf::Ray &ray, float tMin=0.0f) const;
 	float castMeshRay(uint32_t rootNode, const sf::Ray &ray, const sf::Mat34 &transform, float tMin=0.0f) const;
 

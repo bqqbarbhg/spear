@@ -44,13 +44,12 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, CastSpell, MeleeAttackEvent),
 		sf_poly(Event, Damage, DamageEvent),
 		sf_poly(Event, LoadPrefab, LoadPrefabEvent),
-		sf_poly(Event, LoadPrefab, ReloadPrefabEvent),
+		sf_poly(Event, ReloadPrefab, ReloadPrefabEvent),
 		sf_poly(Event, RemoveGarbageIds, RemoveGarbageIdsEvent),
 		sf_poly(Event, RemoveGarbagePrefabs, RemoveGarbagePrefabsEvent),
 		sf_poly(Event, AddProp, AddPropEvent),
 		sf_poly(Event, AddCharacter, AddCharacterEvent),
 		sf_poly(Event, AddCard, AddCardEvent),
-		sf_poly(Event, ReloadProp, ReloadPropEvent),
 		sf_poly(Event, MoveProp, MovePropEvent),
 		sf_poly(Event, GiveCard, GiveCardEvent),
 		sf_poly(Event, SelectCard, SelectCardEvent),
@@ -412,14 +411,6 @@ template<> void initType<AddCardEvent>(Type *t)
 		sf_field(AddCardEvent, card),
 	};
 	sf_struct_base(t, AddCardEvent, Event, fields);
-}
-
-template<> void initType<ReloadPropEvent>(Type *t)
-{
-	static Field fields[] = {
-		sf_field(ReloadPropEvent, prop),
-	};
-	sf_struct_base(t, ReloadPropEvent, Event, fields);
 }
 
 template<> void initType<MovePropEvent>(Type *t)

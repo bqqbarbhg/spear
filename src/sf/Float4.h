@@ -120,7 +120,7 @@ struct Float4
 	sf_forceinline Float4() { }
 	sf_forceinline Float4(float f) : imp(_mm_set1_ps(f)) { }
 	sf_forceinline Float4(__m128 m) : imp(m) { }
-	sf_forceinline Float4(float a, float b, float c, float d) : imp(_mm_set_ps(a, b, c, d)) { }
+	sf_forceinline Float4(float a, float b, float c, float d) : imp(_mm_set_ps(d, c, b, a)) { }
 
 	sf_forceinline Float4 operator+(const Float4 &rhs) const { return _mm_add_ps(imp, rhs.imp); }
 	sf_forceinline Float4 operator-(const Float4 &rhs) const { return _mm_sub_ps(imp, rhs.imp); }

@@ -195,7 +195,8 @@ static void updateSession(Session &session)
 	}
 
 	static int HACKCOUNT = 0;
-	if (HACKCOUNT++ % 100 == 0) {
+	HACKCOUNT++;
+	if (HACKCOUNT % 30 == 0) {
 		uint32_t id = 101;
 		int x = rand() % 4 - 2;
 		int y = rand() % 4 - 2;
@@ -208,6 +209,15 @@ static void updateSession(Session &session)
 		t.scale = ((float)rand() / (float)RAND_MAX) * 3.0f + 0.25f;
 		session.state->moveProp(session.events, id, t);
 	}
+
+	if (HACKCOUNT % 100 == 0) {
+		Prefab prefab = session.state->prefabs[sf::Symbol("Game/Props/Test/Barrel.json")];
+		sf::Box<sv::ModelComponent> newModel = sf::box<sv::ModelComponent>(*prefab.findComponent<sv::ModelComponent>());
+		newModel->scale = ((float)rand() / (float)RAND_MAX) * 2.0f + 0.25f;
+		prefab.components[0] = newModel;
+		session.state->reloadPrefab(session.events, prefab);
+	}
+
 
 	sf::HashMap<uint32_t, sf::Array<char>> encodedUpdates;
 	uint32_t totalEvents = session.eventBase + session.events.size;

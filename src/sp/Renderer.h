@@ -158,4 +158,6 @@ sf::Slice<const PassTime> getPassTimes();
 extern sg_buffer g_hackSharedQuadIndexBuffer;
 sf_inline sg_buffer getSharedQuadIndexBuffer() { return g_hackSharedQuadIndexBuffer; }
 
+float getClipNearW();
+
 }

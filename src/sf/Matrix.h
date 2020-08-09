@@ -332,6 +332,7 @@ namespace mat {
 	Mat34 inverseBasis(const sf::Vec3 &x, const sf::Vec3 &y, const sf::Vec3 &z, const sf::Vec3 &origin=sf::Vec3());
 
 	Mat34 look(const sf::Vec3 &eye, const sf::Vec3 &dir, const sf::Vec3 &up=sf::Vec3(0.0f,1.0f,0.0f));
+	Mat34 world(const sf::Vec3 &translation, const sf::Quat &rotation, float scale);
 	Mat34 world(const sf::Vec3 &translation, const sf::Quat &rotation, const sf::Vec3 &scale);
 
 	Mat44 perspectiveD3D(float fov, float aspect, float near, float far);
