@@ -48,7 +48,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, RemoveGarbageIds, RemoveGarbageIdsEvent),
 		sf_poly(Event, RemoveGarbagePrefabs, RemoveGarbagePrefabsEvent),
 		sf_poly(Event, AddProp, AddPropEvent),
-		sf_poly(Event, AddProp, RemovePropEvent),
+		sf_poly(Event, RemoveProp, RemovePropEvent),
 		sf_poly(Event, ReplaceLocalProp, ReplaceLocalPropEvent),
 		sf_poly(Event, AddCharacter, AddCharacterEvent),
 		sf_poly(Event, AddCard, AddCardEvent),

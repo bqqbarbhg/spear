@@ -153,10 +153,42 @@ uint32_t ServerState::allocateId(sf::Array<sf::Box<Event>> &events, IdType type,
 	}
 }
 
-sf_inline bool propDeleted(const ServerState &state, uint32_t propId)
+sf_inline bool isCharacterValid(const ServerState &state, uint32_t chrId)
+{
+	const Character *chr = state.characters.find(chrId);
+	return chr && !chr->deleted;
+}
+
+sf_inline bool isPropValid(const ServerState &state, uint32_t propId)
 {
 	const Prop *prop = state.props.find(propId);
-	return !prop || prop->deleted;
+	return prop && !prop->deleted;
+}
+
+sf_inline bool isCardValid(const ServerState &state, uint32_t cardId)
+{
+	const Card *card = state.cards.find(cardId);
+	return card && !card->deleted;
+}
+
+sf_inline bool isStatusValid(const ServerState &state, uint32_t propId)
+{
+	const Status *status = state.statuses.find(propId);
+	return status && !status->deleted;
+}
+
+bool ServerState::isIdValid(uint32_t id)
+{
+	switch (getIdType(id)) {
+
+	case IdType::Prop: return isPropValid(*this, id);
+	case IdType::Character: return isCharacterValid(*this, id);
+	case IdType::Card: return isCardValid(*this, id);
+	case IdType::Status: return isStatusValid(*this, id);
+	default:
+		sf_failf("Invalid ID type: %u", (uint32_t)getIdType(id));
+		return false;
+	}
 }
 
 void ServerState::applyEvent(const Event &event)
@@ -208,13 +240,13 @@ void ServerState::applyEvent(const Event &event)
 	} else if (auto *e = event.as<RemoveGarbagePrefabsEvent>()) {
 		removePrefabs(e->names.slice());
 	} else if (auto *e = event.as<AddPropEvent>()) {
-		sv_check(propDeleted(*this, e->prop.id));
+		sv_check(!isPropValid(*this, e->prop.id));
 		props.insertOrAssign(e->prop);
 	} else if (auto *e = event.as<RemovePropEvent>()) {
 		bool found = props.remove(e->propId);
 		sv_check(found);
 	} else if (auto *e = event.as<ReplaceLocalPropEvent>()) {
-		sv_check(propDeleted(*this, e->prop.id));
+		sv_check(!isPropValid(*this, e->prop.id));
 		props.insertOrAssign(e->prop);
 		if (localClientId == e->clientId) {
 			props.remove(e->localId);

@@ -9,11 +9,21 @@ namespace cl {
 
 struct EditorState;
 
+struct EditorRequests
+{
+	sf::Array<sf::Array<sf::Box<sv::Edit>>> edits;
+	bool undo = false;
+	bool redo = false;
+};
+
+
 EditorState *editorCreate(const sf::Box<sv::ServerState> &svState, const sf::Box<cl::ClientState> &clState);
 void editorFree(EditorState *es);
 
+bool editorPeekEventPre(EditorState *es, const sv::Event &event);
+
 void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput &input);
 
-sf::Array<sf::Array<sf::Box<sv::Edit>>> &editorPendingEdits(EditorState *es);
+EditorRequests &editorPendingRequests(EditorState *es);
 
 }

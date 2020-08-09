@@ -103,6 +103,8 @@ void ClientState::applyEvent(const sv::Event &event)
 		while (find.next(entityId)) {
 			systems.entities.updateTransform(systems, entityId, transform);
 		}
+	} else if (const auto *e = event.as<sv::RemovePropEvent>()) {
+		removeEntities(systems, e->propId);
 	} else if (const auto *e = event.as<sv::ReloadPrefabEvent>()) {
 		Prefab &prefab = prefabs[e->prefab.name];
 		prefab.s = e->prefab;

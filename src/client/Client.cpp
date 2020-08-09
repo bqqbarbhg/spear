@@ -349,6 +349,13 @@ void handleMessage(Client *c, sv::Message &msg)
 
 	} else if (auto m = msg.as<sv::MessageUpdate>()) {
 		for (sv::Event *event : m->events) {
+
+			if (c->editor) {
+				if (editorPeekEventPre(c->editor, *event)) {
+					continue;
+				}
+			}
+
 			c->svState->applyEvent(*event);
 			c->clState->applyEvent(*event);
 		}
@@ -418,21 +425,34 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	c->mainRenderArgs.viewToClip = c->frameArgs.viewToClip;
 	c->mainRenderArgs.worldToClip = c->frameArgs.worldToClip;
 
-	c->clState->update(c->frameArgs);
-
 	if (c->editor) {
 		editorUpdate(c->editor, c->frameArgs, input);
 
-		sf::Array<sf::Array<sf::Box<sv::Edit>>> &edits = editorPendingEdits(c->editor);
-		for (sf::Array<sf::Box<sv::Edit>> &bundle : edits) {
+		EditorRequests &requests = editorPendingRequests(c->editor);
+
+		if (requests.undo) {
+			requests.undo = false;
+			sv::MessageRequestEditUndo msg;
+			sendMessage(*c, msg);
+		}
+
+		if (requests.redo) {
+			requests.redo = false;
+			sv::MessageRequestEditRedo msg;
+			sendMessage(*c, msg);
+		}
+
+		for (sf::Array<sf::Box<sv::Edit>> &bundle : requests.edits) {
 			if (bundle.size == 0) continue;
 
 			sv::MessageRequestEdit msg;
 			msg.edits = std::move(bundle);
 			sendMessage(*c, msg);
 		}
-		edits.clear();
+		requests.edits.clear();
 	}
+
+	c->clState->update(c->frameArgs);
 
 #if 0
 #endif

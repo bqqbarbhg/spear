@@ -19,7 +19,8 @@ struct EditorState
 	sf::HashSet<uint32_t> selectedSvIds;
 
 	// Pending edits
-	sf::Array<sf::Array<sf::Box<sv::Edit>>> pendingEdits;
+	sf::Array<sf::Box<sv::Event>> editEvents;
+	EditorRequests requests;
 
 	// Input
 	bool mouseDown = false;
@@ -50,8 +51,30 @@ void editorFree(EditorState *es)
 	delete es;
 }
 
+bool editorPeekEventPre(EditorState *es, const sv::Event &event)
+{
+	if (const auto *e = event.as<sv::ReplaceLocalPropEvent>()) {
+		if (e->clientId == es->svState->localClientId) {
+			if (es->selectedSvIds.find(e->localId)) {
+				es->selectedSvIds.remove(e->localId);
+				es->selectedSvIds.insert(e->prop.id);
+			}
+		}
+	}
+
+	return false;
+}
+
 void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput &input)
 {
+	for (uint32_t i = 0; i < es->selectedSvIds.size(); i++) {
+		uint32_t svId = es->selectedSvIds.data[i];
+		if (!es->svState->isIdValid(svId)) {
+			es->selectedSvIds.remove(svId);
+			i--;
+		}
+	}
+
 	es->prevMouseDown = es->mouseDown;
 	es->mouseDown = ImGui::GetIO().MouseDown[0];
 
@@ -86,22 +109,37 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 			es->didDragSelection = true;
 			es->dragPrevOffset = dragTileOffset;
 
-			sf::SmallArray<sf::Box<sv::Event>, 128> events;
-
 			for (sv::Prop &prop : es->dragProps) {
 				sv::PropTransform transform = prop.transform;
 				transform.tile += dragTileOffset;
 
-				es->svState->moveProp(events, prop.id, transform);
-			}
-
-			for (sv::Event *event : events) {
-				es->clState->applyEvent(*event);
+				es->svState->moveProp(es->editEvents, prop.id, transform);
 			}
 		}
+	}
 
-		ImGui::SetNextItemOpen(true);
-		handleImgui(dragTileOffset, "dragTileOffset");
+	if (!es->mouseDown && !ImGui::GetIO().WantCaptureKeyboard) {
+		for (sapp_event &event : input.events) {
+			if (event.type != SAPP_EVENTTYPE_KEY_DOWN) continue;
+			if (event.key_repeat) continue;
+
+			if (event.key_code == SAPP_KEYCODE_DELETE) {
+				sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();
+				for (uint32_t svId : es->selectedSvIds) {
+					if (sv::Prop *prop = es->svState->props.find(svId)) {
+						auto ed = sf::box<sv::RemovePropEdit>();
+						ed->propId = prop->id;
+						edits.push(ed);
+					}
+				}
+				es->selectedSvIds.clear();
+			} else if (event.key_code == SAPP_KEYCODE_Z && event.modifiers == SAPP_MODIFIER_CTRL) {
+				es->requests.undo = true;
+			} else if ((event.key_code == SAPP_KEYCODE_Z && event.modifiers == (SAPP_MODIFIER_CTRL|SAPP_MODIFIER_SHIFT))
+				|| (event.key_code == SAPP_KEYCODE_Y && event.modifiers == SAPP_MODIFIER_CTRL)) {
+				es->requests.redo = true;
+			}
+		}
 	}
 
 	if (!es->mouseDown) {
@@ -109,12 +147,8 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 			if (!es->didDragSelection) {
 
 				if (es->dragClone) {
-					sf::SmallArray<sf::Box<sv::Event>, 128> events;
 					for (sv::Prop &prop : es->dragProps) {
-						es->svState->removeProp(events, prop.id);
-					}
-					for (sv::Event *event : events) {
-						es->clState->applyEvent(*event);
+						es->svState->removeProp(es->editEvents, prop.id);
 					}
 				}
 
@@ -131,7 +165,7 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 					}
 				}
 			} else {
-				sf::Array<sf::Box<sv::Edit>> &edits = es->pendingEdits.push();
+				sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();
 				if (es->dragClone) {
 					for (sv::Prop &prop : es->dragProps) {
 						auto ed = sf::box<sv::ClonePropEdit>();
@@ -190,15 +224,9 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 			if (es->dragClone) {
 				es->selectedSvIds.clear();
 
-				sf::SmallArray<sf::Box<sv::Event>, 128> events;
-
 				for (sv::Prop &prop : es->dragProps) {
-					uint32_t svId = es->svState->addProp(events, prop, true);
+					uint32_t svId = es->svState->addProp(es->editEvents, prop, true);
 					es->selectedSvIds.insert(svId);
-				}
-
-				for (sv::Event *event : events) {
-					es->clState->applyEvent(*event);
 				}
 
 				es->dragProps.clear();
@@ -227,12 +255,15 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 		}
 	}
 
-	return;
+	for (sv::Event *event : es->editEvents) {
+		es->clState->applyEvent(*event);
+	}
+	es->editEvents.clear();
 }
 
-sf::Array<sf::Array<sf::Box<sv::Edit>>> &editorPendingEdits(EditorState *es)
+EditorRequests &editorPendingRequests(EditorState *es)
 {
-	return es->pendingEdits;
+	return es->requests;
 }
 
 #if 0

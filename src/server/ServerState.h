@@ -494,7 +494,7 @@ struct AddPropEvent : EventBase<Event::AddProp>
 	Prop prop;
 };
 
-struct RemovePropEvent : EventBase<Event::AddProp>
+struct RemovePropEvent : EventBase<Event::RemoveProp>
 {
 	uint32_t propId;
 };
@@ -667,6 +667,8 @@ struct ServerState
 
 	uint32_t lastAllocatedIdByType[NumServerIdTypes] = { };
 	uint32_t lastLocalAllocatedIdByType[NumServerIdTypes] = { };
+
+	bool isIdValid(uint32_t id);
 
 	void applyEvent(const Event &event);
 

@@ -16,6 +16,8 @@ struct Message
 		Load,
 		Update,
 		RequestEdit,
+		RequestEditUndo,
+		RequestEditRedo,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -58,6 +60,14 @@ struct MessageUpdate : MessageBase<Message::Update>
 struct MessageRequestEdit : MessageBase<Message::RequestEdit>
 {
 	sf::Array<sf::Box<Edit>> edits;
+};
+
+struct MessageRequestEditUndo : MessageBase<Message::RequestEditUndo>
+{
+};
+
+struct MessageRequestEditRedo : MessageBase<Message::RequestEditRedo>
+{
 };
 
 struct MessageEncoding

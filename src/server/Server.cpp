@@ -195,9 +195,29 @@ static void updateSession(Session &session)
 					break;
 				}
 			} else if (auto m = msg->as<sv::MessageRequestEdit>()) {
-				sf::Array<sf::Box<sv::Edit>> &undoBundle = client.undoStack.push();
+				client.redoStack.clear();
+				sf::Array<sf::Box<sv::Edit>> undoBundle;
 				for (const sv::Edit *edit : m->edits) {
 					session.state->applyEdit(session.events, *edit, undoBundle);
+				}
+				if (undoBundle.size > 0) client.undoStack.push(std::move(undoBundle));
+			} else if (auto m = msg->as<sv::MessageRequestEditUndo>()) {
+				if (client.undoStack.size > 0) {
+					sf::Array<sf::Box<sv::Edit>> redoBundle;
+					for (const sv::Edit *edit : client.undoStack.back()) {
+						session.state->applyEdit(session.events, *edit, redoBundle);
+					}
+					client.undoStack.pop();
+					if (redoBundle.size > 0) client.redoStack.push(std::move(redoBundle));
+				}
+			} else if (auto m = msg->as<sv::MessageRequestEditRedo>()) {
+				if (client.redoStack.size > 0) {
+					sf::Array<sf::Box<sv::Edit>> undoBundle;
+					for (const sv::Edit *edit : client.redoStack.back()) {
+						session.state->applyEdit(session.events, *edit, undoBundle);
+					}
+					client.redoStack.pop();
+					if (undoBundle.size > 0) client.undoStack.push(std::move(undoBundle));
 				}
 			}
 		}

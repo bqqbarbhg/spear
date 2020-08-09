@@ -82,6 +82,8 @@ template<> void initType<sv::Message>(Type *t)
 		sf_poly(sv::Message, Load, sv::MessageLoad),
 		sf_poly(sv::Message, Update, sv::MessageUpdate),
 		sf_poly(sv::Message, RequestEdit, sv::MessageRequestEdit),
+		sf_poly(sv::Message, RequestEditUndo, sv::MessageRequestEditUndo),
+		sf_poly(sv::Message, RequestEditRedo, sv::MessageRequestEditRedo),
 	};
 	sf_struct_poly(t, sv::Message, type, { }, polys);
 }
@@ -121,6 +123,16 @@ template<> void initType<sv::MessageRequestEdit>(Type *t)
 		sf_field(sv::MessageRequestEdit, edits),
 	};
 	sf_struct_base(t, sv::MessageRequestEdit, sv::Message, fields);
+}
+
+template<> void initType<sv::MessageRequestEditUndo>(Type *t)
+{
+	sf_struct_base(t, sv::MessageRequestEditUndo, sv::Message, { });
+}
+
+template<> void initType<sv::MessageRequestEditRedo>(Type *t)
+{
+	sf_struct_base(t, sv::MessageRequestEditRedo, sv::Message, { });
 }
 
 }
