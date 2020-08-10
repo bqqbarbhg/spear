@@ -11,6 +11,8 @@
 
 #include <stdarg.h>
 
+#include <random>
+
 namespace sv {
 
 Component *Prefab::findComponentImp(Component::Type type) const
@@ -158,25 +160,25 @@ uint32_t ServerState::allocateId(sf::Array<sf::Box<Event>> &events, IdType type,
 sf_inline bool isCharacterValid(const ServerState &state, uint32_t chrId)
 {
 	const Character *chr = state.characters.find(chrId);
-	return chr && !chr->deleted;
+	return chr != nullptr;;
 }
 
 sf_inline bool isPropValid(const ServerState &state, uint32_t propId)
 {
 	const Prop *prop = state.props.find(propId);
-	return prop && !prop->deleted;
+	return prop != nullptr;
 }
 
 sf_inline bool isCardValid(const ServerState &state, uint32_t cardId)
 {
 	const Card *card = state.cards.find(cardId);
-	return card && !card->deleted;
+	return card != nullptr;
 }
 
 sf_inline bool isStatusValid(const ServerState &state, uint32_t propId)
 {
 	const Status *status = state.statuses.find(propId);
-	return status && !status->deleted;
+	return status != nullptr;
 }
 
 bool ServerState::isIdValid(uint32_t id)
@@ -223,7 +225,6 @@ void ServerState::applyEvent(const Event &event)
 		}
 	} else if (auto *e = event.as<StatusRemoveEvent>()) {
 		if (Status *status = findStatus(*this, e->statusId)) {
-			status->deleted = true;
 			if (Character *chr = findCharacter(*this, status->characterId)) {
 				sf::findRemoveSwap(chr->statuses, e->statusId);
 			}
@@ -245,8 +246,8 @@ void ServerState::applyEvent(const Event &event)
 		sv_check(!isPropValid(*this, e->prop.id));
 		props.insertOrAssign(e->prop);
 	} else if (auto *e = event.as<RemovePropEvent>()) {
-		bool found = props.remove(e->propId);
-		sv_check(found);
+		bool removed = props.remove(e->propId);
+		sv_check(removed);
 	} else if (auto *e = event.as<ReplaceLocalPropEvent>()) {
 		sv_check(!isPropValid(*this, e->prop.id));
 		props.insertOrAssign(e->prop);
@@ -1015,22 +1016,18 @@ void ServerState::garbageCollectIds(sf::Array<uint32_t> &garbageIds) const
 	sf::HashSet<uint32_t> marks;
 
 	for (const Prop &prop : props) {
-		if (prop.deleted) continue;
 		markId(*this, marks, prop.id);
 	}
 
 	for (const Character &chr : characters) {
-		if (chr.deleted) continue;
 		markId(*this, marks, chr.id);
 	}
 
 	for (const Card &card : cards) {
-		if (card.deleted) continue;
 		markId(*this, marks, card.id);
 	}
 
 	for (const Status &status : statuses) {
-		if (status.deleted) continue;
 		markId(*this, marks, status.id);
 	}
 
@@ -1100,6 +1097,42 @@ void ServerState::removePrefabs(sf::Slice<const sf::Symbol> names)
 	}
 }
 
+static sf::Symbol makeUniquePrefabName(const sf::Symbol &parentName)
+{
+	sf::SmallStringBuf<128> name;
+	name.append('<');
+
+	if (sf::beginsWith(parentName, "<")) {
+		size_t colon = sf::indexOf(parentName, ':');
+		if (colon != SIZE_MAX) {
+			name.append(sf::String(parentName).substring(1, colon - 1));
+		}
+	} else {
+		uint32_t begin = (uint32_t)parentName.size();
+		uint32_t end = begin;
+		while (begin > 0 && parentName.data[begin - 1] != '/') {
+			begin--;
+			if (parentName.data[begin] == '.') {
+				end = begin;
+			}
+		}
+
+		name.append(sf::String(parentName).substring(begin, end - begin));
+	}
+
+	{
+		uint32_t uuid[4];
+		std::random_device dev;
+		for (uint32_t &p : uuid) {
+			p = (uint32_t)dev();
+		}
+		name.format(":%08x-%08x-%08x-%08x>", uuid[0], uuid[1], uuid[2], uuid[3]);
+	}
+
+	return sf::Symbol(name);
+}
+
+
 void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit, sf::Array<sf::Box<Edit>> &undoBuf)
 {
 	if (const auto *ed = edit.as<PreloadPrefabEdit>()) {
@@ -1115,6 +1148,52 @@ void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit,
 		}
 
 		reloadPrefab(events, ed->prefab);
+
+	} else if (const auto *ed = edit.as<MakeUniquePrefabEdit>()) {
+
+		sf::Symbol cloneName = makeUniquePrefabName(ed->prefabName);
+
+		if (Prefab *prefab = prefabs.find(ed->prefabName)) {
+			sv::Prefab clonePrefab;
+			sf::SmallArray<char, 4096> cloneBuf;
+			sf::writeBinary(cloneBuf, *prefab);
+			sf::readBinary(cloneBuf.slice(), clonePrefab);
+
+			clonePrefab.name = cloneName;
+			reloadPrefab(events, clonePrefab);
+		}
+
+		sf::Array<uint32_t> propIds;
+		propIds.reserve(ed->propIds.size);
+
+		for (uint32_t propId : ed->propIds) {
+			if (Prop *prop = props.find(propId)) {
+				Prop clone = *prop;
+				clone.prefabName = cloneName;
+
+				auto ud2 = sf::box<AddPropEdit>();
+				ud2->prop = *prop;
+				undoBuf.push(ud2);
+
+				uint32_t cloneId = addProp(events, clone);
+				removeProp(events, clone.id);
+
+				auto ud1 = sf::box<RemovePropEdit>();
+				ud1->propId = cloneId;
+				undoBuf.push(ud1);
+
+				propIds.push(cloneId);
+			}
+		}
+
+		{
+			auto e = sf::box<MakeUniquePrefabEvent>();
+			e->clientId = ed->clientId;
+			e->prefabName = ed->prefabName;
+			e->uniquePrefabName = cloneName;
+			e->propIds = std::move(propIds);
+			pushEvent(*this, events, e);
+		}
 
 	} else if (const auto *ed = edit.as<AddPropEdit>()) {
 

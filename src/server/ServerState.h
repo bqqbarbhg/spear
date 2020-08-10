@@ -267,7 +267,6 @@ struct Prop sv_reflect
 	uint32_t id;
 	sf::Symbol prefabName;
 	PropTransform transform;
-	bool deleted = false;
 };
 
 struct Card sv_reflect
@@ -276,7 +275,6 @@ struct Card sv_reflect
 	uint32_t ownerId = 0;
 	sf::Symbol prefabName;
 	uint32_t cooldownLeft;
-	bool deleted = false;
 };
 
 struct Status sv_reflect
@@ -288,7 +286,6 @@ struct Status sv_reflect
 	uint32_t originalCasterId;
 	uint32_t casterId;
 	uint32_t turnsLeft;
-	bool deleted = false;
 };
 
 static const uint32_t NumSelectedCards = 8;
@@ -304,7 +301,6 @@ struct Character sv_reflect
 	sf::Array<uint32_t> statuses;
 	sf::Vec2i tile;
 	uint32_t armor = 0;
-	bool deleted = false;
 };
 
 struct StatusInfo sv_reflect
@@ -379,6 +375,7 @@ struct Event
 		Damage,
 		LoadPrefab,
 		ReloadPrefab,
+		MakeUniquePrefab,
 		RemoveGarbageIds,
 		RemoveGarbagePrefabs,
 		AddProp,
@@ -479,6 +476,14 @@ struct ReloadPrefabEvent : EventBase<Event::ReloadPrefab>
 	Prefab prefab;
 };
 
+struct MakeUniquePrefabEvent : EventBase<Event::MakeUniquePrefab>
+{
+	uint32_t clientId;
+	sf::Symbol prefabName;
+	sf::Symbol uniquePrefabName;
+	sf::Array<uint32_t> propIds;
+};
+
 struct RemoveGarbageIdsEvent : EventBase<Event::RemoveGarbageIds>
 {
 	sf::Array<uint32_t> ids;
@@ -574,6 +579,7 @@ struct Edit
 		Error,
 		PreloadPrefab,
 		ModifyPrefab,
+		MakeUniquePrefab,
 		AddProp,
 		CloneProp,
 		MoveProp,
@@ -607,6 +613,13 @@ struct PreloadPrefabEdit : EditBase<Edit::PreloadPrefab>
 struct ModifyPrefabEdit : EditBase<Edit::ModifyPrefab>
 {
 	Prefab prefab;
+};
+
+struct MakeUniquePrefabEdit : EditBase<Edit::MakeUniquePrefab>
+{
+	uint32_t clientId;
+	sf::Symbol prefabName;
+	sf::Array<uint32_t> propIds;
 };
 
 struct AddPropEdit : EditBase<Edit::AddProp>
@@ -652,6 +665,11 @@ sf_inline IdType getIdType(uint32_t id)
 sf_inline uint32_t getIdIndex(uint32_t id)
 {
 	return id / NumIdTypes;
+}
+
+sf_inline bool isIdLocal(uint32_t id)
+{
+	return getIdIndex(id) >= MaxServerIdIndex;
 }
 
 struct KeyName { template <typename T> decltype(T::name)& operator()(T &t) { return t.name; } };

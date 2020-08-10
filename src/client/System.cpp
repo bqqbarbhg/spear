@@ -100,6 +100,7 @@ void Entities::removeComponents(Systems &systems, uint32_t entityId)
 		EntityComponent &ec = entity.components[i - 1];
 		ec.system->remove(systems, ec);
 	}
+	entity.components.clear();
 }
 
 void Entities::addComponent(uint32_t entityId, EntitySystem *system, uint32_t userId, uint8_t subsystemIndex, uint8_t componentIndex, uint32_t flags)

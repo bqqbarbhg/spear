@@ -79,6 +79,7 @@ struct EditorState
 	bool windowAssets = false;
 	bool windowPrefabs = false;
 	bool windowProperties = false;
+	bool windowDebugGameState = false;
 	
 	// Folder navigation
 	EditorDir dirAssets;
@@ -185,6 +186,16 @@ bool editorPeekEventPre(EditorState *es, const sv::Event &event)
 				es->selectedSvIds.insert(e->prop.id);
 			}
 		}
+	} else if (const auto *e = event.as<sv::MakeUniquePrefabEvent>()) {
+		if (e->clientId == es->svState->localClientId) {
+			if (es->selectedPrefab == e->prefabName) {
+				es->selectedPrefab = e->uniquePrefabName;
+				es->selectedSvIds.clear();
+				for (uint32_t propId : e->propIds) {
+					es->selectedSvIds.insert(propId);
+				}
+			}
+		}
 	}
 
 	return false;
@@ -219,6 +230,10 @@ void handleImguiMenu(EditorState *es)
 			if (ImGui::MenuItem("Assets")) es->windowAssets = true;
 			if (ImGui::MenuItem("Prefabs")) es->windowPrefabs = true;
 			if (ImGui::MenuItem("Properties")) es->windowProperties = true;
+			if (ImGui::BeginMenu("Debug")) {
+				if (ImGui::MenuItem("Game State")) es->windowDebugGameState = true;
+				ImGui::EndMenu();
+			}
 			ImGui::EndMenu();
 		}
 
@@ -408,6 +423,18 @@ void handleImguiDirectoryBrowsers(EditorState *es)
 	}
 }
 
+void handleImguiDebugWindows(EditorState *es)
+{
+	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
+	if (es->windowDebugGameState) {
+		if (ImGui::Begin("Game State", &es->windowDebugGameState)) {
+			ImguiStatus status;
+			handleFieldsImgui(status, (void*)es->svState.ptr, sf::typeOf<sv::ServerState>(), nullptr, 0);
+		}
+		ImGui::End();
+	}
+}
+
 static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label)
 {
 #if 0
@@ -503,10 +530,42 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 	return false;
 }
 
-
 void handleImguiPrefab(EditorState *es, ImguiStatus &status, sv::Prefab &prefab)
 {
 	ImGui::Text("%s", prefab.name.data);
+
+	uint32_t numProps = 0;
+	uint32_t numSelectedProps = 0;
+	for (const sv::Prop &prop : es->svState->props) {
+		if (sv::isIdLocal(prop.id)) continue;
+		if (prop.prefabName == prefab.name) {
+			numProps++;
+			if (es->selectedSvIds.find(prop.id)) {
+				numSelectedProps++;
+			}
+		}
+	}
+
+	if (ImGui::Button("Make Unique")) {
+		sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();
+
+		auto ed = sf::box<sv::MakeUniquePrefabEdit>();
+		ed->prefabName = prefab.name;
+		ed->clientId = es->svState->localClientId;
+
+		for (const sv::Prop &prop : es->svState->props) {
+			if (sv::isIdLocal(prop.id)) continue;
+			if (prop.prefabName == prefab.name) {
+				if (es->selectedSvIds.find(prop.id)) {
+					ed->propIds.push(prop.id);
+				}
+			}
+		}
+
+		edits.push(ed);
+	}
+	ImGui::SameLine();
+	ImGui::Text("%u/%u props", numSelectedProps, numProps);
 
 	sf::Type *componentType = sf::typeOf<sv::Component>();
 
@@ -776,9 +835,14 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 
 			if (es->mouseDown && !es->prevMouseDown) {
 
+				if (sv::Prop *prop = es->svState->props.find(entity.svId)) {
+					es->selectedPrefab = prop->prefabName;
+				}
+
 				if (ImGui::IsMouseDoubleClicked(0) && !shiftDown) {
 					es->selectedSvIds.clear();
 					es->selectedSvIds.insert(entity.svId);
+					es->windowProperties = true;
 				} else {
 					es->dragSvId = entity.svId;
 					es->dragSvIdAlreadySelected = (es->selectedSvIds.find(entity.svId) != nullptr);
@@ -854,6 +918,7 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 	handleImguiMenu(es);
 	handleImguiDirectoryBrowsers(es);
 	handleImguiPropertiesWindow(es);
+	handleImguiDebugWindows(es);
 
 	for (sv::Event *event : es->editEvents) {
 		es->clState->applyEvent(*event);

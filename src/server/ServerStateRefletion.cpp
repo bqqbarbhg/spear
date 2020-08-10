@@ -45,6 +45,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, Damage, DamageEvent),
 		sf_poly(Event, LoadPrefab, LoadPrefabEvent),
 		sf_poly(Event, ReloadPrefab, ReloadPrefabEvent),
+		sf_poly(Event, MakeUniquePrefab, MakeUniquePrefabEvent),
 		sf_poly(Event, RemoveGarbageIds, RemoveGarbageIdsEvent),
 		sf_poly(Event, RemoveGarbagePrefabs, RemoveGarbagePrefabsEvent),
 		sf_poly(Event, AddProp, AddPropEvent),
@@ -67,6 +68,7 @@ template<> void initType<Edit>(Type *t)
 	static PolymorphType polys[] = {
 		sf_poly(Edit, PreloadPrefab, PreloadPrefabEdit),
 		sf_poly(Edit, ModifyPrefab, ModifyPrefabEdit),
+		sf_poly(Edit, MakeUniquePrefab, MakeUniquePrefabEdit),
 		sf_poly(Edit, AddProp, AddPropEdit),
 		sf_poly(Edit, CloneProp, ClonePropEdit),
 		sf_poly(Edit, MoveProp, MovePropEdit),
@@ -388,6 +390,17 @@ template<> void initType<ReloadPrefabEvent>(Type *t)
 	sf_struct_base(t, ReloadPrefabEvent, Event, fields);
 }
 
+template<> void initType<MakeUniquePrefabEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(MakeUniquePrefabEvent, clientId),
+		sf_field(MakeUniquePrefabEvent, prefabName),
+		sf_field(MakeUniquePrefabEvent, uniquePrefabName),
+		sf_field(MakeUniquePrefabEvent, propIds),
+	};
+	sf_struct_base(t, MakeUniquePrefabEvent, Event, fields);
+}
+
 template<> void initType<RemoveGarbageIdsEvent>(Type *t)
 {
 	static Field fields[] = {
@@ -518,6 +531,16 @@ template<> void initType<ModifyPrefabEdit>(Type *t)
 	sf_struct_base(t, ModifyPrefabEdit, Event, fields);
 }
 
+template<> void initType<MakeUniquePrefabEdit>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(MakeUniquePrefabEdit, clientId),
+		sf_field(MakeUniquePrefabEdit, prefabName),
+		sf_field(MakeUniquePrefabEdit, propIds),
+	};
+	sf_struct_base(t, MakeUniquePrefabEdit, Event, fields);
+}
+
 template<> void initType<AddPropEdit>(Type *t)
 {
 	static Field fields[] = {
@@ -612,7 +635,6 @@ template<> void initType<Prop>(Type *t)
 		sf_field(Prop, id),
 		sf_field(Prop, prefabName),
 		sf_field(Prop, transform),
-		sf_field(Prop, deleted),
 	};
 	sf_struct(t, Prop, fields);
 }
@@ -624,7 +646,6 @@ template<> void initType<Card>(Type *t)
 		sf_field(Card, ownerId),
 		sf_field(Card, prefabName),
 		sf_field(Card, cooldownLeft),
-		sf_field(Card, deleted),
 	};
 	sf_struct(t, Card, fields);
 }
@@ -639,7 +660,6 @@ template<> void initType<Status>(Type *t)
 		sf_field(Status, originalCasterId),
 		sf_field(Status, casterId),
 		sf_field(Status, turnsLeft),
-		sf_field(Status, deleted),
 	};
 	sf_struct(t, Status, fields);
 }
@@ -656,7 +676,6 @@ template<> void initType<Character>(Type *t)
 		sf_field(Character, statuses),
 		sf_field(Character, tile),
 		sf_field(Character, armor),
-		sf_field(Character, deleted),
 	};
 	sf_struct(t, Character, fields);
 }
