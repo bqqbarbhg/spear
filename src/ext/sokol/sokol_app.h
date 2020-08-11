@@ -234,6 +234,8 @@ typedef struct sapp_event {
     sapp_mousebutton mouse_button;
     float mouse_x;
     float mouse_y;
+    float mouse_dx;
+    float mouse_dy;
     float scroll_x;
     float scroll_y;
     int num_touches;
@@ -288,18 +290,32 @@ SOKOL_API_DECL bool sapp_isvalid(void);
 SOKOL_API_DECL int sapp_width(void);
 /* returns the current framebuffer height in pixels */
 SOKOL_API_DECL int sapp_height(void);
+/* get default framebuffer color pixel format */
+SOKOL_API_DECL int sapp_color_format(void);
+/* get default framebuffer depth pixel format */
+SOKOL_API_DECL int sapp_depth_format(void);
+/* get default framebuffer sample count */
+SOKOL_API_DECL int sapp_sample_count(void);
 /* returns true when high_dpi was requested and actually running in a high-dpi scenario */
 SOKOL_API_DECL bool sapp_high_dpi(void);
 /* returns the dpi scaling factor (window pixels to framebuffer pixels) */
 SOKOL_API_DECL float sapp_dpi_scale(void);
 /* show or hide the mobile device onscreen keyboard */
-SOKOL_API_DECL void sapp_show_keyboard(bool visible);
+SOKOL_API_DECL void sapp_show_keyboard(bool show);
 /* return true if the mobile device onscreen keyboard is currently shown */
 SOKOL_API_DECL bool sapp_keyboard_shown(void);
+/* query fullscreen mode */
+SOKOL_API_DECL bool sapp_is_fullscreen(void);
+/* toggle fullscreen mode */
+SOKOL_API_DECL void sapp_toggle_fullscreen(void);
 /* show or hide the mouse cursor */
-SOKOL_API_DECL void sapp_show_mouse(bool visible);
+SOKOL_API_DECL void sapp_show_mouse(bool show);
 /* show or hide the mouse cursor */
 SOKOL_API_DECL bool sapp_mouse_shown();
+/* enable/disable mouse-pointer-lock mode */
+SOKOL_API_DECL void sapp_lock_mouse(bool lock);
+/* return true if in mouse-pointer-lock mode (this may toggle a few frames later) */
+SOKOL_API_DECL bool sapp_mouse_locked(void);
 /* return the userdata pointer optionally provided in sapp_desc */
 SOKOL_API_DECL void* sapp_userdata(void);
 /* return a copy of the sapp_desc structure */
@@ -308,7 +324,7 @@ SOKOL_API_DECL sapp_desc sapp_query_desc(void);
 SOKOL_API_DECL void sapp_request_quit(void);
 /* cancel a pending quit (when SAPP_EVENTTYPE_QUIT_REQUESTED has been received) */
 SOKOL_API_DECL void sapp_cancel_quit(void);
-/* intiate a "hard quit" (quit application without sending SAPP_EVENTTYPE_QUIT_REQUSTED) */
+/* initiate a "hard quit" (quit application without sending SAPP_EVENTTYPE_QUIT_REQUSTED) */
 SOKOL_API_DECL void sapp_quit(void);
 /* call from inside event callback to consume the current event (don't forward to platform) */
 SOKOL_API_DECL void sapp_consume_event(void);
@@ -328,15 +344,15 @@ SOKOL_API_DECL bool sapp_gles2(void);
 /* HTML5: enable or disable the hardwired "Leave Site?" dialog box */
 SOKOL_API_DECL void sapp_html5_ask_leave_site(bool ask);
 
-/* Metal: get ARC-bridged pointer to Metal device object */
+/* Metal: get bridged pointer to Metal device object */
 SOKOL_API_DECL const void* sapp_metal_get_device(void);
-/* Metal: get ARC-bridged pointer to this frame's renderpass descriptor */
+/* Metal: get bridged pointer to this frame's renderpass descriptor */
 SOKOL_API_DECL const void* sapp_metal_get_renderpass_descriptor(void);
-/* Metal: get ARC-bridged pointer to current drawable */
+/* Metal: get bridged pointer to current drawable */
 SOKOL_API_DECL const void* sapp_metal_get_drawable(void);
-/* macOS: get ARC-bridged pointer to macOS NSWindow */
+/* macOS: get bridged pointer to macOS NSWindow */
 SOKOL_API_DECL const void* sapp_macos_get_window(void);
-/* iOS: get ARC-bridged pointer to iOS UIWindow */
+/* iOS: get bridged pointer to iOS UIWindow */
 SOKOL_API_DECL const void* sapp_ios_get_window(void);
 
 /* D3D11: get pointer to ID3D11Device object */
@@ -350,10 +366,24 @@ SOKOL_API_DECL const void* sapp_d3d11_get_depth_stencil_view(void);
 /* Win32: get the HWND window handle */
 SOKOL_API_DECL const void* sapp_win32_get_hwnd(void);
 
+/* WebGPU: get WGPUDevice handle */
+SOKOL_API_DECL const void* sapp_wgpu_get_device(void);
+/* WebGPU: get swapchain's WGPUTextureView handle for rendering */
+SOKOL_API_DECL const void* sapp_wgpu_get_render_view(void);
+/* WebGPU: get swapchain's MSAA-resolve WGPUTextureView (may return null) */
+SOKOL_API_DECL const void* sapp_wgpu_get_resolve_view(void);
+/* WebGPU: get swapchain's WGPUTextureView for the depth-stencil surface */
+SOKOL_API_DECL const void* sapp_wgpu_get_depth_stencil_view(void);
+
 /* Android: get native activity handle */
 SOKOL_API_DECL const void* sapp_android_get_native_activity(void);
 
 #ifdef __cplusplus
 } /* extern "C" */
+
+/* reference-based equivalents for C++ */
+inline int sapp_run(const sapp_desc& desc) { return sapp_run(&desc); }
+
 #endif
+
 #endif // SOKOL_APP_INCLUDED
