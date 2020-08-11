@@ -253,9 +253,9 @@ static void addEntityToTiles(ServerState &state, uint32_t id, const sf::Symbol &
 		if (const auto *c = component->as<TileAreaComponent>()) {
 			sf::Vec2i min, max;
 			min.x = sv::fixedMul(c->minCorner.x, scale);
-			min.y = sv::fixedMul(c->minCorner.x, scale);
+			min.y = sv::fixedMul(c->minCorner.y, scale);
 			max.x = sv::fixedMul(c->maxCorner.x, scale);
-			max.y = sv::fixedMul(c->maxCorner.x, scale);
+			max.y = sv::fixedMul(c->maxCorner.y, scale);
 			addObbToTiles(state, id, min, max, position, rotation);
 		}
 	}
