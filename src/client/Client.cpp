@@ -371,6 +371,16 @@ void handleMessage(Client *c, sv::Message &msg)
 	}
 }
 
+void clientEvent(Client *c, const sapp_event *e)
+{
+	if (c->editor) {
+		editorPeekSokolEvent(c->editor, e);
+	}
+	if (e->type == SAPP_EVENTTYPE_MOUSE_UP && e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
+		sapp_lock_mouse(false);
+	}
+}
+
 bool clientUpdate(Client *c, const ClientInput &input)
 {
 	float dt = input.dt;

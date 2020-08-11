@@ -27,6 +27,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, SpellStatus, SpellStatusComponent),
 		sf_poly(Component, Status, StatusComponent),
 		sf_poly(Component, CharacterTemplate, CharacterTemplateComponent),
+		sf_poly(Component, TileArea, TileAreaComponent),
 	};
 	sf_struct_poly(t, Component, type, { }, polys);
 }
@@ -289,6 +290,15 @@ template<> void initType<CharacterTemplateComponent>(Type *t)
 		sf_field(CharacterTemplateComponent, starterCardPrefabs),
 	};
 	sf_struct_base(t, CharacterTemplateComponent, Component, fields);
+}
+
+template<> void initType<TileAreaComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(TileAreaComponent, minCorner),
+		sf_field(TileAreaComponent, maxCorner),
+	};
+	sf_struct_base(t, TileAreaComponent, Component, fields);
 }
 
 template<> void initType<AllocateIdEvent>(Type *t)
@@ -620,10 +630,9 @@ template<> void initType<Prefab>(Type *t)
 template<> void initType<PropTransform>(Type *t)
 {
 	static Field fields[] = {
-		sf_field(PropTransform, tile),
+		sf_field(PropTransform, position),
+		sf_field(PropTransform, offsetY),
 		sf_field(PropTransform, rotation),
-		sf_field(PropTransform, visualOffset),
-		sf_field(PropTransform, visualRotation),
 		sf_field(PropTransform, scale),
 	};
 	sf_struct(t, PropTransform, fields);
@@ -633,8 +642,8 @@ template<> void initType<Prop>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(Prop, id),
-		sf_field(Prop, prefabName),
 		sf_field(Prop, transform),
+		sf_field(Prop, prefabName),
 	};
 	sf_struct(t, Prop, fields);
 }

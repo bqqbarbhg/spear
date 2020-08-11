@@ -11,9 +11,9 @@ namespace cl {
 static Transform getPropTransform(const sv::PropTransform &transform)
 {
 	Transform ret;
-	ret.position = sf::Vec3((float)transform.tile.x, 0.0f, (float)transform.tile.y) + transform.visualOffset;
-	ret.rotation = sf::eulerAnglesToQuat(transform.visualRotation);
-	ret.scale = transform.scale;
+	ret.position = sf::Vec3((float)transform.position.x, (float)transform.offsetY, (float)transform.position.y) * (1.0f/65536.0f);
+	ret.rotation = sf::eulerAnglesToQuat(sf::Vec3(0.0f, (float)transform.rotation, 0.0f) * (sf::F_PI/180.0f/64.0f), sf::EulerOrder::YZX);
+	ret.scale = (float)transform.scale * (1.0f/256.0f);
 	return ret;
 }
 

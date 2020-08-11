@@ -125,11 +125,14 @@ static Session *setupSession(Server *s, uint32_t id, uint32_t secret)
 		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
 		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Urist.json"), 1);
 
+		{
+			Prop prop;
+			prop.prefabName = sf::Symbol("Prefabs/Props/Test/Barrel.json");
+			prop.transform.position = sf::Vec2i(0, 0);
+			session.state->addProp(session.events, prop);
+		}
+
 #if 0
-		Prop prop;
-		prop.prefabName = sf::Symbol("Game/Props/Test/Barrel.json");
-		prop.transform.tile = sf::Vec2i(0, 0);
-		session.state->addProp(session.events, prop);
 
 		for (int32_t y = -20; y < 20; y++)
 		for (int32_t x = -20; x < 20; x++)

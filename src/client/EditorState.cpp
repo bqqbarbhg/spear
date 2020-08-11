@@ -7,15 +7,23 @@
 
 #include "ext/imgui/imgui.h"
 #include "ext/imgui/ImGuizmo.h"
+#include "ext/sokol/sokol_app.h"
 
 #include "game/ImguiSerialization.h"
+#include "game/DebugDraw.h"
 
 #include "sf/Reflection.h"
 
 #include "sf/File.h"
 #include "sp/Json.h"
 
+#include "server/FixedPoint.h"
+
 namespace cl {
+
+sf_inline sf::Vec2i tileToFixed(const sf::Vec2i &v) {
+	return sf::Vec2i(v.x << 16, v.y << 16);
+}
 
 struct EditorFile
 {
@@ -64,16 +72,26 @@ struct EditorState
 	uint32_t ghostPropId = 0;
 	sf::Vec2i ghostPropPrevTile;
 
-	// Dragging
+	// Dragging / gizmo
 	bool draggingSelection = false;
+	bool gizmoingSelection = false;
 	bool didDragSelection = false;
 	sf::Vec3 dragOrigin;
 	uint32_t dragSvId = 0;
+	uint32_t dragRotation = 0;
+	uint32_t dragPrevRotation = 0;
+	uint32_t dragScale = 0x10000;
 	sf::Vec2i dragPrevOffset;
+	int32_t dragPrevYOffset = 0;
 	bool dragSvIdAlreadySelected = false;
 	bool dragShiftDown = false;
 	bool dragClone = false;
+	bool dragStarted = false;
+	bool dragSmooth = false;
+	bool dragPrevSmooth = false;
+	bool dragSmoothRotate = false;
 	sf::Array<sv::Prop> dragProps;
+	uint32_t gizmoIndex = 0;
 
 	// Imgui windows
 	bool windowAssets = false;
@@ -175,6 +193,17 @@ EditorState *editorCreate(const sf::Box<sv::ServerState> &svState, const sf::Box
 void editorFree(EditorState *es)
 {
 	delete es;
+}
+
+void editorPeekSokolEvent(EditorState *es, const struct sapp_event *e)
+{
+	if (es->draggingSelection && es->dragSmooth && e->type == SAPP_EVENTTYPE_MOUSE_DOWN && e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
+		sapp_lock_mouse(true);
+		es->dragSmoothRotate = true;
+	}
+	if (e->type == SAPP_EVENTTYPE_MOUSE_UP && e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
+		es->dragSmoothRotate = false;
+	}
 }
 
 bool editorPeekEventPre(EditorState *es, const sv::Event &event)
@@ -536,11 +565,11 @@ void handleImguiPrefab(EditorState *es, ImguiStatus &status, sv::Prefab &prefab)
 
 	uint32_t numProps = 0;
 	uint32_t numSelectedProps = 0;
-	for (const sv::Prop &prop : es->svState->props) {
-		if (sv::isIdLocal(prop.id)) continue;
-		if (prop.prefabName == prefab.name) {
+	if (const sf::UintSet *propIds = es->svState->prefabProps.findValue(prefab.name)) {
+		for (uint32_t propId : *propIds) {
+			if (sv::isIdLocal(propId)) continue;
 			numProps++;
-			if (es->selectedSvIds.find(prop.id)) {
+			if (es->selectedSvIds.find(propId)) {
 				numSelectedProps++;
 			}
 		}
@@ -553,11 +582,12 @@ void handleImguiPrefab(EditorState *es, ImguiStatus &status, sv::Prefab &prefab)
 		ed->prefabName = prefab.name;
 		ed->clientId = es->svState->localClientId;
 
-		for (const sv::Prop &prop : es->svState->props) {
-			if (sv::isIdLocal(prop.id)) continue;
-			if (prop.prefabName == prefab.name) {
-				if (es->selectedSvIds.find(prop.id)) {
-					ed->propIds.push(prop.id);
+		if (const sf::UintSet *propIds = es->svState->prefabProps.findValue(prefab.name)) {
+			for (uint32_t propId : *propIds) {
+				if (sv::isIdLocal(propId)) continue;
+				numProps++;
+				if (es->selectedSvIds.find(propId)) {
+					ed->propIds.push(propId);
 				}
 			}
 		}
@@ -651,6 +681,52 @@ void handleImguiPropertiesWindow(EditorState *es)
 	}
 }
 
+static void prepareDragTransform(EditorState *es, int32_t &dragCos, int32_t &dragSin)
+{
+	if (es->dragRotation > 0) {
+		if ((es->dragRotation & ((1<<6) - 1)) == 0 || true) {
+			dragCos = sv::fixedCos360(es->dragRotation >> 6);
+			dragSin = sv::fixedSin360(es->dragRotation >> 6);
+		} else {
+			double c = cos((double)es->dragRotation * (1.0/64.0 * sf::D_PI/180.0));
+			double s = sin((double)es->dragRotation * (1.0/64.0 * sf::D_PI/180.0));
+			dragCos = sf::clamp((int32_t)(c * 65536.0), -0x10000, 0x10000);
+			dragSin = sf::clamp((int32_t)(s * 65536.0), -0x10000, 0x10000);
+		}
+	} else {
+		dragCos = 0x10000;
+		dragSin = 0;
+	}
+}
+
+static void applyDragTransform(EditorState *es, sv::PropTransform &transform, int32_t dragCos, int32_t dragSin, bool snap)
+{
+	transform.position += es->dragPrevOffset;
+	transform.offsetY += es->dragPrevYOffset;
+	transform.rotation = (transform.rotation + es->dragRotation) % (360<<6);
+	transform.scale = (uint16_t)(sf::clamp(sv::fixedMul((int32_t)transform.scale << 8, es->dragScale) >> 8, 0, 0xffff));
+
+	if (es->dragRotation != 0 || es->dragScale != 0x10000) {
+		sf::Vec2i dragStartOrigin = sf::Vec2i(sf::Vec2(es->dragOrigin.x, es->dragOrigin.z) * 65536.0f);
+		sf::Vec2i rotateOrigin = dragStartOrigin + es->dragPrevOffset;
+
+		sf::Vec2i delta = transform.position - rotateOrigin;
+		sf::Vec2i newDelta;
+		newDelta.x = sv::fixedMul(delta.x, dragCos) + sv::fixedMul(delta.y, dragSin);
+		newDelta.y = sv::fixedMul(delta.x, -dragSin) + sv::fixedMul(delta.y, dragCos);
+
+		newDelta.x = sv::fixedMul(newDelta.x, es->dragScale);
+		newDelta.y = sv::fixedMul(newDelta.y, es->dragScale);
+
+		transform.position = rotateOrigin + newDelta;
+	}
+
+	if (snap) {
+		transform.position.x = (transform.position.x + 0x7fff) & ~0xffff;
+		transform.position.y = (transform.position.y + 0x7fff) & ~0xffff;
+	}
+}
+
 void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput &input)
 {
 	for (uint32_t i = 0; i < es->selectedSvIds.size(); i++) {
@@ -685,20 +761,142 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 	ImGuizmo::SetRect(0.0f, 0.0f, (float)input.resolution.x, (float)input.resolution.y);
 
 	if (es->draggingSelection) {
+		es->dragPrevSmooth = es->dragSmooth;
+		es->dragSmooth = !ImGui::GetIO().WantCaptureKeyboard && ImGui::IsKeyDown(SAPP_KEYCODE_F);
+	}
+
+	if (es->draggingSelection) {
 		float dragT = (es->dragOrigin.y - mouseRay.origin.y) / mouseRay.direction.y;
 		sf::Vec3 dragPos = rayOrigin + rayDirection * dragT;
 		sf::Vec2 dragTile = sf::Vec2(dragPos.x, dragPos.z) - sf::Vec2(es->dragOrigin.x, es->dragOrigin.z);
-		sf::Vec2i dragTileOffset = sf::Vec2i(sf::floor(dragTile + sf::Vec2(0.5f)));
+		sf::Vec2i dragTileOffset;
 
-		if (dragTileOffset != es->dragPrevOffset) {
+		dragTileOffset = sf::Vec2i(sf::floor(dragTile * 65536.0f + sf::Vec2(0.5f)));
+
+		if (es->dragSmoothRotate) {
+			for (sapp_event &event : input.events) {
+				if (event.type == SAPP_EVENTTYPE_MOUSE_MOVE) {
+					if (event.mouse_dx) {
+						int32_t rotation = (int32_t)es->dragRotation + (int32_t)(event.mouse_dx * 10.0f);
+						while (rotation < 0) {
+							rotation += (360 << 6);
+						}
+						es->dragRotation = (uint32_t)rotation % (360 << 6);
+					}
+				}
+			}
+		} else {
+			if (ImGui::GetIO().MouseClicked[1]) {
+				es->dragRotation = (es->dragRotation + (270<<6)) % (360<<6);
+				es->dragStarted = true;
+			}
+		}
+
+		if (ImGui::GetIO().MouseDownDuration[0] > 0.4f || sf::length(dragTile) > 0.2f) {
+			es->dragStarted = true;
+		}
+
+		if ((dragTileOffset != es->dragPrevOffset || es->dragRotation != es->dragPrevRotation || es->dragSmooth != es->dragPrevSmooth) && es->dragStarted) {
 			es->didDragSelection = true;
 			es->dragPrevOffset = dragTileOffset;
+			es->dragPrevRotation = es->dragRotation;
+
+			int32_t dragCos, dragSin;
+			prepareDragTransform(es, dragCos, dragSin);
 
 			for (sv::Prop &prop : es->dragProps) {
 				sv::PropTransform transform = prop.transform;
-				transform.tile += dragTileOffset;
+
+				applyDragTransform(es, transform, dragCos, dragSin, !es->dragSmooth);
 
 				es->svState->moveProp(es->editEvents, prop.id, transform);
+			}
+		}
+	} else {
+
+		if (es->gizmoIndex > 0) {
+			sf::Vec3 selectionMidpoint;
+
+			sf::SmallArray<sv::Prop*, 64> gizmoProps;
+			for (uint32_t svId : es->selectedSvIds) {
+				if (sv::Prop *prop = es->svState->props.find(svId)) {
+					sf::Vec3 pos = sf::Vec3((float)prop->transform.position.x, (float)prop->transform.offsetY, (float)prop->transform.position.y) * (1.0f/65536.0f);
+					selectionMidpoint += pos;
+					gizmoProps.push(prop);
+				}
+			}
+
+			selectionMidpoint /= (float)gizmoProps.size;
+
+			if (es->gizmoIndex != 1 && es->gizmoingSelection) {
+				selectionMidpoint = es->dragOrigin;
+			}
+
+			sf::Mat44 gizmoToWorld = sf::mat::translate(selectionMidpoint);
+			const sf::Mat44 &view = frameArgs.worldToView;
+			const sf::Mat44 &proj = frameArgs.viewToClip;
+			sf::Mat44 delta;
+			sf::Mat44 identity;
+
+			if (es->gizmoIndex == 1) {
+				ImGuizmo::Manipulate(view.v, proj.v, ImGuizmo::TRANSLATE, ImGuizmo::WORLD, gizmoToWorld.v, delta.v);
+			} else if (es->gizmoIndex == 2) {
+				ImGuizmo::Manipulate(view.v, proj.v, ImGuizmo::ROTATE, ImGuizmo::WORLD, gizmoToWorld.v, delta.v);
+			} else if (es->gizmoIndex == 3) {
+				ImGuizmo::Manipulate(view.v, proj.v, ImGuizmo::SCALE, ImGuizmo::WORLD, gizmoToWorld.v, delta.v);
+			}
+
+			if (memcmp(&delta, &identity, sizeof(sf::Mat44)) != 0) {
+				if (!es->gizmoingSelection) {
+					es->dragProps.clear();
+					for (sv::Prop *pProp : gizmoProps) {
+						es->dragProps.push(*pProp);
+					}
+				}
+
+				es->gizmoingSelection = true;
+				es->didDragSelection = true;
+				es->dragSmooth = true;
+				es->dragOrigin = selectionMidpoint;
+
+				sf::Vec3 translation, rotation, scale;
+				ImGuizmo::DecomposeMatrixToComponents(delta.v, translation.v, rotation.v, scale.v);
+
+				if (es->gizmoIndex == 1) {
+					es->dragPrevOffset += sf::Vec2i(sf::Vec2(translation.x, translation.z) * 65536.0f);
+					es->dragPrevYOffset += (int32_t)(delta.m13 * 65536.0f);
+				} else if (es->gizmoIndex == 2) {
+					int32_t rot = (int32_t)es->dragRotation + (int32_t)(rotation.y * 64.0f);
+					while (rot < 0) {
+						rot += (360 << 6);
+					}
+					es->dragRotation = (uint32_t)rot % (360 << 6);
+				} else if (es->gizmoIndex == 3) {
+					float scaleDelta = 1.0f;
+					if (scale.x != 1.0f) {
+						scaleDelta = scale.x;
+					} else if (scale.y != 1.0f) {
+						scaleDelta = scale.y;
+					} else if (scale.z != 1.0f) {
+						scaleDelta = scale.z;
+					}
+
+					es->dragScale = (uint32_t)(scaleDelta * 65536.0f);
+				}
+
+				es->dragPrevRotation = es->dragRotation;
+
+				int32_t dragCos, dragSin;
+				prepareDragTransform(es, dragCos, dragSin);
+
+				for (sv::Prop &prop : es->dragProps) {
+					sv::PropTransform transform = prop.transform;
+
+					applyDragTransform(es, transform, dragCos, dragSin, !es->dragSmooth);
+
+					es->svState->moveProp(es->editEvents, prop.id, transform);
+				}
+
 			}
 		}
 	}
@@ -723,12 +921,18 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 			} else if ((event.key_code == SAPP_KEYCODE_Z && event.modifiers == (SAPP_MODIFIER_CTRL|SAPP_MODIFIER_SHIFT))
 				|| (event.key_code == SAPP_KEYCODE_Y && event.modifiers == SAPP_MODIFIER_CTRL)) {
 				es->requests.redo = true;
+			} else if (event.key_code == SAPP_KEYCODE_1) {
+				es->gizmoIndex = (es->gizmoIndex != 1) ? 1 : 0;
+			} else if (event.key_code == SAPP_KEYCODE_2) {
+				es->gizmoIndex = (es->gizmoIndex != 2) ? 2 : 0;
+			} else if (event.key_code == SAPP_KEYCODE_3) {
+				es->gizmoIndex = (es->gizmoIndex != 3) ? 3 : 0;
 			}
 		}
 	}
 
 	if (!es->mouseDown) {
-		if (es->draggingSelection) {
+		if (es->draggingSelection || es->gizmoingSelection) {
 			if (!es->didDragSelection) {
 
 				if (es->dragClone) {
@@ -750,6 +954,9 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 					}
 				}
 			} else {
+				int32_t dragCos, dragSin;
+				prepareDragTransform(es, dragCos, dragSin);
+
 				sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();
 				if (es->dragClone) {
 					for (sv::Prop &prop : es->dragProps) {
@@ -757,7 +964,7 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 						ed->clientId = es->svState->localClientId;
 						ed->localId = prop.id;
 						ed->prop = prop;
-						ed->prop.transform.tile += es->dragPrevOffset;
+						applyDragTransform(es, ed->prop.transform, dragCos, dragSin, !es->dragSmooth);
 						edits.push(ed);
 					}
 				} else {
@@ -765,7 +972,7 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 						auto ed = sf::box<sv::MovePropEdit>();
 						ed->propId = prop.id;
 						ed->transform = prop.transform;
-						ed->transform.tile += es->dragPrevOffset;
+						applyDragTransform(es, ed->transform, dragCos, dragSin, !es->dragSmooth);
 						edits.push(ed);
 					}
 				}
@@ -773,7 +980,15 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 		}
 
 		es->draggingSelection = false;
+		es->gizmoingSelection = false;
 		es->didDragSelection = false;
+		es->dragSmooth = false;
+		es->dragStarted = false;
+		es->dragPrevOffset = sf::Vec2i();
+		es->dragPrevYOffset = 0;
+		es->dragRotation = 0;
+		es->dragPrevRotation = 0;
+		es->dragScale = 0x10000;
 	}
 
 	sf::Array<cl::EntityHit> hits;
@@ -794,14 +1009,14 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 					if (!es->ghostPropId) {
 						sv::Prop prop;
 						prop.prefabName = prefabName;
-						prop.transform.tile = mouseTileInt;
+						prop.transform.position = tileToFixed(mouseTileInt);
 						es->ghostPropId = es->svState->addProp(es->editEvents, prop, true);
 						es->ghostPropPrevTile = mouseTileInt;
 					} else if (es->ghostPropPrevTile != mouseTileInt) {
 						es->ghostPropPrevTile = mouseTileInt;
 
 						sv::PropTransform transform;
-						transform.tile = mouseTileInt;
+						transform.position = tileToFixed(mouseTileInt);
 						es->svState->moveProp(es->editEvents, es->ghostPropId, transform);
 					}
 
@@ -848,7 +1063,11 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 					es->dragSvIdAlreadySelected = (es->selectedSvIds.find(entity.svId) != nullptr);
 					es->dragOrigin = mouseRay.origin + mouseRay.direction * hit.t;
 					es->draggingSelection = true;
+					es->dragPrevSmooth = es->dragSmooth;
 					es->didDragSelection = false;
+					es->dragStarted = false;
+					es->dragRotation = 0;
+					es->dragPrevRotation = 0;
 					es->dragShiftDown = shiftDown;
 					es->dragClone = ctrlDown;
 					es->dragPrevOffset = sf::Vec2i();
@@ -907,6 +1126,18 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 		}
 	}
 
+	for (uint32_t svId : es->selectedSvIds) {
+		uint32_t packedTile;
+		sf::UintFind find = es->svState->getEntityPackedTiles(svId);
+		while (find.next(packedTile)) {
+			sf::Vec2i tile = sv::unpackTile(packedTile);
+			sf::Bounds3 bounds;
+			bounds.origin = sf::Vec3((float)tile.x, 0.0f, (float)tile.y);
+			bounds.extent = sf::Vec3(0.95f, 0.1f, 0.95f) / 2.0f;
+			debugDrawBox(bounds, sf::Vec3(1.0f, 0.0f, 0.0f));
+		}
+	}
+
 	if (es->ghostPropId != 0) {
 		uint32_t entityId;
 		sf::UintFind find = es->clState->systems.entities.svToEntity.findAll(es->ghostPropId);
@@ -930,25 +1161,5 @@ EditorRequests &editorPendingRequests(EditorState *es)
 {
 	return es->requests;
 }
-
-#if 0
-if (drawGizmo) {
-	cl::Entity &entity = es->clState->systems.entities.entities[entityId];
-	sf::Mat44 view = frameArgs.worldToView;
-	sf::Mat44 proj = frameArgs.viewToClip;
-	sf::Mat44 matrix = entity.transform.asMatrix();
-	ImGuizmo::Manipulate(view.v, proj.v, ImGuizmo::TRANSLATE, ImGuizmo::WORLD, matrix.v);
-
-	sf::Vec3 translation, rotation, scale;
-	ImGuizmo::DecomposeMatrixToComponents(matrix.v, translation.v, rotation.v, scale.v);
-
-	Transform transform;
-	transform.position = translation;
-	transform.rotation = sf::eulerAnglesToQuat(rotation * (sf::F_PI/180.0f));
-	transform.scale = 1.0f;
-	es->clState->systems.entities.updateTransform(es->clState->systems, entityId, transform);
-}
-#endif
-
 
 }

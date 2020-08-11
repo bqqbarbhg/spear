@@ -3,6 +3,8 @@
 #define RHMAP_INLINE sf_inline
 #include "ext/rhmap.h"
 
+#include "sf/Reflection.h"
+
 namespace sf {
 
 UintMap::UintMap()
@@ -29,7 +31,8 @@ UintMap::UintMap(UintMap &&rhs)
 UintMap& UintMap::operator=(const UintMap &rhs)
 {
 	if (&rhs == this) return *this;
-	growImp(rhs.map.size);
+	clear();
+	reserve(rhs.map.size);
 	uint32_t hash = 0, scan = 0, value;
 	while (rhmap_next_inline(&rhs.map, &hash, &scan, &value)) {
 		rhmap_insert_inline(&map, hash, scan, value);
@@ -67,11 +70,25 @@ void UintMap::growImp(uint32_t size)
 	memFree(oldAlloc);
 }
 
-void UintMap::insert(uint32_t key, uint32_t value)
+void UintMap::insertDuplicate(uint32_t key, uint32_t value)
 {
-	if (map.size == map.capacity) growImp(32);
+	if (map.size == map.capacity) growImp(10);
 	uint32_t hash = sf::hash(key);
 	rhmap_insert_inline(&map, hash, 0, value);
+}
+
+bool UintMap::insertIfNew(uint32_t key, uint32_t value)
+{
+	if (map.size == map.capacity) growImp(10);
+	uint32_t hash = sf::hash(key);
+
+	uint32_t scan = 0, ref;
+	while (rhmap_find_inline(&map, hash, &scan, &ref)) {
+		if (ref == value) return false;
+	}
+
+	rhmap_insert_inline(&map, hash, 0, value);
+	return true;
 }
 
 uint32_t UintMap::findOne(uint32_t key, uint32_t missing) const
@@ -86,12 +103,94 @@ uint32_t UintMap::findOne(uint32_t key, uint32_t missing) const
 	}
 }
 
-void UintMap::removePair(uint32_t key, uint32_t value)
+void UintMap::removeExistingPair(uint32_t key, uint32_t value)
 {
 	uint32_t hash = sf::hash(key);
 	uint32_t scan = 0;
 	rhmap_find_value_inline(&map, hash, &scan, value);
 	rhmap_remove_inline(&map, hash, scan);
 }
+
+bool UintMap::removePotentialPair(uint32_t key, uint32_t value)
+{
+	uint32_t hash = sf::hash(key);
+	uint32_t scan = 0, ref;
+
+	while (rhmap_find_inline(&map, hash, &scan, &ref)) {
+		if (ref == value) {
+			rhmap_remove_inline(&map, hash, scan);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void UintMap::removeFoundImp(uint32_t hash, uint32_t scan)
+{
+	sf_assert(scan > 0);
+	rhmap_remove_inline(&map, hash, scan);
+}
+
+template<>
+void initType<UintKeyVal>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(UintKeyVal, key),
+		sf_field(UintKeyVal, val),
+	};
+	sf_struct(t, sf::UintKeyVal, fields, Type::CompactString | Type::IsPod);
+}
+
+struct UintMapType : Type
+{
+	UintMapType()
+		: Type("sf::UintMap", getTypeInfo<UintMap>(), HasArray|HasArrayResize)
+	{
+		elementType = typeOfRecursive<UintKeyVal>();
+	}
+
+	virtual VoidSlice instGetArray(void *inst, sf::Array<char> *scratch) override
+	{
+		if (!scratch) return { };
+
+		UintMap &map = *(UintMap*)inst;
+		scratch->clear();
+		UintKeyVal *data = (UintKeyVal*)scratch->pushUninit(sizeof(UintKeyVal) * map.map.size);
+
+		UintKeyVal *dst = data;
+		uint32_t hash = 0, scan = 0, value;
+		while (rhmap_next_inline(&map.map, &hash, &scan, &value)) {
+			dst->key = sf::hashReverse32(hash);
+			dst->val = value;
+			dst++;
+		}
+
+		return { data, map.map.size };
+	}
+
+	virtual VoidSlice instArrayReserve(void *inst, size_t size, sf::Array<char> *scratch) override
+	{
+		if (!scratch) return { };
+
+		scratch->clear();
+		UintKeyVal *data = (UintKeyVal*)scratch->pushUninit(sizeof(UintKeyVal) * size);
+		return { data, size };
+	}
+
+	virtual void instArrayResize(void *inst, size_t size, VoidSlice elements) override
+	{
+		sf::Slice<UintKeyVal> data = elements.cast<UintKeyVal>();
+		UintMap &map = *(UintMap*)inst;
+		map.reserve((uint32_t)size);
+
+		for (const UintKeyVal &kv : data) {
+			uint32_t hash = sf::hash(kv.key);
+			rhmap_insert_inline(&map.map, hash, 0, kv.val);
+		}
+	}
+};
+
+template<> void initType<UintMap>(Type *t) { new (t) UintMapType(); }
 
 }

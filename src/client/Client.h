@@ -24,6 +24,7 @@ void clientGlobalUpdate();
 Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret);
 void clientFree(Client *c);
 void clientQuit(Client *c);
+void clientEvent(Client *c, const sapp_event *e);
 bool clientUpdate(Client *c, const ClientInput &input);
 sg_image clientRender(Client *c);
 void clientRenderGui(Client *c);

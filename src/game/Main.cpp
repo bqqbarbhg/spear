@@ -215,6 +215,10 @@ void spEvent(const sapp_event *e)
 {
 	simgui_handle_event(e);
 
+	for (MainClient &client : clients) {
+		clientEvent(client.client, e);
+	}
+
 	if (!e->key_repeat) {
 		g_events.push(*e);
 	}

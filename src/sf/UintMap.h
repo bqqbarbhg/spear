@@ -5,6 +5,12 @@
 
 namespace sf {
 
+struct UintKeyVal
+{
+	uint32_t key;
+	uint32_t val;
+};
+
 struct UintFind
 {
 	const rhmap *map;
@@ -30,10 +36,19 @@ struct UintMap
 	sf_forceinline uint32_t size() const { return map.size; }
 	sf_forceinline uint32_t capacity() const { return map.capacity; }
 
-	void insert(uint32_t key, uint32_t value);
+	void insertDuplicate(uint32_t key, uint32_t value);
+	bool insertIfNew(uint32_t key, uint32_t value);
 	uint32_t findOne(uint32_t key, uint32_t missing) const;
 
-	void removePair(uint32_t key, uint32_t value);
+	void removeExistingPair(uint32_t key, uint32_t value);
+	bool removePotentialPair(uint32_t key, uint32_t value);
+
+	void removeFoundImp(uint32_t hash, uint32_t scan);
+
+	sf_forceinline void removeFound(UintFind &find) {
+		removeFoundImp(find.hash, find.scan);
+		find.scan--;
+	}
 
 	sf_forceinline UintFind findAll(uint32_t key) const {
 		UintFind find;

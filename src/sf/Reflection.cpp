@@ -21,7 +21,7 @@ sf::CString Type::getPolymorphTagName()
 	return elementType->getPolymorphTagName();
 }
 
-VoidSlice Type::instGetArray(void *inst)
+VoidSlice Type::instGetArray(void *inst, sf::Array<char> *scratch)
 {
 	return { };
 }
@@ -30,13 +30,13 @@ void Type::getPolymorphTypeNames(sf::Array<sf::StringBuf> &names)
 {
 }
 
-VoidSlice Type::instArrayReserve(void *inst, size_t size)
+VoidSlice Type::instArrayReserve(void *inst, size_t size, sf::Array<char> *scratch)
 {
 	sf_assert(0 && "Array resize not supported");
 	return { };
 }
 
-void Type::instArrayResize(void *inst, size_t size)
+void Type::instArrayResize(void *inst, size_t size, VoidSlice elements)
 {
 }
 
@@ -95,7 +95,7 @@ TypeEnum::TypeEnum(const char *name, const TypeInfo &info, sf::Slice<const EnumV
 	}
 }
 
-VoidSlice TypeEnum::instGetArray(void *inst)
+VoidSlice TypeEnum::instGetArray(void *inst, sf::Array<char> *scratch)
 {
 	uint32_t value = *(uint32_t*)inst;
 	auto it = data->valueToString.find(value);
@@ -295,7 +295,7 @@ bool readInstBinary(sf::Slice<char> &src, void *inst, Type *type)
 			}
 		}
 
-		type->instArrayResize(inst, size);
+		type->instArrayResize(inst, size, slice);
 	} else if (flags & Type::HasSetString) {
 		uint32_t size;
 

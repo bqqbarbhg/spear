@@ -1,7 +1,10 @@
 #pragma once
 
 #include "sf/HashMap.h"
+#include "sf/HashSet.h"
 #include "sf/ImplicitHashMap.h"
+#include "sf/UintMap.h"
+#include "sf/UintSet.h"
 #include "sf/Box.h"
 #include "sf/Symbol.h"
 #include "sf/String.h"
@@ -49,6 +52,7 @@ struct Component
 		SpellStatus,
 		Status,
 		CharacterTemplate,
+		TileArea,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -242,6 +246,12 @@ struct CharacterTemplateComponent : ComponentBase<Component::CharacterTemplate>
 	sf::Array<sf::Symbol> starterCardPrefabs;
 };
 
+struct TileAreaComponent : ComponentBase<Component::TileArea>
+{
+	sf::Vec2i minCorner;
+	sf::Vec2i maxCorner;
+};
+
 struct Prefab sv_reflect
 {
 	sf::Symbol name;
@@ -255,18 +265,17 @@ struct Prefab sv_reflect
 
 struct PropTransform sv_reflect
 {
-	sf::Vec2i tile;
-	uint8_t rotation;
-	sf::Vec3 visualOffset;
-	sf::Vec3 visualRotation;
-	float scale = 1.0f;
+	sf::Vec2i position;     // 1/2^16 m
+	int32_t offsetY = 0;    // 1/2^16 m
+	uint16_t rotation = 0;  // 1/2^6 deg
+	uint16_t scale = 0x100; // 1/2^8 x
 };
 
 struct Prop sv_reflect
 {
 	uint32_t id;
-	sf::Symbol prefabName;
 	PropTransform transform;
+	sf::Symbol prefabName;
 };
 
 struct Card sv_reflect
@@ -683,6 +692,13 @@ using StatusMap = sf::ImplicitHashMap<Status, KeyId>;
 
 typedef void EventCallbackFn(void *user, Event &event);
 
+sf_inline uint32_t packTile(const sf::Vec2i &tile) {
+	return ((uint32_t)tile.x & 0xffff) | ((uint32_t)tile.y << 16u);
+}
+sf_inline sf::Vec2i unpackTile(uint32_t packed) {
+	return sf::Vec2i((int32_t)(int16_t)(packed & 0xffff), (int32_t)packed >> 16u);
+}
+
 struct ServerState
 {
 	ServerState();
@@ -694,6 +710,10 @@ struct ServerState
 	CardMap cards;
 	StatusMap statuses;
 	sf::HashMap<sf::Symbol, int32_t> charactersToSelect;
+	sf::HashMap<sf::Symbol, sf::UintSet> prefabProps;
+
+	sf::UintMap tileToEntity;
+	sf::UintMap entityToTile;
 
 	uint32_t lastAllocatedIdByType[NumServerIdTypes] = { };
 	uint32_t lastLocalAllocatedIdByType[NumServerIdTypes] = { };
@@ -739,6 +759,13 @@ struct ServerState
 	void removeIds(sf::Slice<const uint32_t> ids);
 	void removePrefabs(sf::Slice<const sf::Symbol> names);
 
+	// -- Internal
+
+	void addEntityToTile(uint32_t id, const sf::Vec2i &tile);
+	void removeEntityFromTile(uint32_t id, const sf::Vec2i &tile);
+	void removeEntityFromAllTiles(uint32_t id);
+	sf::UintFind getTileEntities(const sf::Vec2i &tile) const;
+	sf::UintFind getEntityPackedTiles(uint32_t id) const;
 };
 
 }

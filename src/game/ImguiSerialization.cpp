@@ -65,7 +65,9 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 	} else if (flags & sf::Type::HasArray) {
 		sf::Type *elem = type->elementType;
 		size_t elemSize = elem->info.size;
-		sf::VoidSlice slice = type->instGetArray(inst);
+
+		sf::Array<char> scratch;
+		sf::VoidSlice slice = type->instGetArray(inst, &scratch);
 		uint32_t size = (uint32_t)slice.size;
 
 		if (ImGui::TreeNode(label.data)) {
@@ -78,6 +80,10 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 				ptr += elemSize;
 			}
 			ImGui::TreePop();
+		}
+
+		if (scratch.size > 0) {
+			elem->info.destructRange(scratch.data, scratch.size / elem->info.size);
 		}
 
 	} else if (flags & sf::Type::IsPrimitive) {

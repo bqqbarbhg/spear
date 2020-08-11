@@ -85,9 +85,9 @@ struct Type {
 
 	virtual void getPolymorphTypeNames(sf::Array<sf::StringBuf> &names);
 
-	virtual VoidSlice instGetArray(void *inst);
-	virtual VoidSlice instArrayReserve(void *inst, size_t size);
-	virtual void instArrayResize(void *inst, size_t size);
+	virtual VoidSlice instGetArray(void *inst, sf::Array<char> *scartch=nullptr);
+	virtual VoidSlice instArrayReserve(void *inst, size_t size, sf::Array<char> *scartch=nullptr);
+	virtual void instArrayResize(void *inst, size_t size, VoidSlice elements);
 
 	virtual void instSetString(void *inst, sf::String str);
 
@@ -149,7 +149,7 @@ struct TypeEnum final : Type {
 
 	TypeEnum(const char *name, const TypeInfo &info, sf::Slice<const EnumValue> values, uint32_t userFlags=0);
 
-	virtual VoidSlice instGetArray(void *inst);
+	virtual VoidSlice instGetArray(void *inst, sf::Array<char> *scratch) override;
 	virtual void instSetString(void *inst, sf::String str);
 
 };

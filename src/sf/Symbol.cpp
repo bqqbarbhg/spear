@@ -16,7 +16,7 @@ struct SymbolType : Type
 		elementType = typeOfRecursive<char>();
 	}
 
-	virtual VoidSlice instGetArray(void *inst)
+	virtual VoidSlice instGetArray(void *inst, sf::Array<char> *scratch) override
 	{
 		Symbol *sym = (Symbol*)inst;
 		return { (void*)sym->data, sym->size() };

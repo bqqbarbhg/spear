@@ -232,18 +232,18 @@ struct CArrayType final : Type
 		buf.format("[%zu]", arraySize);
 	}
 
-	virtual VoidSlice instArrayReserve(void *inst, size_t size)
+	virtual VoidSlice instArrayReserve(void *inst, size_t size, sf::Array<char> *scratch) override
 	{
 		sf_assert(size == arraySize);
 		return { inst, arraySize };
 	}
 
-	virtual void instArrayResize(void *inst, size_t size)
+	virtual void instArrayResize(void *inst, size_t size, VoidSlice elements) override
 	{
 		sf_assert(size == arraySize);
 	}
 
-	virtual VoidSlice instGetArray(void *inst)
+	virtual VoidSlice instGetArray(void *inst, sf::Array<char> *scratch) override
 	{
 		return { inst, arraySize };
 	}

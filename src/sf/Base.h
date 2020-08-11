@@ -325,6 +325,9 @@ struct VoidSlice
 	VoidSlice(void *data, size_t size) : data(data), size(size) { }
 	template <typename T>
 	VoidSlice(sf::Slice<T> slice) : data((void*)slice.data), size(slice.size) { }
+
+	template <typename T>
+	Slice<T> cast() const { return Slice<T>((T*)data, size); }
 };
 
 template <typename T>

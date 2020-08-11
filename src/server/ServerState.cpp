@@ -9,6 +9,8 @@
 
 #include "sf/Reflection.h"
 
+#include "server/FixedPoint.h"
+
 #include <stdarg.h>
 
 #include <random>
@@ -195,6 +197,71 @@ bool ServerState::isIdValid(uint32_t id)
 	}
 }
 
+static void addObbToTiles(ServerState &state, uint32_t id, const sf::Vec2i &min, const sf::Vec2i &max, const sf::Vec2i &position, uint32_t rotation)
+{
+	int32_t cos = sv::fixedCos360(rotation);
+	int32_t sin = sv::fixedSin360(rotation);
+
+	sf::Vec2i dx = sf::Vec2i(cos, -sin);
+	sf::Vec2i dy = sf::Vec2i(sin, cos);
+
+	int32_t xx0 = position.x + sv::fixedMul(dx.x, min.x);
+	int32_t xx1 = position.x + sv::fixedMul(dx.x, max.x);
+	int32_t yy0 = position.y + sv::fixedMul(dy.y, min.y);
+	int32_t yy1 = position.y + sv::fixedMul(dy.y, max.y);
+
+	int32_t xy0 = sv::fixedMul(dy.x, min.y);
+	int32_t xy1 = sv::fixedMul(dy.x, max.y);
+	int32_t yx0 = sv::fixedMul(dx.y, min.x);
+	int32_t yx1 = sv::fixedMul(dx.y, max.x);
+
+	int32_t minX = (sf::min(xx0, xx1) + sf::min(xy0, xy1) - 0x7fff) >> 16;
+	int32_t minY = (sf::min(yy0, yy1) + sf::min(yx0, yx1) - 0x7fff) >> 16;
+	int32_t maxX = (sf::max(xx0, xx1) + sf::max(xy0, xy1) + 0x7fff) >> 16;
+	int32_t maxY = (sf::max(yy0, yy1) + sf::max(yx0, yx1) + 0x7fff) >> 16;
+
+	sf::Vec2i topLeft = sf::Vec2i(minX << 16, minY << 16) - position;
+	int32_t ppx = sv::fixedDot(topLeft, dx);
+	int32_t ppy = sv::fixedDot(topLeft, dy);
+
+	for (int32_t y = minY; y <= maxY; y++) {
+		int32_t px = ppx, py = ppy;
+
+		for (int32_t x = minX; x <= maxX; x++) {
+			int32_t cx = sf::clamp(px, min.x, max.x) - px;
+			int32_t cy = sf::clamp(py, min.y, max.y) - py;
+			int32_t distSq = fixedMul(cx, cx) + fixedMul(cy, cy);
+
+			if (distSq < 0x3840) {
+				state.addEntityToTile(id, sf::Vec2i(x, y));
+			}
+			px += dx.x;
+			py += dy.x;
+		}
+
+		ppx += dx.y;
+		ppy += dy.y;
+	}
+}
+
+static void addEntityToTiles(ServerState &state, uint32_t id, const sf::Symbol &prefabName, const sf::Vec2i &position, uint32_t rotation)
+{
+	Prefab *prefab = findPrefabExisting(state, prefabName);
+	if (!prefab) return;
+
+	for (const Component *component : prefab->components) {
+		if (const auto *c = component->as<TileAreaComponent>()) {
+			addObbToTiles(state, id, c->minCorner, c->maxCorner, position, rotation);
+		}
+	}
+}
+
+static void addPropToTiles(ServerState &state, const sv::Prop &prop)
+{
+	uint32_t rotation = prop.transform.rotation >> 6;
+	addEntityToTiles(state, prop.id, prop.prefabName, prop.transform.position, rotation);
+}
+
 void ServerState::applyEvent(const Event &event)
 {
 	// TODO: What to do about reallocations?
@@ -238,6 +305,16 @@ void ServerState::applyEvent(const Event &event)
 		sv_check(res.inserted);
 	} else if (auto *e = event.as<ReloadPrefabEvent>()) {
 		prefabs[e->prefab.name] = e->prefab;
+
+		if (const sf::UintSet *propIds = prefabProps.findValue(e->prefab.name)) {
+			for (uint32_t propId : *propIds) {
+				if (const Prop *prop = props.find(propId)) {
+					removeEntityFromAllTiles(propId);
+					addPropToTiles(*this, *prop);
+				}
+			}
+		}
+
 	} else if (auto *e = event.as<RemoveGarbageIdsEvent>()) {
 		removeIds(e->ids.slice());
 	} else if (auto *e = event.as<RemoveGarbagePrefabsEvent>()) {
@@ -245,15 +322,34 @@ void ServerState::applyEvent(const Event &event)
 	} else if (auto *e = event.as<AddPropEvent>()) {
 		sv_check(!isPropValid(*this, e->prop.id));
 		props.insertOrAssign(e->prop);
+
+		prefabProps[e->prop.prefabName].insertIfNew(e->prop.id);
+
+		addPropToTiles(*this, e->prop);
 	} else if (auto *e = event.as<RemovePropEvent>()) {
+		if (Prop *prop = findProp(*this, e->propId)) {
+			prefabProps[prop->prefabName].removeOne(e->propId);
+		}
+
 		bool removed = props.remove(e->propId);
 		sv_check(removed);
+
+		removeEntityFromAllTiles(e->propId);
 	} else if (auto *e = event.as<ReplaceLocalPropEvent>()) {
 		sv_check(!isPropValid(*this, e->prop.id));
+
 		props.insertOrAssign(e->prop);
 		if (localClientId == e->clientId) {
-			props.remove(e->localId);
+			if (Prop *prop = findProp(*this, e->localId)) {
+				prefabProps[prop->prefabName].removeOne(e->localId);
+				removeEntityFromAllTiles(e->localId);
+				props.remove(e->localId);
+			}
 		}
+
+		prefabProps[e->prop.prefabName].insertIfNew(e->prop.id);
+		addPropToTiles(*this, e->prop);
+
 	} else if (auto *e = event.as<AddCharacterEvent>()) {
 		auto res = characters.insertOrAssign(e->character);
 		sv_check(res.inserted);
@@ -262,8 +358,11 @@ void ServerState::applyEvent(const Event &event)
 		sv_check(res.inserted);
 	} else if (auto *e = event.as<MovePropEvent>()) {
 		if (Prop *prop = findProp(*this, e->propId)) {
+			removeEntityFromAllTiles(e->propId);
 			prop->transform = e->transform;
+			addPropToTiles(*this, *prop);
 		}
+
 	} else if (auto *e = event.as<GiveCardEvent>()) {
 		if (Card *card = findCard(*this, e->cardId)) {
 			sv_check(card->ownerId == e->previousOwnerId);
@@ -1243,6 +1342,41 @@ void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit,
 	}
 }
 
+void ServerState::addEntityToTile(uint32_t id, const sf::Vec2i &tile)
+{
+	uint32_t key = packTile(tile);
+	tileToEntity.insertIfNew(key, id);
+	entityToTile.insertIfNew(id, key);
+}
+
+void ServerState::removeEntityFromTile(uint32_t id, const sf::Vec2i &tile)
+{
+	uint32_t key = packTile(tile);
+	tileToEntity.removePotentialPair(key, id);
+	entityToTile.removePotentialPair(id, key);
+}
+
+void ServerState::removeEntityFromAllTiles(uint32_t id)
+{
+	uint32_t key;
+	sf::UintFind find = entityToTile.findAll(id);
+	while (find.next(key)) {
+		tileToEntity.removeExistingPair(key, id);
+		entityToTile.removeFound(find);
+	}
+}
+
+sf::UintFind ServerState::getTileEntities(const sf::Vec2i &tile) const
+{
+	uint32_t key = packTile(tile);
+	return tileToEntity.findAll(key);
+}
+
+sf::UintFind ServerState::getEntityPackedTiles(uint32_t id) const
+{
+	return entityToTile.findAll(id);
+}
+
 }
 
 
@@ -1258,7 +1392,10 @@ template<> void initType<ServerState>(Type *t)
 		sf_field(ServerState, cards),
 		sf_field(ServerState, statuses),
 		sf_field(ServerState, charactersToSelect),
+		sf_field(ServerState, prefabProps),
 		sf_field(ServerState, lastAllocatedIdByType),
+		sf_field(ServerState, tileToEntity),
+		sf_field(ServerState, entityToTile),
 	};
 	sf_struct(t, ServerState, fields);
 }

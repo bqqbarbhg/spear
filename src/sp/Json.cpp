@@ -64,9 +64,12 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 		}
 	} else if (flags & sf::Type::HasArray) {
 		if (dst.pretty && flags & sf::Type::CompactString) jso_single_line(&dst);
+
+		sf::Array<char> scratch;
+
 		sf::Type *elem = type->elementType;
 		size_t elemSize = elem->info.size;
-		sf::VoidSlice slice = type->instGetArray(inst);
+		sf::VoidSlice slice = type->instGetArray(inst, &scratch);
 		uint32_t size = (uint32_t)slice.size;
 
 #if 0
@@ -84,6 +87,11 @@ void writeInstJson(jso_stream &dst, void *inst, sf::Type *type, sf::Type *parent
 			ptr += elemSize;
 		}
 		jso_end_array(&dst);
+
+		if (scratch.size > 0) {
+			elem->info.destructRange(scratch.data, scratch.size / elem->info.size);
+		}
+
 	} else if (flags & sf::Type::IsPrimitive) {
 		switch (type->primitive) {
 		case sf::Type::Bool: jso_boolean(&dst, *(bool*)inst); break;
@@ -165,7 +173,7 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 			size_t len = jsi_length(src->string);
 			sf::VoidSlice slice = type->instArrayReserve(inst, len);
 			memcpy(slice.data, src->string, len);
-			type->instArrayResize(inst, len);
+			type->instArrayResize(inst, len, slice);
 		} else {
 			return false;
 		}
@@ -203,7 +211,9 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 			size_t elemSize = elem->info.size;
 			uint32_t size = (uint32_t)src->array->num_values;
 
-			sf::VoidSlice slice = type->instArrayReserve(inst, size);
+			sf::Array<char> scratch;
+
+			sf::VoidSlice slice = type->instArrayReserve(inst, size, &scratch);
 			char *ptr = (char*)slice.data;
 			jsi_value *val = src->array->values;
 			for (uint32_t i = 0; i < size; i++) {
@@ -212,7 +222,11 @@ bool readInstJson(jsi_value *src, void *inst, sf::Type *type)
 				val++;
 			}
 
-			type->instArrayResize(inst, size);
+			type->instArrayResize(inst, size, slice);
+
+			if (scratch.size > 0) {
+				elem->info.destructRange(scratch.data, scratch.size / elem->info.size);
+			}
 		} else {
 			return false;
 		}

@@ -21,13 +21,13 @@ struct ImplicitHashMapType final : Type
 		buf.append(">");
 	}
 
-	virtual VoidSlice instGetArray(void *inst)
+	virtual VoidSlice instGetArray(void *inst, sf::Array<char> *scratch) override
 	{
 		ImplicitHashMapBase *map = (ImplicitHashMapBase*)inst;
 		return { map->data, map->map.size };
 	}
 
-	virtual VoidSlice instArrayReserve(void *inst, size_t size)
+	virtual VoidSlice instArrayReserve(void *inst, size_t size, sf::Array<char> *scratch) override
 	{
 		uint32_t kvSize = elementType->info.size;
 		Type *elemType = elementType;
@@ -56,7 +56,7 @@ struct ImplicitHashMapType final : Type
 		return { map->data, map->map.capacity };
 	}
 
-	virtual void instArrayResize(void *inst, size_t size)
+	virtual void instArrayResize(void *inst, size_t size, VoidSlice elements) override
 	{
 		uint32_t kvSize = elementType->info.size;
 

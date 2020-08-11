@@ -52,7 +52,7 @@ uint32_t Entities::addEntity(uint32_t svId, const Transform &transform, uint32_t
 	entity.indexInPrefab = indexInPrefab;
 
 	if (svId) {
-		svToEntity.insert(svId, entityId);
+		svToEntity.insertDuplicate(svId, entityId);
 	}
 
 	return entityId;
@@ -86,7 +86,7 @@ void Entities::removeEntity(Systems &systems, uint32_t entityId)
 		prefab.entityIds.removeSwap(entity.indexInPrefab);
 	}
 	if (entity.svId) {
-		svToEntity.removePair(entity.svId, entityId);
+		svToEntity.removeExistingPair(entity.svId, entityId);
 	}
 	freeEntityIds.push(entityId);
 

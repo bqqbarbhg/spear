@@ -18,13 +18,13 @@ struct ArrayType final : Type
 		buf.append(">");
 	}
 
-	virtual VoidSlice instGetArray(void *inst)
+	virtual VoidSlice instGetArray(void *inst, sf::Array<char> *scratch) override
 	{
 		ArrayBase *arr = (ArrayBase*)inst;
 		return { arr->data, arr->size };
 	}
 
-	virtual VoidSlice instArrayReserve(void *inst, size_t size)
+	virtual VoidSlice instArrayReserve(void *inst, size_t size, sf::Array<char> *scratch) override
 	{
 		ArrayBase *arr = (ArrayBase*)inst;
 		if (arr->capacity < size) {
@@ -43,7 +43,7 @@ struct ArrayType final : Type
 		return { arr->data, arr->capacity };
 	}
 
-	virtual void instArrayResize(void *inst, size_t size)
+	virtual void instArrayResize(void *inst, size_t size, VoidSlice elements) override
 	{
 		ArrayBase *arr = (ArrayBase*)inst;
 		sf_assert(arr->capacity >= size);
@@ -73,13 +73,13 @@ struct SmallArrayType final : Type
 		buf.format(", %u>", n);
 	}
 
-	virtual VoidSlice instGetArray(void *inst)
+	virtual VoidSlice instGetArray(void *inst, sf::Array<char> *scratch) override
 	{
 		ArrayBase *arr = (ArrayBase*)inst;
 		return { arr->data, arr->size };
 	}
 
-	virtual VoidSlice instArrayReserve(void *inst, size_t size)
+	virtual VoidSlice instArrayReserve(void *inst, size_t size, sf::Array<char> *scratch) override
 	{
 		ArrayBase *arr = (ArrayBase*)inst;
 		if (arr->capacity < size) {
@@ -98,7 +98,7 @@ struct SmallArrayType final : Type
 		return { arr->data, arr->capacity };
 	}
 
-	virtual void instArrayResize(void *inst, size_t size)
+	virtual void instArrayResize(void *inst, size_t size, VoidSlice elements) override
 	{
 		ArrayBase *arr = (ArrayBase*)inst;
 		sf_assert(arr->capacity >= size);

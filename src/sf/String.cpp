@@ -15,20 +15,20 @@ struct StringBufType : Type
 		elementType = typeOfRecursive<char>();
 	}
 
-	virtual VoidSlice instGetArray(void *inst)
+	virtual VoidSlice instGetArray(void *inst, sf::Array<char> *scratch) override
 	{
 		StringBuf *buf = (StringBuf*)inst;
 		return { buf->data, buf->size };
 	}
 
-	virtual VoidSlice instArrayReserve(void *inst, size_t size)
+	virtual VoidSlice instArrayReserve(void *inst, size_t size, sf::Array<char> *scratch) override
 	{
 		StringBuf *buf = (StringBuf*)inst;
 		buf->reserve(size);
 		return { buf->data, buf->capacity };
 	}
 
-	virtual void instArrayResize(void *inst, size_t size)
+	virtual void instArrayResize(void *inst, size_t size, VoidSlice elements) override
 	{
 		StringBuf *buf = (StringBuf*)inst;
 		buf->resize(size);
