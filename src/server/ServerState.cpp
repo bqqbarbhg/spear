@@ -244,14 +244,19 @@ static void addObbToTiles(ServerState &state, uint32_t id, const sf::Vec2i &min,
 	}
 }
 
-static void addEntityToTiles(ServerState &state, uint32_t id, const sf::Symbol &prefabName, const sf::Vec2i &position, uint32_t rotation)
+static void addEntityToTiles(ServerState &state, uint32_t id, const sf::Symbol &prefabName, const sf::Vec2i &position, uint32_t rotation, int32_t scale)
 {
 	Prefab *prefab = findPrefabExisting(state, prefabName);
 	if (!prefab) return;
 
 	for (const Component *component : prefab->components) {
 		if (const auto *c = component->as<TileAreaComponent>()) {
-			addObbToTiles(state, id, c->minCorner, c->maxCorner, position, rotation);
+			sf::Vec2i min, max;
+			min.x = sv::fixedMul(c->minCorner.x, scale);
+			min.y = sv::fixedMul(c->minCorner.x, scale);
+			max.x = sv::fixedMul(c->maxCorner.x, scale);
+			max.y = sv::fixedMul(c->maxCorner.x, scale);
+			addObbToTiles(state, id, min, max, position, rotation);
 		}
 	}
 }
@@ -259,7 +264,7 @@ static void addEntityToTiles(ServerState &state, uint32_t id, const sf::Symbol &
 static void addPropToTiles(ServerState &state, const sv::Prop &prop)
 {
 	uint32_t rotation = prop.transform.rotation >> 6;
-	addEntityToTiles(state, prop.id, prop.prefabName, prop.transform.position, rotation);
+	addEntityToTiles(state, prop.id, prop.prefabName, prop.transform.position, rotation, prop.transform.scale << 8);
 }
 
 void ServerState::applyEvent(const Event &event)
