@@ -25,7 +25,7 @@ struct ClientState
 
 	void editorHighlight(uint32_t entityId, EditorHighlight type);
 
-	void update(const FrameArgs &frameArgs);
+	void update(const sv::ServerState *svState, const FrameArgs &frameArgs);
 	void renderMain(const RenderArgs &renderArgs);
 
 };

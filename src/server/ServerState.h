@@ -562,10 +562,16 @@ struct SelectCharacterToSpawnEvent : EventBase<Event::SelectCharacterToSpawn>
 	uint32_t playerId;
 };
 
+struct Waypoint sv_reflect
+{
+	sf::Vec2i position;
+};
+
 struct MoveEvent : EventBase<Event::Move>
 {
 	uint32_t characterId;
 	sf::Vec2i position;
+	sf::Array<Waypoint> waypoints;
 };
 
 enum class IdType {

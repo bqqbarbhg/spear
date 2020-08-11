@@ -400,6 +400,21 @@ bool clientUpdate(Client *c, const ClientInput &input)
 						c->editor = editorCreate(c->svState, c->clState);
 					}
 				}
+			} else if (event.key_code == SAPP_KEYCODE_F5) {
+				if (c->clState && c->svState) {
+					if (c->editor) {
+						editorPreRefresh(c->editor);
+					}
+
+					c->clState.reset();
+					c->clState = sf::box<cl::ClientState>();
+					c->clState->localClientId = c->svState->localClientId;
+					c->svState->getAsEvents(&handleLoadEvent, c);
+
+					if (c->editor) {
+						editorPostRefresh(c->editor, c->clState);
+					}
+				}
 			}
 		}
 	}
@@ -478,7 +493,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 		requests.edits.clear();
 	}
 
-	c->clState->update(c->frameArgs);
+	c->clState->update(c->svState, c->frameArgs);
 
 #if 0
 #endif

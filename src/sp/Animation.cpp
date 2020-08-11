@@ -141,7 +141,7 @@ sf::Mat34 boneTransformToMatrix(const BoneTransform &t)
 	return sf::mat::world(t.translation, t.rotation, t.scale);
 }
 
-void boneTransformToWorld(Model *model, sf::Slice<sf::Mat34> dst, const sf::Slice<BoneTransform> src, const sf::Mat34 &toWorld)
+void boneTransformToWorld(Model *model, sf::Slice<sf::Mat34> dst, sf::Slice<const BoneTransform> src, const sf::Mat34 &toWorld)
 {
 	if (!model) return;
 	uint32_t numBones = model->bones.size;

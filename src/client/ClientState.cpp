@@ -2,6 +2,9 @@
 
 #include "client/AreaSystem.h"
 #include "client/ModelSystem.h"
+#include "client/CharacterModelSystem.h"
+#include "client/GameSystem.h"
+
 #include "sf/Frustum.h"
 
 #include "sp/Renderer.h"
@@ -14,6 +17,13 @@ static Transform getPropTransform(const sv::PropTransform &transform)
 	ret.position = sf::Vec3((float)transform.position.x, (float)transform.offsetY, (float)transform.position.y) * (1.0f/65536.0f);
 	ret.rotation = sf::eulerAnglesToQuat(sf::Vec3(0.0f, (float)transform.rotation, 0.0f) * (sf::F_PI/180.0f/64.0f), sf::EulerOrder::YZX);
 	ret.scale = (float)transform.scale * (1.0f/256.0f);
+	return ret;
+}
+
+static Transform getCharacterTransform(const sv::Character &chr)
+{
+	Transform ret;
+	ret.position = sf::Vec3((float)chr.tile.x, 0.0f, (float)chr.tile.y);
 	return ret;
 }
 
@@ -39,6 +49,8 @@ static void addEntityComponents(Systems &systems, uint32_t entityId, const Trans
 
 		if (const auto *c = comp->as<sv::ModelComponent>()) {
 			systems.model->addModel(systems, entityId, compIx, *c, transform);
+		} else if (const auto *c = comp->as<sv::CharacterModelComponent>()) {
+			systems.characterModel->addCharacterModel(systems, entityId, compIx, *c, transform);
 		}
 
 		compIx++;
@@ -83,6 +95,8 @@ ClientState::ClientState()
 {
 	systems.area = AreaSystem::create();
 	systems.model = ModelSystem::create();
+	systems.characterModel = CharacterModelSystem::create();
+	systems.game = GameSystem::create();
 }
 
 void ClientState::applyEvent(const sv::Event &event)
@@ -92,6 +106,9 @@ void ClientState::applyEvent(const sv::Event &event)
 	} else if (const auto *e = event.as<sv::AddPropEvent>()) {
 		Transform transform = getPropTransform(e->prop.transform);
 		addEntity(systems, e->prop.id, transform, e->prop.prefabName);
+	} else if (const auto *e = event.as<sv::AddCharacterEvent>()) {
+		Transform transform = getCharacterTransform(e->character);
+		addEntity(systems, e->character.id, transform, e->character.prefabName);
 	} else if (const auto *e = event.as<sv::ReplaceLocalPropEvent>()) {
 		if (localClientId == e->clientId) {
 			removeEntities(systems, e->localId);
@@ -149,11 +166,16 @@ void ClientState::editorHighlight(uint32_t entityId, EditorHighlight type)
 	}
 }
 
-void ClientState::update(const FrameArgs &frameArgs)
+void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameArgs)
 {
 	sf::Frustum frustum { frameArgs.worldToClip, sp::getClipNearW() };
 
+	if (svState) {
+		systems.game->update(*svState, frameArgs);
+	}
+
 	systems.model->updateLoadQueue(systems.area);
+	systems.characterModel->updateLoadQueue(systems.area);
 
 	systems.area->optimize();
 
@@ -162,8 +184,8 @@ void ClientState::update(const FrameArgs &frameArgs)
 
 void ClientState::renderMain(const RenderArgs &args)
 {
-
 	systems.model->renderMain(systems.visibleAreas, args);
+	systems.characterModel->renderMain(systems.visibleAreas, args);
 }
 
 }

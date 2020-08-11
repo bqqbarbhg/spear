@@ -23,6 +23,7 @@ struct GameShaders
 	sg_shader particle;
 	sg_shader fakeShadow;
 	sg_shader debugMesh;
+	sg_shader debugSkinnedMesh;
 
 	sg_buffer fullscreenTriangleBuffer;
 
@@ -30,6 +31,7 @@ struct GameShaders
 	sp::Pipeline shadowGridPipe;
 	sp::Pipeline fakeShadowPipe;
 	sp::Pipeline debugMeshPipe;
+	sp::Pipeline debugSkinnedMeshPipe;
 
 	void load();
 };

@@ -99,10 +99,13 @@ struct Entities
 
 struct AreaSystem;
 struct ModelSystem;
+struct CharacterModelSystem;
+struct GameSystem;
 
 enum class AreaGroup : uint32_t
 {
 	Model,
+	CharacterModel,
 	Custom0,
 };
 
@@ -143,6 +146,8 @@ struct Systems
 	VisibleAreas visibleAreas;
 	sf::Box<AreaSystem> area;
 	sf::Box<ModelSystem> model;
+	sf::Box<CharacterModelSystem> characterModel;
+	sf::Box<GameSystem> game;
 };
 
 struct FrameArgs

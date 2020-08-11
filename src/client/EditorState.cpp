@@ -239,6 +239,16 @@ void editorAddQueryDir(EditorState *es, const sf::StringBuf &root, const sv::Que
 	}
 }
 
+void editorPreRefresh(EditorState *es)
+{
+	es->clState.reset();
+}
+
+void editorPostRefresh(EditorState *es, const sf::Box<cl::ClientState> &clState)
+{
+	es->clState = clState;
+}
+
 void handleImguiMenu(EditorState *es)
 {
 	if (ImGui::BeginMainMenuBar()) {

@@ -28,6 +28,6 @@ struct Animation : Asset
 
 using AnimationRef = Ref<Animation>;
 
-void boneTransformToWorld(Model *model, sf::Slice<sf::Mat34> dst, const sf::Slice<BoneTransform> src, const sf::Mat34 &toWorld);
+void boneTransformToWorld(Model *model, sf::Slice<sf::Mat34> dst, sf::Slice<const BoneTransform> src, const sf::Mat34 &toWorld);
 
 }
