@@ -151,6 +151,23 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		}
 	}
 
+	void updateAttachmentTransformImp(Systems &systems, Attachment &attach, Model &model)
+	{
+		sf::Mat34 childToWorld = model.boneToWorld[attach.boneIndex] * sf::mat::scale(100.0f) * attach.childToBone;
+		float scale = cbrtf(sf::abs(sf::determinant(childToWorld)));
+
+		sf::Vec3 z = sf::normalize(childToWorld.cols[2]);
+		sf::Vec3 y = sf::normalize(childToWorld.cols[1]);
+		sf::Vec3 x = sf::normalize(sf::cross(childToWorld.cols[1], childToWorld.cols[2]));
+		y = sf::normalize(sf::cross(z, x));
+
+		Transform transform;
+		transform.position = childToWorld.cols[3];
+		transform.rotation = sf::axesToQuat(x, y, z);
+		transform.scale = scale * attach.scale;
+		systems.entities.updateTransform(systems, attach.entityId, transform);
+	}
+
 	void finishLoadingAttachmentImp(Attachment &attach, Model &model)
 	{
 		if (AttachBone *attachBone = model.attachBones.findValue(attach.boneName)) {
@@ -382,6 +399,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 				if (model.loadQueueIndex == ~0u && model.model.isLoaded()) {
 					finishLoadingAttachmentImp(attach, model);
+					updateAttachmentTransformImp(systems, attach, model);
 				}
 
 				systems.entities.addComponent(childEntityId, this, attachId, 1, 0xff, 0);
@@ -531,20 +549,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			Attachment &attach = attachments[attachId];
 			if (attach.boneIndex == ~0u || attach.modelId == ~0u) continue;
 			Model &model = models[attach.modelId];
-
-			sf::Mat34 childToWorld = model.boneToWorld[attach.boneIndex] * sf::mat::scale(100.0f) * attach.childToBone;
-			float scale = cbrtf(sf::abs(sf::determinant(childToWorld)));
-
-			sf::Vec3 z = sf::normalize(childToWorld.cols[2]);
-			sf::Vec3 y = sf::normalize(childToWorld.cols[1]);
-			sf::Vec3 x = sf::normalize(sf::cross(childToWorld.cols[1], childToWorld.cols[2]));
-			y = sf::normalize(sf::cross(z, x));
-
-			Transform transform;
-			transform.position = childToWorld.cols[3];
-			transform.rotation = sf::axesToQuat(x, y, z);
-			transform.scale = scale * attach.scale;
-			systems.entities.updateTransform(systems, attach.entityId, transform);
+			updateAttachmentTransformImp(systems, attach, model);
 		}
 
 		attachmentsToUpdate.clear();

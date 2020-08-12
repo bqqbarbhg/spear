@@ -54,6 +54,7 @@ struct GameSystemImp final : GameSystem
 		for (const sv::Component *comp : card.svPrefab->components) {
 			if (const auto *c = comp->as<sv::CardAttachComponent>()) {
 				cl::Transform transform;
+				transform.scale = 0.0f;
 				uint32_t entityId = systems.entities.addEntity(systems, card.svId, transform, c->prefabName);
 				card.entityIds.push(entityId);
 
