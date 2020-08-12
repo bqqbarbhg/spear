@@ -14,7 +14,6 @@
 // TEMP
 #include "game/shader/GameShaders.h"
 #include "game/shader/DebugSkinnedMesh.h"
-#include "ext/imgui/imgui.h"
 
 namespace cl {
 
@@ -432,8 +431,6 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 				ActiveAnimation &active = model.activeAnimations[i];
 				Animation &anim = model.animations[active.animIndex];
 				active.time += dt * active.speed;
-
-				ImGui::Text("%+.2f/%.2f (%.2fx)  %s", active.time, anim.animation->duration, active.speed, anim.animation->name.data);
 
 				float duration = anim.animation->duration;
 				float t = active.time;
