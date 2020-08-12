@@ -15,8 +15,6 @@
 #include "game/shader/GameShaders.h"
 #include "game/shader/DebugSkinnedMesh.h"
 
-#include "ext/imgui/imgui.h"
-
 namespace cl {
 
 struct CharacterModelSystemImp final : CharacterModelSystem
@@ -453,10 +451,6 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 		ctx.updateTime += realDt;
 
-		static bool MEGAHACKPAUSE = false;
-		if (ImGui::IsKeyPressed('P')) MEGAHACKPAUSE = !MEGAHACKPAUSE;
-		if (MEGAHACKPAUSE) return;
-
 		for (uint32_t modelId : visibleAreas.get(AreaGroup::CharacterModel)) {
 			Model &model = models[modelId];
 
@@ -486,8 +480,6 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			for (uint32_t i = 0; i < model.activeAnimations.size; i++) {
 				ActiveAnimation &active = model.activeAnimations[i];
 				Animation &anim = model.animations[active.animIndex];
-
-				ImGui::Text("%+.2f/%.2f (%.2fx)  %s", active.time, anim.animation->duration, active.speed, anim.animation->name.data);
 
 				float duration = anim.animation->duration;
 				float t = wrapTime(active.time, duration);
