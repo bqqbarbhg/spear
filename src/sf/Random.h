@@ -17,4 +17,6 @@ struct Random
 	sf::Vec4 nextVec4();
 };
 
+void getSecureRandom(void *dst, size_t size);
+
 }

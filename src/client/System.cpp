@@ -7,6 +7,14 @@
 
 namespace cl {
 
+void Systems::init(const SystemsDesc &desc)
+{
+	area = AreaSystem::create();
+	model = ModelSystem::create();
+	characterModel = CharacterModelSystem::create(desc);
+	game = GameSystem::create();
+}
+
 bool EntitySystem::prepareForRemove(Systems &systems, uint32_t entityId, const EntityComponent &ec)
 {
 	return true;

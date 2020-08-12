@@ -52,12 +52,9 @@ static void removeEntities(Systems &systems, uint32_t svId)
 	}
 }
 
-ClientState::ClientState()
+ClientState::ClientState(const SystemsDesc &desc)
 {
-	systems.area = AreaSystem::create();
-	systems.model = ModelSystem::create();
-	systems.characterModel = CharacterModelSystem::create();
-	systems.game = GameSystem::create();
+	systems.init(desc);
 }
 
 void ClientState::applyEvent(const sv::Event &event)

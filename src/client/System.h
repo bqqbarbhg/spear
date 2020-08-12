@@ -16,6 +16,11 @@ namespace sv { struct Prefab; }
 
 namespace cl {
 
+struct SystemsDesc
+{
+	uint64_t seed[4];
+};
+
 struct Systems;
 struct EntityComponent;
 
@@ -161,6 +166,8 @@ struct Systems
 	sf::Box<ModelSystem> model;
 	sf::Box<CharacterModelSystem> characterModel;
 	sf::Box<GameSystem> game;
+
+	void init(const SystemsDesc &desc);
 };
 
 struct FrameArgs

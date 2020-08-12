@@ -13,7 +13,7 @@ struct ClientState
 	uint32_t localClientId = 0;
 	Systems systems;
 
-	ClientState();
+	ClientState(const SystemsDesc &desc);
 
 	void applyEvent(const sv::Event &event);
 

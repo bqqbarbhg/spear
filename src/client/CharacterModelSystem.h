@@ -17,7 +17,7 @@ struct CharacterModelSystem : EntitySystem
 		sf::Slice<const sf::Symbol> animationTags;
 	};
 
-	static sf::Box<CharacterModelSystem> create();
+	static sf::Box<CharacterModelSystem> create(const SystemsDesc &desc);
 
 	virtual void addCharacterModel(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::CharacterModelComponent &c, const Transform &transform) = 0;
 

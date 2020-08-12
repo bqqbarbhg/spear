@@ -1,5 +1,8 @@
 #include "Random.h"
 
+// TODO: Implement this
+#include <random>
+
 namespace sf {
 
 uint32_t Random::nextU32()
@@ -40,5 +43,27 @@ sf::Vec4 Random::nextVec4()
 	return { x, y, z, w };
 }
 
+void getSecureRandom(void *dst, size_t size)
+{
+	std::random_device dev;
+	std::uniform_int_distribution<uint32_t> dist;
+
+	char *ptr = (char*)dst;
+
+	uint32_t buf[32];
+	while (size > 0) {
+		uint32_t chunkSize = (uint32_t)sf::min(size, sizeof(buf));
+		uint32_t words = (chunkSize + 3) / 4;
+
+		for (uint32_t i = 0; i < words; i++) {
+			buf[i] = dist(dev);
+		}
+		memcpy(ptr, buf, chunkSize);
+
+		ptr += chunkSize;
+		size -= chunkSize;
+	}
+
+}
 
 }

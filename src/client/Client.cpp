@@ -28,6 +28,8 @@
 
 #include "ext/imgui/imgui.h"
 
+#include "sf/Random.h"
+
 namespace cl {
 
 
@@ -289,11 +291,18 @@ static void clientSocketError(void *user, bqws_socket *ws, bqws_error error)
 	}
 }
 
+static sf::Box<cl::ClientState> makeClientState(Client *c)
+{
+	cl::SystemsDesc desc;
+	sf::getSecureRandom(desc.seed, sizeof(desc.seed));
+	return sf::box<cl::ClientState>(desc);
+}
+
 Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret)
 {
 	Client *c = new Client();
 
-	c->clState = sf::box<cl::ClientState>();
+	c->clState = makeClientState(c);
 
 	{
         sf::SmallStringBuf<128> url;
@@ -407,7 +416,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 					}
 
 					c->clState.reset();
-					c->clState = sf::box<cl::ClientState>();
+					c->clState = makeClientState(c);
 					c->clState->localClientId = c->svState->localClientId;
 					c->svState->getAsEvents(&handleLoadEvent, c);
 

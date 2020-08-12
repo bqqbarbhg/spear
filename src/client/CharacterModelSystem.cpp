@@ -15,6 +15,8 @@
 #include "game/shader/GameShaders.h"
 #include "game/shader/DebugSkinnedMesh.h"
 
+#include "ext/imgui/imgui.h"
+
 namespace cl {
 
 struct CharacterModelSystemImp final : CharacterModelSystem
@@ -69,6 +71,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 		sf::HashMap<sf::Symbol, int32_t> tags;
 
+		double lastUpdateTime = 0.0;
+
 		bool isLoading() const {
 			for (const Animation &anim : animations) {
 				if (anim.animation.isLoading()) return true;
@@ -114,6 +118,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 	struct AnimWorkCtx
 	{
+		double updateTime = 0.0;
 		sf::Random rng;
 		sf::Array<sp::BoneTransform> boneTransforms;
 		sf::Array<sp::BoneTransform> tempBoneTransforms;
@@ -133,9 +138,10 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 	AnimWorkCtx animCtx;
 
-	CharacterModelSystemImp()
+	CharacterModelSystemImp(const SystemsDesc &desc)
 	{
 		tagWeights[sf::Symbol("Idle")] = 10.0;
+		animCtx.rng = sf::Random(desc.seed[0], 756789);
 	}
 
 	double getTagWeight(const sf::Symbol &tag)
@@ -166,6 +172,9 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		for (Animation &anim : model.animations) {
 			anim.boneMapping.resizeUninit(anim.animation->bones.size);
 			anim.animation->generateBoneMapping(model.model, anim.boneMapping);
+
+			float maxFadeOut = anim.animation->duration * 0.75f;
+			anim.fadeOutTime = sf::min(anim.fadeOutTime, maxFadeOut);
 		}
 
 		for (auto &pair : model.attachBones) {
@@ -200,7 +209,23 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		}
 	}
 
-	void updateAnimationStateImp(AnimWorkCtx &ctx, Model &model)
+	static sf_forceinline float wrapTime(float t, float duration)
+	{
+		if (t < 0.0f) {
+			t += duration;
+			if (t < 0.0f) {
+				t = duration - fmodf(-t, duration);
+			}
+		} else if (t > duration) {
+			t -= duration;
+			if (t > duration) {
+				t = fmodf(t, duration);
+			}
+		}
+		return t;
+	}
+
+	void updateAnimationStateImp(AnimWorkCtx &ctx, Model &model, float dt)
 	{
 		if (model.animations.size == 0) return;
 
@@ -229,31 +254,53 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		float nextDuration = nextAnim.animation->duration;
 		float speed = nextAnim.speed + ctx.rng.nextFloat() * nextAnim.speedVariation;
 
-		if (model.activeAnimations.size == 0) {
-			ActiveAnimation &next = model.activeAnimations.push();
-			next.animIndex = bestAnim;
-			next.alphaVelocity = 0.0f;
-			next.alpha = 1.0f;
-			next.speed = speed;
-		} else {
+		bool simulateCatchUp = false;
+
+		if (model.activeAnimations.size > 0) {
 			ActiveAnimation &top = model.activeAnimations.back();
 			if (top.animIndex == bestAnim && top.speed == speed && nextAnim.loop) {
-				top.time -= nextDuration;
+				top.time = wrapTime(top.time, nextDuration) - nextDuration;
 			} else {
 				Animation &topAnim = model.animations[top.animIndex];
-				float fadeOut = (topAnim.animation->duration - top.time) / speed;
+				float timeLeft = topAnim.animation->duration - top.time;
 
-				ActiveAnimation &next = model.activeAnimations.push();
-				// top invalidated!
+				if (timeLeft > 0.0f) {
+					float fadeOut = timeLeft / speed;
+					ActiveAnimation &next = model.activeAnimations.push();
+					// top invalidated!
 
-				next.animIndex = bestAnim;
-				next.alphaVelocity = 1.0f / fadeOut * 1.05f;
-				next.alpha = 0.0f;
-				next.speed = speed;
+					next.animIndex = bestAnim;
+					next.alphaVelocity = 1.0f / fadeOut * 1.05f;
+					next.alpha = 0.0f;
+					next.speed = speed;
 
-				if (nextAnim.loop) {
-					next.time = -fadeOut;
+					if (nextAnim.loop) {
+						next.time = -fadeOut;
+					}
+
+					// Early return: Skip fallback
+					return;
+				} else {
+					model.activeAnimations.clear();
+					if (timeLeft < -0.1f) {
+						simulateCatchUp = true;
+					}
 				}
+			}
+		}
+
+		// Fallback: Set the next animation directly
+		ActiveAnimation &next = model.activeAnimations.push();
+		next.animIndex = bestAnim;
+		next.alphaVelocity = 0.0f;
+		next.alpha = 1.0f;
+		next.speed = speed;
+		next.time = 0.0f;
+
+		if (nextAnim.loop || simulateCatchUp) {
+			float timeRange = nextDuration - nextAnim.fadeOutTime * 1.25f;
+			if (timeRange > 0.0f) {
+				next.time = ctx.rng.nextFloat() * timeRange;
 			}
 		}
 	}
@@ -400,12 +447,21 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		}
 	}
 
-	void updateAnimations(const VisibleAreas &visibleAreas, float dt) override
+	void updateAnimations(const VisibleAreas &visibleAreas, float realDt) override
 	{
 		AnimWorkCtx &ctx = animCtx;
 
+		ctx.updateTime += realDt;
+
+		static bool MEGAHACKPAUSE = false;
+		if (ImGui::IsKeyPressed('P')) MEGAHACKPAUSE = !MEGAHACKPAUSE;
+		if (MEGAHACKPAUSE) return;
+
 		for (uint32_t modelId : visibleAreas.get(AreaGroup::CharacterModel)) {
 			Model &model = models[modelId];
+
+			float dt = (float)(ctx.updateTime - model.lastUpdateTime);
+			model.lastUpdateTime = ctx.updateTime;
 
 			ctx.boneTransforms.clear();
 			ctx.boneTransforms.resize(model.model->bones.size);
@@ -418,33 +474,23 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 				ActiveAnimation &top = model.activeAnimations.back();
 				Animation &topAnim = model.animations[top.animIndex];
 				float threshold = topAnim.animation->duration - topAnim.fadeOutTime;
-				if (top.time < threshold && top.time + dt * top.speed >= threshold) {
+				if (top.time >= threshold) {
 					needStateUpdate = true;
 				}
 			}
 
 			if (needStateUpdate) {
-				updateAnimationStateImp(ctx, model);
+				updateAnimationStateImp(ctx, model, dt);
 			}
 
 			for (uint32_t i = 0; i < model.activeAnimations.size; i++) {
 				ActiveAnimation &active = model.activeAnimations[i];
 				Animation &anim = model.animations[active.animIndex];
-				active.time += dt * active.speed;
+
+				ImGui::Text("%+.2f/%.2f (%.2fx)  %s", active.time, anim.animation->duration, active.speed, anim.animation->name.data);
 
 				float duration = anim.animation->duration;
-				float t = active.time;
-				if (t < 0.0f) {
-					t += duration;
-					if (t < 0.0f) {
-						t = duration - fmodf(-t, duration);
-					}
-				} else if (t > duration) {
-					t -= duration;
-					if (t > duration) {
-						t = fmodf(t, duration);
-					}
-				}
+				float t = wrapTime(active.time, duration);
 
 				float a = active.alpha;
 				a = a * a * (3.0f - 2.0f * a);
@@ -467,12 +513,16 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 					anim.animation->evaluate(t, anim.boneMapping, ctx.boneTransforms, a);
 				}
 
+				active.time += dt * active.speed;
 				if (active.alpha < 1.0f) {
 					active.alpha += dt * active.alphaVelocity;
-				} else if (i > 0) {
-					active.alpha = 1.0f;
-					model.activeAnimations.removeOrdered(0, i);
-					i = 0;
+					if (active.alpha >= 1.0f) {
+						active.alpha = 1.0f;
+						if (i > 0) {
+							model.activeAnimations.removeOrdered(0, i);
+							i = 0;
+						}
+					}
 				}
 			}
 
@@ -565,6 +615,6 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 };
 
-sf::Box<CharacterModelSystem> CharacterModelSystem::create() { return sf::box<CharacterModelSystemImp>(); }
+sf::Box<CharacterModelSystem> CharacterModelSystem::create(const SystemsDesc &desc) { return sf::box<CharacterModelSystemImp>(desc); }
 
 }
