@@ -145,6 +145,7 @@ template<> void initType<CharacterModelComponent>(Type *t)
 		sf_field(CharacterModelComponent, modelName),
 		sf_field(CharacterModelComponent, scale),
 		sf_field(CharacterModelComponent, animations),
+		sf_field(CharacterModelComponent, attachBones),
 	};
 	sf_struct_base(t, CharacterModelComponent, Component, fields);
 }
@@ -176,6 +177,9 @@ template<> void initType<CardAttachComponent>(Type *t)
 	static Field fields[] = {
 		sf_field(CardAttachComponent, prefabName),
 		sf_field(CardAttachComponent, boneName),
+		sf_field(CardAttachComponent, scale),
+		sf_field(CardAttachComponent, offset),
+		sf_field(CardAttachComponent, animationTags),
 	};
 	sf_struct_base(t, CardAttachComponent, Component, fields);
 }
@@ -521,6 +525,7 @@ template<> void initType<MoveEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(MoveEvent, characterId),
 		sf_field(MoveEvent, position),
+		sf_field(MoveEvent, waypoints),
 	};
 	sf_struct_base(t, MoveEvent, Event, fields);
 }
@@ -600,11 +605,24 @@ template<> void initType<DiceRoll>(Type *t)
 template<> void initType<AnimationInfo>(Type *t)
 {
 	static Field fields[] = {
-		sf_field(AnimationInfo, name),
 		sf_field(AnimationInfo, tags),
 		sf_field(AnimationInfo, file),
+		sf_field(AnimationInfo, weight),
+		sf_field(AnimationInfo, loop),
+		sf_field(AnimationInfo, speed),
+		sf_field(AnimationInfo, speedVariation),
 	};
 	sf_struct(t, AnimationInfo, fields);
+}
+
+template<> void initType<AttachBone>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(AttachBone, name),
+		sf_field(AttachBone, boneName),
+		sf_field(AttachBone, scale),
+	};
+	sf_struct(t, AttachBone, fields);
 }
 
 template<> void initType<ShadowBlob>(Type *t)
@@ -756,6 +774,14 @@ template<> void initType<CastInfo>(Type *t)
 		sf_field(CastInfo, succeeded),
 	};
 	sf_struct(t, CastInfo, fields);
+}
+
+template<> void initType<Waypoint>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(Waypoint, position),
+	};
+	sf_struct(t, Waypoint, fields);
 }
 
 }

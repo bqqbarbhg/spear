@@ -77,4 +77,6 @@ enum class EulerOrder {
 Quat eulerAnglesToQuat(float x, float y, float z, EulerOrder order=EulerOrder::XYZ);
 Quat eulerAnglesToQuat(const sf::Vec3 &v, EulerOrder order=EulerOrder::XYZ);
 
+Quat axesToQuat(const sf::Vec3 &x, const sf::Vec3 &y, const sf::Vec3 &z);
+
 }

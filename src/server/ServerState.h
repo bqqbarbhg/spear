@@ -125,9 +125,19 @@ struct CharacterComponent : ComponentBase<Component::Character>
 
 struct AnimationInfo sv_reflect
 {
-	sf::Symbol name;
 	sf::Array<sf::Symbol> tags;
 	sf::Symbol file;
+	float weight = 1.0f;
+	bool loop = true;
+	float speed = 1.0f;
+	float speedVariation = 0.0f;
+};
+
+struct AttachBone sv_reflect
+{
+	sf::Symbol name;
+	sf::Symbol boneName;
+	float scale = 1.0f;
 };
 
 struct CharacterModelComponent : ComponentBase<Component::CharacterModel>
@@ -136,6 +146,7 @@ struct CharacterModelComponent : ComponentBase<Component::CharacterModel>
 	sf::HashMap<sf::Symbol, sf::Symbol> materials;
 	float scale = 1.0f;
 	sf::Array<AnimationInfo> animations;
+	sf::Array<AttachBone> attachBones;
 };
 
 struct ShadowBlob sv_reflect
@@ -167,6 +178,9 @@ struct CardAttachComponent : ComponentBase<Component::CardAttach>
 {
 	sf::Symbol prefabName;
 	sf::Symbol boneName;
+	float scale = 1.0f;
+	sf::Vec3 offset;
+	sf::Array<sf::Symbol> animationTags;
 };
 
 struct CardMeleeComponent : ComponentBase<Component::CardMelee>
@@ -658,6 +672,44 @@ struct MovePropEdit : EditBase<Edit::MoveProp>
 struct RemovePropEdit : EditBase<Edit::RemoveProp>
 {
 	uint32_t propId;
+};
+
+struct Action
+{
+	#if SF_DEBUG
+		virtual void debugForceVtable() { }
+	#endif
+
+	enum Type
+	{
+		Error,
+		Move,
+
+		Type_Count,
+		Type_ForceU32 = 0x7fffffff,
+	};
+
+	Type type;
+
+	Action() { }
+	Action(Type type) : type(type) { }
+
+	template <typename T> T *as() { return type == T::ActionType ? (T*)this : nullptr; }
+	template <typename T> const T *as() const { return type == T::ActionType ? (T*)this : nullptr; }
+};
+
+template <Action::Type SelfType>
+struct ActionBase : Action
+{
+	static constexpr Type ActionType = SelfType;
+	ActionBase() : Action(SelfType) { }
+};
+
+struct MoveAction : ActionBase<Action::Move>
+{
+	uint32_t charcterId;
+	sf::Vec2i tile;
+	sf::Array<sf::Vec2i> waypoints;
 };
 
 static const constexpr uint32_t NumServerIdTypes = 100;

@@ -20,13 +20,6 @@ static Transform getPropTransform(const sv::PropTransform &transform)
 	return ret;
 }
 
-static Transform getCharacterTransform(const sv::Character &chr)
-{
-	Transform ret;
-	ret.position = sf::Vec3((float)chr.tile.x, 0.0f, (float)chr.tile.y);
-	return ret;
-}
-
 static void updateVisibility(VisibleAreas &visibleAreas, const AreaSystem *areaSystem, const sf::Frustum &frustum)
 {
 	visibleAreas.areas.clear();
@@ -42,38 +35,6 @@ static void updateVisibility(VisibleAreas &visibleAreas, const AreaSystem *areaS
 	}
 }
 
-static void addEntityComponents(Systems &systems, uint32_t entityId, const Transform &transform, const Prefab &prefab)
-{
-	uint8_t compIx = 0;
-	for (const sf::Box<sv::Component> &comp : prefab.s.components) {
-
-		if (const auto *c = comp->as<sv::ModelComponent>()) {
-			systems.model->addModel(systems, entityId, compIx, *c, transform);
-		} else if (const auto *c = comp->as<sv::CharacterModelComponent>()) {
-			systems.characterModel->addCharacterModel(systems, entityId, compIx, *c, transform);
-		}
-
-		compIx++;
-	}
-}
-
-
-static uint32_t addEntity(Systems &systems, uint32_t svId, const Transform &transform, const sf::Symbol &prefabName)
-{
-	uint32_t *pPrefabId = systems.entities.nameToPrefab.findValue(prefabName);
-	if (!pPrefabId) return ~0u;
-	uint32_t prefabId = *pPrefabId;
-
-	Prefab &prefab = systems.entities.prefabs[prefabId];
-
-	uint32_t entityId = systems.entities.addEntity(svId, transform, prefabId, prefab.entityIds.size);
-	prefab.entityIds.push(entityId);
-
-	addEntityComponents(systems, entityId, transform, prefab);
-
-	return entityId;
-}
-
 static void removeEntities(Systems &systems, uint32_t svId)
 {
 	sf::SmallArray<uint32_t, 64> entityIds;
@@ -87,7 +48,7 @@ static void removeEntities(Systems &systems, uint32_t svId)
 	}
 
 	for (uint32_t entityId : entityIds) {
-		systems.entities.removeEntity(systems, entityId);
+		systems.entities.removeEntityQueued(entityId);
 	}
 }
 
@@ -105,16 +66,13 @@ void ClientState::applyEvent(const sv::Event &event)
 		systems.entities.addPrefab(e->prefab);
 	} else if (const auto *e = event.as<sv::AddPropEvent>()) {
 		Transform transform = getPropTransform(e->prop.transform);
-		addEntity(systems, e->prop.id, transform, e->prop.prefabName);
-	} else if (const auto *e = event.as<sv::AddCharacterEvent>()) {
-		Transform transform = getCharacterTransform(e->character);
-		addEntity(systems, e->character.id, transform, e->character.prefabName);
+		systems.entities.addEntity(systems, e->prop.id, transform, e->prop.prefabName);
 	} else if (const auto *e = event.as<sv::ReplaceLocalPropEvent>()) {
 		if (localClientId == e->clientId) {
 			removeEntities(systems, e->localId);
 		}
 		Transform transform = getPropTransform(e->prop.transform);
-		addEntity(systems, e->prop.id, transform, e->prop.prefabName);
+		systems.entities.addEntity(systems, e->prop.id, transform, e->prop.prefabName);
 	} else if (const auto *e = event.as<sv::MovePropEvent>()) {
 		Transform transform = getPropTransform(e->transform);
 		sf::UintFind find = systems.entities.svToEntity.findAll(e->propId);
@@ -127,17 +85,19 @@ void ClientState::applyEvent(const sv::Event &event)
 	} else if (const auto *e = event.as<sv::ReloadPrefabEvent>()) {
 		if (uint32_t *pPrefabId = systems.entities.nameToPrefab.findValue(e->prefab.name)) {
 			Prefab &prefab = systems.entities.prefabs[*pPrefabId];
-			prefab.s = e->prefab;
+			prefab.svPrefab = sf::box<sv::Prefab>(e->prefab);
 
 			for (uint32_t entityId : prefab.entityIds) {
 				Transform transform = systems.entities.entities[entityId].transform;
 				systems.entities.removeComponents(systems, entityId);
-				addEntityComponents(systems, entityId, transform, prefab);
+				systems.entities.addComponents(systems, entityId, transform, prefab);
 			}
 		} else {
 			systems.entities.addPrefab(e->prefab);
 		}
 	}
+
+	systems.game->applyEvent(systems, event);
 }
 
 void ClientState::editorPick(sf::Array<EntityHit> &hits, const sf::Ray &ray) const
@@ -170,6 +130,8 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 {
 	sf::Frustum frustum { frameArgs.worldToClip, sp::getClipNearW() };
 
+	systems.entities.updateQueuedRemoves(systems);
+
 	if (svState) {
 		systems.game->update(*svState, frameArgs);
 	}
@@ -180,6 +142,9 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 	systems.area->optimize();
 
 	updateVisibility(systems.visibleAreas, systems.area, frustum);
+
+	systems.characterModel->updateAnimations(systems.visibleAreas, frameArgs.dt);
+	systems.characterModel->updateAttachedEntities(systems);
 }
 
 void ClientState::renderMain(const RenderArgs &args)

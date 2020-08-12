@@ -55,8 +55,10 @@ struct Mesh
 struct BoneTransform
 {
 	sf::Vec3 translation;
+	float pad0;
 	sf::Quat rotation;
-	sf::Vec3 scale;
+	sf::Vec3 scale = sf::Vec3(1.0f);
+	float pad1;
 };
 
 struct Bone

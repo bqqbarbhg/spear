@@ -40,8 +40,9 @@ struct System
 
 struct EntitySystem : System
 {
-	virtual void updateTransform(Systems &systems, const EntityComponent &ec, const TransformUpdate &update) = 0;
-	virtual void remove(Systems &systems, const EntityComponent &ec) = 0;
+	virtual void updateTransform(Systems &systems, uint32_t entityId, const EntityComponent &ec, const TransformUpdate &update) = 0;
+	virtual bool prepareForRemove(Systems &systems, uint32_t entityId, const EntityComponent &ec);
+	virtual void remove(Systems &systems, uint32_t entityId, const EntityComponent &ec) = 0;
 
 	virtual void editorHighlight(Systems &systems, const EntityComponent &ec, EditorHighlight type);
 };
@@ -57,7 +58,7 @@ struct EntityComponent
 
 struct Prefab
 {
-	sv::Prefab s;
+	sf::Box<sv::Prefab> svPrefab;
 	sf::Array<uint32_t> entityIds;
 };
 
@@ -66,6 +67,7 @@ struct Entity
 	enum Flags
 	{
 		UpdateTransform = 0x1,
+		PrepareForRemove = 0x2,
 	};
 
 	uint32_t svId = 0;
@@ -85,16 +87,27 @@ struct Entities
 	sf::Array<uint32_t> freePrefabIds;
 	sf::HashMap<sf::Symbol, uint32_t> nameToPrefab;
 
+	sf::Array<uint32_t> removeQueue;
+
 	uint32_t addPrefab(const sv::Prefab &svPrefab);
 	void removePrefab(uint32_t prefabId);
 
-	uint32_t addEntity(uint32_t svId, const Transform &transform, uint32_t prefabId, uint32_t indexInPrefab);
-	void updateTransform(Systems &systems, uint32_t entityId, const Transform &transform);
-	void removeEntity(Systems &systems, uint32_t entityId);
+	sf::Box<sv::Prefab> findPrefab(const sf::Symbol &name) const;
 
+	uint32_t addEntityImp(uint32_t svId, const Transform &transform, uint32_t prefabId, uint32_t indexInPrefab);
+
+	uint32_t addEntity(Systems &systems, uint32_t svId, const Transform &transform, const sf::Symbol &prefabName);
+	void removeEntityInstant(Systems &systems, uint32_t entityId);
+	void removeEntityQueued(uint32_t entityId);
+
+	void updateTransform(Systems &systems, uint32_t entityId, const Transform &transform);
+
+	void addComponents(Systems &systems, uint32_t entityId, const Transform &transform, const Prefab &prefab);
 	void removeComponents(Systems &systems, uint32_t entityId);
 
 	void addComponent(uint32_t entityId, EntitySystem *system, uint32_t userId, uint8_t subsystemIndex, uint8_t componentIndex, uint32_t flags);
+
+	void updateQueuedRemoves(Systems &systems);
 };
 
 struct AreaSystem;

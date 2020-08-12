@@ -107,7 +107,7 @@ struct ModelSystemImp final : ModelSystem
 		systems.entities.addComponent(entityId, this, modelId, 0, componentIndex, Entity::UpdateTransform);
 	}
 
-	void updateTransform(Systems &systems, const EntityComponent &ec, const TransformUpdate &update) override
+	void updateTransform(Systems &systems, uint32_t entityId, const EntityComponent &ec, const TransformUpdate &update) override
 	{
 		uint32_t modelId = ec.userId;
 		Model &model = models[modelId];
@@ -119,7 +119,7 @@ struct ModelSystemImp final : ModelSystem
 		}
 	}
 
-	void remove(Systems &systems, const EntityComponent &ec) override
+	void remove(Systems &systems, uint32_t entityId, const EntityComponent &ec) override
 	{
 		uint32_t modelId = ec.userId;
 		Model &model = models[modelId];

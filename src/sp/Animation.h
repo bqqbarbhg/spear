@@ -24,10 +24,12 @@ struct Animation : Asset
 
 	void generateBoneMapping(Model *model, sf::Slice<uint32_t> dst);
 	void evaluate(float time, sf::Slice<const uint32_t> boneMapping, sf::Slice<BoneTransform> transforms);
+	void evaluate(float time, sf::Slice<const uint32_t> boneMapping, sf::Slice<BoneTransform> transforms, float alpha);
 };
 
 using AnimationRef = Ref<Animation>;
 
+void blendBoneTransform(sf::Slice<BoneTransform> dst, sf::Slice<const BoneTransform> src, float alpha);
 void boneTransformToWorld(Model *model, sf::Slice<sf::Mat34> dst, sf::Slice<const BoneTransform> src, const sf::Mat34 &toWorld);
 
 }

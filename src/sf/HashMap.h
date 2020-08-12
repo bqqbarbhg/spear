@@ -131,7 +131,7 @@ struct HashMap
 
 	template <typename KT>
 	const V *findValue(const KT &key) const {
-		Entry *entry = find(key);
+		const Entry *entry = find(key);
 		return entry ? &entry->val : NULL;
 	}
 

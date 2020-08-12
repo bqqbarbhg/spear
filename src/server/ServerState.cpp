@@ -9,6 +9,8 @@
 
 #include "sf/Reflection.h"
 
+#include "server/Pathfinding.h"
+
 #include "server/FixedPoint.h"
 
 #include <stdarg.h>
@@ -267,6 +269,11 @@ static void addPropToTiles(ServerState &state, const sv::Prop &prop)
 	addEntityToTiles(state, prop.id, prop.prefabName, prop.transform.position, rotation, prop.transform.scale << 8);
 }
 
+static void addCharacterToTiles(ServerState &state, const sv::Character &chr)
+{
+	state.addEntityToTile(chr.id, chr.tile);
+}
+
 void ServerState::applyEvent(const Event &event)
 {
 	// TODO: What to do about reallocations?
@@ -358,6 +365,9 @@ void ServerState::applyEvent(const Event &event)
 	} else if (auto *e = event.as<AddCharacterEvent>()) {
 		auto res = characters.insertOrAssign(e->character);
 		sv_check(res.inserted);
+
+		addCharacterToTiles(*this, e->character);
+
 	} else if (auto *e = event.as<AddCardEvent>()) {
 		auto res = cards.insertOrAssign(e->card);
 		sv_check(res.inserted);
@@ -869,6 +879,41 @@ void ServerState::reloadPrefab(sf::Array<sf::Box<Event>> &events, const Prefab &
 	loadPrefab(*this, events, prefab.name);
 }
 
+static void updateSpawnPosition(const ServerState &state, sf::Vec2i &bestTile, int32_t &bestDist, const sf::Vec2i &origin, int32_t dx, int32_t dy)
+{
+	sf::Vec2i delta = sf::Vec2i(dx, dy);
+	int32_t dist = sf::dot(delta, delta);
+	if (dist >= bestDist) return;
+
+	sf::Vec2i tile = origin + delta;
+	if (!isBlockedByPropOrCharacter(NULL, state, tile)) {
+		bestTile = tile;
+		bestDist = dist;
+	}
+}
+
+static sf::Vec2i findSpawnableTile(const ServerState &state, const sf::Vec2i &origin)
+{
+	int32_t bestDist = INT32_MAX;
+	sf::Vec2i bestTile = origin;
+
+	for (int32_t radius = 0; radius < 10; radius++) {
+		if (radius*radius > bestDist) break;
+
+		for (int32_t y = -radius + 1; y <= radius - 1; y++) {
+			updateSpawnPosition(state, bestTile, bestDist, origin, -radius, y);
+			updateSpawnPosition(state, bestTile, bestDist, origin, +radius, y);
+		}
+
+		for (int32_t x = -radius; x <= radius; x++) {
+			updateSpawnPosition(state, bestTile, bestDist, origin, x, -radius);
+			updateSpawnPosition(state, bestTile, bestDist, origin, x, +radius);
+		}
+	}
+
+	return bestTile;
+}
+
 uint32_t ServerState::selectCharacterSpawn(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, uint32_t playerId)
 {
 	int32_t *left = charactersToSelect.findValue(type);
@@ -889,6 +934,8 @@ uint32_t ServerState::selectCharacterSpawn(sf::Array<sf::Box<Event>> &events, co
 
 	Character chrProto = { };
 	chrProto.prefabName = templateComp->characterPrefab;
+	chrProto.tile = findSpawnableTile(*this, sf::Vec2i(0, 0));
+
 	uint32_t chrId = addCharacter(events, chrProto);
 	if (!chrId) return 0 ;
 

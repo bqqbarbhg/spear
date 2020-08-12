@@ -122,10 +122,19 @@ static Session *setupSession(Server *s, uint32_t id, uint32_t secret)
 
 		session.state = sf::box<ServerState>();
 
-		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
-		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Urist.json"), 1);
+		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 5);
+		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Urist.json"), 5);
+		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Targon.json"), 5);
 
 		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
+		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Urist.json"), 1);
+		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Targon.json"), 1);
+		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
+		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Urist.json"), 1);
+		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Targon.json"), 1);
+		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
+		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Urist.json"), 1);
+		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Targon.json"), 1);
 
 #if 0
 		{

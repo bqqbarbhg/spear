@@ -874,6 +874,9 @@ struct AnimationTask : Task
 
 		args.push("--anim");
 
+		args.push("--retain-prefix");
+		args.push("bnd_");
+
 		args.push("--remove-namespaces");
 
 		args.push("--input");
@@ -934,6 +937,9 @@ struct CharacterModelTask : Task
 
 		args.push("--output");
 		args.push(tempFile);
+
+		args.push("--retain-prefix");
+		args.push("bnd_");
 
 		JobQueue jq;
 		jq.mkdirsToFile(tempFile);

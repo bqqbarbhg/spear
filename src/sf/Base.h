@@ -348,6 +348,14 @@ static T *find(Slice<T> arr, const U &t)
 }
 
 template <typename T>
+static void reverse(Slice<T> arr)
+{
+	T *first = arr.data, *last = arr.data + arr.size;
+	while (first > last) {
+	}
+}
+
+template <typename T>
 struct InsertResult
 {
 	T &entry;

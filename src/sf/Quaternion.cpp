@@ -75,4 +75,41 @@ Quat eulerAnglesToQuat(const sf::Vec3 &v, EulerOrder order)
 	return eulerAnglesToQuat(v.x, v.y, v.z, order);
 }
 
+Quat axesToQuat(const sf::Vec3 &x, const sf::Vec3 &y, const sf::Vec3 &z)
+{
+	sf::Quat quat;
+
+	float trace = x.x + y.y + z.z;
+	if (trace > 0.0) {
+		float s = sf::sqrt(sf::max(0.0f, 1.0f + trace)) * 2.0f, rs = 1.0f / s;
+		quat.x = (y.z - z.y) * rs;
+		quat.y = (z.x - x.z) * rs;
+		quat.z = (x.y - y.x) * rs;
+		quat.w = 0.25f * s;
+	}
+	else if (x.x > sf::max(y.y, z.z)) {
+		float s = sf::sqrt(sf::max(0.0f, 1.0f + x.x - y.y - z.z)) * 2.0f, rs = 1.0f / s;
+		quat.x = 0.25f * s;
+		quat.y = (y.x + x.y) * rs;
+		quat.z = (z.x + x.z) * rs;
+		quat.w = (y.z - z.y) * rs;
+	}
+	else if (y.y > z.z) {
+		float s = sf::sqrt(sf::max(0.0f, 1.0f - x.x + y.y - z.z)) * 2.0f, rs = 1.0f / s;
+		quat.x = (y.x + x.y) * rs;
+		quat.y = 0.25f * s;
+		quat.z = (z.y + y.z) * rs;
+		quat.w = (z.x - x.z) * rs;
+	}
+	else {
+		float s = sf::sqrt(sf::max(0.0f, 1.0f - x.x - y.y + z.z)) * 2.0f, rs = 1.0f / s;
+		quat.x = (z.x + x.z) * rs;
+		quat.y = (z.y + y.z) * rs;
+		quat.z = 0.25f * s;
+		quat.w = (x.y - y.x) * rs;
+	}
+
+	return quat;
+}
+
 }

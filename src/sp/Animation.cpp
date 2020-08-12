@@ -96,7 +96,7 @@ struct AclOutputWriter final : public acl::OutputWriter
 	{
 		uint32_t ix = boneMapping[bone_index];
 		if (ix != ~0u) {
-			rtm::vector_store3(translation, transforms[ix].translation.v);
+			rtm::vector_store(translation, transforms[ix].translation.v);
 		}
 	}
 
@@ -104,7 +104,41 @@ struct AclOutputWriter final : public acl::OutputWriter
 	{
 		uint32_t ix = boneMapping[bone_index];
 		if (ix != ~0u) {
-			rtm::vector_store3(scale, transforms[ix].scale.v);
+			rtm::vector_store(scale, transforms[ix].scale.v);
+		}
+	}
+};
+
+struct AclOutputAlphaWriter final : public acl::OutputWriter
+{
+	sf::Slice<const uint32_t> boneMapping;
+	sf::Slice<BoneTransform> transforms;
+	float alpha;
+
+	void RTM_SIMD_CALL write_bone_rotation(uint16_t bone_index, rtm::quatf_arg0 rotation)
+	{
+		uint32_t ix = boneMapping[bone_index];
+		if (ix != ~0u) {
+			rtm::quatf prev = rtm::quat_load(transforms[ix].rotation.v);
+			rtm::quat_store(rtm::quat_lerp(prev, rotation, alpha), transforms[ix].rotation.v);
+		}
+	}
+
+	void RTM_SIMD_CALL write_bone_translation(uint16_t bone_index, rtm::vector4f_arg0 translation)
+	{
+		uint32_t ix = boneMapping[bone_index];
+		if (ix != ~0u) {
+			rtm::vector4f prev = rtm::vector_load(transforms[ix].translation.v);
+			rtm::vector_store(rtm::vector_lerp(prev, translation, alpha), transforms[ix].translation.v);
+		}
+	}
+
+	void RTM_SIMD_CALL write_bone_scale(uint16_t bone_index, rtm::vector4f_arg0 scale)
+	{
+		uint32_t ix = boneMapping[bone_index];
+		if (ix != ~0u) {
+			rtm::vector4f prev = rtm::vector_load(transforms[ix].scale.v);
+			rtm::vector_store(rtm::vector_lerp(prev, scale, alpha), transforms[ix].scale.v);
 		}
 	}
 };
@@ -136,9 +170,48 @@ void Animation::evaluate(float time, sf::Slice<const uint32_t> boneMapping, sf::
 	imp->decompressionContext.decompress_pose(writer);
 }
 
+void Animation::evaluate(float time, sf::Slice<const uint32_t> boneMapping, sf::Slice<BoneTransform> transforms, float alpha)
+{
+	AnimationImp *imp = (AnimationImp*)this;
+	imp->decompressionContext.seek(time, acl::sample_rounding_policy::none);
+
+	AclOutputAlphaWriter writer;
+	writer.boneMapping = boneMapping;
+	writer.transforms = transforms;
+	writer.alpha = alpha;
+	imp->decompressionContext.decompress_pose(writer);
+}
+
 sf::Mat34 boneTransformToMatrix(const BoneTransform &t)
 {
 	return sf::mat::world(t.translation, t.rotation, t.scale);
+}
+
+void blendBoneTransform(sf::Slice<BoneTransform> dst, sf::Slice<const BoneTransform> src, float alpha)
+{
+	sf_assert(dst.size == src.size);
+
+	if (alpha >= 0.9999f) {
+		memcpy(dst.data, src.data, sizeof(BoneTransform) * dst.size);
+		return;
+	}
+
+	for (uint32_t i = 0; i < dst.size; i++) {
+		BoneTransform &d = dst[i];
+		const BoneTransform &s = src[i];
+
+		rtm::vector4f dstT = rtm::vector_load(d.translation.v);
+		rtm::vector4f srcT = rtm::vector_load(s.translation.v);
+		rtm::vector_store(rtm::vector_lerp(dstT, srcT, alpha), d.translation.v);
+
+		rtm::vector4f dstS = rtm::vector_load(d.scale.v);
+		rtm::vector4f srcS = rtm::vector_load(s.scale.v);
+		rtm::vector_store(rtm::vector_lerp(dstS, srcS, alpha), d.scale.v);
+
+		rtm::quatf dstR = rtm::quat_load(d.rotation.v);
+		rtm::quatf srcR = rtm::quat_load(s.rotation.v);
+		rtm::quat_store(rtm::quat_lerp(dstR, srcR, alpha), d.rotation.v);
+	}
 }
 
 void boneTransformToWorld(Model *model, sf::Slice<sf::Mat34> dst, sf::Slice<const BoneTransform> src, const sf::Mat34 &toWorld)

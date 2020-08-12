@@ -19,6 +19,7 @@ struct Mat34_3
 			float m13;
 			float m23;
 		};
+		Vec3 col3;
 		float v[3];
 	};
 
