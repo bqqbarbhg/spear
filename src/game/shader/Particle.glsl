@@ -15,15 +15,17 @@ out vec2 v_Uv1;
 
 flat out float v_FrameBlend;
 
-uniform Vertex
+uniform VertexInstance
 {
 	mat4 u_WorldToClip;
 	float u_InvDelta;
+	float u_Aspect;
+};
+
+uniform VertexType
+{
 	vec2 u_FrameCount;
 	float u_FrameRate;
-	float u_Aspect;
-	vec4 u_ScaleAnim;
-	vec4 u_AlphaAnim;
 	vec4 u_RotationControl;
 	float u_Additive;
 	float u_StartFrame;
@@ -63,7 +65,7 @@ void main()
 	vec2 uv = vec2(float(id & 1), float((id >> 1) & 1));
 	vec2 offset = (uv * 2.0 - 1.0);
 
-	float scale = evaluateAnim(u_ScaleAnim, lifeTime, seed.x);
+	float scale = 0.3; //evaluateAnim(u_ScaleAnim, lifeTime, seed.x);
 	offset *= max(scale, 0.0);
 
 	float rotation = evaluateRotation(u_RotationControl, lifeTime, seed.zw);
@@ -78,7 +80,7 @@ void main()
 		ndc = vec4(0.0);
 	}
 
-	float alpha = evaluateAnim(u_AlphaAnim, lifeTime, seed.y);
+	float alpha = 1.0; // evaluateAnim(u_AlphaAnim, lifeTime, seed.y);
 
 	float frame = lifeTime * u_FrameRate + floor(seed.x*64.0 + seed.z*4096) * u_StartFrame;
 	float frameI = floor(frame);

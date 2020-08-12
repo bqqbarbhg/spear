@@ -3,6 +3,7 @@
 #include "client/AreaSystem.h"
 #include "client/ModelSystem.h"
 #include "client/CharacterModelSystem.h"
+#include "client/ParticleSystem.h"
 #include "client/GameSystem.h"
 
 #include "sf/Frustum.h"
@@ -125,8 +126,6 @@ void ClientState::editorHighlight(uint32_t entityId, EditorHighlight type)
 
 void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameArgs)
 {
-	sf::Frustum frustum { frameArgs.worldToClip, sp::getClipNearW() };
-
 	systems.entities.updateQueuedRemoves(systems);
 
 	if (svState) {
@@ -138,7 +137,9 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 
 	systems.area->optimize();
 
-	updateVisibility(systems.visibleAreas, systems.area, frustum);
+	updateVisibility(systems.visibleAreas, systems.area, frameArgs.mainRenderArgs.frustum);
+
+	systems.particle->updateParticles(systems.visibleAreas, frameArgs.dt);
 
 	systems.characterModel->updateAnimations(systems.visibleAreas, frameArgs.dt);
 	systems.characterModel->updateAttachedEntities(systems);
@@ -148,6 +149,7 @@ void ClientState::renderMain(const RenderArgs &args)
 {
 	systems.model->renderMain(systems.visibleAreas, args);
 	systems.characterModel->renderMain(systems.visibleAreas, args);
+	systems.particle->renderMain(systems.visibleAreas, args);
 }
 
 }

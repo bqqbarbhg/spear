@@ -21,6 +21,7 @@
 
 #include "client/ClientState.h"
 #include "client/EditorState.h"
+#include "client/ParticleTexture.h"
 
 #include "game/DebugDraw.h"
 #include "game/shader/Line.h"
@@ -270,10 +271,12 @@ static void recreateTargets(Client *c, const sf::Vec2i &systemRes)
 void clientGlobalInit()
 {
 	gameShaders.load();
+	ParticleTexture::globalInit();
 }
 
 void clientGlobalCleanup()
 {
+	ParticleTexture::globalCleanup();
 }
 
 void clientGlobalUpdate()
@@ -458,15 +461,13 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.3f, (float)sapp_width()/(float)sapp_height(), 1.0f, 100.0f);
 	sf::Mat44 worldToClip = viewToClip * worldToView;
 
-	c->frameArgs.cameraPosition = eye;
-	c->frameArgs.worldToView = worldToView;
-	c->frameArgs.viewToClip = viewToClip;
-	c->frameArgs.worldToClip = worldToClip;
+	c->mainRenderArgs.cameraPosition = eye;
+	c->mainRenderArgs.worldToView = worldToView;
+	c->mainRenderArgs.viewToClip = viewToClip;
+	c->mainRenderArgs.worldToClip = worldToClip;
+	c->mainRenderArgs.frustum = sf::Frustum(c->mainRenderArgs.worldToClip, sp::getClipNearW());
 
-	c->mainRenderArgs.cameraPosition = c->frameArgs.cameraPosition;
-	c->mainRenderArgs.worldToView = c->frameArgs.worldToView;
-	c->mainRenderArgs.viewToClip = c->frameArgs.viewToClip;
-	c->mainRenderArgs.worldToClip = c->frameArgs.worldToClip;
+	c->frameArgs.mainRenderArgs = c->mainRenderArgs;
 
 	if (c->editor) {
 		editorUpdate(c->editor, c->frameArgs, input);

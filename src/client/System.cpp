@@ -3,6 +3,7 @@
 #include "client/AreaSystem.h"
 #include "client/ModelSystem.h"
 #include "client/CharacterModelSystem.h"
+#include "client/ParticleSystem.h"
 #include "client/GameSystem.h"
 
 namespace cl {
@@ -12,6 +13,7 @@ void Systems::init(const SystemsDesc &desc)
 	area = AreaSystem::create();
 	model = ModelSystem::create();
 	characterModel = CharacterModelSystem::create(desc);
+	particle = ParticleSystem::create(desc);
 	game = GameSystem::create();
 }
 
@@ -149,6 +151,8 @@ void Entities::addComponents(Systems &systems, uint32_t entityId, const Transfor
 			systems.model->addModel(systems, entityId, compIx, *c, transform);
 		} else if (const auto *c = comp->as<sv::CharacterModelComponent>()) {
 			systems.characterModel->addCharacterModel(systems, entityId, compIx, *c, transform);
+		} else if (const auto *c = comp->as<sv::ParticleSystemComponent>()) {
+			systems.particle->addEffect(systems, entityId, compIx, comp.cast<sv::ParticleSystemComponent>(), transform);
 		}
 
 		compIx++;

@@ -7,6 +7,7 @@
 #include "sf/HashSet.h"
 #include "sf/HashMap.h"
 #include "sf/Symbol.h"
+#include "sf/Frustum.h"
 
 #include "server/ServerState.h"
 
@@ -115,15 +116,11 @@ struct Entities
 	void updateQueuedRemoves(Systems &systems);
 };
 
-struct AreaSystem;
-struct ModelSystem;
-struct CharacterModelSystem;
-struct GameSystem;
-
 enum class AreaGroup : uint32_t
 {
 	Model,
 	CharacterModel,
+	ParticleEffect,
 	Custom0,
 };
 
@@ -158,6 +155,12 @@ struct EntityHit
 	float t = 0.0f;
 };
 
+struct AreaSystem;
+struct ModelSystem;
+struct CharacterModelSystem;
+struct ParticleSystem;
+struct GameSystem;
+
 struct Systems
 {
 	Entities entities;
@@ -165,20 +168,10 @@ struct Systems
 	sf::Box<AreaSystem> area;
 	sf::Box<ModelSystem> model;
 	sf::Box<CharacterModelSystem> characterModel;
+	sf::Box<ParticleSystem> particle;
 	sf::Box<GameSystem> game;
 
 	void init(const SystemsDesc &desc);
-};
-
-struct FrameArgs
-{
-	uint64_t frameIndex = 0;
-	float dt = 0.0f;
-
-	sf::Vec3 cameraPosition;
-	sf::Mat34 worldToView;
-	sf::Mat44 viewToClip;
-	sf::Mat44 worldToClip;
 };
 
 struct RenderArgs
@@ -187,6 +180,15 @@ struct RenderArgs
 	sf::Mat34 worldToView;
 	sf::Mat44 viewToClip;
 	sf::Mat44 worldToClip;
+	sf::Frustum frustum;
+};
+
+struct FrameArgs
+{
+	uint64_t frameIndex = 0;
+	float dt = 0.0f;
+
+	RenderArgs mainRenderArgs;
 };
 
 }

@@ -112,12 +112,17 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(ParticleSystemComponent, sprite),
-		sf_field(ParticleSystemComponent, color),
-		sf_field(ParticleSystemComponent, intensity),
-		sf_field(ParticleSystemComponent, radius),
-		sf_field(ParticleSystemComponent, position),
+		sf_field(ParticleSystemComponent, updateRadius),
+		sf_field(ParticleSystemComponent, timeStep),
 		sf_field(ParticleSystemComponent, updateOutOfCamera),
 		sf_field(ParticleSystemComponent, prewarmTime),
+		sf_field(ParticleSystemComponent, drag),
+		sf_field(ParticleSystemComponent, spawnTime),
+		sf_field(ParticleSystemComponent, spawnTimeVariance),
+		sf_field(ParticleSystemComponent, cullPadding),
+		sf_field(ParticleSystemComponent, frameRate),
+		sf_field(ParticleSystemComponent, frameCount),
+		sf_field(ParticleSystemComponent, emitOrigin),
 	};
 	sf_struct_base(t, ParticleSystemComponent, Component, fields);
 }

@@ -827,6 +827,28 @@ float getClipNearW()
 	return clipNearW;
 }
 
+const char *getPixelFormatSuffix(sg_pixel_format format)
+{
+    switch (format) {
+    case SG_PIXELFORMAT_RGBA8: return "rgba8";
+    case SG_PIXELFORMAT_BQQ_SRGBA8: return "rgba8";
+    case SG_PIXELFORMAT_BC1_RGBA: return "bc1";
+    case SG_PIXELFORMAT_BQQ_BC1_SRGB: return "bc1";
+    case SG_PIXELFORMAT_BC3_RGBA: return "bc3";
+    case SG_PIXELFORMAT_BQQ_BC3_SRGB: return "bc3";
+    case SG_PIXELFORMAT_BC5_RG: return "bc5";
+    case SG_PIXELFORMAT_BC5_RGSN: return "bc5";
+    case SG_PIXELFORMAT_BQQ_BC7_SRGB: return "bc7";
+    case SG_PIXELFORMAT_BQQ_ASTC_4X4_RGBA: return "astc4x4";
+    case SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB: return "astc4x4";
+    case SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA: return "astc8x8";
+    case SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB: return "astc8x8";
+    default:
+        sf_failf("Invalid pixel format: %u", (uint32_t)format);
+        return "";
+    }
+}
+
 sg_buffer g_hackSharedQuadIndexBuffer;
 
 }

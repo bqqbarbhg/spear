@@ -101,12 +101,18 @@ struct PointLightComponent : ComponentBase<Component::PointLight>
 struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 {
 	sf::Symbol sprite;
-	sf::Vec3 color = sf::Vec3(1.0f);
-	float intensity = 1.0f;
-	float radius = 1.0f;
-	sf::Vec3 position;
+	float updateRadius = 0.0f;
+	float timeStep = 0.1f;
 	bool updateOutOfCamera = false;
 	float prewarmTime = 0.0f;
+
+	float drag = 0.0f;
+	float spawnTime = 0.2f;
+	float spawnTimeVariance = 0.0f;
+	float cullPadding = 1.0f;
+	float frameRate = 0.0f;
+	sf::Vec2i frameCount;
+	sf::Vec3 emitOrigin; // TEMP
 };
 
 struct CharacterComponent : ComponentBase<Component::Character>

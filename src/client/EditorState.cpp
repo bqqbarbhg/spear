@@ -753,7 +753,7 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 	bool shiftDown = ImGui::IsKeyDown(SAPP_KEYCODE_LEFT_SHIFT);
 	bool ctrlDown = ImGui::IsKeyDown(SAPP_KEYCODE_LEFT_CONTROL);
 
-	sf::Mat44 clipToWorld = sf::inverse(frameArgs.worldToClip);
+	sf::Mat44 clipToWorld = sf::inverse(frameArgs.mainRenderArgs.worldToClip);
 	sf::Vec2 clipMouse = input.mousePosition * sf::Vec2(+2.0f, -2.0f) + sf::Vec2(-1.0f, +1.0f);
 	sf::Vec4 rayBegin = clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 0.0f, 1.0f);
 	sf::Vec4 rayEnd = clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 1.0f, 1.0f);
@@ -843,8 +843,8 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 			}
 
 			sf::Mat44 gizmoToWorld = sf::mat::translate(selectionMidpoint);
-			const sf::Mat44 &view = frameArgs.worldToView;
-			const sf::Mat44 &proj = frameArgs.viewToClip;
+			const sf::Mat44 &view = frameArgs.mainRenderArgs.worldToView;
+			const sf::Mat44 &proj = frameArgs.mainRenderArgs.viewToClip;
 			sf::Mat44 delta;
 			sf::Mat44 identity;
 

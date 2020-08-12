@@ -160,4 +160,6 @@ sf_inline sg_buffer getSharedQuadIndexBuffer() { return g_hackSharedQuadIndexBuf
 
 float getClipNearW();
 
+const char *getPixelFormatSuffix(sg_pixel_format format);
+
 }
