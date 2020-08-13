@@ -40,8 +40,12 @@ namespace ImGradient
       return 0;
    }
 
-   bool Edit(Delegate &delegate, const ImVec2& size, int& selection)
+   bool Edit(Delegate &delegate, const ImVec2& userSize, int& selection)
    {
+      // bqq mod
+      ImVec2 size = userSize;
+      if (size.x <= 0.0f) size.x = ImGui::CalcItemWidth();
+
       bool ret = false;
       ImGuiIO& io = ImGui::GetIO();
       ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
@@ -53,6 +57,7 @@ namespace ImGradient
       const ImVec4* pts = delegate.GetPoints();
       static int currentSelection = -1;
       static int movingPt = -1;
+
       if (currentSelection >= int(delegate.GetPointCount()))
          currentSelection = -1;
       if (movingPt != -1)
@@ -85,6 +90,7 @@ namespace ImGradient
          delegate.AddPoint(delegate.GetPoint(t));
          ret = true;
       }
+
       ImGui::EndChildFrame();
       ImGui::PopStyleVar();
 

@@ -9,6 +9,8 @@
 layout(location=0) in vec4 a_PositionLife;
 layout(location=1) in vec4 a_VelocitySeed;
 
+uniform sampler2D u_SplineTexture;
+
 out vec4 v_Color;
 out vec2 v_Uv0;
 out vec2 v_Uv1;
@@ -29,6 +31,8 @@ uniform VertexType
 	vec4 u_RotationControl;
 	float u_Additive;
 	float u_StartFrame;
+	vec4 u_SplineMad;
+	vec2 u_ScaleBaseVariance;
 };
 
 float evaluateAnim(vec4 control, float t, float seed)
@@ -45,6 +49,20 @@ float evaluateRotation(vec4 control, float t, vec2 seed)
 	float base = control.x + control.y * (seed.x * 2.0 - 1.0);
 	float spin = control.z + control.w * (seed.y * 2.0 - 1.0);
 	return base + spin * t;
+}
+
+float srgbToLinear(float x)
+{
+	x = clamp(x, 0.0, 1.0);
+	if (x <= 0.04045)
+		return 0.0773993808 * x;
+	else
+		return pow(x*0.947867298578+0.0521327014218, 2.4);
+}
+
+vec3 srgbToLinear(vec3 v)
+{
+	return vec3(srgbToLinear(v.x), srgbToLinear(v.y), srgbToLinear(v.z));
 }
 
 void main()
@@ -65,7 +83,15 @@ void main()
 	vec2 uv = vec2(float(id & 1), float((id >> 1) & 1));
 	vec2 offset = (uv * 2.0 - 1.0);
 
-	float scale = 0.3; //evaluateAnim(u_ScaleAnim, lifeTime, seed.x);
+	vec2 splineUv = vec2(clamp(lifeTime, 0.0, 1.0), 0.0) * u_SplineMad.xy + u_SplineMad.zw;
+
+	vec4 spline = texture(u_SplineTexture, splineUv);
+	vec4 gradient = texture(u_SplineTexture, splineUv + vec2(0.0, u_SplineMad.w));
+
+	vec3 gradientColor = srgbToLinear(gradient.xyz);
+
+	float scale = u_ScaleBaseVariance.x + seed.x*u_ScaleBaseVariance.y;
+	scale *= spline.x;
 	offset *= max(scale, 0.0);
 
 	float rotation = evaluateRotation(u_RotationControl, lifeTime, seed.zw);
@@ -80,7 +106,7 @@ void main()
 		ndc = vec4(0.0);
 	}
 
-	float alpha = 1.0; // evaluateAnim(u_AlphaAnim, lifeTime, seed.y);
+	float alpha = spline.y;
 
 	float frame = lifeTime * u_FrameRate + floor(seed.x*64.0 + seed.z*4096) * u_StartFrame;
 	float frameI = floor(frame);
@@ -89,9 +115,9 @@ void main()
 	vec2 frame0 = vec2(mod(frameI, u_FrameCount.x), mod(floor(frameI / u_FrameCount.x), u_FrameCount.y));
 	vec2 frame1 = vec2(mod(frameI + 1, u_FrameCount.x), mod(floor((frameI + 1) / u_FrameCount.x), u_FrameCount.y));
 
-	vec4 color = vec4(1.0) * clamp(alpha, 0.0, 1.0);
-
-	color.a *= 1.0 - u_Additive;
+	vec4 color = vec4(gradientColor, 1.0);
+	color *= clamp(alpha, 0.0, 1.0);
+	color.a *= spline.z;
 
 	gl_Position = ndc;
 	v_Color = color;

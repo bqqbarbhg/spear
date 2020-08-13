@@ -256,13 +256,25 @@ void sf_set_debug_thread_name(const char *name);
 #if SF_USE_MIMALLOC
 	#include "ext/mimalloc/mimalloc.h"
 	#define sf_malloc(size) mi_malloc((size))
-	#define sf_calloc(num, size) mi_calloc((num), (size))
 	#define sf_realloc(ptr, size) mi_realloc((ptr), (size))
+	#define sf_calloc(num, size) mi_calloc((num), (size))
 	#define sf_free(ptr) mi_free((ptr))
+
+	#define sf_malloc_aligned(size, align) mi_malloc_aligned((size), (align))
+	#define sf_free_aligned(ptr, align) ((void)(align), mi_free((ptr)))
 #else
 	#include <stdlib.h>
 	#define sf_malloc(size) malloc((size))
 	#define sf_calloc(num, size) calloc((num), (size))
 	#define sf_realloc(ptr, size) realloc((ptr), (size))
 	#define sf_free(ptr) free((ptr))
+
+	#if SF_CC_MSC
+		#include <malloc.h>
+		#define sf_malloc_aligned(size, align) _aligned_malloc((size), (align))
+		#define sf_free_aligned(ptr, align) ((void)align, _aligned_free((ptr), (align))
+	#else
+		#define sf_malloc_aligned(size, align) aligned_alloc((size), (align))
+		#define sf_free_aligned(ptr, align) ((void)align, _aligned_free((ptr), (align))
+	#endif
 #endif

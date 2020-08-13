@@ -45,6 +45,21 @@ sf_inline sf_malloc_like void *memAlloc(size_t size) { return sf_malloc(size); }
 sf_inline void *memRealloc(void *ptr, size_t size) { return sf_realloc(ptr, size); }
 sf_inline void memFree(void *ptr) { sf_free(ptr); }
 
+sf_inline sf_malloc_like void *memAllocAligned(size_t size, size_t align) {
+	if (align <= 8) {
+		return sf_malloc(size);
+	} else {
+		return sf_malloc_aligned(size, align);
+	}
+}
+sf_inline void memFreeAligned(void *ptr, size_t align) {
+	if (align <= 8) {
+		sf_free(ptr);
+	} else {
+		sf_free_aligned(ptr, align);
+	}
+}
+
 // -- Useful inline functions
 
 sf_inline uint32_t alignUp(uint32_t v, uint32_t align) {

@@ -116,6 +116,12 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		sf_field(ParticleSystemComponent, timeStep),
 		sf_field(ParticleSystemComponent, updateOutOfCamera),
 		sf_field(ParticleSystemComponent, prewarmTime),
+		sf_field(ParticleSystemComponent, scaleSpline),
+		sf_field(ParticleSystemComponent, alphaSpline),
+		sf_field(ParticleSystemComponent, additiveSpline),
+		sf_field(ParticleSystemComponent, gradient),
+		sf_field(ParticleSystemComponent, size),
+		sf_field(ParticleSystemComponent, sizeVariance),
 		sf_field(ParticleSystemComponent, drag),
 		sf_field(ParticleSystemComponent, spawnTime),
 		sf_field(ParticleSystemComponent, spawnTimeVariance),
@@ -605,6 +611,32 @@ template<> void initType<DiceRoll>(Type *t)
 		sf_field(DiceRoll, check),
 	};
 	sf_struct(t, DiceRoll, fields);
+}
+
+template<> void initType<BSpline2>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(BSpline2, points),
+	};
+	sf_struct(t, BSpline2, fields);
+}
+
+template<> void initType<GradientPoint>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(GradientPoint, t),
+		sf_field(GradientPoint, color),
+	};
+	sf_struct(t, GradientPoint, fields);
+}
+
+template<> void initType<Gradient>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(Gradient, defaultColor),
+		sf_field(Gradient, points),
+	};
+	sf_struct(t, Gradient, fields);
 }
 
 template<> void initType<AnimationInfo>(Type *t)

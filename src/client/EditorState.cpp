@@ -9,6 +9,11 @@
 #include "ext/imgui/ImGuizmo.h"
 #include "ext/sokol/sokol_app.h"
 
+#include "client/ImGuiExt.h"
+#include "client/BSpline.h"
+
+#include "ext/imgui/ImGradient.h"
+
 #include "game/ImguiSerialization.h"
 #include "game/DebugDraw.h"
 
@@ -66,6 +71,7 @@ struct EditorState
 	// Prefab properties
 	sf::Array<char> prefabCopyBuffer;
 	sf::Symbol selectedPrefab;
+	sv::Prefab editedPrefab;
 
 	// Ghost prefab
 	sf::HashSet<sf::Symbol> preloadedPrefabNames;
@@ -476,6 +482,60 @@ void handleImguiDebugWindows(EditorState *es)
 
 static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label)
 {
+
+	if (type == sf::typeOf<sv::BSpline2>()) {
+		sv::BSpline2 &spline = *(sv::BSpline2*)inst;
+
+		if (ImGui::TreeNode(label.data)) {
+
+			spline.points.reserveGeometric(spline.points.size + 1);
+			int num = (int)spline.points.size;
+			ImEditState editState = cl::ImBSplineEditor("##spline", ImVec2(0.0f, 200.0f), spline.points.data->v, &num, (int)spline.points.capacity);
+			spline.points.size = (uint32_t)num;
+
+			if (editState == ImEditState::Changed) {
+				status.modified = true;
+				status.changed = true;
+			} else if (editState == ImEditState::Dragging) {
+				status.modified = true;
+			}
+
+			ImGui::TreePop();
+		}
+
+		return true;
+	} else if (type == sf::typeOf<sv::Gradient>()) {
+		sv::Gradient &gradient = *(sv::Gradient*)inst;
+
+		if (ImGui::TreeNode(label.data)) {
+
+			int selected = -1;
+
+			gradient.points.reserveGeometric(gradient.points.size + 1);
+			int num = (int)gradient.points.size;
+			ImEditState editState = cl::ImGradientEditor("##gradient", ImVec2(0.0f, 20.0f), (float*)gradient.points.data,
+				&num, (int)gradient.points.capacity, &selected, gradient.defaultColor.v);
+			gradient.points.size = (uint32_t)num;
+
+			sf::Vec3 *color = &gradient.defaultColor;
+			if (selected >= 0 && selected < gradient.points.size) {
+				color = &gradient.points[selected].color;
+			}
+
+			status.changed |= ImGui::ColorPicker3("##color", color->v, ImGuiColorEditFlags_NoSmallPreview|ImGuiColorEditFlags_NoLabel);
+
+			if (editState == ImEditState::Changed) {
+				status.changed = true;
+			} else if (editState == ImEditState::Dragging) {
+				status.modified = true;
+			}
+
+			ImGui::TreePop();
+		}
+
+		return true;
+	}
+
 #if 0
 	if (type == sf::typeOf<sf::Vec3>()) {
 		sf::Vec3 *vec = (sf::Vec3*)inst;
@@ -667,22 +727,20 @@ void handleImguiPropertiesWindow(EditorState *es)
 		if (ImGui::Begin("Properties", &es->windowProperties)) {
 			if (sv::Prefab *sourcePrefab = es->svState->prefabs.find(es->selectedPrefab)) {
 
-				sv::Prefab prefab;
-				es->prefabCopyBuffer.clear();
-				sf::writeBinary(es->prefabCopyBuffer, *sourcePrefab);
-				sf::readBinary(es->prefabCopyBuffer.slice(), prefab);
-				ImguiStatus status;
-
-				handleImguiPrefab(es, status, prefab);
-
-				if (status.modified || status.changed) {
-					es->svState->reloadPrefab(es->editEvents, prefab);
+				if (es->editedPrefab.name != es->selectedPrefab) {
+					sf::reset(es->editedPrefab);
+					es->prefabCopyBuffer.clear();
+					sf::writeBinary(es->prefabCopyBuffer, *sourcePrefab);
+					sf::readBinary(es->prefabCopyBuffer.slice(), es->editedPrefab);
 				}
+
+				ImguiStatus status;
+				handleImguiPrefab(es, status, es->editedPrefab);
 
 				if (status.changed) {
 					sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();
 					auto ed = sf::box<sv::ModifyPrefabEdit>();
-					ed->prefab = prefab;
+					ed->prefab = es->editedPrefab;
 					edits.push(ed);
 				}
 			}

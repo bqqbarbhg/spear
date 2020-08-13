@@ -276,7 +276,7 @@ void spFrame(float dt)
 
 		// TODO: Behind a debug mode
 		if (!ImGui::GetIO().WantCaptureKeyboard && ImGui::IsKeyDown(SAPP_KEYCODE_TAB)) {
-			input.dt *= 0.02f;
+			input.dt *= 0.1f;
 		}
 
 		if (clientUpdate(client.client, input)) {

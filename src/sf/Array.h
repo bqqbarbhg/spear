@@ -30,7 +30,7 @@ struct Array
 		uint32_t sz = rhs.size;
 		capacity = size = sz;
 		if (sz > 0) {
-			data = (T*)memAlloc(sz * sizeof(T));
+			data = (T*)memAllocAligned(sz * sizeof(T), alignof(T));
 			copyRangeImp<T>(data, rhs.data, sz);
 		} else {
 			data = nullptr;
@@ -58,7 +58,7 @@ struct Array
 		sf_assert(&rhs != this);
 		if (size > 0) destructRangeImp<T>(data, size);
 		if (data != nullptr && data != (T*)(this + 1)) {
-			memFree(data);
+			memFreeAligned(data, alignof(T));
 		}
 		data = rhs.data;
 		size = rhs.size;
@@ -72,7 +72,7 @@ struct Array
 	~Array() {
 		if (size > 0) destructRangeImp<T>(data, size);
 		if (data != nullptr && data != (T*)(this + 1)) {
-			memFree(data);
+			memFreeAligned(data, alignof(T));
 		}
 	}
 
@@ -175,9 +175,9 @@ struct Array
 		if (size == 0) {
 			destructRangeImp<T>(data, size);
 		} else {
-			T *newData = (T*)memAlloc(capacity * sizeof(T));
+			T *newData = (T*)memAllocAligned(capacity * sizeof(T), alignof(T));
 			moveRangeImp<T>(newData, data, size);
-			if (data != (T*)(this + 1)) memFree(data);
+			if (data != (T*)(this + 1)) memFreeAligned(data, alignof(T));
 			data = newData;
 		}
 	}
@@ -236,18 +236,18 @@ protected:
 
 	sf_noinline void impGrowOne() {
 		capacity = max(capacity * 2, (uint32_t)(sizeof(T) < 128 ? 128 / sizeof(T) : 1));
-		T *newData = (T*)memAlloc(capacity * sizeof(T));
+		T *newData = (T*)memAllocAligned(capacity * sizeof(T), alignof(T));
 		moveRangeImp<T>(newData, data, size);
-		if (data != (T*)(this + 1)) memFree(data);
+		if (data != (T*)(this + 1)) memFreeAligned(data, alignof(T));
 		data = newData;
 	}
 
 	sf_noinline void impGrowTo(size_t sz) {
 		sf_assert(sz <= UINT32_MAX);
 		capacity = (uint32_t)sz;
-		T *newData = (T*)memAlloc(sz * sizeof(T));
+		T *newData = (T*)memAllocAligned(sz * sizeof(T), alignof(T));
 		moveRangeImp<T>(newData, data, size);
-		if (data != (T*)(this + 1)) memFree(data);
+		if (data != (T*)(this + 1)) memFreeAligned(data, alignof(T));
 		data = newData;
 	}
 
@@ -255,13 +255,11 @@ protected:
 		sf_assert(sz <= UINT32_MAX);
 		if (sz < capacity * 2) sz = capacity * 2;
 		capacity = (uint32_t)sz;
-		T *newData = (T*)memAlloc(sz * sizeof(T));
+		T *newData = (T*)memAllocAligned(sz * sizeof(T), alignof(T));
 		moveRangeImp<T>(newData, data, size);
-		if (data != (T*)(this + 1)) memFree(data);
+		if (data != (T*)(this + 1)) memFreeAligned(data, alignof(T));
 		data = newData;
 	}
-
-
 };
 
 template <typename T, uint32_t N>
@@ -295,7 +293,7 @@ struct SmallArray : Array<T>
 		uint32_t sz = rhs.size;
 		this->size = sz;
 		if (sz > N) {
-			this->data = (T*)memAlloc(sz * sizeof(T));
+			this->data = (T*)memAllocAligned(sz * sizeof(T), alignof(T));
 			this->capacity = sz;
 		}
 		copyRange(this->data, rhs.data, sz);

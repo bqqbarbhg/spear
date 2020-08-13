@@ -10,9 +10,12 @@
 #include "sp/Renderer.h"
 
 #include "client/ParticleTexture.h"
+#include "client/BSpline.h"
 
 #include "game/shader/GameShaders.h"
 #include "game/shader/Particle.h"
+
+#include "sp/Srgb.h"
 
 namespace cl {
 
@@ -28,7 +31,7 @@ struct ParticleSystemImp final : ParticleSystem
 	{
 		sf::Box<sv::ParticleSystemComponent> svComponent;
 
-		uint32_t refCount;
+		uint32_t refCount = 0;
 		float updateRadius;
 		float timeStep;
 
@@ -56,7 +59,7 @@ struct ParticleSystemImp final : ParticleSystem
 
 	struct Effect
 	{
-		sf::Box<EffectType> type;
+		uint32_t typeId;
 		uint32_t areaId;
 
 		sf::Bounds3 gpuBounds;
@@ -69,8 +72,8 @@ struct ParticleSystemImp final : ParticleSystem
 		float spawnTimer = 0.0f;
 
 		uint32_t uploadByteOffset = 0;
-		uint32_t uploadFrameIndex = MaxParticleCacheFrames;
-		sf::Array<Particle4> particles;
+		uint64_t uploadFrameIndex = MaxParticleCacheFrames;
+		sf::Array<Particle4> particles; // TODO: Alignment
 		sf::Array<GpuParticle> gpuParticles;
 		sf::Array<uint32_t> freeIndices;
 	};
@@ -82,13 +85,25 @@ struct ParticleSystemImp final : ParticleSystem
 
 	sf::Array<Effect> effects;
 	sf::Array<uint32_t> freeEffectIds;
-	sf::HashMap<uintptr_t, sf::Box<EffectType>> effectTypes;
+
+	sf::Array<EffectType> types;
+	sf::Array<uint32_t> freeTypeIds;
+	sf::HashMap<uintptr_t, uint32_t> svCompponentToType;
+
 	sf::Random initRng;
 	ParticleUpdateCtx updateCtx;
 
+	static constexpr const uint32_t SplineSampleRate = 64;
+	static constexpr const uint32_t SplineAtlasWidth = 8;
+	static constexpr const uint32_t SplineAtlasHeight = 256;
+	static constexpr const uint32_t SplineCountPerType = 2;
+	static constexpr const uint32_t SplineAtlasResX = SplineSampleRate * SplineAtlasWidth;
+	static constexpr const uint32_t SplineAtlasResY = SplineAtlasHeight * SplineCountPerType;
+	sp::Texture splineTexture;
+
 	sp::Buffer vertexBuffers[MaxParticleCacheFrames];
 	sp::Pipeline particlePipe;
-	uint32_t bufferFrameIndex = 0;
+	uint64_t bufferFrameIndex = MaxParticleCacheFrames;
 
 	ParticleSystemImp(const SystemsDesc &desc)
 	{
@@ -106,10 +121,25 @@ struct ParticleSystemImp final : ParticleSystem
 			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT4;
 			d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT4;
 		}
+
+		{
+			sg_image_desc d = { };
+			d.usage = SG_USAGE_IMMUTABLE;
+			d.bqq_copy_target = true;
+			d.pixel_format = SG_PIXELFORMAT_RGBA8;
+			d.mag_filter = SG_FILTER_LINEAR;
+			d.min_filter = SG_FILTER_LINEAR;
+			d.width = SplineAtlasResX;
+			d.height = SplineAtlasResY;
+			d.label = "ParticleSystem splineTexture";
+			splineTexture.init(d);
+		}
 	}
 
-	void initEffectType(EffectType &type, const sv::ParticleSystemComponent &c)
+	void initEffectType(uint32_t typeId, const sv::ParticleSystemComponent &c)
 	{
+		EffectType &type = types[typeId];
+
 		type.texture.load(c.sprite);
 		type.updateRadius = c.updateRadius;
 		type.timeStep = c.timeStep;
@@ -117,11 +147,131 @@ struct ParticleSystemImp final : ParticleSystem
 		sf::memZero(type.typeUbo);
 		type.typeUbo.u_FrameCount = sf::Vec2(c.frameCount);
 		type.typeUbo.u_FrameRate = c.frameRate;
+
+		uint32_t atlasX = typeId / SplineCountPerType;
+		uint32_t atlasY = typeId % SplineCountPerType;
+
+		uint8_t splineTex[SplineSampleRate * 4 * 2];
+		float splineY[SplineSampleRate];
+
+		if (c.scaleSpline.points.size >= 1) {
+			cl::discretizeBSplineY(splineY, c.scaleSpline.points, 0.0f, 1.0f);
+		} else {
+			for (float &v : splineY) v = 1.0f;
+		}
+		for (uint32_t i = 0; i < SplineSampleRate; i++) {
+			splineTex[i * 4 + 0] = (uint8_t)sf::clamp((int)(splineY[i] * 255.0f), 0, 255);
+		}
+
+		if (c.alphaSpline.points.size >= 1) {
+			cl::discretizeBSplineY(splineY, c.alphaSpline.points, 0.0f, 1.0f);
+		} else {
+			for (float &v : splineY) v = 1.0f;
+		}
+		for (uint32_t i = 0; i < SplineSampleRate; i++) {
+			splineTex[i * 4 + 1] = (uint8_t)sf::clamp((int)(splineY[i] * 255.0f), 0, 255);
+		}
+
+		if (c.additiveSpline.points.size >= 1) {
+			cl::discretizeBSplineY(splineY, c.additiveSpline.points, 0.0f, 1.0f);
+			for (float &v : splineY) v = 1.0f - v;
+		} else {
+			for (float &v : splineY) v = 1.0f;
+		}
+		for (uint32_t i = 0; i < SplineSampleRate; i++) {
+			splineTex[i * 4 + 2] = (uint8_t)sf::clamp((int)(splineY[i] * 255.0f), 0, 255);
+		}
+
+		for (uint32_t i = 0; i < SplineSampleRate; i++) {
+			splineTex[i * 4 + 3] = 0;
+		}
+
+		uint8_t *gradientTex = splineTex + SplineSampleRate * 4;
+		sv::GradientPoint defaultGradient[] = {
+			{ 1.0f, c.gradient.defaultColor },
+		};
+
+		{
+			sf::Slice<const sv::GradientPoint> points = c.gradient.points;
+			if (points.size == 0) {
+				points = defaultGradient;
+			}
+
+			float splineStep = 1.0f / (SplineSampleRate - 1);
+			uint32_t pointIx = 0;
+			for (uint32_t i = 0; i < SplineSampleRate; i++) {
+				float t = (float)i * splineStep;
+
+				while (pointIx < points.size && t >= points[pointIx].t) {
+					pointIx++;
+				}
+
+				sf::Vec3 col;
+				if (pointIx == 0) {
+					col = points[0].color;
+				} else if (pointIx == points.size) {
+					col = points[points.size - 1].color;
+				} else {
+					const sv::GradientPoint &p0 = points[pointIx - 1];
+					const sv::GradientPoint &p1 = points[pointIx];
+					float relT = (t - p0.t) / (p1.t - p0.t);
+					col = sf::lerp(p0.color, p1.color, relT);
+				}
+
+				uint8_t *dst = gradientTex + i * 4;
+				sp::linearToSrgbUnorm(dst, col);
+			}
+		}
+
+		uint32_t x = atlasX * SplineSampleRate;
+		uint32_t y = atlasY * SplineCountPerType;
+
+		sf::Vec2 atlasRes = sf::Vec2((float)SplineAtlasResX, (float)SplineAtlasResY);
+		sf::Vec2 uvBias = sf::Vec2((float)x + 0.5f, (float)y + 0.5f) / atlasRes;
+		sf::Vec2 uvScale = sf::Vec2((float)(SplineSampleRate - 1), 1.0f) / atlasRes;
+
+		type.typeUbo.u_SplineMad.x = uvScale.x;
+		type.typeUbo.u_SplineMad.y = uvScale.y;
+		type.typeUbo.u_SplineMad.z = uvBias.x;
+		type.typeUbo.u_SplineMad.w = uvBias.y;
+
+		type.typeUbo.u_ScaleBaseVariance.x = c.size;
+		type.typeUbo.u_ScaleBaseVariance.y = c.sizeVariance;
+
+		sg_image_desc d = { };
+		d.width = SplineSampleRate;
+		d.height = SplineCountPerType;
+		d.pixel_format = SG_PIXELFORMAT_RGBA8;
+		d.content.subimage[0][0].ptr = splineTex;
+		d.content.subimage[0][0].size = sizeof(splineTex);
+		sg_image staging = sg_make_image(&d);
+
+		{
+			sg_bqq_subimage_rect rect;
+			rect.src_x = 0;
+			rect.src_y = 0;
+			rect.dst_x = (int)x;
+			rect.dst_y = (int)y;
+			rect.dst_z = 0;
+			rect.width = (int)SplineSampleRate;
+			rect.height = (int)SplineCountPerType;
+
+			sg_bqq_subimage_copy_desc desc;
+			desc.dst_image = splineTexture.image;
+			desc.src_image = staging;
+			desc.rects = &rect;
+			desc.num_rects = 1;
+			desc.num_mips = 1;
+
+			sg_bqq_copy_subimages(&desc);
+		}
+
+		sg_destroy_image(staging);
 	}
 
 	void simulateParticlesImp(sf::Random &rng, Effect &effect, float dt)
 	{
-		EffectType &type = *effect.type;
+		EffectType &type = types[effect.typeId];
 		const sv::ParticleSystemComponent &comp = *type.svComponent;
 
 		sf::ScalarFloat4 dt4 = dt;
@@ -137,7 +287,7 @@ struct ParticleSystemImp final : ParticleSystem
 			if (effect.freeIndices.size == 0) {
 				uint32_t base = effect.particles.size * 4;
 				Particle4 &parts = effect.particles.push();
-				memset(&parts, 0, sizeof(parts));
+				parts.life = HugeParticleLife;
 				for (uint32_t i = 0; i < 4; i++) {
 					effect.freeIndices.push(base + i);
 				}
@@ -275,8 +425,11 @@ struct ParticleSystemImp final : ParticleSystem
 			}
 		}
 
+		effect.gpuParticles.resizeUninit(dst - effect.gpuParticles.data);
+
 		effect.gpuBounds.origin = ((pMin + pMax) * 0.5f).asVec3();
 		effect.gpuBounds.extent = ((pMax - pMin) * 0.5f + comp.cullPadding).asVec3();
+		effect.uploadFrameIndex = 0;
 	}
 
 	// API
@@ -290,20 +443,28 @@ struct ParticleSystemImp final : ParticleSystem
 			effects.push();
 		}
 
+		uint32_t typeId;
 		uintptr_t key = (uintptr_t)c.ptr;
-		auto res = effectTypes.insert(key);
+		auto res = svCompponentToType.insert(key);
 		if (res.inserted) {
-			sf::Box<EffectType> type = sf::box<EffectType>();
-			type->svComponent = c;
-			type->refCount = 1;
-			initEffectType(*type, *c);
-			res.entry.val = std::move(type);
+			typeId = types.size;
+			if (freeTypeIds.size > 0) {
+				typeId = freeTypeIds.popValue();
+			} else {
+				types.push();
+			}
+
+			types[typeId].svComponent = c;
+			initEffectType(typeId, *c);
+		} else {
+			typeId = res.entry.val;
 		}
 
-		EffectType &type = *res.entry.val;
+		EffectType &type = types[typeId];
+		type.refCount++;
 
 		Effect &effect = effects[effectId];
-		effect.type = res.entry.val;
+		effect.typeId = typeId;
 		effect.emitterToWorld = transform.asMatrix();
 		effect.timeStep = type.timeStep * (1.0f + initRng.nextFloat() * 0.1f);
 
@@ -319,7 +480,7 @@ struct ParticleSystemImp final : ParticleSystem
 	{
 		uint32_t effectId = ec.userId;
 		Effect &effect = effects[effectId];
-		EffectType &type = *effect.type;
+		EffectType &type = types[effect.typeId];
 
 		effect.emitterToWorld = update.entityToWorld;
 
@@ -333,12 +494,16 @@ struct ParticleSystemImp final : ParticleSystem
 	{
 		uint32_t effectId = ec.userId;
 		Effect &effect = effects[effectId];
+		EffectType &type = types[effect.typeId];
 
 		systems.area->removeBoxArea(effect.areaId);
 
-		if (--effect.type->refCount == 0) {
-			uintptr_t key = (uintptr_t)effect.type->svComponent.ptr;
-			effectTypes.remove(key);
+		if (--type.refCount == 0) {
+			uintptr_t key = (uintptr_t)type.svComponent.ptr;
+			svCompponentToType.remove(key);
+
+			sf::reset(type);
+			freeTypeIds.push(effect.typeId);
 		}
 
 		sf::reset(effect);
@@ -356,7 +521,6 @@ struct ParticleSystemImp final : ParticleSystem
 			while (effect.timeDelta >= effect.timeStep) {
 				simulateParticlesImp(updateCtx.rng, effect, effect.timeStep);
 				effect.timeDelta -= effect.timeStep;
-				effect.uploadFrameIndex = 0;
 			}
 		}
 	}
@@ -368,10 +532,10 @@ struct ParticleSystemImp final : ParticleSystem
 
 		bufferFrameIndex++;
 
-		uint32_t frame = bufferFrameIndex;
+		uint64_t frame = bufferFrameIndex;
 		for (uint32_t effectId : visibleAreas.get(AreaGroup::ParticleEffect)) {
 			Effect &effect = effects[effectId];
-			EffectType &type = *effect.type;
+			EffectType &type = types[effect.typeId];
 			uint32_t numParticles = effect.gpuParticles.size / 4;
 
 			if (numParticles == 0) continue;
@@ -381,11 +545,11 @@ struct ParticleSystemImp final : ParticleSystem
 				if (numParticles > MaxParticlesPerFrame) return;
 
 				frameParticlesLeft -= numParticles;
-				effect.uploadByteOffset = (uint32_t)sg_append_buffer(vertexBuffers[frame % MaxParticleCacheFrames].buffer, effect.gpuParticles.data, (int)effect.gpuParticles.byteSize());
+				effect.uploadByteOffset = (uint32_t)sg_append_buffer(vertexBuffers[(uint32_t)frame % MaxParticleCacheFrames].buffer, effect.gpuParticles.data, (int)effect.gpuParticles.byteSize());
 				effect.uploadFrameIndex = frame;
 			}
 
-			sp::Buffer &vertexBuffer = vertexBuffers[effect.uploadFrameIndex % MaxParticleCacheFrames];
+			sp::Buffer &vertexBuffer = vertexBuffers[(uint32_t)effect.uploadFrameIndex % MaxParticleCacheFrames];
 
 			Particle_VertexInstance_t ubo;
 			renderArgs.worldToClip.writeColMajor44(ubo.u_WorldToClip);
@@ -406,6 +570,7 @@ struct ParticleSystemImp final : ParticleSystem
 			binds.vertex_buffers[0] = vertexBuffer.buffer;
 			binds.vertex_buffer_offsets[0] = effect.uploadByteOffset;
 			binds.index_buffer = sp::getSharedQuadIndexBuffer();
+			binds.vs_images[SLOT_Particle_u_SplineTexture] = splineTexture.image;
 			binds.fs_images[SLOT_Particle_u_Texture] = image;
 			sg_apply_bindings(&binds);
 

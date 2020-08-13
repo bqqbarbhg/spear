@@ -98,6 +98,23 @@ struct PointLightComponent : ComponentBase<Component::PointLight>
 	bool castShadows = true;
 };
 
+struct BSpline2 sv_reflect
+{
+	sf::Array<sf::Vec2> points;
+};
+
+struct GradientPoint sv_reflect
+{
+	float t;
+	sf::Vec3 color;
+};
+
+struct Gradient sv_reflect
+{
+	sf::Vec3 defaultColor = sf::Vec3(1.0f);
+	sf::Array<GradientPoint> points;
+};
+
 struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 {
 	sf::Symbol sprite;
@@ -106,12 +123,20 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 	bool updateOutOfCamera = false;
 	float prewarmTime = 0.0f;
 
+	BSpline2 scaleSpline;
+	BSpline2 alphaSpline;
+	BSpline2 additiveSpline;
+	Gradient gradient;
+
+	float size = 0.5f;
+	float sizeVariance = 0.0f;
+
 	float drag = 0.0f;
 	float spawnTime = 0.2f;
 	float spawnTimeVariance = 0.0f;
 	float cullPadding = 1.0f;
 	float frameRate = 0.0f;
-	sf::Vec2i frameCount;
+	sf::Vec2i frameCount = sf::Vec2i(1);
 	sf::Vec3 emitOrigin; // TEMP
 };
 
