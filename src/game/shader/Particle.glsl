@@ -33,6 +33,7 @@ uniform VertexType
 	float u_StartFrame;
 	vec4 u_SplineMad;
 	vec2 u_ScaleBaseVariance;
+	vec2 u_LifeTimeBaseVariance;
 };
 
 float evaluateAnim(vec4 control, float t, float seed)
@@ -73,6 +74,10 @@ void main()
 	vec3 position = vec3(a_PositionLife.xyz);
 	vec3 velocity = vec3(a_VelocitySeed.xyz);
 	float packedSeed = a_VelocitySeed.w;
+
+	float absoluteLifeTime = u_LifeTimeBaseVariance.x + u_LifeTimeBaseVariance.y * packedSeed * (1.0 / 16777216.0);
+	invDelta /= absoluteLifeTime;
+
 	float lifeLeft = a_PositionLife.w + invDelta;
 	float lifeTime = 1.0 - lifeLeft;
 
@@ -86,7 +91,7 @@ void main()
 	vec2 splineUv = vec2(clamp(lifeTime, 0.0, 1.0), 0.0) * u_SplineMad.xy + u_SplineMad.zw;
 
 	vec4 spline = texture(u_SplineTexture, splineUv);
-	vec4 gradient = texture(u_SplineTexture, splineUv + vec2(0.0, u_SplineMad.w));
+	vec4 gradient = texture(u_SplineTexture, splineUv + vec2(0.0, u_SplineMad.y));
 
 	vec3 gradientColor = srgbToLinear(gradient.xyz);
 

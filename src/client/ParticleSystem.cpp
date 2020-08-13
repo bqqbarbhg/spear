@@ -66,9 +66,12 @@ struct ParticleSystemImp final : ParticleSystem
 		float timeDelta = 0.0f;
 		float timeStep;
 
-		sf::Mat34 emitterToWorld;
 		sf::Vec3 gravity;
 
+		sf::Float4 emitterToWorld[4];
+		sf::Float4 prevEmitterToWorld[4];
+
+		bool firstEmit = true;
 		float spawnTimer = 0.0f;
 
 		uint32_t uploadByteOffset = 0;
@@ -148,8 +151,8 @@ struct ParticleSystemImp final : ParticleSystem
 		type.typeUbo.u_FrameCount = sf::Vec2(c.frameCount);
 		type.typeUbo.u_FrameRate = c.frameRate;
 
-		uint32_t atlasX = typeId / SplineCountPerType;
-		uint32_t atlasY = typeId % SplineCountPerType;
+		uint32_t atlasX = typeId / SplineAtlasHeight;
+		uint32_t atlasY = typeId % SplineAtlasHeight;
 
 		uint8_t splineTex[SplineSampleRate * 4 * 2];
 		float splineY[SplineSampleRate];
@@ -238,6 +241,9 @@ struct ParticleSystemImp final : ParticleSystem
 		type.typeUbo.u_ScaleBaseVariance.x = c.size;
 		type.typeUbo.u_ScaleBaseVariance.y = c.sizeVariance;
 
+		type.typeUbo.u_LifeTimeBaseVariance.x = c.lifeTime;
+		type.typeUbo.u_LifeTimeBaseVariance.y = c.lifeTimeVariance;
+
 		sg_image_desc d = { };
 		d.width = SplineSampleRate;
 		d.height = SplineCountPerType;
@@ -274,6 +280,11 @@ struct ParticleSystemImp final : ParticleSystem
 		EffectType &type = types[effect.typeId];
 		const sv::ParticleSystemComponent &comp = *type.svComponent;
 
+		if (effect.firstEmit) {
+			memcpy(effect.prevEmitterToWorld, effect.emitterToWorld, sizeof(sf::Float4) * 4);
+			effect.firstEmit = false;
+		}
+
 		sf::ScalarFloat4 dt4 = dt;
 		sf::ScalarFloat4 drag4 = comp.drag;
 
@@ -298,7 +309,13 @@ struct ParticleSystemImp final : ParticleSystem
 			sf::Vec3 pos = comp.emitOrigin;
 			sf::Vec3 vel = sf::Vec3(0.0f);
 
-			pos = sf::transformPoint(effect.emitterToWorld, pos);
+			sf::ScalarFloat4 emitT = sf::clamp(-effect.spawnTimer / dt, 0.0f, 1.0f);
+			sf::Float4 simdPos = effect.emitterToWorld[3] + (effect.prevEmitterToWorld[3] - effect.emitterToWorld[3]) * emitT;
+			simdPos += (effect.emitterToWorld[0] + (effect.prevEmitterToWorld[0] - effect.emitterToWorld[0]) * emitT) * pos.x;
+			simdPos += (effect.emitterToWorld[1] + (effect.prevEmitterToWorld[1] - effect.emitterToWorld[1]) * emitT) * pos.y;
+			simdPos += (effect.emitterToWorld[2] + (effect.prevEmitterToWorld[2] - effect.emitterToWorld[2]) * emitT) * pos.z;
+
+			pos = simdPos.asVec3();
 
 			Particle4 &p = effect.particles[index >> 2];
 			uint32_t lane = index & 3;
@@ -321,6 +338,9 @@ struct ParticleSystemImp final : ParticleSystem
 
 		sf::Float4 pMin = +HUGE_VALF, pMax = -HUGE_VALF;
 
+		sf::ScalarAddFloat4 lifeTime = comp.lifeTime;
+		sf::ScalarFloat4 lifeTimeVariance = comp.lifeTimeVariance * (1.0f / 16777216.0f);
+
 		for (Particle4 &p : effect.particles) {
 
 			sf::Float4 life = p.life;
@@ -338,7 +358,9 @@ struct ParticleSystemImp final : ParticleSystem
 				life = sf::Float4::loadu(lifes);
 			}
 
-			life -= dt4;
+			sf::Float4 seed = p.seed;
+
+			life -= dt4 / (seed * lifeTimeVariance + lifeTime);
 			p.life = life;
 
 			sf::Float4 px = p.px, py = p.py, pz = p.pz;
@@ -365,7 +387,6 @@ struct ParticleSystemImp final : ParticleSystem
 
 			sf::Float4::transpose4(px, py, pz, life);
 
-			sf::Float4 seed = p.seed;
 			sf::Float4::transpose4(vx, vy, vz, seed);
 
 			if (px.getW() < HugeParticleLifeCmp) {
@@ -425,6 +446,8 @@ struct ParticleSystemImp final : ParticleSystem
 			}
 		}
 
+		memcpy(effect.prevEmitterToWorld, effect.emitterToWorld, sizeof(sf::Float4) * 4);
+
 		effect.gpuParticles.resizeUninit(dst - effect.gpuParticles.data);
 
 		effect.gpuBounds.origin = ((pMin + pMax) * 0.5f).asVec3();
@@ -465,7 +488,7 @@ struct ParticleSystemImp final : ParticleSystem
 
 		Effect &effect = effects[effectId];
 		effect.typeId = typeId;
-		effect.emitterToWorld = transform.asMatrix();
+		transform.asMatrix().writeColMajor44((float*)effect.emitterToWorld);
 		effect.timeStep = type.timeStep * (1.0f + initRng.nextFloat() * 0.1f);
 
 		sf::Bounds3 bounds;
@@ -482,7 +505,7 @@ struct ParticleSystemImp final : ParticleSystem
 		Effect &effect = effects[effectId];
 		EffectType &type = types[effect.typeId];
 
-		effect.emitterToWorld = update.entityToWorld;
+		update.entityToWorld.writeColMajor44((float*)effect.emitterToWorld);
 
 		sf::Bounds3 bounds;
 		bounds.origin = update.transform.position;

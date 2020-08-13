@@ -122,6 +122,8 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		sf_field(ParticleSystemComponent, gradient),
 		sf_field(ParticleSystemComponent, size),
 		sf_field(ParticleSystemComponent, sizeVariance),
+		sf_field(ParticleSystemComponent, lifeTime),
+		sf_field(ParticleSystemComponent, lifeTimeVariance),
 		sf_field(ParticleSystemComponent, drag),
 		sf_field(ParticleSystemComponent, spawnTime),
 		sf_field(ParticleSystemComponent, spawnTimeVariance),

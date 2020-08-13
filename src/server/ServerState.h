@@ -131,6 +131,9 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 	float size = 0.5f;
 	float sizeVariance = 0.0f;
 
+	float lifeTime = 1.0f;
+	float lifeTimeVariance = 0.0f;
+
 	float drag = 0.0f;
 	float spawnTime = 0.2f;
 	float spawnTimeVariance = 0.0f;
