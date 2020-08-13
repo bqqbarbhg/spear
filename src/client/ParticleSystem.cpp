@@ -25,6 +25,84 @@ static const constexpr uint32_t MaxParticleCacheFrames = 16;
 static const constexpr float HugeParticleLife = 1e20f;
 static const constexpr float HugeParticleLifeCmp = 1e19f;
 
+struct RandomVec3Imp
+{
+	enum Flags {
+		Box = 0x1,
+		Sphere = 0x2,
+		Rotation = 0x4,
+	};
+
+	uint32_t flags = 0;
+
+	sf::Vec3 offset;
+
+	// Box
+	sf::Vec3 boxExtent;
+
+	// Sphere
+	float thetaBias, thetaScale;
+	float cosPhiBias, cosPhiScale;
+	float radiusCubeScale;
+	float radiusScale;
+
+	// Rotation
+	sf::Quat rotation;
+
+	void init(const sv::RandomVec3 &sv)
+	{
+		flags = 0;
+		offset = sv.offset;
+
+		if (sv.boxExtent.x != 0.0f || sv.boxExtent.y != 0.0f || sv.boxExtent.z != 0.0f) {
+			flags |= Box;
+			boxExtent = sv.boxExtent;
+		}
+
+		if (sv.sphere.maxRadius > 0.0f) {
+			flags |= Sphere;
+			thetaBias = sv.sphere.minTheta * (sf::F_PI/180.0f);
+			thetaScale = (sv.sphere.maxTheta - sv.sphere.minTheta) * (sf::F_PI/180.0f);
+			cosPhiBias = cosf(sv.sphere.maxPhi * (sf::F_PI/180.0f));
+			cosPhiScale = cosf(sv.sphere.minPhi * (sf::F_PI/180.0f)) - cosPhiBias;
+			radiusCubeScale = 1.0f - sv.sphere.minRadius / sv.sphere.maxRadius;
+			radiusScale = sv.sphere.maxRadius;
+		}
+
+		if (sv.rotation != sf::Vec3(0.0f)) {
+			flags |= Rotation;
+			rotation = sf::eulerAnglesToQuat(sv.rotation * (sf::F_PI/180.0f));
+		}
+	}
+
+	sf::Vec3 sample(sf::Random &rng) const
+	{
+		sf::Vec3 p = offset;
+
+		if (flags & Box) {
+			p += (rng.nextVec3() - sf::Vec3(0.5f)) * boxExtent;
+		}
+
+		if (flags & Sphere) {
+			float u = rng.nextFloat();
+			float v = rng.nextFloat();
+			float w = rng.nextFloat();
+			float theta = thetaBias + u * thetaScale;
+			float phi = acosf(cosPhiBias + v * cosPhiScale);
+			float cosTheta = cosf(theta), sinTheta = sinf(theta);
+			float cosPhi = cosf(phi), sinPhi = sinf(phi);
+			float radius = cbrtf(1.0f - w * radiusCubeScale) * radiusScale;
+			p += sf::Vec3(sinPhi * cosTheta, cosPhi, sinPhi * sinTheta) * radius;
+		}
+
+		if (flags & Rotation) {
+			p = sf::rotate(rotation, p);
+		}
+
+		return p;
+	}
+};
+
 struct ParticleSystemImp final : ParticleSystem
 {
 	struct EffectType
@@ -34,6 +112,9 @@ struct ParticleSystemImp final : ParticleSystem
 		uint32_t refCount = 0;
 		float updateRadius;
 		float timeStep;
+
+		RandomVec3Imp emitPosition;
+		RandomVec3Imp emitVelocity;
 
 		// TODO: Cache this?
 		Particle_VertexType_t typeUbo;
@@ -146,6 +227,9 @@ struct ParticleSystemImp final : ParticleSystem
 		type.texture.load(c.sprite);
 		type.updateRadius = c.updateRadius;
 		type.timeStep = c.timeStep;
+
+		type.emitPosition.init(c.emitPosition);
+		type.emitVelocity.init(c.emitVelocity);
 
 		sf::memZero(type.typeUbo);
 		type.typeUbo.u_FrameCount = sf::Vec2(c.frameCount);
@@ -306,8 +390,12 @@ struct ParticleSystemImp final : ParticleSystem
 
 			uint32_t index = effect.freeIndices.popValue();
 
-			sf::Vec3 pos = comp.emitOrigin;
-			sf::Vec3 vel = sf::Vec3(0.0f);
+			sf::Vec3 pos = type.emitPosition.sample(rng);
+			sf::Vec3 vel = type.emitVelocity.sample(rng);
+
+			if (comp.emitVelocityAttractorStrength != 0.0f) {
+				vel += sf::normalizeOrZero(pos - comp.emitVelocityAttractorOffset) * comp.emitVelocityAttractorStrength;
+			}
 
 			sf::ScalarFloat4 emitT = sf::clamp(-effect.spawnTimer / dt, 0.0f, 1.0f);
 			sf::Float4 simdPos = effect.emitterToWorld[3] + (effect.prevEmitterToWorld[3] - effect.emitterToWorld[3]) * emitT;

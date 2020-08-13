@@ -115,6 +115,24 @@ struct Gradient sv_reflect
 	sf::Array<GradientPoint> points;
 };
 
+struct RandomSphere sv_reflect
+{
+	float minTheta = 0.0f;
+	float maxTheta = 360.0f;
+	float minPhi = 0.0f;
+	float maxPhi = 180.0f;
+	float minRadius = 0.0f;
+	float maxRadius = 0.0f;
+};
+
+struct RandomVec3 sv_reflect
+{
+	sf::Vec3 offset;
+	sf::Vec3 boxExtent;
+	RandomSphere sphere;
+	sf::Vec3 rotation;
+};
+
 struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 {
 	sf::Symbol sprite;
@@ -128,6 +146,12 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 	BSpline2 additiveSpline;
 	Gradient gradient;
 
+	RandomVec3 emitPosition;
+	RandomVec3 emitVelocity;
+
+	sf::Vec3 emitVelocityAttractorOffset;
+	float emitVelocityAttractorStrength;
+
 	float size = 0.5f;
 	float sizeVariance = 0.0f;
 
@@ -140,7 +164,6 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 	float cullPadding = 1.0f;
 	float frameRate = 0.0f;
 	sf::Vec2i frameCount = sf::Vec2i(1);
-	sf::Vec3 emitOrigin; // TEMP
 };
 
 struct CharacterComponent : ComponentBase<Component::Character>

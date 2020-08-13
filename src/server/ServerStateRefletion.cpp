@@ -120,6 +120,10 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		sf_field(ParticleSystemComponent, alphaSpline),
 		sf_field(ParticleSystemComponent, additiveSpline),
 		sf_field(ParticleSystemComponent, gradient),
+		sf_field(ParticleSystemComponent, emitPosition),
+		sf_field(ParticleSystemComponent, emitVelocity),
+		sf_field(ParticleSystemComponent, emitVelocityAttractorOffset),
+		sf_field(ParticleSystemComponent, emitVelocityAttractorStrength),
 		sf_field(ParticleSystemComponent, size),
 		sf_field(ParticleSystemComponent, sizeVariance),
 		sf_field(ParticleSystemComponent, lifeTime),
@@ -130,7 +134,6 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		sf_field(ParticleSystemComponent, cullPadding),
 		sf_field(ParticleSystemComponent, frameRate),
 		sf_field(ParticleSystemComponent, frameCount),
-		sf_field(ParticleSystemComponent, emitOrigin),
 	};
 	sf_struct_base(t, ParticleSystemComponent, Component, fields);
 }
@@ -639,6 +642,30 @@ template<> void initType<Gradient>(Type *t)
 		sf_field(Gradient, points),
 	};
 	sf_struct(t, Gradient, fields);
+}
+
+template<> void initType<RandomSphere>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(RandomSphere, minTheta),
+		sf_field(RandomSphere, maxTheta),
+		sf_field(RandomSphere, minPhi),
+		sf_field(RandomSphere, maxPhi),
+		sf_field(RandomSphere, minRadius),
+		sf_field(RandomSphere, maxRadius),
+	};
+	sf_struct(t, RandomSphere, fields);
+}
+
+template<> void initType<RandomVec3>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(RandomVec3, offset),
+		sf_field(RandomVec3, boxExtent),
+		sf_field(RandomVec3, sphere),
+		sf_field(RandomVec3, rotation),
+	};
+	sf_struct(t, RandomVec3, fields);
 }
 
 template<> void initType<AnimationInfo>(Type *t)
