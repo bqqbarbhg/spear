@@ -290,7 +290,7 @@ struct ParticleSystemImp final : ParticleSystem
 
 		// Update spawning (scalar)
 		effect.spawnTimer -= dt;
-		int spawnsLeft = 10;
+		int spawnsLeft = 20;
 		while (effect.spawnTimer <= 0.0f) {
 			if (spawnsLeft-- <= 0) break;
 			effect.spawnTimer += comp.spawnTime + comp.spawnTimeVariance * rng.nextFloat();
