@@ -126,7 +126,7 @@ void ClientState::editorHighlight(uint32_t entityId, EditorHighlight type)
 
 void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameArgs)
 {
-	systems.entities.updateQueuedRemoves(systems);
+	systems.entities.updateQueuedRemoves(systems, frameArgs);
 
 	if (svState) {
 		systems.game->update(*svState, frameArgs);
@@ -139,7 +139,7 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 
 	updateVisibility(systems.visibleAreas, systems.area, frameArgs.mainRenderArgs.frustum);
 
-	systems.particle->updateParticles(systems.visibleAreas, frameArgs.dt);
+	systems.particle->updateParticles(systems.visibleAreas, frameArgs);
 
 	systems.characterModel->updateAnimations(systems.visibleAreas, frameArgs.dt);
 	systems.characterModel->updateAttachedEntities(systems);

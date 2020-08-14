@@ -182,13 +182,18 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		sf_field(ParticleSystemComponent, updateRadius),
 		sf_field(ParticleSystemComponent, cullPadding),
 		sf_field(ParticleSystemComponent, updateOutOfCamera),
+		sf_field(ParticleSystemComponent, renderOrder),
 		sf_field(ParticleSystemComponent, spawnTime),
 		sf_field(ParticleSystemComponent, spawnTimeVariance),
+		sf_field(ParticleSystemComponent, burstAmount),
+		sf_field(ParticleSystemComponent, burstAmountVariance),
+		sf_field(ParticleSystemComponent, emitterOnTime),
 		sf_field(ParticleSystemComponent, emitPosition),
 		sf_field(ParticleSystemComponent, emitVelocity),
 		sf_field(ParticleSystemComponent, emitVelocityAttractorOffset),
 		sf_field(ParticleSystemComponent, emitVelocityAttractorStrength),
 		sf_field(ParticleSystemComponent, drag),
+		sf_field(ParticleSystemComponent, gravity),
 		sf_field(ParticleSystemComponent, size),
 		sf_field(ParticleSystemComponent, sizeVariance),
 		sf_field(ParticleSystemComponent, lifeTime),
@@ -237,12 +242,28 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		info.description = "Update even if not visible in the camera";
 	}
 	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "renderOrder");
+		info.description = "Smaller render order values are rendered first";
+	}
+	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "spawnTime");
 		info.description = "Time in seconds between spawning particles";
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "spawnTimeVariance");
 		info.description = "Random extra time between spawns";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "burstAmount");
+		info.description = "How many particles to spawn in the beginning";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "burstAmountVariance");
+		info.description = "Additional random particle amount to spawn in the beginning";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "emitterOnTime");
+		info.description = "How long to emit particles (negative for infinite, zero for no emit)";
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "emitPosition");
@@ -263,6 +284,10 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "drag");
 		info.description = "Air resistance slowing particles from moving";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "gravity");
+		info.description = "Linear force applied to all particles";
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "size");
@@ -591,10 +616,12 @@ template<> void initType<TileAreaComponent>(Type *t)
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "minCorner");
+		info.description = "Top-left corner of the tile area (in meters/tiles)";
 		info.fixedBits = 16;
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "maxCorner");
+		info.description = "Bottom-right corner of the tile area (in meters/tiles)";
 		info.fixedBits = 16;
 	}
 }

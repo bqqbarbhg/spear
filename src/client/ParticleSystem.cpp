@@ -6,6 +6,7 @@
 #include "sf/Frustum.h"
 #include "sf/Random.h"
 #include "sf/Float4.h"
+#include "sf/Sort.h"
 
 #include "sp/Renderer.h"
 
@@ -137,6 +138,9 @@ struct ParticleSystemImp final : ParticleSystem
 	{
 		sf::Box<sv::ParticleSystemComponent> svComponent;
 
+		double renderOrder = 0.0;
+		uint32_t tiebreaker = 0;
+
 		uint32_t refCount = 0;
 		float updateRadius;
 		float timeStep;
@@ -171,17 +175,22 @@ struct ParticleSystemImp final : ParticleSystem
 		uint32_t typeId;
 		uint32_t areaId;
 
+		sf::Vec3 origin;
+
 		sf::Bounds3 gpuBounds;
 		float timeDelta = 0.0f;
 		float timeStep;
 
 		sf::Vec3 gravity;
+		double lastUpdateTime;
 
 		sf::Float4 emitterToWorld[4];
 		sf::Float4 prevEmitterToWorld[4];
 
+		bool stopEmit = false;
 		bool firstEmit = true;
 		float spawnTimer = 0.0f;
+		float emitOnTimer = -1.0f;
 
 		uint32_t uploadByteOffset = 0;
 		uint64_t uploadFrameIndex = MaxParticleCacheFrames;
@@ -195,12 +204,30 @@ struct ParticleSystemImp final : ParticleSystem
 		sf::Random rng;
 	};
 
+	struct SortedEffect
+	{
+		double renderOrder;
+		uint32_t tiebreaker;
+		float depth;
+		uint32_t effectId;
+
+		bool operator<(const SortedEffect &rhs) const {
+			if (renderOrder != rhs.renderOrder) return renderOrder < rhs.renderOrder;
+			if (tiebreaker != rhs.tiebreaker) return tiebreaker < rhs.tiebreaker;
+			if (depth != rhs.depth) return depth < rhs.depth;
+			if (effectId != rhs.effectId) return effectId < rhs.effectId;
+			return false;
+		}
+	};
+
 	sf::Array<Effect> effects;
 	sf::Array<uint32_t> freeEffectIds;
 
 	sf::Array<EffectType> types;
 	sf::Array<uint32_t> freeTypeIds;
 	sf::HashMap<uintptr_t, uint32_t> svCompponentToType;
+
+	sf::Array<SortedEffect> sortedEffects;
 
 	sf::Random initRng;
 	ParticleUpdateCtx updateCtx;
@@ -258,6 +285,9 @@ struct ParticleSystemImp final : ParticleSystem
 
 		type.emitPosition.init(c.emitPosition);
 		type.emitVelocity.init(c.emitVelocity);
+
+		type.renderOrder = c.renderOrder;
+		type.tiebreaker = typeId;
 
 		sf::memZero(type.typeUbo);
 		type.typeUbo.u_FrameCount = sf::Vec2(c.frameCount);
@@ -399,9 +429,18 @@ struct ParticleSystemImp final : ParticleSystem
 		EffectType &type = types[effect.typeId];
 		const sv::ParticleSystemComponent &comp = *type.svComponent;
 
+		uint32_t burstAmount = 0;
 		if (effect.firstEmit) {
 			memcpy(effect.prevEmitterToWorld, effect.emitterToWorld, sizeof(sf::Float4) * 4);
+			burstAmount = comp.burstAmount;
 			effect.firstEmit = false;
+		}
+
+		if (effect.emitOnTimer >= 0.0f) {
+			effect.emitOnTimer -= dt;
+			if (effect.emitOnTimer < 0.0f) {
+				effect.stopEmit = true;
+			}
 		}
 
 		sf::ScalarFloat4 dt4 = dt;
@@ -410,9 +449,13 @@ struct ParticleSystemImp final : ParticleSystem
 		// Update spawning (scalar)
 		effect.spawnTimer -= dt;
 		int spawnsLeft = 20;
-		while (effect.spawnTimer <= 0.0f) {
-			if (spawnsLeft-- <= 0) break;
-			effect.spawnTimer += comp.spawnTime + comp.spawnTimeVariance * rng.nextFloat();
+		while ((effect.spawnTimer <= 0.0f && !effect.stopEmit) || burstAmount > 0) {
+			if (burstAmount > 0) {
+				burstAmount--;
+			} else {
+				if (spawnsLeft-- <= 0) break;
+				effect.spawnTimer += comp.spawnTime + comp.spawnTimeVariance * rng.nextFloat();
+			}
 
 			if (effect.freeIndices.size == 0) {
 				uint32_t base = effect.particles.size * 4;
@@ -615,12 +658,18 @@ struct ParticleSystemImp final : ParticleSystem
 		transform.asMatrix().writeColMajor44((float*)effect.emitterToWorld);
 		effect.timeStep = type.timeStep * (1.0f + initRng.nextFloat() * 0.1f);
 
+		effect.gravity = c->gravity;
+
+		effect.origin = transform.position;
+
+		effect.emitOnTimer = c->emitterOnTime;
+
 		sf::Bounds3 bounds;
 		bounds.origin = transform.position;
 		bounds.extent = sf::Vec3(c->updateRadius);
 		effect.areaId = systems.area->addBoxArea(AreaGroup::ParticleEffect, effectId, bounds, Area::Visibilty);
 
-		systems.entities.addComponent(entityId, this, effectId, 0, componentIndex, Entity::UpdateTransform);
+		systems.entities.addComponent(entityId, this, effectId, 0, componentIndex, Entity::UpdateTransform|Entity::PrepareForRemove);
 	}
 
 	void updateTransform(Systems &systems, uint32_t entityId, const EntityComponent &ec, const TransformUpdate &update) override
@@ -631,10 +680,22 @@ struct ParticleSystemImp final : ParticleSystem
 
 		update.entityToWorld.writeColMajor44((float*)effect.emitterToWorld);
 
+		effect.origin = update.transform.position;
+
 		sf::Bounds3 bounds;
 		bounds.origin = update.transform.position;
 		bounds.extent = sf::Vec3(type.updateRadius);
 		systems.area->updateBoxArea(effect.areaId, bounds);
+	}
+
+	bool prepareForRemove(Systems &systems, uint32_t entityId, const EntityComponent &ec, const FrameArgs &frameArgs) override
+	{
+		uint32_t effectId = ec.userId;
+		Effect &effect = effects[effectId];
+
+		effect.stopEmit = true;
+
+		return effect.gpuParticles.size == 0 || frameArgs.gameTime - effect.lastUpdateTime > 2.0;
 	}
 
 	void remove(Systems &systems, uint32_t entityId, const EntityComponent &ec) override
@@ -657,12 +718,13 @@ struct ParticleSystemImp final : ParticleSystem
 		freeEffectIds.push(effectId);
 	}
 
-	void updateParticles(const VisibleAreas &visibleAreas, float dt) override
+	void updateParticles(const VisibleAreas &visibleAreas, const FrameArgs &args) override
 	{
-		float clampedDt = sf::min(dt, 0.1f);
+		float clampedDt = sf::min(args.dt, 0.1f);
 
 		for (uint32_t effectId : visibleAreas.get(AreaGroup::ParticleEffect)) {
 			Effect &effect = effects[effectId];
+			effect.lastUpdateTime = args.gameTime;
 
 			effect.timeDelta += clampedDt;
 			while (effect.timeDelta >= effect.timeStep) {
@@ -678,9 +740,28 @@ struct ParticleSystemImp final : ParticleSystem
 		uint32_t frameParticlesLeft = MaxParticlesPerFrame;
 
 		bufferFrameIndex++;
-
 		uint64_t frame = bufferFrameIndex;
+
+		sortedEffects.clear();
 		for (uint32_t effectId : visibleAreas.get(AreaGroup::ParticleEffect)) {
+			Effect &effect = effects[effectId];
+			EffectType &type = types[effect.typeId];
+			uint32_t numParticles = effect.gpuParticles.size / 4;
+			if (numParticles == 0) continue;
+			if (!renderArgs.frustum.intersects(effect.gpuBounds)) continue;
+			SortedEffect &sorted = sortedEffects.push();
+			sorted.renderOrder = type.renderOrder;
+			sorted.tiebreaker = type.tiebreaker;
+			sorted.depth = sf::lengthSq(renderArgs.cameraPosition - effect.origin);
+			sorted.effectId = effectId;
+		}
+
+		sf::sort(sortedEffects);
+
+		uint32_t prevTypeId = ~0u;
+		for (SortedEffect &sorted : sortedEffects) {
+			uint32_t effectId = sorted.effectId;
+
 			Effect &effect = effects[effectId];
 			EffectType &type = types[effect.typeId];
 			uint32_t numParticles = effect.gpuParticles.size / 4;
@@ -705,7 +786,11 @@ struct ParticleSystemImp final : ParticleSystem
 
 			particlePipe.bind();
 
-			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Particle_VertexType, &type.typeUbo, sizeof(type.typeUbo));
+			if (effect.typeId != prevTypeId) {
+				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Particle_VertexType, &type.typeUbo, sizeof(type.typeUbo));
+				prevTypeId = effect.typeId;
+			}
+
 			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Particle_VertexInstance, &ubo, sizeof(ubo));
 
 			sg_image image = ParticleTexture::defaultImage;

@@ -12,7 +12,7 @@ struct ParticleSystem : EntitySystem
 
 	virtual void addEffect(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sf::Box<sv::ParticleSystemComponent> &c, const Transform &transform) = 0;
 
-	virtual void updateParticles(const VisibleAreas &visibleAreas, float dt) = 0;
+	virtual void updateParticles(const VisibleAreas &visibleAreas, const FrameArgs &frameArgs) = 0;
 
 	virtual void renderMain(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
 

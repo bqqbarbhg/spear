@@ -24,6 +24,7 @@ struct SystemsDesc
 
 struct Systems;
 struct EntityComponent;
+struct FrameArgs;
 
 enum class EditorHighlight
 {
@@ -42,12 +43,13 @@ struct TransformUpdate
 
 struct System
 {
+	virtual ~System();
 };
 
 struct EntitySystem : System
 {
 	virtual void updateTransform(Systems &systems, uint32_t entityId, const EntityComponent &ec, const TransformUpdate &update) = 0;
-	virtual bool prepareForRemove(Systems &systems, uint32_t entityId, const EntityComponent &ec);
+	virtual bool prepareForRemove(Systems &systems, uint32_t entityId, const EntityComponent &ec, const FrameArgs &args);
 	virtual void remove(Systems &systems, uint32_t entityId, const EntityComponent &ec) = 0;
 
 	virtual void editorHighlight(Systems &systems, const EntityComponent &ec, EditorHighlight type);
@@ -113,7 +115,7 @@ struct Entities
 
 	void addComponent(uint32_t entityId, EntitySystem *system, uint32_t userId, uint8_t subsystemIndex, uint8_t componentIndex, uint32_t flags);
 
-	void updateQueuedRemoves(Systems &systems);
+	void updateQueuedRemoves(Systems &systems, const FrameArgs &frameArgs);
 };
 
 enum class AreaGroup : uint32_t
@@ -192,6 +194,7 @@ struct RenderArgs
 struct FrameArgs
 {
 	uint64_t frameIndex = 0;
+	double gameTime = 0.0;
 	float dt = 0.0f;
 
 	RenderArgs mainRenderArgs;

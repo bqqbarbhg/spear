@@ -143,9 +143,13 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 	float updateRadius = 10.0f; //! Size of the "active area" of this particle effect
 	float cullPadding = 1.5f; //! How much to "pad" the area for culling, increase if the effect disappears
 	bool updateOutOfCamera = false; //! Update even if not visible in the camera
+	double renderOrder = 0.0; //! Smaller render order values are rendered first
 
 	float spawnTime = 0.2f; //! Time in seconds between spawning particles
 	float spawnTimeVariance = 0.0f; //! Random extra time between spawns
+	uint32_t burstAmount = 0; //! How many particles to spawn in the beginning
+	uint32_t burstAmountVariance = 0; //! Additional random particle amount to spawn in the beginning
+	float emitterOnTime = -1.0f; //! How long to emit particles (negative for infinite, zero for no emit)
 
 	RandomVec3 emitPosition; //! Random position for new particles
 	RandomVec3 emitVelocity; //! Random velocity for new particles
@@ -154,6 +158,7 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 	float emitVelocityAttractorStrength; //! Extra velocity towards (< 0) or away (> 1) from attractor offset
 
 	float drag = 0.0f; //! Air resistance slowing particles from moving
+	sf::Vec3 gravity; //! Linear force applied to all particles
 
 	float size = 0.5f; //! Base size of particles
 	float sizeVariance = 0.0f; //! Random additional size for individual particles
@@ -174,7 +179,6 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 	float rotationVariance = 0.0f; //! Random per-particle extra rotation of the particles in degrees
 	float spin = 0.0f; //! Rotation speed for the particles in degrees
 	float spinVariance = 0.0f; //! Random per-particle speed for the particles in degrees
-
 };
 
 struct CharacterComponent : ComponentBase<Component::Character>

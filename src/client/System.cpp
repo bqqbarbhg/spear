@@ -8,6 +8,8 @@
 
 namespace cl {
 
+System::~System() { }
+
 void Systems::init(const SystemsDesc &desc)
 {
 	area = AreaSystem::create();
@@ -17,7 +19,7 @@ void Systems::init(const SystemsDesc &desc)
 	game = GameSystem::create();
 }
 
-bool EntitySystem::prepareForRemove(Systems &systems, uint32_t entityId, const EntityComponent &ec)
+bool EntitySystem::prepareForRemove(Systems &systems, uint32_t entityId, const EntityComponent &ec, const FrameArgs &args)
 {
 	return true;
 }
@@ -180,21 +182,21 @@ void Entities::addComponent(uint32_t entityId, EntitySystem *system, uint32_t us
 	comp.flags = (uint16_t)flags;
 }
 
-void Entities::updateQueuedRemoves(Systems &systems)
+void Entities::updateQueuedRemoves(Systems &systems, const FrameArgs &frameArgs)
 {
 	for (uint32_t i = 0; i < removeQueue.size; i++) {
 		uint32_t entityId = removeQueue[i];
 		Entity &entity = entities[entityId];
 
-		bool allDone = true;
-		for (EntityComponent &ec : entity.components) {
-			if ((ec.flags & Entity::PrepareForRemove) == 0) continue;
-			if (!ec.system->prepareForRemove(systems, entityId, ec)) {
-				allDone = false;
+		for (uint32_t i = 0; i < entity.components.size; i++) {
+			EntityComponent &ec = entity.components[i];
+			if ((ec.flags & Entity::PrepareForRemove) == 0 || ec.system->prepareForRemove(systems, entityId, ec, frameArgs)) {
+				ec.system->remove(systems, entityId, ec);
+				entity.components.removeSwap(i--);
 			}
 		}
 
-		if (allDone) {
+		if (entity.components.size == 0) {
 			removeEntityInstant(systems, entityId);
 			removeQueue.removeSwap(i--);
 		}
