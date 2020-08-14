@@ -361,7 +361,7 @@ struct ParticleSystemImp final : ParticleSystem
 		type.typeUbo.u_ScaleBaseVariance.y = c.sizeVariance;
 
 		type.typeUbo.u_LifeTimeBaseVariance.x = c.lifeTime;
-		type.typeUbo.u_LifeTimeBaseVariance.y = c.lifeTimeVariance * (1.0 / 16777216.0);
+		type.typeUbo.u_LifeTimeBaseVariance.y = c.lifeTimeVariance * (1.0f / 16777216.0f);
 
 		sg_image_desc d = { };
 		d.width = SplineSampleRate;

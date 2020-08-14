@@ -518,7 +518,7 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 			gradient.points.size = (uint32_t)num;
 
 			sf::Vec3 *color = &gradient.defaultColor;
-			if (selected >= 0 && selected < gradient.points.size) {
+			if (selected >= 0 && selected < (int)gradient.points.size) {
 				color = &gradient.points[selected].color;
 			}
 

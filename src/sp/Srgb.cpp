@@ -32,7 +32,7 @@ float srgbToLinear(float x)
 	if (x <= 0.04045f)
 		return 0.0773993808f * x;
 	else
-		return powf(x*0.947867298578f+0.0521327014218f, 2.4);
+		return powf(x*0.947867298578f+0.0521327014218f, 2.4f);
 }
 
 sf::Vec3 srgbToLinear(const sf::Vec3 &v)
