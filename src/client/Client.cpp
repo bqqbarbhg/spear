@@ -223,6 +223,10 @@ struct Client
 	// Misc
 	uint32_t reloadCount = 0;
 
+	// Errors
+	uint32_t totalErrors = 0;
+	sf::Array<sf::StringBuf> errors;
+
 };
 
 static void sendMessage(Client &client, const sv::Message &msg)
@@ -340,6 +344,10 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret)
 
 void clientFree(Client *c)
 {
+	if (c->editor) {
+		editorFree(c->editor);
+		c->editor = nullptr;
+	}
 }
 
 void clientQuit(Client *c)
@@ -379,6 +387,15 @@ void handleMessage(Client *c, sv::Message &msg)
 		if (c->editor) {
 			editorAddQueryDir(c->editor, m->root, m->dir);
 		}
+
+	} else if (auto m = msg.as<sv::MessageErrorList>()) {
+
+		if (c->errors.size > 400) {
+			c->errors.removeOrdered(0, 200);
+		}
+
+		c->totalErrors += m->errors.size;
+		c->errors.push(m->errors);
 
 	}
 }
@@ -470,7 +487,10 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	c->frameArgs.mainRenderArgs = c->mainRenderArgs;
 
 	if (c->editor) {
-		editorUpdate(c->editor, c->frameArgs, input);
+		EditorInput editorInput;
+		editorInput.totalErrors = c->totalErrors;
+		editorInput.errors = c->errors.slice();
+		editorUpdate(c->editor, c->frameArgs, input, editorInput);
 
 		EditorRequests &requests = editorPendingRequests(c->editor);
 

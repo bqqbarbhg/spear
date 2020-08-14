@@ -104,6 +104,7 @@ template<> void initType<sv::Message>(Type *t)
 		sf_poly(sv::Message, RequestEditRedo, sv::MessageRequestEditRedo),
 		sf_poly(sv::Message, QueryFiles, sv::MessageQueryFiles),
 		sf_poly(sv::Message, QueryFilesResult, sv::MessageQueryFilesResult),
+		sf_poly(sv::Message, ErrorList, sv::MessageErrorList),
 	};
 	sf_struct_poly(t, sv::Message, type, { }, polys);
 }
@@ -171,6 +172,14 @@ template<> void initType<sv::MessageQueryFilesResult>(Type *t)
 		sf_field(sv::MessageQueryFilesResult, dir),
 	};
 	sf_struct_base(t, sv::MessageQueryFilesResult, sv::Message, fields);
+}
+
+template<> void initType<sv::MessageErrorList>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(sv::MessageErrorList, errors),
+	};
+	sf_struct_base(t, sv::MessageErrorList, sv::Message, fields);
 }
 
 }

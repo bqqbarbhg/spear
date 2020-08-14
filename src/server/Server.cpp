@@ -126,10 +126,11 @@ static Session *setupSession(Server *s, uint32_t id, uint32_t secret)
 		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Urist.json"), 5);
 		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Targon.json"), 5);
 		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Gobo.json"), 5);
+		session.state->addCharacterToSelect(session.events, sf::Symbol("Prefabs/CharacterTemplates/Test/Goblin_Staff.json"), 5);
 
 		// session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Gobo.json"), 1);
 
-		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
+		session.state->selectCharacterSpawn(session.events, sf::Symbol("Prefabs/CharacterTemplates/Test/Goblin_Staff.json"), 1);
 
 #if 0
 		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
@@ -285,32 +286,19 @@ static void updateSession(Session &session)
 		}
 	}
 
-#if 0
-	static int HACKCOUNT = 0;
-	HACKCOUNT++;
-	if (HACKCOUNT % 100 == 0) {
-		uint32_t id = 101;
-		int x = rand() % 4 - 2;
-		int y = rand() % 4 - 2;
-		PropTransform t = session.state->props.find(id)->transform;
-		t.tile = sf::Vec2i(x, y);
-		t.visualOffset.y = ((float)rand() / (float)RAND_MAX) * 2.0f - 1.0f;
-		t.visualRotation.x = ((float)rand() / (float)RAND_MAX) * sf::F_2PI;
-		t.visualRotation.y = ((float)rand() / (float)RAND_MAX) * sf::F_2PI;
-		t.visualRotation.z = ((float)rand() / (float)RAND_MAX) * sf::F_2PI;
-		t.scale = ((float)rand() / (float)RAND_MAX) * 3.0f + 0.25f;
-		session.state->moveProp(session.events, id, t);
-	}
+	if (session.state->errors.size > 0) {
+		sv::MessageErrorList msg;
+		msg.errors = std::move(session.state->errors);
 
-	if (HACKCOUNT % 100 == 0) {
-		Prefab prefab = session.state->prefabs[sf::Symbol("Game/Props/Test/Barrel.json")];
-		sf::Box<sv::ModelComponent> newModel = sf::box<sv::ModelComponent>(*prefab.findComponent<sv::ModelComponent>());
-		newModel->scale = ((float)rand() / (float)RAND_MAX) * 2.0f + 0.25f;
-		prefab.components[0] = newModel;
-		session.state->reloadPrefab(session.events, prefab);
-	}
-#endif
+		sf::SmallArray<char, 4096> data;
+		encodeMessage(data, msg, session.server->messageEncoding);
+		for (Client &client : session.clients) {
+			bqws_send_binary(client.ws, data.data, data.size);
+		}
 
+		session.state->errors = std::move(msg.errors);
+		session.state->errors.clear();
+	}
 
 	sf::HashMap<uint32_t, sf::Array<char>> encodedUpdates;
 	uint32_t totalEvents = session.eventBase + session.events.size;

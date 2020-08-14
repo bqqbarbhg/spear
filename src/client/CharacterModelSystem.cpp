@@ -244,7 +244,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 	{
 		if (model.animations.size == 0) return;
 
-		double bestScore = 0.0;
+		double bestScore = -HUGE_VAL;
 		uint32_t bestAnim = 0;
 
 		for (const Animation &anim : model.animations) {

@@ -23,6 +23,9 @@
 #include "sp/Json.h"
 
 #include "server/FixedPoint.h"
+#include "server/ServerStateReflection.h"
+
+#include "ext/sokol/sokol_time.h"
 
 namespace cl {
 
@@ -72,6 +75,9 @@ struct EditorState
 	sf::Array<char> prefabCopyBuffer;
 	sf::Symbol selectedPrefab;
 	sv::Prefab editedPrefab;
+	sf::HashSet<sf::Symbol> modifiedPrefabs;
+	uint64_t editedPrefabDirtyTime = 0;
+	bool editedPrefabInvalidated = false;
 
 	// Ghost prefab
 	sf::HashSet<sf::Symbol> preloadedPrefabNames;
@@ -104,6 +110,7 @@ struct EditorState
 	bool windowPrefabs = false;
 	bool windowProperties = false;
 	bool windowDebugGameState = false;
+	bool windowErrors = false;
 	
 	// Folder navigation
 	EditorDir dirAssets;
@@ -114,6 +121,9 @@ struct EditorState
 	sf::StringBuf addInput;
 	bool addPrefab = false;
 	bool addFolder = false;
+
+	// Errors
+	uint32_t totalErrors = 0;
 };
 
 const sf::String materialSuffixes[] = {
@@ -128,6 +138,15 @@ const sf::String materialSuffixes[] = {
 	"_Normal_OpenGL.png",
 	"_Emissive.png",
 };
+
+static void selectPrefab(EditorState *es, const sf::Symbol &prefabName)
+{
+	if (es->selectedPrefab == prefabName) return;
+	es->selectedPrefab = prefabName;
+	es->editedPrefabDirtyTime = 0;
+	es->editedPrefabInvalidated = false;
+	sf::reset(es->editedPrefab);
+}
 
 void setupEditorDir(EditorDir &dir, const sf::StringBuf &queryRoot, const sv::QueryDir &queryDir)
 {
@@ -182,6 +201,15 @@ static void savePrefab(const sv::Prefab &prefab)
 	jso_close(&s);
 }
 
+static void saveModifiedPrefabs(EditorState *es)
+{
+	for (const sf::Symbol &prefabName : es->modifiedPrefabs) {
+		if (const sv::Prefab *prefab = es->svState->prefabs.find(prefabName)) {
+			savePrefab(*prefab);
+		}
+	}
+	es->modifiedPrefabs.clear();
+}
 
 EditorState *editorCreate(const sf::Box<sv::ServerState> &svState, const sf::Box<cl::ClientState> &clState)
 {
@@ -198,6 +226,8 @@ EditorState *editorCreate(const sf::Box<sv::ServerState> &svState, const sf::Box
 
 void editorFree(EditorState *es)
 {
+	saveModifiedPrefabs(es);
+
 	delete es;
 }
 
@@ -229,6 +259,19 @@ bool editorPeekEventPre(EditorState *es, const sv::Event &event)
 				for (uint32_t propId : e->propIds) {
 					es->selectedSvIds.insert(propId);
 				}
+			}
+		}
+	} else if (const auto *e = event.as<sv::ReloadPrefabEvent>()) {
+		if (e->prefab.name == es->selectedPrefab) {
+			bool edited = false;
+			if (es->editedPrefabDirtyTime != 0 && stm_sec(stm_since(es->editedPrefabDirtyTime)) < 5.0) {
+				edited = true;
+			}
+
+			if (!edited) {
+				sf::reset(es->editedPrefab);
+			} else {
+				es->editedPrefabInvalidated = true;
 			}
 		}
 	}
@@ -275,6 +318,7 @@ void handleImguiMenu(EditorState *es)
 			if (ImGui::MenuItem("Assets")) es->windowAssets = true;
 			if (ImGui::MenuItem("Prefabs")) es->windowPrefabs = true;
 			if (ImGui::MenuItem("Properties")) es->windowProperties = true;
+			if (ImGui::MenuItem("Errors")) es->windowErrors = true;
 			if (ImGui::BeginMenu("Debug")) {
 				if (ImGui::MenuItem("Game State")) es->windowDebugGameState = true;
 				ImGui::EndMenu();
@@ -455,14 +499,26 @@ void handleImguiDirectoryBrowsers(EditorState *es)
 				es->dirPrefabs.files.clear();
 			}
 
-	#if 0
 			ImGui::SameLine();
 			if (ImGui::Button("Save all")) {
-				saveModifiedObjects(c);
+				saveModifiedPrefabs(es);
 			}
-	#endif
 
 			handleImguiPrefabDir(es, es->dirPrefabs);
+		}
+		ImGui::End();
+	}
+}
+
+void handleImguiErrorsWindow(EditorState *es, sf::Slice<const sf::StringBuf> errors)
+{
+	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
+	if (es->windowErrors) {
+		if (ImGui::Begin("Errors", &es->windowErrors)) {
+			for (uint32_t i = errors.size; i > 0; i--) {
+				const sf::StringBuf &err = errors[i - 1];
+				ImGui::TextWrapped("> %s", err.data);
+			}
 		}
 		ImGui::End();
 	}
@@ -480,13 +536,24 @@ void handleImguiDebugWindows(EditorState *es)
 	}
 }
 
-static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label)
+static void handleCopyPasteImp(ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label)
 {
+	sf::SmallStringBuf<256> id;
+	id.append("##copypaste-", label);
+	handleInstCopyPasteImgui(status, inst, type, id.data);
+}
+
+static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label, sf::Type *parentType)
+{
+	EditorState *es = (EditorState*)user;
+	sv::ReflectionInfo info = sv::getTypeReflectionInfo(parentType, label);
 
 	if (type == sf::typeOf<sv::BSpline2>()) {
 		sv::BSpline2 &spline = *(sv::BSpline2*)inst;
 
-		if (ImGui::TreeNode(label.data)) {
+		bool open = ImGui::TreeNode(label.data);
+		handleCopyPasteImp(status, inst, type, label);
+		if (open) {
 
 			spline.points.reserveGeometric(spline.points.size + 1);
 			int num = (int)spline.points.size;
@@ -507,7 +574,9 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 	} else if (type == sf::typeOf<sv::Gradient>()) {
 		sv::Gradient &gradient = *(sv::Gradient*)inst;
 
-		if (ImGui::TreeNode(label.data)) {
+		bool open = ImGui::TreeNode(label.data);
+		handleCopyPasteImp(status, inst, type, label);
+		if (open) {
 
 			int selected = -1;
 
@@ -535,6 +604,126 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 		}
 
 		return true;
+	} else if (type == sf::typeOf<sf::Vec2>()) {
+		sf::Vec2 &vec = *(sf::Vec2*)inst;
+
+		status.modified |= ImGui::InputFloat2(label.data, vec.v, 4);
+		status.changed |= ImGui::IsItemDeactivatedAfterEdit();
+		handleCopyPasteImp(status, inst, type, label);
+
+		return true;
+	} else if (type == sf::typeOf<sf::Vec3>()) {
+		sf::Vec3 &vec = *(sf::Vec3*)inst;
+
+		status.modified |= ImGui::InputFloat3(label.data, vec.v, 4);
+		status.changed |= ImGui::IsItemDeactivatedAfterEdit();
+		handleCopyPasteImp(status, inst, type, label);
+
+		return true;
+	} else if (type == sf::typeOf<sf::Vec2i>()) {
+		sf::Vec2i &vec = *(sf::Vec2i*)inst;
+
+		if (info.fixedBits) {
+			double v[2];
+			double scale = (double)(1u << (uint32_t)info.fixedBits);
+			v[0] = (double)vec.x / scale;
+			v[1] = (double)vec.y / scale;
+
+			if (ImGui::InputScalarN(label.data, ImGuiDataType_Double, v, 2, NULL, NULL, "%.4f")) {
+				vec.x = (int32_t)sf::clamp(v[0] * scale, (double)INT32_MIN, (double)INT32_MAX);
+				vec.y = (int32_t)sf::clamp(v[1] * scale, (double)INT32_MIN, (double)INT32_MAX);
+				status.modified = true;
+			}
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
+			handleCopyPasteImp(status, inst, type, label);
+
+		} else {
+			status.modified |= ImGui::InputInt2(label.data, vec.v);
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
+			handleCopyPasteImp(status, inst, type, label);
+		}
+
+		return true;
+	} else if (type == sf::typeOf<sf::Vec3>()) {
+		sf::Vec3i &vec = *(sf::Vec3i*)inst;
+
+		status.modified |= ImGui::InputInt3(label.data, vec.v);
+		status.changed |= ImGui::IsItemDeactivatedAfterEdit();
+		handleCopyPasteImp(status, inst, type, label);
+
+		return true;
+	} else if (type == sf::typeOf<uint8_t[3]>()) {
+		uint8_t *src = (uint8_t*)inst;
+
+		if (info.color) {
+
+			float colorF[3] = { (float)src[0] / 255.0f, (float)src[1] / 255.0f, (float)src[2] / 255.0f };
+			if (ImGui::ColorEdit3(label.data, colorF, 0)) {
+				src[0] = (uint8_t)sf::clamp(colorF[0] * 255.0f, 0.0f, 255.0f);
+				src[1] = (uint8_t)sf::clamp(colorF[1] * 255.0f, 0.0f, 255.0f);
+				src[2] = (uint8_t)sf::clamp(colorF[2] * 255.0f, 0.0f, 255.0f);
+				status.modified = true;
+			}
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
+			handleCopyPasteImp(status, inst, type, label);
+
+			return true;
+		}
+	} else if (type == sf::typeOf<sf::Symbol>()) {
+		sf::Symbol &sym = *(sf::Symbol*)inst;
+
+		if (info.asset || info.prefab) {
+
+			sf::SmallStringBuf<4096> textBuf;
+			textBuf.reserveGeometric(sym.size() * 2);
+			textBuf.append(sym);
+			if (ImGui::InputText(label.data, textBuf.data, textBuf.capacity, ImGuiInputTextFlags_AlignRight | ImGuiInputTextFlags_AutoSelectAll)) {
+				status.modified = true;
+				textBuf.resize(strlen(textBuf.data));
+				if (ImGui::IsItemDeactivatedAfterEdit()) {
+					sym = sf::Symbol(textBuf);
+					status.changed = true;
+				}
+			}
+			handleCopyPasteImp(status, inst, type, label);
+
+			if (info.prefab && ImGui::IsItemClicked() && ImGui::IsMouseDoubleClicked(0)) {
+				selectPrefab(es, sym);
+			}
+
+			if (ImGui::BeginDragDropTarget()) {
+				const char *key = NULL;
+				if (info.asset) key = "asset";
+				if (info.prefab) key = "prefab";
+				const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(key);
+				if (payload) {
+					sym = sf::Symbol((const char*)payload->Data, payload->DataSize);
+					status.modified = true;
+					status.changed = true;
+				}
+
+				ImGui::EndDragDropTarget();
+			}
+
+			return true;
+
+		} else if (info.multiline) {
+
+			sf::SmallStringBuf<4096> textBuf;
+			textBuf.reserveGeometric(sym.size() * 2);
+			textBuf.append(sym);
+			if (ImGui::InputTextMultiline(label.data, textBuf.data, textBuf.capacity, ImVec2(0.0f, 200.0f))) {
+				status.modified = true;
+				textBuf.resize(strlen(textBuf.data));
+				if (ImGui::IsItemDeactivatedAfterEdit()) {
+					sym = sf::Symbol(textBuf);
+					status.changed = true;
+				}
+			}
+			handleCopyPasteImp(status, inst, type, label);
+
+			return true;
+		}
 	}
 
 #if 0
@@ -676,13 +865,15 @@ void handleImguiPrefab(EditorState *es, ImguiStatus &status, sv::Prefab &prefab)
 		sf::PolymorphInstance poly = componentType->instGetPolymorph(prefab.components[compI].ptr);
 
 		if (!ImGui::CollapsingHeader(poly.type->name.data, ImGuiTreeNodeFlags_DefaultOpen)) {
+			handleInstCopyPasteImgui(status, poly.inst, poly.type->type);
 			ImGui::PopID();
 			continue;
 		}
+		handleInstCopyPasteImgui(status, poly.inst, poly.type->type);
 
 		bool doDelete = ImGui::Button("Delete");
 
-		handleFieldsImgui(status, poly.inst, poly.type->type, imguiCallback, NULL);
+		handleFieldsImgui(status, poly.inst, poly.type->type, imguiCallback, es);
 
 		ImGui::PopID();
 
@@ -728,6 +919,10 @@ void handleImguiPropertiesWindow(EditorState *es)
 		if (ImGui::Begin("Properties", &es->windowProperties)) {
 			if (sv::Prefab *sourcePrefab = es->svState->prefabs.find(es->selectedPrefab)) {
 
+				if (es->editedPrefabDirtyTime != 0 && stm_sec(stm_since(es->editedPrefabDirtyTime)) >= 10.0 && es->editedPrefabInvalidated) {
+					sf::reset(es->editedPrefab);
+				}
+
 				if (es->editedPrefab.name != es->selectedPrefab) {
 					sf::reset(es->editedPrefab);
 					es->prefabCopyBuffer.clear();
@@ -738,11 +933,18 @@ void handleImguiPropertiesWindow(EditorState *es)
 				ImguiStatus status;
 				handleImguiPrefab(es, status, es->editedPrefab);
 
+				if (status.modified) {
+					es->editedPrefabDirtyTime = stm_now();
+				}
+
 				if (status.changed) {
 					sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();
 					auto ed = sf::box<sv::ModifyPrefabEdit>();
 					ed->prefab = es->editedPrefab;
 					edits.push(ed);
+					es->modifiedPrefabs.insert(es->selectedPrefab);
+					es->editedPrefabDirtyTime = 0;
+					es->editedPrefabInvalidated = false;
 				}
 			}
 		}
@@ -796,7 +998,7 @@ static void applyDragTransform(EditorState *es, sv::PropTransform &transform, in
 	}
 }
 
-void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput &input)
+void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput &input, const EditorInput &editorInput)
 {
 	for (uint32_t i = 0; i < es->selectedSvIds.size(); i++) {
 		uint32_t svId = es->selectedSvIds.data[i];
@@ -804,6 +1006,11 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 			es->selectedSvIds.remove(svId);
 			i--;
 		}
+	}
+
+	if (editorInput.totalErrors > es->totalErrors) {
+		es->totalErrors = editorInput.totalErrors;
+		es->windowErrors = true;
 	}
 
 	es->prevMouseDown = es->mouseDown;
@@ -1218,6 +1425,7 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 	handleImguiMenu(es);
 	handleImguiDirectoryBrowsers(es);
 	handleImguiPropertiesWindow(es);
+	handleImguiErrorsWindow(es, editorInput.errors);
 	handleImguiDebugWindows(es);
 
 	for (sv::Event *event : es->editEvents) {

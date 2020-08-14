@@ -12,12 +12,30 @@
 #include "server/Pathfinding.h"
 
 #include "server/FixedPoint.h"
+#include "server/ServerStateReflection.h"
 
 #include <stdarg.h>
 
 #include <random>
 
 namespace sv {
+
+sf_inline void serverErrorFmt(ServerState &state, const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+
+	if (state.errors.size > 200) {
+		state.errors.removeOrdered(0, 100);
+	}
+
+	sf::StringBuf &str = state.errors.push();
+	str.vformat(fmt, args);
+
+	sf::debugPrintLine("Server error: %s", str.data);
+
+	va_end(args);
+}
 
 Component *Prefab::findComponentImp(Component::Type type) const
 {
@@ -31,7 +49,7 @@ sf_inline Prefab *findPrefabExisting(ServerState &state, const sf::Symbol &name)
 {
 	Prefab *prefab = state.prefabs.find(name);
 	if (!prefab) {
-		sf::debugPrintLine("Could not find prefab: %s", name.data);
+		serverErrorFmt(state, "Could not find prefab: %s", name.data);
 	}
 	return prefab;
 }
@@ -40,7 +58,7 @@ sf_inline Prop *findProp(ServerState &state, uint32_t id)
 {
 	Prop *chr = state.props.find(id);
 	if (!chr) {
-		sf::debugPrintLine("Could not find prop: %u", id);
+		serverErrorFmt(state, "Could not find prop: %u", id);
 	}
 	return chr;
 }
@@ -49,7 +67,7 @@ sf_inline Character *findCharacter(ServerState &state, uint32_t id)
 {
 	Character *chr = state.characters.find(id);
 	if (!chr) {
-		sf::debugPrintLine("Could not find character: %u", id);
+		serverErrorFmt(state, "Could not find character: %u", id);
 	}
 	return chr;
 }
@@ -58,7 +76,7 @@ sf_inline Card *findCard(ServerState &state, uint32_t id)
 {
 	Card *card = state.cards.find(id);
 	if (!card) {
-		sf::debugPrintLine("Could not find card: %u", id);
+		serverErrorFmt(state, "Could not find card: %u", id);
 	}
 	return card;
 }
@@ -67,30 +85,30 @@ sf_inline Status *findStatus(ServerState &state, uint32_t id)
 {
 	Status *status = state.statuses.find(id);
 	if (!status) {
-		sf::debugPrintLine("Could not find status: %u", id);
+		serverErrorFmt(state, "Could not find status: %u", id);
 	}
 	return status;
 }
 
 template <typename T>
-sf_inline T *findComponent(const Prefab &prefab)
+sf_inline T *findComponent(ServerState &state, const Prefab &prefab)
 {
 	T *t = (T*)prefab.findComponentImp(T::ComponentType);
 	if (!t) {
-		sf::debugPrintLine("Could not find component %u from %s", (uint32_t)T::ComponentType, prefab.name.data);
+		serverErrorFmt(state, "Could not find component %u from %s", (uint32_t)T::ComponentType, prefab.name.data);
 	}
 	return t;
 }
 
-sf_inline bool check(bool cond, const char *msg)
+sf_inline bool check(ServerState &state, bool cond, const char *msg)
 {
 	if (!cond) {
-		sf::debugPrintLine("Error: %s", msg);
+		serverErrorFmt(state, "Error: %s", msg);
 	}
 	return cond;
 }
 
-#define sv_check(cond) check((cond), #cond)
+#define sv_check(state, cond) check((state), (cond), #cond)
 
 sf_inline void pushEvent(ServerState &state, sf::Array<sf::Box<Event>> &events, const sf::Box<Event> &event)
 {
@@ -286,19 +304,19 @@ void ServerState::applyEvent(const Event &event)
 		}
 	} else if (auto *e = event.as<CardCooldownTickEvent>()) {
 		if (Card *card = findCard(*this, e->cardId)) {
-			if (sv_check(card->cooldownLeft > 0)) {
+			if (sv_check(*this, card->cooldownLeft > 0)) {
 				card->cooldownLeft--;
 			}
 		}
 	} else if (auto *e = event.as<StatusAddEvent>()) {
 		auto res = statuses.insertOrAssign(e->status);
-		sv_check(res.inserted);
+		sv_check(*this, res.inserted);
 		if (Character *chr = findCharacter(*this, e->status.characterId)) {
 			chr->statuses.push(e->status.id);
 		}
 	} else if (auto *e = event.as<StatusTickEvent>()) {
 		if (Status *status = findStatus(*this, e->statusId)) {
-			if (sv_check(status->turnsLeft > 0)) {
+			if (sv_check(*this, status->turnsLeft > 0)) {
 				status->turnsLeft--;
 			}
 		}
@@ -314,7 +332,7 @@ void ServerState::applyEvent(const Event &event)
 		}
 	} else if (auto *e = event.as<LoadPrefabEvent>()) {
 		auto res = prefabs.insertOrAssign(e->prefab);
-		sv_check(res.inserted);
+		sv_check(*this, res.inserted);
 	} else if (auto *e = event.as<ReloadPrefabEvent>()) {
 		prefabs[e->prefab.name] = e->prefab;
 
@@ -332,7 +350,7 @@ void ServerState::applyEvent(const Event &event)
 	} else if (auto *e = event.as<RemoveGarbagePrefabsEvent>()) {
 		removePrefabs(e->names.slice());
 	} else if (auto *e = event.as<AddPropEvent>()) {
-		sv_check(!isPropValid(*this, e->prop.id));
+		sv_check(*this, !isPropValid(*this, e->prop.id));
 		props.insertOrAssign(e->prop);
 
 		prefabProps[e->prop.prefabName].insertIfNew(e->prop.id);
@@ -344,11 +362,11 @@ void ServerState::applyEvent(const Event &event)
 		}
 
 		bool removed = props.remove(e->propId);
-		sv_check(removed);
+		sv_check(*this, removed);
 
 		removeEntityFromAllTiles(e->propId);
 	} else if (auto *e = event.as<ReplaceLocalPropEvent>()) {
-		sv_check(!isPropValid(*this, e->prop.id));
+		sv_check(*this, !isPropValid(*this, e->prop.id));
 
 		props.insertOrAssign(e->prop);
 		if (localClientId == e->clientId) {
@@ -364,13 +382,13 @@ void ServerState::applyEvent(const Event &event)
 
 	} else if (auto *e = event.as<AddCharacterEvent>()) {
 		auto res = characters.insertOrAssign(e->character);
-		sv_check(res.inserted);
+		sv_check(*this, res.inserted);
 
 		addCharacterToTiles(*this, e->character);
 
 	} else if (auto *e = event.as<AddCardEvent>()) {
 		auto res = cards.insertOrAssign(e->card);
-		sv_check(res.inserted);
+		sv_check(*this, res.inserted);
 	} else if (auto *e = event.as<MovePropEvent>()) {
 		if (Prop *prop = findProp(*this, e->propId)) {
 			removeEntityFromAllTiles(e->propId);
@@ -380,7 +398,7 @@ void ServerState::applyEvent(const Event &event)
 
 	} else if (auto *e = event.as<GiveCardEvent>()) {
 		if (Card *card = findCard(*this, e->cardId)) {
-			sv_check(card->ownerId == e->previousOwnerId);
+			sv_check(*this, card->ownerId == e->previousOwnerId);
 
 			if (card->ownerId) {
 				if (Character *chr = findCharacter(*this, card->ownerId)) {
@@ -404,7 +422,7 @@ void ServerState::applyEvent(const Event &event)
 	} else if (auto *e = event.as<SelectCardEvent>()) {
 		if (Character *chr = findCharacter(*this, e->ownerId)) {
 			bool found = sf::find(chr->cards, e->cardId);
-			if (sv_check(found)) {
+			if (sv_check(*this, found)) {
 				chr->selectedCards[e->slot] = e->cardId;
 			}
 		}
@@ -502,7 +520,7 @@ void ServerState::getAsEvents(EventCallbackFn *callback, void *user) const
 static sf::StaticRecursiveMutex g_configMutex;
 
 template <typename T>
-static sf::Box<T> loadConfig(sf::String name)
+static sf::Box<T> loadConfig(ServerState &state, sf::String name)
 {
 	sf::Symbol path = sf::Symbol(name);
 
@@ -520,7 +538,7 @@ static sf::Box<T> loadConfig(sf::String name)
 	args.dialect.allow_trailing_comma = true;
 	jsi_value *value = jsi_parse_file(path.data, &args);
 	if (!value) {
-		sf::debugPrint("Failed to parse %s:%u:%u: %s",
+		serverErrorFmt(state, "Failed to parse %s:%u:%u: %s",
 			path.data, args.error.line, args.error.column, args.error.description);
 		return { };
 	}
@@ -543,7 +561,7 @@ static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, s
 	if (events) {
 		if (prefab) return;
 
-		sf::Box<Prefab> box = loadConfig<Prefab>(name);
+		sf::Box<Prefab> box = loadConfig<Prefab>(state, name);
 		if (!box) return;
 		
 		{
@@ -573,8 +591,8 @@ static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, s
 			walkPrefabs(state, events, marks, c->endEffect);
 		} else if (auto *c = component->as<CharacterTemplateComponent>()) {
 			walkPrefabs(state, events, marks, c->characterPrefab);
-			for (const sf::Symbol &cardPrefab : c->starterCardPrefabs) {
-				walkPrefabs(state, events, marks, cardPrefab);
+			for (const StarterCard &starter : c->starterCards) {
+				walkPrefabs(state, events, marks, starter.prefabName);
 			}
 		}
 	}
@@ -596,7 +614,7 @@ void ServerState::putStatus(sf::Array<sf::Box<Event>> &events, const StatusInfo 
 	Prefab *statusPrefab = loadPrefab(*this, events, statusInfo.statusName);
 	if (!statusPrefab) return;
 
-	StatusComponent *statusComp = findComponent<StatusComponent>(*statusPrefab);
+	StatusComponent *statusComp = findComponent<StatusComponent>(*this, *statusPrefab);
 	if (!statusComp) return;
 
 	uint32_t id = allocateId(events, IdType::Status, false);
@@ -733,7 +751,7 @@ void ServerState::castSpell(sf::Array<sf::Box<Event>> &events, const SpellInfo &
 	Prefab *spellPrefab = loadPrefab(*this, events, spellInfo.spellName);
 	if (!spellPrefab) return;
 
-	SpellComponent *spellComp = findComponent<SpellComponent>(*spellPrefab);
+	SpellComponent *spellComp = findComponent<SpellComponent>(*this, *spellPrefab);
 	if (!spellComp) return;
 
 	RollInfo successRoll = rollDice(spellComp->successRoll, "success");
@@ -783,7 +801,7 @@ void ServerState::meleeAttack(sf::Array<sf::Box<Event>> &events, const MeleeInfo
 	Prefab *cardPrefab = loadPrefab(*this, events, card->prefabName);
 	if (!cardPrefab) return;
 
-	CardMeleeComponent *meleeComponent = findComponent<CardMeleeComponent>(*cardPrefab);
+	CardMeleeComponent *meleeComponent = findComponent<CardMeleeComponent>(*this, *cardPrefab);
 	if (!meleeComponent) return;
 
 	{
@@ -922,7 +940,7 @@ uint32_t ServerState::selectCharacterSpawn(sf::Array<sf::Box<Event>> &events, co
 	Prefab *selectPrefab = loadPrefab(*this, events, type);
 	if (!selectPrefab) return 0;
 
-	CharacterTemplateComponent *templateComp = findComponent<CharacterTemplateComponent>(*selectPrefab);
+	CharacterTemplateComponent *templateComp = findComponent<CharacterTemplateComponent>(*this, *selectPrefab);
 	if (!templateComp) return 0;
 
 	{
@@ -939,9 +957,9 @@ uint32_t ServerState::selectCharacterSpawn(sf::Array<sf::Box<Event>> &events, co
 	uint32_t chrId = addCharacter(events, chrProto);
 	if (!chrId) return 0 ;
 
-	for (const sf::Symbol &cardPrefab : templateComp->starterCardPrefabs) {
+	for (const StarterCard &starter : templateComp->starterCards) {
 		Card cardProto = { };
-		cardProto.prefabName = cardPrefab;
+		cardProto.prefabName = starter.prefabName;
 		uint32_t cardId = addCard(events, cardProto);
 		if (!cardId) return 0;
 
@@ -1001,7 +1019,7 @@ uint32_t ServerState::addCharacter(sf::Array<sf::Box<Event>> &events, const Char
 	Prefab *prefab = loadPrefab(*this, events, chr.prefabName);
 	if (!prefab) return 0;
 
-	CharacterComponent *chrComp = findComponent<CharacterComponent>(*prefab);
+	CharacterComponent *chrComp = findComponent<CharacterComponent>(*this, *prefab);
 	if (!chrComp) return 0;
 
 	uint32_t id = allocateId(events, IdType::Character, local);
@@ -1041,7 +1059,7 @@ void ServerState::addCharacterToSelect(sf::Array<sf::Box<Event>> &events, const 
 	Prefab *selectPrefab = loadPrefab(*this, events, type);
 	if (!selectPrefab) return;
 
-	CharacterTemplateComponent *templateComp = findComponent<CharacterTemplateComponent>(*selectPrefab);
+	CharacterTemplateComponent *templateComp = findComponent<CharacterTemplateComponent>(*this, *selectPrefab);
 	if (!templateComp) return;
 
 	{
@@ -1084,13 +1102,13 @@ void ServerState::giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, u
 		Prefab *chrPrefab = loadPrefab(*this, events, chr->prefabName);
 		if (!chrPrefab) return;
 
-		CharacterComponent *chrComp = findComponent<CharacterComponent>(*chrPrefab);
+		CharacterComponent *chrComp = findComponent<CharacterComponent>(*this, *chrPrefab);
 		if (!chrComp) return;
 
 		Prefab *cardPrefab = loadPrefab(*this, events, card->prefabName);
 		if (!cardPrefab) return;
 
-		CardComponent *cardComp = findComponent<CardComponent>(*cardPrefab);
+		CardComponent *cardComp = findComponent<CardComponent>(*this, *cardPrefab);
 		if (!cardComp) return;
 
 		uint32_t lastMeleeSlot = 1;
@@ -1429,8 +1447,44 @@ sf::UintFind ServerState::getEntityPackedTiles(uint32_t id) const
 	return entityToTile.findAll(id);
 }
 
+struct ReflectionFieldKey
+{
+	sf::Type *parent;
+	sf::Symbol fieldName;
+
+	bool operator==(const ReflectionFieldKey &rhs) const {
+		return parent == rhs.parent && fieldName == rhs.fieldName;
+	}
+};
+
+sf::HashMap<ReflectionFieldKey, ReflectionInfo> reflectionFields;
+
+sf_inline uint32_t hash(const ReflectionFieldKey &key) {
+	return sf::hashCombine(sf::hashPointer(key.parent), sf::hash(key.fieldName));
 }
 
+ReflectionInfo &addTypeReflectionInfo(sf::Type *type, const sf::String &fieldName)
+{
+	ReflectionFieldKey key = { type, sf::Symbol(fieldName) };
+	return reflectionFields[key];
+}
+
+ReflectionInfo getTypeReflectionInfo(sf::Type *type, const sf::Symbol &fieldName)
+{
+	ReflectionFieldKey key = { type, fieldName };
+	if (const ReflectionInfo *info = reflectionFields.findValue(key)) {
+		return *info;
+	} else {
+		return { };
+	}
+}
+
+ReflectionInfo getTypeReflectionInfo(sf::Type *type, const sf::String &fieldName)
+{
+	return getTypeReflectionInfo(type, sf::Symbol(fieldName));
+}
+
+}
 
 namespace sf {
 using namespace sv;

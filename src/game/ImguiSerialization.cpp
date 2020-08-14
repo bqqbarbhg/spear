@@ -3,20 +3,75 @@
 #include "ext/imgui/imgui.h"
 #include "sf/Reflection.h"
 
+#include "sp/Json.h"
+
+void handleInstCopyPasteImgui(ImguiStatus &status, void *inst, sf::Type *type, const char *id)
+{
+	if (ImGui::BeginPopupContextItem(id)) {
+
+		if (ImGui::MenuItem("Copy")) {
+			sf::SmallArray<char, 2048> json;
+
+			jso_stream s;
+			sp::jsoInitArray(&s, json);
+			s.pretty = true;
+
+			sp::writeInstJson(s, inst, type);
+
+			jso_close(&s);
+
+			json.push('\0');
+			ImGui::SetClipboardText(json.data);
+		} else if (ImGui::MenuItem("Paste")) {
+
+			const char *clipboard = ImGui::GetClipboardText();
+			jsi_args args = { };
+			args.dialect.allow_bare_keys = true;
+			args.dialect.allow_comments = true;
+			args.dialect.allow_control_in_string = true;
+			args.dialect.allow_missing_comma = true;
+			args.dialect.allow_trailing_comma = true;
+			jsi_value *v = jsi_parse_string(clipboard, &args);
+			if (v) {
+
+				sf::SmallArray<char, 1024> copy;
+				copy.resizeUninit(type->info.size);
+				type->info.constructRange(copy.data, 1);
+				if (sp::readInstJson(v, copy.data, type)) {
+					type->info.destructRange(inst, 1);
+					type->info.moveRange(inst, copy.data, 1);
+					status.modified = true;
+					status.changed = true;
+				}
+
+				jsi_free(v);
+			}
+
+		} else if (ImGui::MenuItem("Reset")) {
+			type->info.destructRange(inst, 1);
+			type->info.constructRange(inst, 1);
+			status.modified = true;
+			status.changed = true;
+		}
+
+		ImGui::EndPopup();
+	}
+}
+
 void handleFieldsImgui(ImguiStatus &status, void *inst, sf::Type *type, ImguiCallback callback, void *user)
 {
 	char *base = (char*)inst;
 	for (const sf::Field &field : type->fields) {
-		handleInstImgui(status, base + field.offset, field.type, field.name, callback, user);
+		handleInstImgui(status, base + field.offset, field.type, field.name, type, callback, user);
 	}
 }
 
-void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label, ImguiCallback callback, void *user)
+void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label, sf::Type *parentType, ImguiCallback callback, void *user)
 {
 	uint32_t flags = type->flags;
 	char *base = (char*)inst;
 
-	if (callback && callback(user, status, inst, type, label)) {
+	if (callback && callback(user, status, inst, type, label, parentType)) {
 		return;
 	}
 
@@ -34,6 +89,7 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 				status.changed = true;
 			}
 		}
+		handleInstCopyPasteImgui(status, inst, type);
 
 	} else if (flags & sf::Type::Polymorph) {
 		sf::PolymorphInstance poly = type->instGetPolymorph(inst);
@@ -41,7 +97,10 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 		if (poly.type) {
 			sf::SmallStringBuf<128> typeLabel;
 			typeLabel.append(label, " (", poly.type->name, ")");
-			if (ImGui::TreeNode(typeLabel.data)) {
+
+			bool open = ImGui::TreeNode(typeLabel.data);
+			handleInstCopyPasteImgui(status, inst, type);
+			if (open) {
 				char *polyBase = (char*)poly.inst;
 				handleFieldsImgui(status, polyBase, poly.type->type, callback, user);
 				ImGui::TreePop();
@@ -51,14 +110,16 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 		}
 
 	} else if (flags & sf::Type::HasFields) {
-		if (ImGui::TreeNode(label.data)) {
+		bool open = ImGui::TreeNode(label.data);
+		handleInstCopyPasteImgui(status, inst, type);
+		if (open) {
 			handleFieldsImgui(status, base, type, callback, user);
 			ImGui::TreePop();
 		}
 	} else if (flags & sf::Type::HasPointer) {
 		void *ptr = type->instGetPointer(inst);
 		if (ptr) {
-			handleInstImgui(status, ptr, type->elementType, label, callback, user);
+			handleInstImgui(status, ptr, type->elementType, label, parentType, callback, user);
 		} else {
 			ImGui::LabelText(label.data, "null");
 		}
@@ -70,15 +131,87 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 		sf::VoidSlice slice = type->instGetArray(inst, &scratch);
 		uint32_t size = (uint32_t)slice.size;
 
-		if (ImGui::TreeNode(label.data)) {
+		bool open = ImGui::TreeNode(label.data);
+		handleInstCopyPasteImgui(status, inst, type);
+		if (open) {
 			char *ptr = (char*)slice.data;
+
+			uint32_t removeIndex = ~0u;
+			uint32_t swapIndex = ~0u;
+			bool add = false;
+
 			sf::SmallStringBuf<16> indexLabel;
 			for (uint32_t i = 0; i < size; i++) {
+				ImGui::PushID((int)i);
+
+				if (flags & sf::Type::HasArrayResize) {
+					if (ImGui::Button("x")) {
+						removeIndex = i;
+					}
+					ImGui::SameLine();
+					if (ImGui::Button("^")) {
+						if (i > 0) swapIndex = i - 1;
+					}
+					ImGui::SameLine();
+					if (ImGui::Button("v")) {
+						if (i + 1 < size) swapIndex = i;
+					}
+					ImGui::SameLine();
+				}
+
 				indexLabel.clear();
 				indexLabel.format("%u", i);
-				handleInstImgui(status, ptr, elem, indexLabel, callback, user);
+				handleInstImgui(status, ptr, elem, indexLabel, parentType, callback, user);
 				ptr += elemSize;
+
+				ImGui::PopID();
 			}
+
+			if (flags & sf::Type::HasArrayResize) {
+				if (ImGui::Button("+")) {
+					add = true;
+				}
+			}
+
+			if (removeIndex != ~0u || swapIndex != ~0u || add) {
+
+				size_t esz = elem->info.size;
+				sf::Array<char> copy;
+				uint32_t newSize = (uint32_t)slice.size;
+				if (add) newSize += 1;
+				else if (removeIndex != ~0u) newSize -= 1;
+
+				copy.resizeUninit(newSize * elem->info.size);
+
+				if (add) {
+					elem->info.moveRange(copy.data, slice.data, slice.size);
+					elem->info.constructRange((char*)copy.data + slice.size*esz, 1);
+				} else if (removeIndex != ~0u) {
+					elem->info.moveRange(copy.data, slice.data, removeIndex);
+					elem->info.destructRange((char*)slice.data + removeIndex*esz, 1);
+					elem->info.moveRange(copy.data + removeIndex*esz, (char*)slice.data + (removeIndex+1)*esz, slice.size - removeIndex - 1);
+				} else if (swapIndex != ~0u) {
+					elem->info.moveRange(copy.data, slice.data, swapIndex);
+					elem->info.moveRange(copy.data + (swapIndex+1)*esz, (char*)slice.data + swapIndex*esz, 1);
+					elem->info.moveRange(copy.data + swapIndex*esz, (char*)slice.data + (swapIndex+1)*esz, 1);
+					elem->info.moveRange(copy.data + (swapIndex+2)*esz, (char*)slice.data + (swapIndex+2)*esz, slice.size - swapIndex - 2);
+				}
+				elem->info.constructRange(slice.data, slice.size);
+
+				if (scratch.size > 0) {
+					elem->info.destructRange(scratch.data, scratch.size / elem->info.size);
+					scratch.clear();
+				}
+
+				sf::VoidSlice newSlice = type->instArrayReserve(inst, newSize, &scratch);
+				elem->info.destructRange(newSlice.data, newSlice.size);
+				elem->info.moveRange(newSlice.data, copy.data, newSize);
+				type->instArrayResize(inst, newSize, newSlice);
+
+				status.modified = true;
+				status.changed = true;
+			}
+
 			ImGui::TreePop();
 		}
 
@@ -105,6 +238,7 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 
 		if (dataType >= 0) {
 			ImGui::InputScalar(label.data, dataType, inst);
+			handleInstCopyPasteImgui(status, inst, type);
 		}
 
 		status.changed |= ImGui::IsItemDeactivatedAfterEdit();

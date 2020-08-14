@@ -221,13 +221,6 @@ struct ParticleSystemImp final : ParticleSystem
 	{
 		updateCtx.rng = sf::Random(desc.seed[1], 581271);
 
-		for (float t = -1.0f; t <= 1.0f; t += 0.01f) {
-			float a = approxAcos(t);
-			float b = acosf(t);
-			float err = sf::abs(a - b);
-			sf::debugPrintLine("%+.4f -> %+.4f / %+.4f (%.4f)", t, a, b, err);
-		}
-
 		for (uint32_t i = 0; i < MaxParticleCacheFrames; i++) {
 			sf::SmallStringBuf<128> name;
 			name.format("particle vertexBuffer %u", i);

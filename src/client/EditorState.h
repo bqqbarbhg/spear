@@ -18,6 +18,12 @@ struct EditorRequests
 	sf::Array<sf::StringBuf> queryDirs;
 };
 
+struct EditorInput
+{
+	uint32_t totalErrors;
+	sf::Slice<const sf::StringBuf> errors;
+};
+
 EditorState *editorCreate(const sf::Box<sv::ServerState> &svState, const sf::Box<cl::ClientState> &clState);
 void editorFree(EditorState *es);
 
@@ -29,7 +35,7 @@ void editorAddQueryDir(EditorState *es, const sf::StringBuf &root, const sv::Que
 void editorPreRefresh(EditorState *es);
 void editorPostRefresh(EditorState *es, const sf::Box<cl::ClientState> &clState);
 
-void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput &input);
+void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput &input, const EditorInput &editorInput);
 
 EditorRequests &editorPendingRequests(EditorState *es);
 

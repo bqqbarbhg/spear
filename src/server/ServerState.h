@@ -11,11 +11,11 @@
 #include "sf/Vector.h"
 #include "sf/Array.h"
 
-#define sv_reflect
+#define sv_reflect(...)
 
 namespace sv {
 
-struct DiceRoll sv_reflect
+struct DiceRoll sv_reflect()
 {
 	uint32_t num;
 	uint32_t die;
@@ -76,14 +76,14 @@ struct ComponentBase : Component
 
 struct ModelComponent : ComponentBase<Component::Model>
 {
-	sf::Symbol model;
-	sf::Symbol shadowModel;
-	sf::Symbol material;
+	sf::Symbol model sv_reflect(asset);
+	sf::Symbol shadowModel sv_reflect(asset);
+	sf::Symbol material sv_reflect(asset);
 	sf::Vec3 position;
 	sf::Vec3 rotation;
 	float scale = 1.0f;
 	sf::Vec3 stretch = sf::Vec3(1.0f);
-	uint8_t tintColor[3] = { 255, 255, 255 };
+	uint8_t tintColor[3] = { 255, 255, 255 } sv_reflect(color);
 	bool castShadows = true;
 };
 
@@ -98,24 +98,24 @@ struct PointLightComponent : ComponentBase<Component::PointLight>
 	bool castShadows = true;
 };
 
-struct BSpline2 sv_reflect
+struct BSpline2 sv_reflect()
 {
 	sf::Array<sf::Vec2> points;
 };
 
-struct GradientPoint sv_reflect
+struct GradientPoint sv_reflect()
 {
 	float t;
 	sf::Vec3 color;
 };
 
-struct Gradient sv_reflect
+struct Gradient sv_reflect()
 {
 	sf::Vec3 defaultColor = sf::Vec3(1.0f);
 	sf::Array<GradientPoint> points;
 };
 
-struct RandomSphere sv_reflect
+struct RandomSphere sv_reflect()
 {
 	float minTheta = 0.0f;
 	float maxTheta = 360.0f;
@@ -126,7 +126,7 @@ struct RandomSphere sv_reflect
 	sf::Vec3 scale = sf::Vec3(1.0f);
 };
 
-struct RandomVec3 sv_reflect
+struct RandomVec3 sv_reflect()
 {
 	sf::Vec3 offset;
 	sf::Vec3 boxExtent;
@@ -136,7 +136,7 @@ struct RandomVec3 sv_reflect
 
 struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 {
-	sf::Symbol sprite;
+	sf::Symbol sprite sv_reflect(asset);
 	float updateRadius = 0.0f;
 	float timeStep = 0.1f;
 	bool updateOutOfCamera = false;
@@ -170,8 +170,8 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 struct CharacterComponent : ComponentBase<Component::Character>
 {
 	sf::Symbol name;
-	sf::Symbol description;
-	sf::Symbol image;
+	sf::Symbol description sv_reflect(multiline);
+	sf::Symbol image sv_reflect(asset);
 	uint32_t maxHealth = 0;
 	uint32_t baseArmor = 0;
 	uint32_t minWeightDice = 1;
@@ -181,17 +181,17 @@ struct CharacterComponent : ComponentBase<Component::Character>
 	uint32_t itemSlots = 0;
 };
 
-struct AnimationInfo sv_reflect
+struct AnimationInfo sv_reflect()
 {
 	sf::Array<sf::Symbol> tags;
-	sf::Symbol file;
+	sf::Symbol file sv_reflect(asset);
 	float weight = 1.0f;
 	bool loop = true;
 	float speed = 1.0f;
 	float speedVariation = 0.0f;
 };
 
-struct AttachBone sv_reflect
+struct AttachBone sv_reflect()
 {
 	sf::Symbol name;
 	sf::Symbol boneName;
@@ -200,14 +200,14 @@ struct AttachBone sv_reflect
 
 struct CharacterModelComponent : ComponentBase<Component::CharacterModel>
 {
-	sf::Symbol modelName;
+	sf::Symbol modelName sv_reflect(asset);
 	sf::HashMap<sf::Symbol, sf::Symbol> materials;
 	float scale = 1.0f;
 	sf::Array<AnimationInfo> animations;
 	sf::Array<AttachBone> attachBones;
 };
 
-struct ShadowBlob sv_reflect
+struct ShadowBlob sv_reflect()
 {
 	sf::Symbol boneName;
 	float radius = 0.0f;
@@ -223,7 +223,7 @@ struct BlobShadowComponent : ComponentBase<Component::BlobShadow>
 struct CardComponent : ComponentBase<Component::Card>
 {
 	sf::Symbol name;
-	sf::Symbol description;
+	sf::Symbol description sv_reflect(multiline);
 	uint32_t cooldown;
 	// TODO: Enum
 	bool melee = false;
@@ -234,7 +234,7 @@ struct CardComponent : ComponentBase<Component::Card>
 
 struct CardAttachComponent : ComponentBase<Component::CardAttach>
 {
-	sf::Symbol prefabName;
+	sf::Symbol prefabName sv_reflect(prefab);
 	sf::Symbol boneName;
 	float scale = 1.0f;
 	sf::Vec3 offset;
@@ -248,28 +248,28 @@ struct CardMeleeComponent : ComponentBase<Component::CardMelee>
 
 struct CardProjectileComponent : ComponentBase<Component::CardProjectile>
 {
-	sf::Symbol prefabName;
+	sf::Symbol prefabName sv_reflect(prefab);
 	sf::Symbol hitEffect;
 	float flightSpeed = 0.0f;
 };
 
 struct CastOnTurnStartComponent : ComponentBase<Component::CastOnTurnStart>
 {
-	sf::Symbol spellName;
+	sf::Symbol spellName sv_reflect(prefab);
 };
 
 struct CastOnReceiveDamageComponent : ComponentBase<Component::CastOnReceiveDamage>
 {
 	bool onMelee = false;
 	bool onSpell = false;
-	sf::Symbol spellName;
+	sf::Symbol spellName sv_reflect(prefab);
 };
 
 struct CastOnDealDamageComponent : ComponentBase<Component::CastOnDealDamage>
 {
 	bool onMelee = false;
 	bool onSpell = false;
-	sf::Symbol spellName;
+	sf::Symbol spellName sv_reflect(prefab);
 };
 
 struct ResistDamageComponent : ComponentBase<Component::ResistDamage>
@@ -279,12 +279,12 @@ struct ResistDamageComponent : ComponentBase<Component::ResistDamage>
 	bool onMelee = false;
 	float resistAmount = 1.0f;
 	DiceRoll successRoll;
-	sf::Symbol effectName;
+	sf::Symbol effectName sv_reflect(prefab);
 };
 
 struct CardCastComponent : ComponentBase<Component::CardCast>
 {
-	sf::Symbol spellName;
+	sf::Symbol spellName sv_reflect(prefab);
 };
 
 struct SpellComponent : ComponentBase<Component::Spell>
@@ -299,32 +299,38 @@ struct SpellDamageComponent : ComponentBase<Component::SpellDamage>
 
 struct SpellStatusComponent : ComponentBase<Component::SpellStatus>
 {
-	sf::Symbol statusName;
+	sf::Symbol statusName sv_reflect(prefab);
 };
 
 struct StatusComponent : ComponentBase<Component::Status>
 {
 	DiceRoll turnsRoll;
-	sf::Symbol startEffect;
-	sf::Symbol activeEffect;
-	sf::Symbol endEffect;
+	sf::Symbol startEffect sv_reflect(prefab);
+	sf::Symbol activeEffect sv_reflect(prefab);
+	sf::Symbol endEffect sv_reflect(prefab);
+};
+
+struct StarterCard sv_reflect()
+{
+	sf::Symbol prefabName sv_reflect(prefab);
+	float probability = 1.0f;
 };
 
 struct CharacterTemplateComponent : ComponentBase<Component::CharacterTemplate>
 {
 	sf::Symbol name;
-	sf::Symbol description;
-	sf::Symbol characterPrefab;
-	sf::Array<sf::Symbol> starterCardPrefabs;
+	sf::Symbol description sv_reflect(multiline);
+	sf::Symbol characterPrefab sv_reflect(prefab);
+	sf::Array<StarterCard> starterCards;
 };
 
 struct TileAreaComponent : ComponentBase<Component::TileArea>
 {
-	sf::Vec2i minCorner;
-	sf::Vec2i maxCorner;
+	sf::Vec2i minCorner sv_reflect(fixed(16));
+	sf::Vec2i maxCorner sv_reflect(fixed(16));
 };
 
-struct Prefab sv_reflect
+struct Prefab sv_reflect()
 {
 	sf::Symbol name;
 	sf::Array<sf::Box<Component>> components;
@@ -335,35 +341,35 @@ struct Prefab sv_reflect
 	T *findComponent() const { return (T*)findComponentImp(T::ComponentType); }
 };
 
-struct PropTransform sv_reflect
+struct PropTransform sv_reflect()
 {
-	sf::Vec2i position;     // 1/2^16 m
-	int32_t offsetY = 0;    // 1/2^16 m
-	uint16_t rotation = 0;  // 1/2^6 deg
-	uint16_t scale = 0x100; // 1/2^8 x
+	sf::Vec2i position      sv_reflect(fixed(16)); // 1/2^16 m
+	int32_t offsetY = 0     sv_reflect(fixed(16)); // 1/2^16 m
+	uint16_t rotation = 0   sv_reflect(fixed(6));  // 1/2^6 deg
+	uint16_t scale = 0x100  sv_reflect(fixed(8));  // 1/2^8 x
 };
 
-struct Prop sv_reflect
+struct Prop sv_reflect()
 {
 	uint32_t id;
 	PropTransform transform;
-	sf::Symbol prefabName;
+	sf::Symbol prefabName sv_reflect(prefab);
 };
 
-struct Card sv_reflect
+struct Card sv_reflect()
 {
 	uint32_t id;
 	uint32_t ownerId = 0;
-	sf::Symbol prefabName;
+	sf::Symbol prefabName sv_reflect(prefab);
 	uint32_t cooldownLeft;
 };
 
-struct Status sv_reflect
+struct Status sv_reflect()
 {
 	uint32_t id;
 	uint32_t characterId;
-	sf::Symbol prefabName;
-	sf::Symbol cardName;
+	sf::Symbol prefabName sv_reflect(prefab);
+	sf::Symbol cardName sv_reflect(prefab);
 	uint32_t originalCasterId;
 	uint32_t casterId;
 	uint32_t turnsLeft;
@@ -371,12 +377,12 @@ struct Status sv_reflect
 
 static const uint32_t NumSelectedCards = 8;
 
-struct Character sv_reflect
+struct Character sv_reflect()
 {
 	uint32_t id;
 	int32_t maxHealth = 0;
 	int32_t health = 0;
-	sf::Symbol prefabName;
+	sf::Symbol prefabName sv_reflect(prefab);
 	uint32_t selectedCards[NumSelectedCards] = { };
 	sf::Array<uint32_t> cards;
 	sf::Array<uint32_t> statuses;
@@ -384,44 +390,44 @@ struct Character sv_reflect
 	uint32_t armor = 0;
 };
 
-struct StatusInfo sv_reflect
+struct StatusInfo sv_reflect()
 {
 	uint32_t originalCasterId;
 	uint32_t casterId;
 	uint32_t targetId;
-	sf::Symbol statusName;
-	sf::Symbol cardName;
+	sf::Symbol statusName sv_reflect(prefab);
+	sf::Symbol cardName sv_reflect(prefab);
 };
 
-struct SpellInfo sv_reflect
+struct SpellInfo sv_reflect()
 {
 	uint32_t originalCasterId;
 	uint32_t casterId;
 	uint32_t targetId;
-	sf::Symbol spellName;
-	sf::Symbol cardName;
+	sf::Symbol spellName sv_reflect(prefab);
+	sf::Symbol cardName sv_reflect(prefab);
 };
 
-struct MeleeInfo sv_reflect
+struct MeleeInfo sv_reflect()
 {
 	uint32_t attackerId;
 	uint32_t targetId;
-	sf::Symbol cardName;
+	sf::Symbol cardName sv_reflect(prefab);
 };
 
-struct DamageInfo sv_reflect
+struct DamageInfo sv_reflect()
 {
 	bool melee = false;
 	bool physical = false;
 	bool magic = false;
-	sf::Symbol spellName;
+	sf::Symbol spellName sv_reflect(prefab);
 	uint32_t originalCasterId;
 	uint32_t causeId;
 	uint32_t targetId;
 	DiceRoll damageRoll;
 };
 
-struct RollInfo sv_reflect
+struct RollInfo sv_reflect()
 {
 	sf::Symbol name;
 	DiceRoll roll;
@@ -429,9 +435,9 @@ struct RollInfo sv_reflect
 	uint32_t total;
 };
 
-struct CastInfo sv_reflect
+struct CastInfo sv_reflect()
 {
-	SpellInfo spellInfo;
+	SpellInfo spellInfo sv_reflect(prefab);
 	sf::Array<RollInfo> rolls;
 	bool succeeded = false;
 };
@@ -634,7 +640,7 @@ struct SelectCharacterToSpawnEvent : EventBase<Event::SelectCharacterToSpawn>
 	uint32_t playerId;
 };
 
-struct Waypoint sv_reflect
+struct Waypoint sv_reflect()
 {
 	sf::Vec2i position;
 };
@@ -818,6 +824,9 @@ sf_inline sf::Vec2i unpackTile(uint32_t packed) {
 struct ServerState
 {
 	ServerState();
+
+	// Not serialized!
+	sf::Array<sf::StringBuf> errors;
 
 	uint32_t localClientId = 0;
 	PrefabMap prefabs;

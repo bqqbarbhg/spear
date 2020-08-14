@@ -32,6 +32,7 @@ struct Message
 		RequestEditRedo,
 		QueryFiles,
 		QueryFilesResult,
+		ErrorList,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -94,6 +95,11 @@ struct MessageQueryFilesResult : MessageBase<Message::QueryFilesResult>
 {
 	sf::StringBuf root;
 	QueryDir dir;
+};
+
+struct MessageErrorList : MessageBase<Message::ErrorList>
+{
+	sf::Array<sf::StringBuf> errors;
 };
 
 struct MessageEncoding
