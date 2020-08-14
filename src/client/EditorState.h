@@ -29,7 +29,7 @@ void editorFree(EditorState *es);
 
 void editorPeekSokolEvent(EditorState *es, const struct sapp_event *e);
 
-bool editorPeekEventPre(EditorState *es, const sv::Event &event);
+bool editorPeekEventPre(EditorState *es, const sf::Box<sv::Event> &event);
 void editorAddQueryDir(EditorState *es, const sf::StringBuf &root, const sv::QueryDir &dir);
 
 void editorPreRefresh(EditorState *es);

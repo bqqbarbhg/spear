@@ -7,6 +7,7 @@ namespace sv {
 
 struct ReflectionInfo
 {
+	const char *description = nullptr;
 	bool prefab = false;
 	bool asset = false;
 	bool multiline = false;

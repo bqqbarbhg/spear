@@ -99,19 +99,43 @@ template<> void initType<ModelComponent>(Type *t)
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "model");
+		info.description = "Model .fbx asset";
 		info.asset = true;
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "shadowModel");
+		info.description = "Model .fbx used for shadow instead of 'model'";
 		info.asset = true;
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "material");
+		info.description = "Material used fo the asset";
 		info.asset = true;
 	}
 	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "position");
+		info.description = "Offset (in meters) of the model relative to the entity";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "rotation");
+		info.description = "Rotation (XYZ in degrees) of the model relative to the entity";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "scale");
+		info.description = "Uniform scaling applied to the model";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "stretch");
+		info.description = "Non-uniform scaling in entity's local X/Y/Z directions";
+	}
+	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "tintColor");
+		info.description = "Modifies the base color of the model's material";
 		info.color = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "castShadows");
+		info.description = "Does the model cast shadows?";
 	}
 }
 
@@ -122,45 +146,183 @@ template<> void initType<PointLightComponent>(Type *t)
 		sf_field(PointLightComponent, intensity),
 		sf_field(PointLightComponent, radius),
 		sf_field(PointLightComponent, position),
-		sf_field(PointLightComponent, flickerFrequency),
-		sf_field(PointLightComponent, flickerIntensity),
 		sf_field(PointLightComponent, castShadows),
 	};
 	sf_struct_base(t, PointLightComponent, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "color");
+		info.description = "Color of the light";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "intensity");
+		info.description = "Brightness of the light";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "radius");
+		info.description = "Maximum eistance in meters that the light can reach";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "position");
+		info.description = "Offset (in meters) of the light in the entity";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "castShadows");
+		info.description = "Does this light have shadows";
+	}
 }
 
 template<> void initType<ParticleSystemComponent>(Type *t)
 {
 	static Field fields[] = {
-		sf_field(ParticleSystemComponent, sprite),
-		sf_field(ParticleSystemComponent, updateRadius),
+		sf_field(ParticleSystemComponent, texture),
+		sf_field(ParticleSystemComponent, frameCount),
 		sf_field(ParticleSystemComponent, timeStep),
-		sf_field(ParticleSystemComponent, updateOutOfCamera),
 		sf_field(ParticleSystemComponent, prewarmTime),
-		sf_field(ParticleSystemComponent, scaleSpline),
-		sf_field(ParticleSystemComponent, alphaSpline),
-		sf_field(ParticleSystemComponent, additiveSpline),
-		sf_field(ParticleSystemComponent, gradient),
+		sf_field(ParticleSystemComponent, updateRadius),
+		sf_field(ParticleSystemComponent, cullPadding),
+		sf_field(ParticleSystemComponent, updateOutOfCamera),
+		sf_field(ParticleSystemComponent, spawnTime),
+		sf_field(ParticleSystemComponent, spawnTimeVariance),
 		sf_field(ParticleSystemComponent, emitPosition),
 		sf_field(ParticleSystemComponent, emitVelocity),
 		sf_field(ParticleSystemComponent, emitVelocityAttractorOffset),
 		sf_field(ParticleSystemComponent, emitVelocityAttractorStrength),
+		sf_field(ParticleSystemComponent, drag),
 		sf_field(ParticleSystemComponent, size),
 		sf_field(ParticleSystemComponent, sizeVariance),
 		sf_field(ParticleSystemComponent, lifeTime),
 		sf_field(ParticleSystemComponent, lifeTimeVariance),
-		sf_field(ParticleSystemComponent, drag),
-		sf_field(ParticleSystemComponent, spawnTime),
-		sf_field(ParticleSystemComponent, spawnTimeVariance),
-		sf_field(ParticleSystemComponent, cullPadding),
+		sf_field(ParticleSystemComponent, scaleSpline),
+		sf_field(ParticleSystemComponent, alphaSpline),
+		sf_field(ParticleSystemComponent, additiveSpline),
+		sf_field(ParticleSystemComponent, gradient),
 		sf_field(ParticleSystemComponent, frameRate),
-		sf_field(ParticleSystemComponent, frameCount),
+		sf_field(ParticleSystemComponent, relativeFrameRate),
+		sf_field(ParticleSystemComponent, randomStartFrame),
+		sf_field(ParticleSystemComponent, rotation),
+		sf_field(ParticleSystemComponent, rotationVariance),
+		sf_field(ParticleSystemComponent, spin),
+		sf_field(ParticleSystemComponent, spinVariance),
 	};
 	sf_struct_base(t, ParticleSystemComponent, Component, fields);
 
 	{
-		ReflectionInfo &info = addTypeReflectionInfo(t, "sprite");
+		ReflectionInfo &info = addTypeReflectionInfo(t, "texture");
+		info.description = "Texture used for the effect";
 		info.asset = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "frameCount");
+		info.description = "Number of frames in a sprite sheet";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "timeStep");
+		info.description = "How large simulation steps to do, smaller values are heavier but more accurate";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "prewarmTime");
+		info.description = "Time to simulate after spawning the effect";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "updateRadius");
+		info.description = "Size of the \"active area\" of this particle effect";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "cullPadding");
+		info.description = "How much to \"pad\" the area for culling, increase if the effect disappears";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "updateOutOfCamera");
+		info.description = "Update even if not visible in the camera";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "spawnTime");
+		info.description = "Time in seconds between spawning particles";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "spawnTimeVariance");
+		info.description = "Random extra time between spawns";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "emitPosition");
+		info.description = "Random position for new particles";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "emitVelocity");
+		info.description = "Random velocity for new particles";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "emitVelocityAttractorOffset");
+		info.description = "Position to apply extra velocity towards/away from";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "emitVelocityAttractorStrength");
+		info.description = "Extra velocity towards (< 0) or away (> 1) from attractor offset";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "drag");
+		info.description = "Air resistance slowing particles from moving";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "size");
+		info.description = "Base size of particles";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "sizeVariance");
+		info.description = "Random additional size for individual particles";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "lifeTime");
+		info.description = "Time in seconds the particles live";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "lifeTimeVariance");
+		info.description = "Random additional per-particle life time";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "scaleSpline");
+		info.description = "Particle scale over particle lifetime";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "alphaSpline");
+		info.description = "Particle alpha over particle lifetime";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "additiveSpline");
+		info.description = "Additive blending over particle lifetime";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "gradient");
+		info.description = "Color gradient over particle lifetime";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "frameRate");
+		info.description = "Texture animation speed in frames per second";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "relativeFrameRate");
+		info.description = "Ties the tie frame rate to particle life time (for synchronization)";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "randomStartFrame");
+		info.description = "Start from a random frame in the sprite sheet";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "rotation");
+		info.description = "Base rotation of the particles in degrees";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "rotationVariance");
+		info.description = "Random per-particle extra rotation of the particles in degrees";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "spin");
+		info.description = "Rotation speed for the particles in degrees";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "spinVariance");
+		info.description = "Random per-particle speed for the particles in degrees";
 	}
 }
 
@@ -772,6 +934,35 @@ template<> void initType<RandomSphere>(Type *t)
 		sf_field(RandomSphere, scale),
 	};
 	sf_struct_base(t, RandomSphere, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "minTheta");
+		info.description = "Minimum angle in degrees of the horizontal arc (0-360)";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "maxTheta");
+		info.description = "Maximum angle in degrees of the horizontal arc (0-360)";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "minPhi");
+		info.description = "Minimum angle in degrees of the vertical arc (0-180)";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "maxPhi");
+		info.description = "Maximums angle in degrees of the vertical arc (0-180)";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "minRadius");
+		info.description = "Minimum distance from the center (in meters)";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "maxRadius");
+		info.description = "Maximum distance from the center (in meters)";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "scale");
+		info.description = "Stretches the sphere non-uniformly";
+	}
 }
 
 template<> void initType<RandomVec3>(Type *t)
@@ -783,6 +974,23 @@ template<> void initType<RandomVec3>(Type *t)
 		sf_field(RandomVec3, rotation),
 	};
 	sf_struct_base(t, RandomVec3, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "offset");
+		info.description = "Base offset/center position";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "boxExtent");
+		info.description = "Random X/Y/Z box size in meters";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "sphere");
+		info.description = "Random sphere";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "rotation");
+		info.description = "Rotation (X/Y/Z degrees) applied to the final values";
+	}
 }
 
 template<> void initType<AnimationInfo>(Type *t)

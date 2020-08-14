@@ -5,7 +5,7 @@
 
 #include "sp/Json.h"
 
-void handleInstCopyPasteImgui(ImguiStatus &status, void *inst, sf::Type *type, const char *id)
+void handleInstCopyPasteImgui(ImguiStatus &status, void *inst, sf::Type *type, const char *tooltip, const char *id)
 {
 	if (ImGui::BeginPopupContextItem(id)) {
 
@@ -55,6 +55,10 @@ void handleInstCopyPasteImgui(ImguiStatus &status, void *inst, sf::Type *type, c
 		}
 
 		ImGui::EndPopup();
+	} else {
+		if (tooltip && ImGui::IsItemHovered()) {
+			ImGui::SetTooltip("%s", tooltip);
+		}
 	}
 }
 
@@ -71,7 +75,8 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 	uint32_t flags = type->flags;
 	char *base = (char*)inst;
 
-	if (callback && callback(user, status, inst, type, label, parentType)) {
+	const char *tooltip = NULL;
+	if (callback && callback(user, status, inst, type, label, parentType, &tooltip)) {
 		return;
 	}
 
@@ -89,7 +94,7 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 				status.changed = true;
 			}
 		}
-		handleInstCopyPasteImgui(status, inst, type);
+		handleInstCopyPasteImgui(status, inst, type, tooltip);
 
 	} else if (flags & sf::Type::Polymorph) {
 		sf::PolymorphInstance poly = type->instGetPolymorph(inst);
@@ -99,7 +104,7 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 			typeLabel.append(label, " (", poly.type->name, ")");
 
 			bool open = ImGui::TreeNode(typeLabel.data);
-			handleInstCopyPasteImgui(status, inst, type);
+			handleInstCopyPasteImgui(status, inst, type, tooltip);
 			if (open) {
 				char *polyBase = (char*)poly.inst;
 				handleFieldsImgui(status, polyBase, poly.type->type, callback, user);
@@ -111,7 +116,7 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 
 	} else if (flags & sf::Type::HasFields) {
 		bool open = ImGui::TreeNode(label.data);
-		handleInstCopyPasteImgui(status, inst, type);
+		handleInstCopyPasteImgui(status, inst, type, tooltip);
 		if (open) {
 			handleFieldsImgui(status, base, type, callback, user);
 			ImGui::TreePop();
@@ -132,7 +137,7 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 		uint32_t size = (uint32_t)slice.size;
 
 		bool open = ImGui::TreeNode(label.data);
-		handleInstCopyPasteImgui(status, inst, type);
+		handleInstCopyPasteImgui(status, inst, type, tooltip);
 		if (open) {
 			char *ptr = (char*)slice.data;
 
@@ -238,8 +243,8 @@ void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::
 
 		if (dataType >= 0) {
 			ImGui::InputScalar(label.data, dataType, inst);
-			handleInstCopyPasteImgui(status, inst, type);
 		}
+		handleInstCopyPasteImgui(status, inst, type, tooltip);
 
 		status.changed |= ImGui::IsItemDeactivatedAfterEdit();
 

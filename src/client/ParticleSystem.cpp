@@ -252,7 +252,7 @@ struct ParticleSystemImp final : ParticleSystem
 	{
 		EffectType &type = types[typeId];
 
-		type.texture.load(c.sprite);
+		type.texture.load(c.texture);
 		type.updateRadius = c.updateRadius;
 		type.timeStep = c.timeStep;
 
@@ -262,6 +262,13 @@ struct ParticleSystemImp final : ParticleSystem
 		sf::memZero(type.typeUbo);
 		type.typeUbo.u_FrameCount = sf::Vec2(c.frameCount);
 		type.typeUbo.u_FrameRate = c.frameRate;
+		type.typeUbo.u_RotationControl.x = c.rotation * (sf::F_PI/180.0f);
+		type.typeUbo.u_RotationControl.y = c.rotationVariance * (sf::F_PI/180.0f);
+		type.typeUbo.u_RotationControl.z = c.spin * (sf::F_PI/180.0f);
+		type.typeUbo.u_RotationControl.w = c.spinVariance * (sf::F_PI/180.0f);
+		if (c.randomStartFrame) {
+			type.typeUbo.u_StartFrame = (float)(c.frameCount.x * c.frameCount.y);
+		}
 
 		uint32_t atlasX = typeId / SplineAtlasHeight;
 		uint32_t atlasY = typeId % SplineAtlasHeight;
@@ -593,6 +600,7 @@ struct ParticleSystemImp final : ParticleSystem
 				types.push();
 			}
 
+			res.entry.val = typeId;
 			types[typeId].svComponent = c;
 			initEffectType(typeId, *c);
 		} else {

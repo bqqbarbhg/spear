@@ -811,8 +811,8 @@ SOKOL_API_IMPL bool simgui_handle_event(const sapp_event* ev) {
             }
             break;
         case SAPP_EVENTTYPE_MOUSE_SCROLL:
-            io->MouseWheelH = ev->scroll_x;
-            io->MouseWheel = ev->scroll_y;
+            io->MouseWheelH = ev->scroll_x * 0.25f;
+            io->MouseWheel = ev->scroll_y * 0.25f;
             break;
         case SAPP_EVENTTYPE_TOUCHES_BEGAN:
             _simgui.btn_down[0] = true;

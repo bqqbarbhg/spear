@@ -9,9 +9,9 @@ struct ImguiStatus
 	bool changed = false;
 };
 
-typedef bool (*ImguiCallback)(void *user, ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label, sf::Type *parentType);
+typedef bool (*ImguiCallback)(void *user, ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label, sf::Type *parentType, const char **outTooltip);
 
-void handleInstCopyPasteImgui(ImguiStatus &status, void *inst, sf::Type *type, const char *id=nullptr);
+void handleInstCopyPasteImgui(ImguiStatus &status, void *inst, sf::Type *type, const char *tooltip, const char *id=nullptr);
 void handleFieldsImgui(ImguiStatus &status, void *inst, sf::Type *type, ImguiCallback callback, void *user);
 void handleInstImgui(ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label, sf::Type *parentType, ImguiCallback callback, void *user);
 

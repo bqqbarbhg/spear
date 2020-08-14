@@ -76,26 +76,24 @@ struct ComponentBase : Component
 
 struct ModelComponent : ComponentBase<Component::Model>
 {
-	sf::Symbol model sv_reflect(asset);
-	sf::Symbol shadowModel sv_reflect(asset);
-	sf::Symbol material sv_reflect(asset);
-	sf::Vec3 position;
-	sf::Vec3 rotation;
-	float scale = 1.0f;
-	sf::Vec3 stretch = sf::Vec3(1.0f);
-	uint8_t tintColor[3] = { 255, 255, 255 } sv_reflect(color);
-	bool castShadows = true;
+	sf::Symbol model sv_reflect(asset); //! Model .fbx asset
+	sf::Symbol shadowModel sv_reflect(asset); //! Model .fbx used for shadow instead of 'model'
+	sf::Symbol material sv_reflect(asset); //! Material used fo the asset
+	sf::Vec3 position; //! Offset (in meters) of the model relative to the entity
+	sf::Vec3 rotation; //! Rotation (XYZ in degrees) of the model relative to the entity
+	float scale = 1.0f; //! Uniform scaling applied to the model
+	sf::Vec3 stretch = sf::Vec3(1.0f); //! Non-uniform scaling in entity's local X/Y/Z directions
+	uint8_t tintColor[3] = { 255, 255, 255 } sv_reflect(color); //! Modifies the base color of the model's material
+	bool castShadows = true; //! Does the model cast shadows?
 };
 
 struct PointLightComponent : ComponentBase<Component::PointLight>
 {
-	sf::Vec3 color = sf::Vec3(1.0f);
-	float intensity = 1.0f;
-	float radius = 1.0f;
-	sf::Vec3 position;
-	float flickerFrequency = 0.0f;
-	float flickerIntensity = 0.0f;
-	bool castShadows = true;
+	sf::Vec3 color = sf::Vec3(1.0f); //! Color of the light
+	float intensity = 1.0f; //! Brightness of the light
+	float radius = 1.0f; //! Maximum eistance in meters that the light can reach
+	sf::Vec3 position; //! Offset (in meters) of the light in the entity
+	bool castShadows = true; //! Does this light have shadows
 };
 
 struct BSpline2 sv_reflect()
@@ -117,54 +115,66 @@ struct Gradient sv_reflect()
 
 struct RandomSphere sv_reflect()
 {
-	float minTheta = 0.0f;
-	float maxTheta = 360.0f;
-	float minPhi = 0.0f;
-	float maxPhi = 180.0f;
-	float minRadius = 0.0f;
-	float maxRadius = 0.0f;
-	sf::Vec3 scale = sf::Vec3(1.0f);
+	float minTheta = 0.0f; //! Minimum angle in degrees of the horizontal arc (0-360)
+	float maxTheta = 360.0f; //! Maximum angle in degrees of the horizontal arc (0-360)
+	float minPhi = 0.0f; //! Minimum angle in degrees of the vertical arc (0-180)
+	float maxPhi = 180.0f; //! Maximums angle in degrees of the vertical arc (0-180)
+	float minRadius = 0.0f; //! Minimum distance from the center (in meters)
+	float maxRadius = 0.0f; //! Maximum distance from the center (in meters)
+	sf::Vec3 scale = sf::Vec3(1.0f); //! Stretches the sphere non-uniformly
 };
 
 struct RandomVec3 sv_reflect()
 {
-	sf::Vec3 offset;
-	sf::Vec3 boxExtent;
-	RandomSphere sphere;
-	sf::Vec3 rotation;
+	sf::Vec3 offset; //! Base offset/center position
+	sf::Vec3 boxExtent; //! Random X/Y/Z box size in meters
+	RandomSphere sphere; //! Random sphere
+	sf::Vec3 rotation; //! Rotation (X/Y/Z degrees) applied to the final values
 };
 
 struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 {
-	sf::Symbol sprite sv_reflect(asset);
-	float updateRadius = 0.0f;
-	float timeStep = 0.1f;
-	bool updateOutOfCamera = false;
-	float prewarmTime = 0.0f;
+	sf::Symbol texture sv_reflect(asset); //! Texture used for the effect
+	sf::Vec2i frameCount = sf::Vec2i(1); //! Number of frames in a sprite sheet
 
-	BSpline2 scaleSpline;
-	BSpline2 alphaSpline;
-	BSpline2 additiveSpline;
-	Gradient gradient;
+	float timeStep = 0.1f; //! How large simulation steps to do, smaller values are heavier but more accurate
+	float prewarmTime = 0.0f; //! Time to simulate after spawning the effect
 
-	RandomVec3 emitPosition;
-	RandomVec3 emitVelocity;
+	float updateRadius = 5.0f; //! Size of the "active area" of this particle effect
+	float cullPadding = 1.5f; //! How much to "pad" the area for culling, increase if the effect disappears
+	bool updateOutOfCamera = false; //! Update even if not visible in the camera
 
-	sf::Vec3 emitVelocityAttractorOffset;
-	float emitVelocityAttractorStrength;
+	float spawnTime = 0.2f; //! Time in seconds between spawning particles
+	float spawnTimeVariance = 0.0f; //! Random extra time between spawns
 
-	float size = 0.5f;
-	float sizeVariance = 0.0f;
+	RandomVec3 emitPosition; //! Random position for new particles
+	RandomVec3 emitVelocity; //! Random velocity for new particles
 
-	float lifeTime = 1.0f;
-	float lifeTimeVariance = 0.0f;
+	sf::Vec3 emitVelocityAttractorOffset; //! Position to apply extra velocity towards/away from
+	float emitVelocityAttractorStrength; //! Extra velocity towards (< 0) or away (> 1) from attractor offset
 
-	float drag = 0.0f;
-	float spawnTime = 0.2f;
-	float spawnTimeVariance = 0.0f;
-	float cullPadding = 1.0f;
-	float frameRate = 0.0f;
-	sf::Vec2i frameCount = sf::Vec2i(1);
+	float drag = 0.0f; //! Air resistance slowing particles from moving
+
+	float size = 0.5f; //! Base size of particles
+	float sizeVariance = 0.0f; //! Random additional size for individual particles
+
+	float lifeTime = 1.0f; //! Time in seconds the particles live
+	float lifeTimeVariance = 0.0f; //! Random additional per-particle life time
+
+	BSpline2 scaleSpline; //! Particle scale over particle lifetime
+	BSpline2 alphaSpline; //! Particle alpha over particle lifetime
+	BSpline2 additiveSpline; //! Additive blending over particle lifetime
+	Gradient gradient; //! Color gradient over particle lifetime
+
+	float frameRate = 0.0f; //! Texture animation speed in frames per second
+	bool relativeFrameRate = false; //! Ties the tie frame rate to particle life time (for synchronization)
+	bool randomStartFrame = false; //! Start from a random frame in the sprite sheet
+
+	float rotation = 0.0f; //! Base rotation of the particles in degrees
+	float rotationVariance = 0.0f; //! Random per-particle extra rotation of the particles in degrees
+	float spin = 0.0f; //! Rotation speed for the particles in degrees
+	float spinVariance = 0.0f; //! Random per-particle speed for the particles in degrees
+
 };
 
 struct CharacterComponent : ComponentBase<Component::Character>

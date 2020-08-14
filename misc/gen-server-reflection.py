@@ -14,13 +14,14 @@ source_path = os.path.join(self_path, source_name)
 output_path = os.path.join(self_path, output_name)
 
 Struct = namedtuple("Component", "type_name, enum_name, fields")
-Field = namedtuple("Field", "type_name, name, flags")
+Field = namedtuple("Field", "type_name, name, flags, description")
 
 RE_COMPONENT = re.compile(r"struct (\w+) : ComponentBase<Component::(\w+)>")
 RE_EVENT = re.compile(r"struct (\w+) : EventBase<Event::(\w+)>")
 RE_EDIT = re.compile(r"struct (\w+) : EditBase<Edit::(\w+)>")
 RE_REFLECT = re.compile(r"struct (\w+).*sv_reflect*")
 RE_FIELD = re.compile(r"([A-Za-z_][A-Za-z0-9<>:_*]*)\s+([A-Za-z0-9]+).*")
+RE_DESCRIPTION = re.compile(r".*//!\s*(.*)")
 
 def parse_reflect_flags(line):
     begin = line.find("sv_reflect(")
@@ -53,6 +54,12 @@ last_struct = None
 with open(source_path) as f:
     for line in f:
         line = line.strip()
+
+        description = ""
+        m = RE_DESCRIPTION.match(line)
+        if m:
+            description = m.group(1).strip()
+
         if line == "};":
             last_struct = None
             continue
@@ -79,7 +86,7 @@ with open(source_path) as f:
         m = RE_FIELD.match(line)
         if m and last_struct:
             flags = parse_reflect_flags(line)
-            last_struct.fields.append(Field(m.group(1), m.group(2), flags))
+            last_struct.fields.append(Field(m.group(1), m.group(2), flags, description))
             continue
 
 lines = []
@@ -128,6 +135,11 @@ push("\tsf_struct_poly(t, Edit, type, { }, polys);")
 push("}")
 push("")
 
+escape = str.maketrans({
+    "\"": "\\\"",
+    "\\": "\\\\",
+})
+
 def write_struct(s):
     push(f"template<> void initType<{s.type_name}>(Type *t)")
     push("{")
@@ -136,13 +148,16 @@ def write_struct(s):
         push(f"\t\tsf_field({s.type_name}, {f.name}),")
     push("\t};")
     push(f"\tsf_struct_base(t, {s.type_name}, Component, fields);")
-    if any(f.flags for f in s.fields):
+    if any(f.flags or f.description for f in s.fields):
         push("")
         for f in s.fields:
-            if not f.flags: continue
+            if not f.flags and not f.description: continue
             push("\t{")
             push(f"\t\tReflectionInfo &info = addTypeReflectionInfo(t, \"{f.name}\");")
-            push("\n".join("\t\t" + f for f in f.flags))
+            if f.description:
+                push(f"\t\tinfo.description = \"{f.description.translate(escape)}\";")
+            for flag in f.flags:
+                push("\t\t" + flag)
             push("\t}")
 
     push("}")

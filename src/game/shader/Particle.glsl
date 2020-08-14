@@ -34,16 +34,8 @@ uniform VertexType
 	vec4 u_SplineMad;
 	vec2 u_ScaleBaseVariance;
 	vec2 u_LifeTimeBaseVariance;
+	float u_RelativeFrameRate;
 };
-
-float evaluateAnim(vec4 control, float t, float seed)
-{
-	float a = clamp(t * control.z, 0.0, 1.0);
-	float b = clamp((1.0 - t) * control.w, 0.0, 1.0);
-	float sa = a * a * (3.0 - 2.0 * a);
-	float sb = b * b * (3.0 - 2.0 * b);
-	return a * b * (control.x + seed * control.y);
-}
 
 float evaluateRotation(vec4 control, float t, vec2 seed)
 {
@@ -75,9 +67,10 @@ void main()
 	vec3 velocity = vec3(a_VelocitySeed.xyz);
 	float packedSeed = a_VelocitySeed.w;
 
-	float absoluteLifeTime = u_LifeTimeBaseVariance.x + u_LifeTimeBaseVariance.y * packedSeed;
-	float lifeLeft = a_PositionLife.w + invDelta / absoluteLifeTime;
+	float absoluteTotalLifeTime = u_LifeTimeBaseVariance.x + u_LifeTimeBaseVariance.y * packedSeed;
+	float lifeLeft = a_PositionLife.w + invDelta / absoluteTotalLifeTime;
 	float lifeTime = 1.0 - lifeLeft;
+	float absoluteLifeTime = lifeTime * absoluteTotalLifeTime;
 
 	vec4 seed = fract(floor(packedSeed * vec4(1.0, 1.0/64.0, 1.0/4096.0, 1.0/262144.0)) * (1.0 / 64.0));
 
@@ -97,7 +90,7 @@ void main()
 	scale *= spline.x;
 	offset *= max(scale, 0.0);
 
-	float rotation = evaluateRotation(u_RotationControl, lifeTime, seed.zw);
+	float rotation = evaluateRotation(u_RotationControl, absoluteLifeTime, seed.zw);
 	vec2 axisX = vec2(cos(rotation), sin(rotation));
 	vec2 axisY = vec2(axisX.y, -axisX.x);
 
@@ -111,7 +104,8 @@ void main()
 
 	float alpha = spline.y;
 
-	float frame = lifeTime * u_FrameRate + floor(seed.x*64.0 + seed.z*4096) * u_StartFrame;
+	float frameRate = mix(absoluteLifeTime, lifeTime, u_RelativeFrameRate);
+	float frame = frameRate * u_FrameRate + floor(seed.x*64.0 + seed.z*4096) * u_StartFrame;
 	float frameI = floor(frame);
 	float frameD = frame - frameI;
 

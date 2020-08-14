@@ -58,6 +58,7 @@ struct EditorState
 {
 	sf::Box<sv::ServerState> svState;
 	sf::Box<cl::ClientState> clState;
+	sf::Array<sf::Box<sv::Event>> events;
 
 	sf::HashSet<uint32_t> selectedSvIds;
 
@@ -108,7 +109,9 @@ struct EditorState
 	bool windowPrefabs = false;
 	bool windowProperties = false;
 	bool windowDebugGameState = false;
+	bool windowDebugEvents = false;
 	bool windowErrors = false;
+	bool windowHelp = false;
 	
 	// Folder navigation
 	EditorDir dirAssets;
@@ -240,16 +243,21 @@ void editorPeekSokolEvent(EditorState *es, const struct sapp_event *e)
 	}
 }
 
-bool editorPeekEventPre(EditorState *es, const sv::Event &event)
+bool editorPeekEventPre(EditorState *es, const sf::Box<sv::Event> &event)
 {
-	if (const auto *e = event.as<sv::ReplaceLocalPropEvent>()) {
+	es->events.push(event);
+	if (es->events.size > 400) {
+		es->events.removeOrdered(0, 200);
+	}
+
+	if (const auto *e = event->as<sv::ReplaceLocalPropEvent>()) {
 		if (e->clientId == es->svState->localClientId) {
 			if (es->selectedSvIds.find(e->localId)) {
 				es->selectedSvIds.remove(e->localId);
 				es->selectedSvIds.insert(e->prop.id);
 			}
 		}
-	} else if (const auto *e = event.as<sv::MakeUniquePrefabEvent>()) {
+	} else if (const auto *e = event->as<sv::MakeUniquePrefabEvent>()) {
 		if (e->clientId == es->svState->localClientId) {
 			if (es->selectedPrefab == e->prefabName) {
 				es->selectedPrefab = e->uniquePrefabName;
@@ -259,7 +267,7 @@ bool editorPeekEventPre(EditorState *es, const sv::Event &event)
 				}
 			}
 		}
-	} else if (const auto *e = event.as<sv::ReloadPrefabEvent>()) {
+	} else if (const auto *e = event->as<sv::ReloadPrefabEvent>()) {
 		if (e->prefab.name == es->selectedPrefab) {
 			bool edited = false;
 			if (es->editedPrefabDirtyTime != 0 && stm_sec(stm_since(es->editedPrefabDirtyTime)) < 5.0) {
@@ -313,12 +321,14 @@ void handleImguiMenu(EditorState *es)
 		}
 
 		if (ImGui::BeginMenu("Window")) {
+			if (ImGui::MenuItem("Help")) es->windowHelp = true;
 			if (ImGui::MenuItem("Assets")) es->windowAssets = true;
 			if (ImGui::MenuItem("Prefabs")) es->windowPrefabs = true;
 			if (ImGui::MenuItem("Properties")) es->windowProperties = true;
 			if (ImGui::MenuItem("Errors")) es->windowErrors = true;
 			if (ImGui::BeginMenu("Debug")) {
 				if (ImGui::MenuItem("Game State")) es->windowDebugGameState = true;
+				if (ImGui::MenuItem("Events")) es->windowDebugEvents = true;
 				ImGui::EndMenu();
 			}
 			ImGui::EndMenu();
@@ -472,6 +482,41 @@ void handleImguiPrefabDir(EditorState *es, EditorDir &dir)
 	}
 }
 
+static const char *helpText = R"(
+General:
+- Ctrl+Z: Undo
+- Ctrl+Y / Ctrl+Shift+Z: Redo
+
+Moving props:
+- Left click: Select
+- Shift+left click: Add/remove from multiselect
+- Drag (hold left click): Move objects
+- Right click while dragging: Rotate 90 degrees
+- Ctrl+drag: Clone objects
+- Delete: Delete selected objects
+- 1/2/3: Switch between translate/rotate/scale tool (press again to disable)
+
+Properties:
+- Right click to copy/paste/reset
+- Drag&drop prefabs/assets to fields
+
+Curve/gradient editor:
+- Double click background: Add new node/stop
+- Double click node: Remove node/stop
+)";
+
+void handleImguiHelpWindow(EditorState *es)
+{
+	ImGui::SetNextWindowSize(ImVec2(600, 600), ImGuiCond_Appearing);
+	if (es->windowHelp) {
+		if (ImGui::Begin("Help", &es->windowHelp)) {
+			ImGui::TextWrapped("%s", helpText);
+		}
+
+		ImGui::End();
+	}
+}
+
 void handleImguiDirectoryBrowsers(EditorState *es)
 {
 	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
@@ -513,7 +558,7 @@ void handleImguiErrorsWindow(EditorState *es, sf::Slice<const sf::StringBuf> err
 	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
 	if (es->windowErrors) {
 		if (ImGui::Begin("Errors", &es->windowErrors)) {
-			for (uint32_t i = errors.size; i > 0; i--) {
+			for (uint32_t i = (uint32_t)errors.size; i > 0; i--) {
 				const sf::StringBuf &err = errors[i - 1];
 				ImGui::TextWrapped("> %s", err.data);
 			}
@@ -532,25 +577,55 @@ void handleImguiDebugWindows(EditorState *es)
 		}
 		ImGui::End();
 	}
+
+	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
+	if (es->windowDebugEvents) {
+		if (ImGui::Begin("Events", &es->windowDebugEvents)) {
+
+			sf::Type *eventType = sf::typeOf<sv::Event>();
+
+			ImguiStatus status;
+			for (uint32_t i = es->events.size; i > 0; i--) {
+				const sv::Event &event = *es->events[i - 1];
+				ImGui::PushID((const void*)&event);
+
+				sf::PolymorphInstance poly = eventType->instGetPolymorph((void*)&event);
+
+				if (!ImGui::CollapsingHeader(poly.type->name.data, 0)) {
+					ImGui::PopID();
+					continue;
+				}
+
+				handleFieldsImgui(status, poly.inst, poly.type->type, NULL, NULL);
+
+				ImGui::PopID();
+			}
+
+		}
+		ImGui::End();
+	}
 }
 
-static void handleCopyPasteImp(ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label)
+static void handleCopyPasteImp(ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label, const char *tooltip)
 {
 	sf::SmallStringBuf<256> id;
 	id.append("##copypaste-", label);
-	handleInstCopyPasteImgui(status, inst, type, id.data);
+	handleInstCopyPasteImgui(status, inst, type, tooltip, id.data);
 }
 
-static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label, sf::Type *parentType)
+static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type *type, const sf::CString &label, sf::Type *parentType, const char **outTooltip)
 {
 	EditorState *es = (EditorState*)user;
 	sv::ReflectionInfo info = sv::getTypeReflectionInfo(parentType, label);
+	*outTooltip = info.description;
 
 	if (type == sf::typeOf<sv::BSpline2>()) {
 		sv::BSpline2 &spline = *(sv::BSpline2*)inst;
 
 		bool open = ImGui::TreeNode(label.data);
-		handleCopyPasteImp(status, inst, type, label);
+
+		handleCopyPasteImp(status, inst, type, label, info.description);
+
 		if (open) {
 
 			spline.points.reserveGeometric(spline.points.size + 1);
@@ -573,7 +648,9 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 		sv::Gradient &gradient = *(sv::Gradient*)inst;
 
 		bool open = ImGui::TreeNode(label.data);
-		handleCopyPasteImp(status, inst, type, label);
+
+		handleCopyPasteImp(status, inst, type, label, info.description);
+
 		if (open) {
 
 			int selected = -1;
@@ -607,7 +684,8 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 
 		status.modified |= ImGui::InputFloat2(label.data, vec.v, 4);
 		status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-		handleCopyPasteImp(status, inst, type, label);
+
+		handleCopyPasteImp(status, inst, type, label, info.description);
 
 		return true;
 	} else if (type == sf::typeOf<sf::Vec3>()) {
@@ -615,7 +693,8 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 
 		status.modified |= ImGui::InputFloat3(label.data, vec.v, 4);
 		status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-		handleCopyPasteImp(status, inst, type, label);
+
+		handleCopyPasteImp(status, inst, type, label, info.description);
 
 		return true;
 	} else if (type == sf::typeOf<sf::Vec2i>()) {
@@ -633,12 +712,13 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 				status.modified = true;
 			}
 			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-			handleCopyPasteImp(status, inst, type, label);
+
+			handleCopyPasteImp(status, inst, type, label, info.description);
 
 		} else {
 			status.modified |= ImGui::InputInt2(label.data, vec.v);
 			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-			handleCopyPasteImp(status, inst, type, label);
+			handleCopyPasteImp(status, inst, type, label, info.description);
 		}
 
 		return true;
@@ -647,7 +727,7 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 
 		status.modified |= ImGui::InputInt3(label.data, vec.v);
 		status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-		handleCopyPasteImp(status, inst, type, label);
+		handleCopyPasteImp(status, inst, type, label, info.description);
 
 		return true;
 	} else if (type == sf::typeOf<uint8_t[3]>()) {
@@ -663,7 +743,7 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 				status.modified = true;
 			}
 			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-			handleCopyPasteImp(status, inst, type, label);
+			handleCopyPasteImp(status, inst, type, label, info.description);
 
 			return true;
 		}
@@ -683,7 +763,7 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 					status.changed = true;
 				}
 			}
-			handleCopyPasteImp(status, inst, type, label);
+			handleCopyPasteImp(status, inst, type, label, info.description);
 
 			if (info.prefab && ImGui::IsItemClicked() && ImGui::IsMouseDoubleClicked(0)) {
 				selectPrefab(es, sym);
@@ -718,101 +798,11 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 					status.changed = true;
 				}
 			}
-			handleCopyPasteImp(status, inst, type, label);
+			handleCopyPasteImp(status, inst, type, label, info.description);
 
 			return true;
 		}
 	}
-
-#if 0
-	if (type == sf::typeOf<sf::Vec3>()) {
-		sf::Vec3 *vec = (sf::Vec3*)inst;
-
-		if (label == sf::String("position")) {
-			status.modified |= ImGui::SliderFloat3(label.data, vec->v, -1.0f, +1.0f);
-			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-			return true;
-		} else if (label == sf::String("stretch")) {
-			status.modified |= ImGui::SliderFloat3(label.data, vec->v, -2.0f, +2.0f);
-			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-			return true;
-		} else if (label == sf::String("rotation")) {
-			status.modified |= ImGui::SliderFloat3(label.data, vec->v, -180.0f, 180.0f);
-			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-			return true;
-		} else if (label == sf::String("color")) {
-			status.modified |= ImGui::ColorEdit3(label.data, vec->v, 0);
-			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-			return true;
-		}
-
-	} else if (type == sf::typeOf<uint8_t[3]>()) {
-		uint8_t *src = (uint8_t*)inst;
-
-		if (label == sf::String("tintColor")) {
-			float colorF[3] = { (float)src[0] / 255.0f, (float)src[1] / 255.0f, (float)src[2] / 255.0f };
-			if (ImGui::ColorEdit3(label.data, colorF, 0)) {
-				src[0] = (uint8_t)sf::clamp(colorF[0] * 255.0f, 0.0f, 255.0f);
-				src[1] = (uint8_t)sf::clamp(colorF[1] * 255.0f, 0.0f, 255.0f);
-				src[2] = (uint8_t)sf::clamp(colorF[2] * 255.0f, 0.0f, 255.0f);
-				status.modified = true;
-			}
-			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-			return true;
-		}
-
-	} else if (type == sf::typeOf<float>()) {
-		float *v = (float*)inst;
-
-		if (label == sf::String("intensity")) {
-			status.modified |= ImGui::SliderFloat(label.data, v, 0.0f, 10.0f);
-			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-			return true;
-		} else if (label == sf::String("radius")) {
-			status.modified |= ImGui::SliderFloat(label.data, v, 0.0f, 10.0f);
-			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-			return true;
-		} else if (label == sf::String("scale")) {
-			status.modified |= ImGui::SliderFloat(label.data, v, 0.0f, 5.0f);
-			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
-			return true;
-		}
-
-	} else if (type == sf::typeOf<sf::Symbol>()) {
-		sf::Symbol *sym = (sf::Symbol*)inst;
-
-		bool isModel = label == sf::String("model");
-		bool isShadowModel = label == sf::String("shadowModel");
-		bool isMaterial = label == sf::String("material");
-
-		if (isModel || isShadowModel || isMaterial) {
-			sf::SmallStringBuf<4096> textBuf;
-			textBuf.append(*sym);
-			if (ImGui::InputText(label.data, textBuf.data, textBuf.capacity, ImGuiInputTextFlags_AlignRight | ImGuiInputTextFlags_AutoSelectAll)) {
-				status.modified = true;
-				textBuf.resize(strlen(textBuf.data));
-				if (ImGui::IsItemDeactivatedAfterEdit()) {
-					*sym = sf::Symbol(textBuf);
-					status.changed = true;
-				}
-			}
-
-			if (ImGui::BeginDragDropTarget()) {
-				const ImGuiPayload *payload = ImGui::AcceptDragDropPayload("asset");
-				if (payload) {
-					*sym = sf::Symbol((const char*)payload->Data, payload->DataSize);
-					status.modified = true;
-					status.changed = true;
-				}
-
-				ImGui::EndDragDropTarget();
-			}
-
-			return true;
-		}
-
-	}
-#endif
 
 	return false;
 }
@@ -863,11 +853,11 @@ void handleImguiPrefab(EditorState *es, ImguiStatus &status, sv::Prefab &prefab)
 		sf::PolymorphInstance poly = componentType->instGetPolymorph(prefab.components[compI].ptr);
 
 		if (!ImGui::CollapsingHeader(poly.type->name.data, ImGuiTreeNodeFlags_DefaultOpen)) {
-			handleInstCopyPasteImgui(status, poly.inst, poly.type->type);
+			handleInstCopyPasteImgui(status, poly.inst, poly.type->type, NULL);
 			ImGui::PopID();
 			continue;
 		}
-		handleInstCopyPasteImgui(status, poly.inst, poly.type->type);
+		handleInstCopyPasteImgui(status, poly.inst, poly.type->type, NULL);
 
 		bool doDelete = ImGui::Button("Delete");
 
@@ -886,6 +876,8 @@ void handleImguiPrefab(EditorState *es, ImguiStatus &status, sv::Prefab &prefab)
 	sf::SmallArray<const char*, 128> itemNames;
 	sf::SmallArray<sf::StringBuf, 128> names;
 	componentType->getPolymorphTypeNames(names);
+
+	sf::sort(names);
 
 	itemNames.push("Add component");
 
@@ -1278,20 +1270,22 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 			sf::Symbol prefabName = sf::Symbol((const char*)payload->Data, payload->DataSize);
 			if (sf::beginsWith(prefabName, "Prefabs/Props/")) {
 				if (es->svState->prefabs.find(prefabName)) {
-					draggingGhostProp = true; 
 
-					if (!es->ghostPropId) {
-						sv::Prop prop;
-						prop.prefabName = prefabName;
-						prop.transform.position = tileToFixed(mouseTileInt);
-						es->ghostPropId = es->svState->addProp(es->editEvents, prop, true);
-						es->ghostPropPrevTile = mouseTileInt;
-					} else if (es->ghostPropPrevTile != mouseTileInt) {
-						es->ghostPropPrevTile = mouseTileInt;
+					if (es->mouseDown) {
+						draggingGhostProp = true; 
+						if (!es->ghostPropId) {
+							sv::Prop prop;
+							prop.prefabName = prefabName;
+							prop.transform.position = tileToFixed(mouseTileInt);
+							es->ghostPropId = es->svState->addProp(es->editEvents, prop, true);
+							es->ghostPropPrevTile = mouseTileInt;
+						} else if (es->ghostPropPrevTile != mouseTileInt) {
+							es->ghostPropPrevTile = mouseTileInt;
 
-						sv::PropTransform transform;
-						transform.position = tileToFixed(mouseTileInt);
-						es->svState->moveProp(es->editEvents, es->ghostPropId, transform);
+							sv::PropTransform transform;
+							transform.position = tileToFixed(mouseTileInt);
+							es->svState->moveProp(es->editEvents, es->ghostPropId, transform);
+						}
 					}
 
 					if (!es->mouseDown && es->prevMouseDown) {
@@ -1421,6 +1415,7 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 	}
 
 	handleImguiMenu(es);
+	handleImguiHelpWindow(es);
 	handleImguiDirectoryBrowsers(es);
 	handleImguiPropertiesWindow(es);
 	handleImguiErrorsWindow(es, editorInput.errors);

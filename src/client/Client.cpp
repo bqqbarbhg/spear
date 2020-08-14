@@ -370,10 +370,10 @@ void handleMessage(Client *c, sv::Message &msg)
 		m->state->getAsEvents(&handleLoadEvent, c);
 
 	} else if (auto m = msg.as<sv::MessageUpdate>()) {
-		for (sv::Event *event : m->events) {
+		for (const sf::Box<sv::Event> &event : m->events) {
 
 			if (c->editor) {
-				if (editorPeekEventPre(c->editor, *event)) {
+				if (editorPeekEventPre(c->editor, event)) {
 					continue;
 				}
 			}
