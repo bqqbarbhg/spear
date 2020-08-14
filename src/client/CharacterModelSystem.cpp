@@ -275,6 +275,10 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			ActiveAnimation &top = model.activeAnimations.back();
 			if (top.animIndex == bestAnim && top.speed == speed && nextAnim.loop) {
 				top.time = wrapTime(top.time, nextDuration) - nextDuration;
+
+				// Early return: Skip fallback
+				return;
+
 			} else {
 				Animation &topAnim = model.animations[top.animIndex];
 				float timeLeft = topAnim.animation->duration - top.time;
@@ -296,13 +300,14 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 					// Early return: Skip fallback
 					return;
 				} else {
-					model.activeAnimations.clear();
 					if (timeLeft < -0.1f) {
 						simulateCatchUp = true;
 					}
 				}
 			}
 		}
+
+		model.activeAnimations.clear();
 
 		// Fallback: Set the next animation directly
 		ActiveAnimation &next = model.activeAnimations.push();
@@ -498,6 +503,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			for (uint32_t i = 0; i < model.activeAnimations.size; i++) {
 				ActiveAnimation &active = model.activeAnimations[i];
 				Animation &anim = model.animations[active.animIndex];
+
+				// ImGui::Text("%+.2f/%.2f (%.2fx %.2f alpha)  %s", active.time, anim.animation->duration, active.speed, active.alpha, anim.animation->name.data);
 
 				float duration = anim.animation->duration;
 				float t = wrapTime(active.time, duration);
