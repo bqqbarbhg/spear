@@ -95,6 +95,7 @@ workspace "spear"
 
 	filter "not action:vs*"
 		buildoptions { "-Wno-invalid-offsetof" }
+		buildoptions { "-fno-math-errno" }
 
 	filter "configurations:debug"
 		defines { "DEBUG" }

@@ -123,6 +123,7 @@ struct RandomSphere sv_reflect
 	float maxPhi = 180.0f;
 	float minRadius = 0.0f;
 	float maxRadius = 0.0f;
+	sf::Vec3 scale = sf::Vec3(1.0f);
 };
 
 struct RandomVec3 sv_reflect

@@ -25,6 +25,29 @@ static const constexpr uint32_t MaxParticleCacheFrames = 16;
 static const constexpr float HugeParticleLife = 1e20f;
 static const constexpr float HugeParticleLifeCmp = 1e19f;
 
+sf_inline float approxAcos(float a) {
+	float x = sf::abs(a);
+	float v = -1.280827681872808f + 1.280827681872808f*sf::sqrt(1.0f - x) - 0.28996864492208857f*x;
+	return sf::F_PI*0.5f - sf::copysign(v, a);
+}
+
+sf_inline sf::Float4 approxCosSin2(float a, float b) {
+	const sf::ScalarFloat4 rcp2pi = 1.0f / sf::F_2PI;
+	const sf::Float4 bias = sf::Float4(0.0f, -0.25f, 0.0f, -0.25f);
+
+	sf::Float4 t = sf::Float4(a, a, b, b);
+	t *= rcp2pi;
+	t += bias;
+	t -= (t - 0.25f).round() + 0.25f;
+	t *= (t.abs() - 0.5f) * 16.0f;
+	t += t * (t.abs() - 1.0f) * 0.225f;
+	return t;
+}
+
+sf_inline float approxCbrt(float a) {
+	return 1.5142669123810535f*sf::sqrt(a) - 0.5142669123810535f*a;
+}
+
 struct RandomVec3Imp
 {
 	enum Flags {
@@ -45,6 +68,7 @@ struct RandomVec3Imp
 	float cosPhiBias, cosPhiScale;
 	float radiusCubeScale;
 	float radiusScale;
+	sf::Vec3 sphereScale;
 
 	// Rotation
 	sf::Quat rotation;
@@ -65,8 +89,9 @@ struct RandomVec3Imp
 			thetaScale = (sv.sphere.maxTheta - sv.sphere.minTheta) * (sf::F_PI/180.0f);
 			cosPhiBias = cosf(sv.sphere.maxPhi * (sf::F_PI/180.0f));
 			cosPhiScale = cosf(sv.sphere.minPhi * (sf::F_PI/180.0f)) - cosPhiBias;
-			radiusCubeScale = 1.0f - sv.sphere.minRadius / sv.sphere.maxRadius;
+			radiusCubeScale = approxCbrt(1.0f - sv.sphere.minRadius / sv.sphere.maxRadius);
 			radiusScale = sv.sphere.maxRadius;
+			sphereScale = sv.sphere.scale;
 		}
 
 		if (sv.rotation != sf::Vec3(0.0f)) {
@@ -88,11 +113,14 @@ struct RandomVec3Imp
 			float v = rng.nextFloat();
 			float w = rng.nextFloat();
 			float theta = thetaBias + u * thetaScale;
-			float phi = acosf(cosPhiBias + v * cosPhiScale);
-			float cosTheta = cosf(theta), sinTheta = sinf(theta);
-			float cosPhi = cosf(phi), sinPhi = sinf(phi);
-			float radius = cbrtf(1.0f - w * radiusCubeScale) * radiusScale;
-			p += sf::Vec3(sinPhi * cosTheta, cosPhi, sinPhi * sinTheta) * radius;
+			float phi = approxAcos(cosPhiBias + v * cosPhiScale);
+
+			const sf::Float4 trig = approxCosSin2(theta, phi);
+			const float cosTheta = trig.getX(), sinTheta = trig.getY();
+			const float cosPhi = trig.getZ(), sinPhi = trig.getW();
+
+			float radius = approxCbrt(1.0f - w * radiusCubeScale) * radiusScale;
+			p += sf::Vec3(sinPhi * cosTheta, cosPhi, sinPhi * sinTheta) * radius * sphereScale;
 		}
 
 		if (flags & Rotation) {
@@ -192,6 +220,13 @@ struct ParticleSystemImp final : ParticleSystem
 	ParticleSystemImp(const SystemsDesc &desc)
 	{
 		updateCtx.rng = sf::Random(desc.seed[1], 581271);
+
+		for (float t = -1.0f; t <= 1.0f; t += 0.01f) {
+			float a = approxAcos(t);
+			float b = acosf(t);
+			float err = sf::abs(a - b);
+			sf::debugPrintLine("%+.4f -> %+.4f / %+.4f (%.4f)", t, a, b, err);
+		}
 
 		for (uint32_t i = 0; i < MaxParticleCacheFrames; i++) {
 			sf::SmallStringBuf<128> name;
@@ -326,7 +361,7 @@ struct ParticleSystemImp final : ParticleSystem
 		type.typeUbo.u_ScaleBaseVariance.y = c.sizeVariance;
 
 		type.typeUbo.u_LifeTimeBaseVariance.x = c.lifeTime;
-		type.typeUbo.u_LifeTimeBaseVariance.y = c.lifeTimeVariance;
+		type.typeUbo.u_LifeTimeBaseVariance.y = c.lifeTimeVariance * (1.0 / 16777216.0);
 
 		sg_image_desc d = { };
 		d.width = SplineSampleRate;

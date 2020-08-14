@@ -522,7 +522,8 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 				color = &gradient.points[selected].color;
 			}
 
-			status.changed |= ImGui::ColorPicker3("##color", color->v, ImGuiColorEditFlags_NoSmallPreview|ImGuiColorEditFlags_NoLabel);
+			status.modified |= ImGui::ColorPicker3("##color", color->v, ImGuiColorEditFlags_NoSmallPreview|ImGuiColorEditFlags_NoLabel);
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
 
 			if (editState == ImEditState::Changed) {
 				status.changed = true;

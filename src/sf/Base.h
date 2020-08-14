@@ -114,16 +114,28 @@ sf_inline float lerp(float a, float b, float t) { return a * (1.0f - t) + b * t;
 	sf_inline double sqrt(double a) { return _mm_cvtsd_f64(_mm_sqrt_sd(_mm_setzero_pd(), _mm_set_sd(a))); }
 	sf_inline float abs(float a) { return _mm_cvtss_f32(_mm_andnot_ps(_mm_set_ss(-0.0f), _mm_set_ss(a))); }
 	sf_inline double abs(double a) { return _mm_cvtsd_f64(_mm_andnot_pd(_mm_set_sd(-0.0), _mm_set_sd(a))); }
+	sf_inline float copysign(float a, float b) {
+		const __m128 sign = _mm_set_ss(-0.0f);
+		return _mm_cvtss_f32(_mm_or_ps(_mm_andnot_ps(sign, _mm_set_ss(a)), _mm_and_ps(sign, _mm_set_ss(b))));
+	}
+	sf_inline double copysign(double a, double b) {
+		const __m128d sign = _mm_set_sd(-0.0);
+		return _mm_cvtsd_f64(_mm_or_pd(_mm_andnot_pd(sign, _mm_set_sd(a)), _mm_and_pd(sign, _mm_set_sd(b))));
+	}
 #elif SF_CC_GNU || SF_CC_CLANG
 	sf_inline float sqrt(float a) { return __builtin_sqrtf(a); }
 	sf_inline double sqrt(double a) { return __builtin_sqrt(a); }
 	sf_inline float abs(float a) { return __builtin_fabsf(a); }
 	sf_inline double abs(double a) { return __builtin_fabs(a); }
+	sf_inline float copysign(float a, float b) { return __builtin_copysignf(a, b); }
+	sf_inline double copysign(double a, double b) { return __builtin_copysign(a, b); }
 #else
 	sf_inline float sqrt(float a) { return ::sqrtf(a); }
 	sf_inline double sqrt(double a) { return ::sqrt(a); }
 	sf_inline float abs(float a) { return ::fabsf(a); }
 	sf_inline double abs(double a) { return ::fabs(a); }
+	sf_inline float copysign(float a, float b) { return ::copysignf(a, b); }
+	sf_inline double copysign(double a, double b) { return ::copysign(a, b); }
 #endif
 
 // -- Misc intrinsics
@@ -138,10 +150,10 @@ sf_inline float lerp(float a, float b, float t) { return a * (1.0f - t) + b * t;
 
 // -- Constants
 
-constexpr float F_PI   = 3.14159265358979323846f;
-constexpr float F_2PI  = 6.28318530717958647692f;
-constexpr double D_PI  = 3.14159265358979323846;
-constexpr double D_2PI = 6.28318530717958647692;
+static const constexpr float F_PI   = 3.14159265358979323846f;
+static const constexpr float F_2PI  = 6.28318530717958647692f;
+static const constexpr double D_PI  = 3.14159265358979323846;
+static const constexpr double D_2PI = 6.28318530717958647692;
 
 // -- Utilities
 

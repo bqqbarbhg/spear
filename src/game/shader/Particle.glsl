@@ -75,10 +75,8 @@ void main()
 	vec3 velocity = vec3(a_VelocitySeed.xyz);
 	float packedSeed = a_VelocitySeed.w;
 
-	float absoluteLifeTime = u_LifeTimeBaseVariance.x + u_LifeTimeBaseVariance.y * packedSeed * (1.0 / 16777216.0);
-	invDelta /= absoluteLifeTime;
-
-	float lifeLeft = a_PositionLife.w + invDelta;
+	float absoluteLifeTime = u_LifeTimeBaseVariance.x + u_LifeTimeBaseVariance.y * packedSeed;
+	float lifeLeft = a_PositionLife.w + invDelta / absoluteLifeTime;
 	float lifeTime = 1.0 - lifeLeft;
 
 	vec4 seed = fract(floor(packedSeed * vec4(1.0, 1.0/64.0, 1.0/4096.0, 1.0/262144.0)) * (1.0 / 64.0));

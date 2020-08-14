@@ -653,6 +653,7 @@ template<> void initType<RandomSphere>(Type *t)
 		sf_field(RandomSphere, maxPhi),
 		sf_field(RandomSphere, minRadius),
 		sf_field(RandomSphere, maxRadius),
+		sf_field(RandomSphere, scale),
 	};
 	sf_struct(t, RandomSphere, fields);
 }
