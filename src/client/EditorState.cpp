@@ -12,8 +12,6 @@
 #include "client/ImGuiExt.h"
 #include "client/BSpline.h"
 
-#include "ext/imgui/ImGradient.h"
-
 #include "game/ImguiSerialization.h"
 #include "game/DebugDraw.h"
 
