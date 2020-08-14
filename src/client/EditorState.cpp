@@ -25,6 +25,10 @@
 
 #include "ext/sokol/sokol_time.h"
 
+#include "client/AreaSystem.h"
+
+#include "sp/Srgb.h"
+
 namespace cl {
 
 sf_inline sf::Vec2i tileToFixed(const sf::Vec2i &v) {
@@ -112,6 +116,9 @@ struct EditorState
 	bool windowDebugEvents = false;
 	bool windowErrors = false;
 	bool windowHelp = false;
+
+	// Visualization
+	bool viewAreas = false;
 	
 	// Folder navigation
 	EditorDir dirAssets;
@@ -334,6 +341,11 @@ void handleImguiMenu(EditorState *es)
 			ImGui::EndMenu();
 		}
 
+		if (ImGui::BeginMenu("View")) {
+			if (ImGui::MenuItem("Areas")) es->viewAreas = !es->viewAreas;
+			ImGui::EndMenu();
+		}
+
 		ImGui::EndMainMenuBar();
 	}
 }
@@ -486,6 +498,8 @@ static const char *helpText = R"(
 General:
 - Ctrl+Z: Undo
 - Ctrl+Y / Ctrl+Shift+Z: Redo
+- Tab (hold): Slow motion
+- F5: Reload client
 
 Moving props:
 - Left click: Select
@@ -1425,6 +1439,27 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 		es->clState->applyEvent(*event);
 	}
 	es->editEvents.clear();
+
+	if (es->viewAreas) {
+		sf::Array<cl::AreaBounds> areas;
+		es->clState->systems.area->queryFrustumBounds(areas, ~0u, frameArgs.mainRenderArgs.frustum);
+
+		const sf::Vec3 areaColors[] = {
+			sp::srgbToLinearHex(0xffd5e5),
+			sp::srgbToLinearHex(0xffffdd),
+			sp::srgbToLinearHex(0xa0ffe6),
+			sp::srgbToLinearHex(0x81f5ff),
+		};
+
+		for (cl::AreaBounds &bounds : areas) {
+			sf::Vec3 color = sf::Vec3(1.0f);
+			uint32_t group = (uint32_t)bounds.area.group;
+			if (group < sf_arraysize(areaColors)) {
+				color = areaColors[group];
+			}
+			debugDrawBox(bounds.bounds, color);
+		}
+	}
 }
 
 EditorRequests &editorPendingRequests(EditorState *es)

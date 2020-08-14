@@ -138,6 +138,12 @@ struct Area
 	uint32_t userId;
 };
 
+struct AreaBounds
+{
+	Area area;
+	sf::Bounds3 bounds;
+};
+
 struct VisibleAreas
 {
 	sf::Array<Area> areas;

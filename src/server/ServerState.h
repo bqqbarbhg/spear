@@ -140,7 +140,7 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 	float timeStep = 0.1f; //! How large simulation steps to do, smaller values are heavier but more accurate
 	float prewarmTime = 0.0f; //! Time to simulate after spawning the effect
 
-	float updateRadius = 5.0f; //! Size of the "active area" of this particle effect
+	float updateRadius = 10.0f; //! Size of the "active area" of this particle effect
 	float cullPadding = 1.5f; //! How much to "pad" the area for culling, increase if the effect disappears
 	bool updateOutOfCamera = false; //! Update even if not visible in the camera
 
@@ -336,8 +336,8 @@ struct CharacterTemplateComponent : ComponentBase<Component::CharacterTemplate>
 
 struct TileAreaComponent : ComponentBase<Component::TileArea>
 {
-	sf::Vec2i minCorner sv_reflect(fixed(16));
-	sf::Vec2i maxCorner sv_reflect(fixed(16));
+	sf::Vec2i minCorner sv_reflect(fixed(16)); //! Top-left corner of the tile area (in meters/tiles)
+	sf::Vec2i maxCorner sv_reflect(fixed(16)); //! Bottom-right corner of the tile area (in meters/tiles)
 };
 
 struct Prefab sv_reflect()

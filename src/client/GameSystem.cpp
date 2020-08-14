@@ -82,6 +82,7 @@ struct GameSystemImp final : GameSystem
 		{
 			const sv::Character *chr = svState.characters.find(selectedCharacterId);
 
+#if 0
 			if (chr) {
 				sv::PathfindOpts opts;
 				opts.isBlockedFn = &sv::isBlockedByPropOrCharacter;
@@ -95,6 +96,8 @@ struct GameSystemImp final : GameSystem
 					debugDrawBox(bounds, sf::Vec3(1.0f, 1.0f, 0.0f));
 				}
 			}
+#endif
+
 		}
 	}
 

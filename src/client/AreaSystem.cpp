@@ -135,6 +135,32 @@ struct AreaSystemImp final : AreaSystem
 		}
 	}
 
+	static void queryFrustumSpatialBounds(const Spatial *spatial, sf::Array<AreaBounds> &areas, uint32_t areaFlags, const sf::Frustum &frustum)
+	{
+		if (spatial->boxFlags & areaFlags) {
+			for (const BoxAreaImp &box : spatial->boxes) {
+				if ((box.area.flags & areaFlags) == 0) continue;
+				if (!frustum.intersects(box.bounds)) continue;
+
+				AreaBounds &area = areas.push();
+				area.area = box.area;
+				area.bounds = box.bounds;
+			}
+		}
+
+		Spatial *children = spatial->children->child;
+		uint32_t childMask = spatial->childMask;
+		while (childMask) {
+			uint32_t ix = mx_ctz32(childMask);
+			childMask &= childMask - 1;
+
+			Spatial *child = children + ix;
+			if (!frustum.intersects(sf::Bounds3::minMax(child->aabbMin, child->aabbMax))) continue;
+
+			queryFrustumSpatialBounds(child, areas, areaFlags, frustum);
+		}
+	}
+
 	static void castRaySpatial(const Spatial *spatial, sf::Array<Area> &areas, uint32_t areaFlags, const sf::FastRay &ray, float tMin, float tMax)
 	{
 		if (spatial->boxFlags & areaFlags) {
@@ -429,7 +455,7 @@ struct AreaSystemImp final : AreaSystem
 		}
 	}
 
-	void queryFrustum(sf::Array<Area> &areas, uint32_t areaFlags, const sf::Frustum &frustum) const
+	void queryFrustum(sf::Array<Area> &areas, uint32_t areaFlags, const sf::Frustum &frustum) const override
 	{
 		sf::Frustum local = frustum;
 		for (const auto &root : spatialRoots) {
@@ -441,7 +467,19 @@ struct AreaSystemImp final : AreaSystem
 		}
 	}
 
-	void castRay(sf::Array<Area> &areas, uint32_t areaFlags, const sf::FastRay &ray, float tMin, float tMax) const
+	void queryFrustumBounds(sf::Array<AreaBounds> &areas, uint32_t areaFlags, const sf::Frustum &frustum) const override
+	{
+		sf::Frustum local = frustum;
+		for (const auto &root : spatialRoots) {
+			const Spatial *spatial = root.val;
+			if ((spatial->boxFlags | spatial->childMask) == 0) continue;
+			if (!frustum.intersects(sf::Bounds3::minMax(spatial->aabbMin, spatial->aabbMax))) continue;
+
+			queryFrustumSpatialBounds(spatial, areas, areaFlags, frustum);
+		}
+	}
+
+	void castRay(sf::Array<Area> &areas, uint32_t areaFlags, const sf::FastRay &ray, float tMin, float tMax) const override
 	{
 		for (const auto &root : spatialRoots) {
 			const Spatial *spatial = root.val;

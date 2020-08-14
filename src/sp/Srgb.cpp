@@ -65,4 +65,12 @@ sf::Vec3 srgbToLinearUnorm(const uint8_t v[3])
 		srgbToLinear(unormToFloat(v[2])));
 }
 
+sf::Vec3 srgbToLinearHex(uint32_t hex)
+{
+	return sf::Vec3(
+		srgbToLinear(unormToFloat((hex >> 16) & 0xff)),
+		srgbToLinear(unormToFloat((hex >> 8) & 0xff)),
+		srgbToLinear(unormToFloat(hex & 0xff)));
+}
+
 }

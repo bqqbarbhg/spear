@@ -20,7 +20,9 @@ struct AreaSystem : System
 	virtual void optimize() = 0;
 
 	virtual void queryFrustum(sf::Array<Area> &areas, uint32_t areaFlags, const sf::Frustum &frustum) const = 0;
+	virtual void queryFrustumBounds(sf::Array<AreaBounds> &areas, uint32_t areaFlags, const sf::Frustum &frustum) const = 0;
 	virtual void castRay(sf::Array<Area> &areas, uint32_t areaFlags, const sf::FastRay &ray, float tMin=0.0f, float tMax=HUGE_VALF) const = 0;
+
 };
 
 }

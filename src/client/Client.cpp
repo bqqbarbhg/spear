@@ -473,7 +473,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 		}
 	}
 
-	sf::Vec3 eye = sf::Vec3(0.0f, 5.0f, 3.0f) * 0.5f;
+	sf::Vec3 eye = sf::Vec3(0.0f, 5.0f, 3.0f) * 1.5f;
 	sf::Mat34 worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.4f));
 	sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.3f, (float)sapp_width()/(float)sapp_height(), 1.0f, 100.0f);
 	sf::Mat44 worldToClip = viewToClip * worldToView;

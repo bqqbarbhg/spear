@@ -16,4 +16,6 @@ void linearToSrgbUnorm(uint8_t dst[3], const sf::Vec3 &v);
 float srgbToLinearUnorm(uint8_t v);
 sf::Vec3 srgbToLinearUnorm(const uint8_t v[3]);
 
+sf::Vec3 srgbToLinearHex(uint32_t hex);
+
 }
