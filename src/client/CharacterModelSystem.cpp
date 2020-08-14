@@ -1,6 +1,10 @@
 #include "CharacterModelSystem.h"
 
 #include "client/AreaSystem.h"
+#include "client/LightSystem.h"
+
+#include "game/shader2/GameShaders2.h"
+#include "client/MeshMaterial.h"
 
 #include "sf/Array.h"
 
@@ -10,10 +14,6 @@
 #include "sf/Random.h"
 
 #include "game/DebugDraw.h"
-
-// TEMP
-#include "game/shader/GameShaders.h"
-#include "game/shader/DebugSkinnedMesh.h"
 
 namespace cl {
 
@@ -48,6 +48,12 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		bool loop = true;
 	};
 
+	struct Material
+	{
+		sf::Symbol name;
+		MeshMaterialRef material;
+	};
+
 	struct Model
 	{
 		uint32_t areaId = ~0u;
@@ -55,6 +61,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 		uint32_t loadQueueIndex = ~0u;
 		sp::ModelRef model;
+		sf::SmallArray<Material, 4> materials;
 
 		sf::Array<Animation> animations;
 		sf::SmallArray<uint32_t, 2> attachIds;
@@ -64,6 +71,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 		sf::Mat34 modelToEntity;
 		sf::Mat34 modelToWorld;
+
+		sf::Bounds3 bounds;
 
 		sf::Array<ActiveAnimation> activeAnimations;
 
@@ -75,14 +84,18 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			for (const Animation &anim : animations) {
 				if (anim.animation.isLoading()) return true;
 			}
+			for (const Material &mat : materials) {
+				if (mat.material.isLoading()) return true;
+			}
 			return model.isLoading();
 		}
 
 		bool isLoaded() const {
 			for (const Animation &anim : animations) {
-				if (!anim.animation.isLoaded()) {
-					return false;
-				}
+				if (!anim.animation.isLoaded()) return false;
+			}
+			for (const Material &mat : materials) {
+				if (!mat.material.isLoaded()) return false;
 			}
 			return model.isLoaded();
 		}
@@ -134,13 +147,10 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 	sf::HashMap<sf::Symbol, double> tagWeights;
 
-	AnimWorkCtx animCtx;
+	Shader2 skinShader;
+	sp::Pipeline skinPipe;
 
-	CharacterModelSystemImp(const SystemsDesc &desc)
-	{
-		tagWeights[sf::Symbol("Idle")] = 10.0;
-		animCtx.rng = sf::Random(desc.seed[0], 756789);
-	}
+	AnimWorkCtx animCtx;
 
 	double getTagWeight(const sf::Symbol &tag)
 	{
@@ -180,10 +190,6 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 	{
 		Model &model = models[modelId];
 
-		sf::Bounds3 bounds;
-		bounds.origin = model.modelToWorld.cols[3];
-		bounds.extent = sf::Vec3(3.0f); // TEMP HACK TODO
-
 		for (Animation &anim : model.animations) {
 			anim.boneMapping.resizeUninit(anim.animation->bones.size);
 			anim.animation->generateBoneMapping(model.model, anim.boneMapping);
@@ -206,10 +212,10 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		model.boneToWorld.resize(model.model->bones.size);
 
 		if (model.areaId != ~0u) {
-			areaSystem->updateBoxArea(model.areaId, bounds);
+			areaSystem->updateBoxArea(model.areaId, model.bounds);
 		} else {
 			uint32_t areaFlags = Area::Visibilty;
-			model.areaId = areaSystem->addBoxArea(AreaGroup::CharacterModel, modelId, bounds, areaFlags);
+			model.areaId = areaSystem->addBoxArea(AreaGroup::CharacterModel, modelId, model.bounds, areaFlags);
 		}
 	}
 
@@ -327,6 +333,33 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 	// API
 
+	CharacterModelSystemImp(const SystemsDesc &desc)
+	{
+		tagWeights[sf::Symbol("Idle")] = 10.0;
+		animCtx.rng = sf::Random(desc.seed[0], 756789);
+
+		uint8_t permutation[SP_NUM_PERMUTATIONS] = { };
+		#if CL_SHADOWCACHE_USE_ARRAY
+			permutation[SP_SHADOWGRID_USE_ARRAY] = 1;
+		#else
+			permutation[SP_SHADOWGRID_USE_ARRAY] = 0;
+		#endif
+		permutation[SP_NORMALMAP_REMAP] = MeshMaterial::useNormalMapRemap;
+		skinShader = getShader2(SpShader_TestSkin, permutation);
+
+		{
+			uint32_t flags = sp::PipeDepthWrite|sp::PipeCullCCW;
+			flags |= sp::PipeIndex16;
+			auto &d = skinPipe.init(skinShader.handle, flags);
+			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+			d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT2;
+			d.layout.attrs[2].format = SG_VERTEXFORMAT_SHORT4N;
+			d.layout.attrs[3].format = SG_VERTEXFORMAT_SHORT4N;
+			d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4;
+			d.layout.attrs[5].format = SG_VERTEXFORMAT_UBYTE4N;
+		}
+	}
+
 	void addCharacterModel(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::CharacterModelComponent &c, const Transform &transform) override
 	{
 		uint32_t modelId = models.size;
@@ -343,6 +376,12 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		model.modelToWorld = transform.asMatrix() * model.modelToEntity;
 
 		model.model.load(c.modelName);
+		for (auto &material : c.materials) {
+			if (!material.material) continue;
+			Material &mat = model.materials.push();
+			mat.name = material.name;
+			mat.material.load(material.material);
+		}
 
 		model.animations.reserve(c.animations.size);
 		for (const sv::AnimationInfo &info : c.animations) {
@@ -367,6 +406,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 		// TEMP HACK TEMP HACK
 		model.addTag(sf::Symbol("Idle"));
+		model.bounds.origin = transform.position;
+		model.bounds.extent = sf::Vec3(2.0f);
 
 		startLoadingModel(systems.area, modelId);
 
@@ -423,12 +464,11 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 		model.modelToWorld = update.entityToWorld * model.modelToEntity;
 
-		sf::Bounds3 bounds;
-		bounds.origin = model.modelToWorld.cols[3];
-		bounds.extent = sf::Vec3(3.0f); // TEMP HACK TODO
+		model.bounds.origin = update.transform.position;
+		model.bounds.extent = sf::Vec3(2.0f);
 
 		if (model.areaId != ~0u) {
-			systems.area->updateBoxArea(model.areaId, bounds);
+			systems.area->updateBoxArea(model.areaId, model.bounds);
 		}
 	}
 
@@ -579,19 +619,28 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		}
 	}
 
-	void renderMain(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
+	void renderMain(LightSystem *lightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
 	{
+		sf::SmallArray<cl::PointLight, 64> pointLights;
+		const uint32_t maxLights = 16;
+
+		UBO_SkinTransform tu;
+		UBO_Pixel pu;
+		UBO_Bones bones;
+
+		sg_bindings bindings = { };
+		bindImageFS(skinShader, bindings, CL_SHADOWCACHE_TEX, lightSystem->getShadowTexture());
+
+		tu.worldToClip = renderArgs.worldToClip;
+
 		for (uint32_t modelId : visibleAreas.get(AreaGroup::CharacterModel)) {
 			Model &model = models[modelId];
 
 			for (sp::Mesh &mesh : model.model->meshes) {
 
-				gameShaders.debugSkinnedMeshPipe.bind();
-
-				DebugSkinnedMesh_SkinTransform_t vu;
-				renderArgs.worldToClip.writeColMajor44(vu.worldToClip);
-
-				DebugSkinnedMesh_Bones_t bones;
+				if (skinPipe.bind()) {
+					bindUniformVS(skinShader, tu);
+				}
 
 				for (uint32_t i = 0; i < mesh.bones.size; i++) {
 					sp::MeshBone &meshBone = mesh.bones[i];
@@ -601,15 +650,47 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 					memcpy(bones.bones[i * 3 + 2].v, transform.getRow(2).v, sizeof(sf::Vec4));
 				}
 
-				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_DebugSkinnedMesh_Bones, &bones, sizeof(bones));
-				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_DebugSkinnedMesh_SkinTransform, &vu, sizeof(vu));
+				bindUniformVS(skinShader, bones);
 
-				sg_bindings binds = { };
-				binds.index_buffer = model.model->indexBuffer.buffer;
-				binds.index_buffer_offset = mesh.indexBufferOffset;
-				binds.vertex_buffers[0] = model.model->vertexBuffer.buffer;
-				binds.vertex_buffer_offsets[0] = mesh.streams[0].offset;
-				sg_apply_bindings(&binds);
+				pointLights.clear();
+				lightSystem->queryVisiblePointLights(visibleAreas, pointLights, model.bounds);
+
+				// TODO: Prioritize
+				if (pointLights.size > maxLights) {
+					pointLights.resizeUninit(maxLights);
+				}
+
+				pu.numLightsF = (float)pointLights.size;
+				pu.cameraPosition = renderArgs.cameraPosition;
+				sf::Vec4 *dst = pu.pointLightData;
+				for (PointLight &light : pointLights) {
+					light.writeShader(dst);
+				}
+
+				bindUniformFS(skinShader, pu);
+
+				bool foundMaterial = false;
+				for (const Material &mat : model.materials) {
+					if (mat.name == mesh.materialName) {
+						bindImageFS(skinShader, bindings, TEX_albedoTexture, mat.material->images[(uint32_t)MaterialTexture::Albedo]);
+						bindImageFS(skinShader, bindings, TEX_normalTexture, mat.material->images[(uint32_t)MaterialTexture::Normal]);
+						bindImageFS(skinShader, bindings, TEX_maskTexture, mat.material->images[(uint32_t)MaterialTexture::Mask]);
+						foundMaterial = true;
+						break;
+					}
+				}
+
+				if (!foundMaterial) {
+					bindImageFS(skinShader, bindings, TEX_albedoTexture, MeshMaterial::defaultImages[(uint32_t)MaterialTexture::Albedo]);
+					bindImageFS(skinShader, bindings, TEX_normalTexture, MeshMaterial::defaultImages[(uint32_t)MaterialTexture::Normal]);
+					bindImageFS(skinShader, bindings, TEX_maskTexture, MeshMaterial::defaultImages[(uint32_t)MaterialTexture::Mask]);
+				}
+
+				bindings.index_buffer = model.model->indexBuffer.buffer;
+				bindings.index_buffer_offset = mesh.indexBufferOffset;
+				bindings.vertex_buffers[0] = model.model->vertexBuffer.buffer;
+				bindings.vertex_buffer_offsets[0] = mesh.streams[0].offset;
+				sg_apply_bindings(&bindings);
 
 				sg_draw(0, mesh.numIndices, 1);
 			}

@@ -5,7 +5,7 @@
 
 #define SpShader_TestMesh 0
 #define SpShader_TestSkin 1
-#define SpShaderDataSize 38113
+#define SpShaderDataSize 38102
 
 #define SP_SHADOWGRID_USE_ARRAY 0
 #define SP_NORMALMAP_REMAP 1
@@ -14,8 +14,7 @@
 struct UBO_Transform {
 	static const constexpr uint32_t UboIndex = 1;
 
-	sf::Mat44 transform;
-	sf::Mat44 normalTransform;
+	sf::Mat44 worldToClip;
 };
 
 struct UBO_Pixel {
@@ -59,4 +58,4 @@ extern const SpPermutationInfo spPermutations[10];
 extern const SpUniformBlockInfo spUniformBlock[5];
 extern const SpSamplerInfo spSamplers[9];
 extern const SpAttribInfo spAttribs[11];
-extern const char spShaderData[2298];
+extern const char spShaderData[2282];

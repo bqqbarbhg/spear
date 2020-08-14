@@ -1,7 +1,9 @@
 #include "ClientState.h"
 
 #include "client/AreaSystem.h"
+#include "client/LightSystem.h"
 #include "client/ModelSystem.h"
+#include "client/TileModelSystem.h"
 #include "client/CharacterModelSystem.h"
 #include "client/ParticleSystem.h"
 #include "client/GameSystem.h"
@@ -21,20 +23,6 @@ static Transform getPropTransform(const sv::PropTransform &transform)
 	return ret;
 }
 
-static void updateVisibility(VisibleAreas &visibleAreas, const AreaSystem *areaSystem, const sf::Frustum &frustum)
-{
-	visibleAreas.areas.clear();
-	areaSystem->queryFrustum(visibleAreas.areas, Area::Visibilty, frustum);
-
-	for (sf::Array<uint32_t> &groupIds : visibleAreas.groups) {
-		groupIds.clear();
-	}
-
-	for (const Area &area : visibleAreas.areas) {
-		if ((uint32_t)area.group >= sf_arraysize(visibleAreas.groups)) continue;
-		visibleAreas.groups[(uint32_t)area.group].push(area.userId);
-	}
-}
 
 static void removeEntities(Systems &systems, uint32_t svId)
 {
@@ -108,7 +96,8 @@ void ClientState::editorPick(sf::Array<EntityHit> &hits, const sf::Ray &ray) con
 	for (Area &area : areas) {
 		switch (area.group)
 		{
-		case AreaGroup::Model: systems.model->editorPick(hits, fastRay, area.userId); break;
+		case AreaGroup::DynamicModel: systems.model->editorPick(hits, fastRay, area.userId); break;
+		case AreaGroup::TileChunk: systems.tileModel->editorPick(hits, fastRay, area.userId); break;
 		default:
 			sf_failf("Unhandled EditorPick group: %u", area.group);
 			break;
@@ -126,6 +115,10 @@ void ClientState::editorHighlight(uint32_t entityId, EditorHighlight type)
 
 void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameArgs)
 {
+	systems.frameArgs = frameArgs;
+
+	systems.tileModel->startFrame();
+	systems.tileModel->garbageCollectChunks(systems.area, frameArgs);
 	systems.entities.updateQueuedRemoves(systems, frameArgs);
 
 	if (svState) {
@@ -133,11 +126,16 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 	}
 
 	systems.model->updateLoadQueue(systems.area);
+	systems.tileModel->updateLoadQueue(systems.area);
 	systems.characterModel->updateLoadQueue(systems.area);
+
+	systems.light->updateLightFade(frameArgs);
 
 	systems.area->optimize();
 
-	updateVisibility(systems.visibleAreas, systems.area, frameArgs.mainRenderArgs.frustum);
+	systems.updateVisibility(systems.visibleAreas, Area::Visibilty, frameArgs.mainRenderArgs.frustum);
+
+	systems.tileModel->uploadVisibleChunks(systems.visibleAreas, systems.area, frameArgs);
 
 	systems.particle->updateParticles(systems.visibleAreas, frameArgs);
 
@@ -145,10 +143,18 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 	systems.characterModel->updateAttachedEntities(systems);
 }
 
+
+void ClientState::renderShadows()
+{
+	systems.light->renderShadowMaps(systems, systems.visibleAreas);
+}
+
 void ClientState::renderMain(const RenderArgs &args)
 {
+
 	systems.model->renderMain(systems.visibleAreas, args);
-	systems.characterModel->renderMain(systems.visibleAreas, args);
+	systems.tileModel->renderMain(systems.light, systems.visibleAreas, args);
+	systems.characterModel->renderMain(systems.light, systems.visibleAreas, args);
 	systems.particle->renderMain(systems.visibleAreas, args);
 }
 

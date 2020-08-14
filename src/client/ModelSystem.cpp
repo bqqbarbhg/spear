@@ -1,16 +1,16 @@
 #include "ModelSystem.h"
 
 #include "client/AreaSystem.h"
+#include "client/LightSystem.h"
+
+#include "game/shader2/GameShaders2.h"
+#include "client/MeshMaterial.h"
 
 #include "sf/Array.h"
 
 #include "sp/Model.h"
 
 #include "game/DebugDraw.h"
-
-// TEMP
-#include "game/shader/GameShaders.h"
-#include "game/shader/DebugMesh.h"
 
 namespace cl {
 
@@ -24,6 +24,7 @@ struct ModelSystemImp final : ModelSystem
 		uint32_t loadQueueIndex = ~0u;
 		sp::ModelRef model;
 		sp::ModelRef shadowModel;
+		cl::MeshMaterialRef material;
 
 		sf::Bounds3 modelBounds;
 
@@ -38,7 +39,7 @@ struct ModelSystemImp final : ModelSystem
 		}
 	};
 
-	static sf::Mat34 getComponentTransform(const sv::ModelComponent &c)
+	static sf::Mat34 getComponentTransform(const sv::DynamicModelComponent &c)
 	{
 		return sf::mat::translate(c.position) * (
 		sf::mat::rotateZ(c.rotation.z * (sf::F_PI/180.0f)) *
@@ -66,7 +67,7 @@ struct ModelSystemImp final : ModelSystem
 		} else {
 			uint32_t areaFlags = Area::Visibilty | Area::EditorPick;
 			if (model.shadowModel) areaFlags |= Area::Shadow;
-			model.areaId = areaSystem->addBoxArea(AreaGroup::Model, modelId, model.modelBounds, model.modelToWorld, areaFlags);
+			model.areaId = areaSystem->addBoxArea(AreaGroup::DynamicModel, modelId, model.modelBounds, model.modelToWorld, areaFlags);
 		}
 	}
 
@@ -83,7 +84,7 @@ struct ModelSystemImp final : ModelSystem
 
 	// API
 
-	void addModel(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::ModelComponent &c, const Transform &transform) override
+	void addModel(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::DynamicModelComponent &c, const Transform &transform) override
 	{
 		uint32_t modelId = models.size;
 		if (freeModelIds.size > 0) {
@@ -100,8 +101,14 @@ struct ModelSystemImp final : ModelSystem
 
 		model.model.load(c.model);
 		if (c.castShadows) {
-			model.shadowModel.load(c.shadowModel ? c.shadowModel : c.model);
+			if (c.shadowModel) {
+				model.shadowModel.load(c.shadowModel);
+			} else {
+				model.shadowModel = model.model;
+			}
 		}
+		model.material.load(c.material);
+
 		startLoadingModel(systems.area, modelId);
 
 		systems.entities.addComponent(entityId, this, modelId, 0, componentIndex, Entity::UpdateTransform);
@@ -151,11 +158,14 @@ struct ModelSystemImp final : ModelSystem
 
 	void renderMain(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
 	{
-		for (uint32_t modelId : visibleAreas.get(AreaGroup::Model)) {
+		for (uint32_t modelId : visibleAreas.get(AreaGroup::DynamicModel)) {
 			Model &model = models[modelId];
 
 			for (sp::Mesh &mesh : model.model->meshes) {
 
+				 // TODO TODO 
+
+#if 0
 				gameShaders.debugMeshPipe.bind();
 
 				sf::Mat44 meshToClip = renderArgs.worldToClip * model.modelToWorld;
@@ -172,6 +182,7 @@ struct ModelSystemImp final : ModelSystem
 				sg_apply_bindings(&binds);
 
 				sg_draw(0, mesh.numIndices, 1);
+#endif
 			}
 
 		}

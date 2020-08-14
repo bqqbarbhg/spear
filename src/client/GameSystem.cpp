@@ -56,6 +56,8 @@ struct GameSystemImp final : GameSystem
 				cl::Transform transform;
 				transform.scale = 0.0f;
 				uint32_t entityId = systems.entities.addEntity(systems, card.svId, transform, c->prefabName);
+				if (entityId == ~0u) continue;
+
 				card.entityIds.push(entityId);
 
 				CharacterModelSystem::AttachDesc desc;

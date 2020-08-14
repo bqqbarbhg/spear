@@ -297,7 +297,7 @@ struct ParticleSystemImp final : ParticleSystem
 		type.typeUbo.u_RotationControl.z = c.spin * (sf::F_PI/180.0f);
 		type.typeUbo.u_RotationControl.w = c.spinVariance * (sf::F_PI/180.0f);
 		if (c.randomStartFrame) {
-			type.typeUbo.u_StartFrame = (float)(c.frameCount.x * c.frameCount.y);
+			type.typeUbo.u_StartFrame = 1.0f;
 		}
 
 		uint32_t atlasX = typeId / SplineAtlasHeight;
@@ -664,10 +664,8 @@ struct ParticleSystemImp final : ParticleSystem
 
 		effect.emitOnTimer = c->emitterOnTime;
 
-		sf::Bounds3 bounds;
-		bounds.origin = transform.position;
-		bounds.extent = sf::Vec3(c->updateRadius);
-		effect.areaId = systems.area->addBoxArea(AreaGroup::ParticleEffect, effectId, bounds, Area::Visibilty);
+		sf::Sphere sphere = { transform.position, c->updateRadius };
+		effect.areaId = systems.area->addSphereArea(AreaGroup::ParticleEffect, effectId, sphere, Area::Visibilty);
 
 		systems.entities.addComponent(entityId, this, effectId, 0, componentIndex, Entity::UpdateTransform|Entity::PrepareForRemove);
 	}
@@ -682,10 +680,8 @@ struct ParticleSystemImp final : ParticleSystem
 
 		effect.origin = update.transform.position;
 
-		sf::Bounds3 bounds;
-		bounds.origin = update.transform.position;
-		bounds.extent = sf::Vec3(type.updateRadius);
-		systems.area->updateBoxArea(effect.areaId, bounds);
+		sf::Sphere sphere = { update.transform.position, type.updateRadius };
+		systems.area->updateSphereArea(effect.areaId, sphere);
 	}
 
 	bool prepareForRemove(Systems &systems, uint32_t entityId, const EntityComponent &ec, const FrameArgs &frameArgs) override
@@ -704,7 +700,7 @@ struct ParticleSystemImp final : ParticleSystem
 		Effect &effect = effects[effectId];
 		EffectType &type = types[effect.typeId];
 
-		systems.area->removeBoxArea(effect.areaId);
+		systems.area->removeSphereArea(effect.areaId);
 
 		if (--type.refCount == 0) {
 			uintptr_t key = (uintptr_t)type.svComponent.ptr;

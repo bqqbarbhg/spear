@@ -27,7 +27,7 @@ struct CharacterModelSystem : EntitySystem
 	virtual void updateAttachedEntities(Systems &systems) = 0;
 	virtual void updateLoadQueue(AreaSystem *areaSystem) = 0;
 
-	virtual void renderMain(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
+	virtual void renderMain(LightSystem *lightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
 };
 
 }

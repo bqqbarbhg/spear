@@ -27,6 +27,13 @@ struct AreaSystemImp final : AreaSystem
 		Area area;
 	};
 
+	struct SphereAreaImp
+	{
+		sf::Sphere sphere;
+		uint32_t areaId;
+		Area area;
+	};
+
 	struct SpatialChildren;
 	struct Spatial
 	{
@@ -49,6 +56,8 @@ struct AreaSystemImp final : AreaSystem
 		// Leaf areas
 		uint32_t boxFlags = 0;
 		sf::Array<BoxAreaImp> boxes;
+		uint32_t sphereFlags = 0;
+		sf::Array<SphereAreaImp> spheres;
 
 		// Child areas
 		uint32_t childMask = 0;
@@ -98,10 +107,26 @@ struct AreaSystemImp final : AreaSystem
 		Spatial child[8];
 	};
 
+	enum class AreaShape
+	{
+		Invalid,
+		Box,
+		Sphere,
+	};
+
 	struct AreaImp
 	{
 		Spatial *spatial = nullptr;
 		uint32_t spatialIndex = ~0u;
+
+		#if SF_DEBUG
+			AreaShape debugAreaShape = AreaShape::Invalid;
+			void setShape(AreaShape shape) { debugAreaShape = shape; }
+			void checkShape(AreaShape shape) { sf_assert(debugAreaShape == shape); }
+		#else
+			sf_forceinline void setShape(AreaShape shape) { }
+			sf_forceinline void checkShape(AreaShape shape) { }
+		#endif
 	};
 
 	sf::HashMap<sf::Vec3i, sf::Unique<Spatial>> spatialRoots;
@@ -119,6 +144,15 @@ struct AreaSystemImp final : AreaSystem
 				if (!frustum.intersects(box.bounds)) continue;
 
 				areas.push(box.area);
+			}
+		}
+
+		if (spatial->sphereFlags & areaFlags) {
+			for (const SphereAreaImp &sph : spatial->spheres) {
+				if ((sph.area.flags & areaFlags) == 0) continue;
+				if (!frustum.intersects(sph.sphere)) continue;
+
+				areas.push(sph.area);
 			}
 		}
 
@@ -148,6 +182,18 @@ struct AreaSystemImp final : AreaSystem
 			}
 		}
 
+		if (spatial->sphereFlags & areaFlags) {
+			for (const SphereAreaImp &sph : spatial->spheres) {
+				if ((sph.area.flags & areaFlags) == 0) continue;
+				if (!frustum.intersects(sph.sphere)) continue;
+
+				AreaBounds &area = areas.push();
+				area.area = sph.area;
+				area.bounds.origin = sph.sphere.origin;
+				area.bounds.extent = sf::Vec3(sph.sphere.origin);
+			}
+		}
+
 		Spatial *children = spatial->children->child;
 		uint32_t childMask = spatial->childMask;
 		while (childMask) {
@@ -170,6 +216,16 @@ struct AreaSystemImp final : AreaSystem
 				if (t >= tMax) continue;
 
 				areas.push(box.area);
+			}
+		}
+
+		if (spatial->sphereFlags & areaFlags) {
+			for (const SphereAreaImp &sph : spatial->spheres) {
+				if ((sph.area.flags & areaFlags) == 0) continue;
+				float t = sf::intersectRayFast(ray, sph.sphere, tMin, tMax);
+				if (t >= tMax) continue;
+
+				areas.push(sph.area);
 			}
 		}
 
@@ -287,6 +343,20 @@ struct AreaSystemImp final : AreaSystem
 		return result;
 	}
 
+	static sf_forceinline sf::Bounds3 clampBounds(const sf::Sphere &sphere)
+	{
+		sf::Bounds3 result;
+		result.origin.x = sphere.origin.x;
+		result.origin.z = sphere.origin.z;
+		result.extent.x = sphere.radius;
+		result.extent.z = sphere.radius;
+		float minY = sf::clamp(sphere.origin.y - sphere.radius, AreaMinY, AreaMaxY);
+		float maxY = sf::clamp(sphere.origin.y + sphere.radius, AreaMinY, AreaMaxY);
+		result.origin.y = (minY + maxY) * 0.5f;
+		result.extent.y = (maxY - minY) * 0.5f;
+		return result;
+	}
+
 	sf_forceinline void addToOptimizationQueue(Spatial *spatial)
 	{
 		if (!spatial->inOptimizationQueue) {
@@ -314,11 +384,21 @@ struct AreaSystemImp final : AreaSystem
 		}
 		spatial->boxFlags = boxFlags;
 
+		uint32_t sphereFlags = 0;
+		for (SphereAreaImp &sph : spatial->spheres) {
+			sf::Float4 origin = { sph.sphere.origin.x, sph.sphere.origin.y, sph.sphere.origin.z, 0.0f };
+			sf::Float4 extent = { sph.sphere.radius, sph.sphere.radius, sph.sphere.radius, 0.0f };
+			aabbMin = aabbMin.min(origin - extent);
+			aabbMax = aabbMax.max(origin + extent);
+			sphereFlags |= sph.area.flags;
+		}
+		spatial->sphereFlags = sphereFlags;
+
 		if (spatial->children) {
 			uint32_t childMask = 0;
 			uint32_t childBit = 1;
 			for (Spatial &child : spatial->children->child) {
-				if (child.childMask | child.boxFlags) {
+				if (child.childMask | child.boxFlags | child.sphereFlags) {
 					childMask |= childBit;
 					aabbMin = aabbMin.min(sf::Float4::loadu(child.aabbMin.v));
 					aabbMax = aabbMax.max(sf::Float4::loadu(child.aabbMax.v));
@@ -349,10 +429,13 @@ struct AreaSystemImp final : AreaSystem
 
 		AreaImp &areaImp = areaImps[areaId];
 		float extent = sf::max(bounds.extent.x, bounds.extent.y, bounds.extent.z);
+
 		Spatial *spatial = insertSpatial(bounds.origin, extent);
-		spatial->boxFlags |= areaFlags;
 		areaImp.spatial = spatial;
 		areaImp.spatialIndex = spatial->boxes.size;
+		areaImp.setShape(AreaShape::Box);
+
+		spatial->boxFlags |= areaFlags;
 		BoxAreaImp &box = spatial->boxes.push();
 		box.bounds = bounds;
 		box.areaId = areaId;
@@ -375,6 +458,7 @@ struct AreaSystemImp final : AreaSystem
 	void updateBoxArea(uint32_t areaId, const sf::Bounds3 &unclampedBounds)
 	{
 		AreaImp &areaImp = areaImps[areaId];
+		areaImp.checkShape(AreaShape::Box);
 
 		sf::Bounds3 bounds = clampBounds(unclampedBounds);
 
@@ -413,10 +497,106 @@ struct AreaSystemImp final : AreaSystem
 	void removeBoxArea(uint32_t areaId)
 	{
 		AreaImp &areaImp = areaImps[areaId];
+		areaImp.checkShape(AreaShape::Box);
+
 		Spatial *spatial = areaImp.spatial;
 		uint32_t spatialIndex = areaImp.spatialIndex;
 		areaImps[spatial->boxes.back().areaId].spatialIndex = spatialIndex;
 		spatial->boxes.removeSwap(spatialIndex);
+
+		addToOptimizationQueue(spatial);
+
+		sf::reset(areaImp);
+		freeAreaIds.push(areaId);
+	}
+
+	uint32_t addSphereArea(AreaGroup group, uint32_t userId, const sf::Sphere &sphere, uint32_t areaFlags)
+	{
+		uint32_t areaId = areaImps.size;
+		if (freeAreaIds.size > 0) {
+			areaId = freeAreaIds.popValue();
+		} else {
+			areaImps.push();
+		}
+
+		sf::Bounds3 bounds = clampBounds(sphere);
+
+		float extent = sphere.radius;
+		AreaImp &areaImp = areaImps[areaId];
+		Spatial *spatial = insertSpatial(bounds.origin, extent);
+
+		areaImp.spatial = spatial;
+		areaImp.spatialIndex = spatial->spheres.size;
+		areaImp.setShape(AreaShape::Sphere);
+
+		spatial->sphereFlags |= areaFlags;
+		SphereAreaImp &sph = spatial->spheres.push();
+		sph.sphere = sphere;
+		sph.areaId = areaId;
+		sph.area.group = group;
+		sph.area.flags = areaFlags;
+		sph.area.userId = userId;
+		spatial->expand(bounds);
+
+		addToOptimizationQueue(spatial);
+
+		return areaId;
+	}
+
+	uint32_t addSphereArea(AreaGroup group, uint32_t userId, const sf::Sphere &sphere, const sf::Mat34 &transform, uint32_t areaFlags)
+	{
+		// TODO: OBB support?
+		return addSphereArea(group, userId, sf::transformSphere(transform, sphere), areaFlags);
+	}
+
+	void updateSphereArea(uint32_t areaId, const sf::Sphere &sphere)
+	{
+		AreaImp &areaImp = areaImps[areaId];
+		areaImp.checkShape(AreaShape::Sphere);
+
+		sf::Bounds3 bounds = clampBounds(sphere);
+
+		float extent = sphere.radius;
+		Spatial *spatial = areaImp.spatial;
+		uint32_t spatialIndex = areaImp.spatialIndex;
+		if (spatial->isValidLeaf(bounds.origin, extent)) {
+			spatial->spheres[spatialIndex].sphere = sphere;
+			spatial->expand(bounds);
+		} else {
+			addToOptimizationQueue(spatial);
+
+			Area area = spatial->spheres[spatialIndex].area;
+
+			areaImps[spatial->spheres.back().areaId].spatialIndex = spatialIndex;
+			spatial->spheres.removeSwap(spatialIndex);
+
+			spatial = insertSpatial(bounds.origin, extent);
+			spatial->sphereFlags |= area.flags;
+			areaImp.spatial = spatial;
+			areaImp.spatialIndex = spatial->spheres.size;
+			SphereAreaImp &sph = spatial->spheres.push();
+			sph.sphere = sphere;
+			sph.areaId = areaId;
+			sph.area = area;
+		}
+		addToOptimizationQueue(spatial);
+	}
+
+	void updateSphereArea(uint32_t areaId, const sf::Sphere &sphere, const sf::Mat34 &transform)
+	{
+		// TODO: OBB support?
+		updateSphereArea(areaId, sf::transformSphere(transform, sphere));
+	}
+
+	void removeSphereArea(uint32_t areaId)
+	{
+		AreaImp &areaImp = areaImps[areaId];
+		areaImp.checkShape(AreaShape::Sphere);
+
+		Spatial *spatial = areaImp.spatial;
+		uint32_t spatialIndex = areaImp.spatialIndex;
+		areaImps[spatial->spheres.back().areaId].spatialIndex = spatialIndex;
+		spatial->spheres.removeSwap(spatialIndex);
 
 		addToOptimizationQueue(spatial);
 
@@ -460,7 +640,7 @@ struct AreaSystemImp final : AreaSystem
 		sf::Frustum local = frustum;
 		for (const auto &root : spatialRoots) {
 			const Spatial *spatial = root.val;
-			if ((spatial->boxFlags | spatial->childMask) == 0) continue;
+			if ((spatial->boxFlags | spatial->sphereFlags | spatial->childMask) == 0) continue;
 			if (!frustum.intersects(sf::Bounds3::minMax(spatial->aabbMin, spatial->aabbMax))) continue;
 
 			queryFrustumSpatial(spatial, areas, areaFlags, frustum);
@@ -472,7 +652,7 @@ struct AreaSystemImp final : AreaSystem
 		sf::Frustum local = frustum;
 		for (const auto &root : spatialRoots) {
 			const Spatial *spatial = root.val;
-			if ((spatial->boxFlags | spatial->childMask) == 0) continue;
+			if ((spatial->boxFlags | spatial->sphereFlags | spatial->childMask) == 0) continue;
 			if (!frustum.intersects(sf::Bounds3::minMax(spatial->aabbMin, spatial->aabbMax))) continue;
 
 			queryFrustumSpatialBounds(spatial, areas, areaFlags, frustum);
@@ -483,7 +663,7 @@ struct AreaSystemImp final : AreaSystem
 	{
 		for (const auto &root : spatialRoots) {
 			const Spatial *spatial = root.val;
-			if ((spatial->boxFlags | spatial->childMask) == 0) continue;
+			if ((spatial->boxFlags | spatial->sphereFlags | spatial->childMask) == 0) continue;
 
 			float t = sf::intersectRayFastAabb(ray, spatial->aabbMin, spatial->aabbMax, tMin, tMax);
 			if (t >= tMax) continue;

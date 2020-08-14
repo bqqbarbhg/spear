@@ -32,7 +32,8 @@ struct Component
 	enum Type
 	{
 		Error,
-		Model,
+		DynamicModel,
+		TileModel,
 		PointLight,
 		ParticleSystem,
 		Character,
@@ -40,11 +41,12 @@ struct Component
 		BlobShadow,
 		Card,
 		CardAttach,
+		CardStatus,
 		CardMelee,
-		CardProjectile,
 		CastOnTurnStart,
 		CastOnReceiveDamage,
 		CastOnDealDamage,
+		Projectile,
 		ResistDamage,
 		CardCast,
 		Spell,
@@ -74,7 +76,20 @@ struct ComponentBase : Component
 	ComponentBase() : Component(SelfType) { }
 };
 
-struct ModelComponent : ComponentBase<Component::Model>
+struct DynamicModelComponent : ComponentBase<Component::DynamicModel>
+{
+	sf::Symbol model sv_reflect(asset); //! Model .fbx asset
+	sf::Symbol shadowModel sv_reflect(asset); //! Model .fbx used for shadow instead of 'model'
+	sf::Symbol material sv_reflect(asset); //! Material used fo the asset
+	sf::Vec3 position; //! Offset (in meters) of the model relative to the entity
+	sf::Vec3 rotation; //! Rotation (XYZ in degrees) of the model relative to the entity
+	float scale = 1.0f; //! Uniform scaling applied to the model
+	sf::Vec3 stretch = sf::Vec3(1.0f); //! Non-uniform scaling in entity's local X/Y/Z directions
+	uint8_t tintColor[3] = { 255, 255, 255 } sv_reflect(color); //! Modifies the base color of the model's material
+	bool castShadows = true; //! Does the model cast shadows?
+};
+
+struct TileModelComponent : ComponentBase<Component::TileModel>
 {
 	sf::Symbol model sv_reflect(asset); //! Model .fbx asset
 	sf::Symbol shadowModel sv_reflect(asset); //! Model .fbx used for shadow instead of 'model'
@@ -93,7 +108,9 @@ struct PointLightComponent : ComponentBase<Component::PointLight>
 	float intensity = 1.0f; //! Brightness of the light
 	float radius = 1.0f; //! Maximum eistance in meters that the light can reach
 	sf::Vec3 position; //! Offset (in meters) of the light in the entity
-	bool castShadows = true; //! Does this light have shadows
+	bool hasShadows = true; //! Does this light have shadows
+	float fadeInTime = 0.0f; //! Time to fade in when spawning
+	float fadeOutTime = 0.0f; //! Time to fade out when spawning
 };
 
 struct BSpline2 sv_reflect()
@@ -197,28 +214,34 @@ struct CharacterComponent : ComponentBase<Component::Character>
 
 struct AnimationInfo sv_reflect()
 {
-	sf::Array<sf::Symbol> tags;
-	sf::Symbol file sv_reflect(asset);
-	float weight = 1.0f;
-	bool loop = true;
-	float speed = 1.0f;
-	float speedVariation = 0.0f;
+	sf::Array<sf::Symbol> tags; //! Tags for when to play the animation
+	sf::Symbol file sv_reflect(asset); //! Animation .fbx asset file
+	float weight = 1.0f; //! How often to play the animation (for equal tags)
+	bool loop = true; //! Should the animation blend the ending with the beginning
+	float speed = 1.0f; //! How fast to play the animation
+	float speedVariation = 0.0f; //! Random playback speed variation added on top of speed
 };
 
 struct AttachBone sv_reflect()
 {
-	sf::Symbol name;
-	sf::Symbol boneName;
-	float scale = 1.0f;
+	sf::Symbol name; //! Name of the attachment point eg. ItemL
+	sf::Symbol boneName; //! Name of the .fbx bone eg. bnd_object
+	float scale = 1.0f; //! Scale factor for attached objects
+};
+
+struct CharacterMaterial sv_reflect()
+{
+	sf::Symbol name; //! Name of the material in the .fbx file
+	sf::Symbol material sv_reflect(asset); //! Material asset name
 };
 
 struct CharacterModelComponent : ComponentBase<Component::CharacterModel>
 {
-	sf::Symbol modelName sv_reflect(asset);
-	sf::HashMap<sf::Symbol, sf::Symbol> materials;
-	float scale = 1.0f;
+	sf::Symbol modelName sv_reflect(asset); //! Character model asset
+	sf::Array<CharacterMaterial> materials; //! Material asset links
+	float scale = 1.0f; //! Scale of the character
 	sf::Array<AnimationInfo> animations;
-	sf::Array<AttachBone> attachBones;
+	sf::Array<AttachBone> attachBones; //! Bone mapping for attaching objects
 };
 
 struct ShadowBlob sv_reflect()
@@ -255,12 +278,17 @@ struct CardAttachComponent : ComponentBase<Component::CardAttach>
 	sf::Array<sf::Symbol> animationTags;
 };
 
+struct CardStatusComponent : ComponentBase<Component::CardStatus>
+{
+	sf::Symbol statusName sv_reflect(prefab);
+};
+
 struct CardMeleeComponent : ComponentBase<Component::CardMelee>
 {
 	DiceRoll hitRoll;
 };
 
-struct CardProjectileComponent : ComponentBase<Component::CardProjectile>
+struct ProjectileComponent : ComponentBase<Component::Projectile>
 {
 	sf::Symbol prefabName sv_reflect(prefab);
 	sf::Symbol hitEffect;
@@ -691,6 +719,7 @@ struct Edit
 		CloneProp,
 		MoveProp,
 		RemoveProp,
+		AddCharacter,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -750,6 +779,11 @@ struct MovePropEdit : EditBase<Edit::MoveProp>
 struct RemovePropEdit : EditBase<Edit::RemoveProp>
 {
 	uint32_t propId;
+};
+
+struct AddCharacterEdit : EditBase<Edit::AddCharacter>
+{
+	Character character;
 };
 
 struct Action

@@ -11,7 +11,8 @@ using namespace sv;
 template<> void initType<Component>(Type *t)
 {
 	static PolymorphType polys[] = {
-		sf_poly(Component, Model, ModelComponent),
+		sf_poly(Component, DynamicModel, DynamicModelComponent),
+		sf_poly(Component, TileModel, TileModelComponent),
 		sf_poly(Component, PointLight, PointLightComponent),
 		sf_poly(Component, ParticleSystem, ParticleSystemComponent),
 		sf_poly(Component, Character, CharacterComponent),
@@ -19,8 +20,9 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, BlobShadow, BlobShadowComponent),
 		sf_poly(Component, Card, CardComponent),
 		sf_poly(Component, CardAttach, CardAttachComponent),
+		sf_poly(Component, CardStatus, CardStatusComponent),
 		sf_poly(Component, CardMelee, CardMeleeComponent),
-		sf_poly(Component, CardProjectile, CardProjectileComponent),
+		sf_poly(Component, Projectile, ProjectileComponent),
 		sf_poly(Component, CastOnTurnStart, CastOnTurnStartComponent),
 		sf_poly(Component, CastOnReceiveDamage, CastOnReceiveDamageComponent),
 		sf_poly(Component, CastOnDealDamage, CastOnDealDamageComponent),
@@ -78,24 +80,82 @@ template<> void initType<Edit>(Type *t)
 		sf_poly(Edit, CloneProp, ClonePropEdit),
 		sf_poly(Edit, MoveProp, MovePropEdit),
 		sf_poly(Edit, RemoveProp, RemovePropEdit),
+		sf_poly(Edit, AddCharacter, AddCharacterEdit),
 	};
 	sf_struct_poly(t, Edit, type, { }, polys);
 }
 
-template<> void initType<ModelComponent>(Type *t)
+template<> void initType<DynamicModelComponent>(Type *t)
 {
 	static Field fields[] = {
-		sf_field(ModelComponent, model),
-		sf_field(ModelComponent, shadowModel),
-		sf_field(ModelComponent, material),
-		sf_field(ModelComponent, position),
-		sf_field(ModelComponent, rotation),
-		sf_field(ModelComponent, scale),
-		sf_field(ModelComponent, stretch),
-		sf_field(ModelComponent, tintColor),
-		sf_field(ModelComponent, castShadows),
+		sf_field(DynamicModelComponent, model),
+		sf_field(DynamicModelComponent, shadowModel),
+		sf_field(DynamicModelComponent, material),
+		sf_field(DynamicModelComponent, position),
+		sf_field(DynamicModelComponent, rotation),
+		sf_field(DynamicModelComponent, scale),
+		sf_field(DynamicModelComponent, stretch),
+		sf_field(DynamicModelComponent, tintColor),
+		sf_field(DynamicModelComponent, castShadows),
 	};
-	sf_struct_base(t, ModelComponent, Component, fields);
+	sf_struct_base(t, DynamicModelComponent, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "model");
+		info.description = "Model .fbx asset";
+		info.asset = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "shadowModel");
+		info.description = "Model .fbx used for shadow instead of 'model'";
+		info.asset = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "material");
+		info.description = "Material used fo the asset";
+		info.asset = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "position");
+		info.description = "Offset (in meters) of the model relative to the entity";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "rotation");
+		info.description = "Rotation (XYZ in degrees) of the model relative to the entity";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "scale");
+		info.description = "Uniform scaling applied to the model";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "stretch");
+		info.description = "Non-uniform scaling in entity's local X/Y/Z directions";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "tintColor");
+		info.description = "Modifies the base color of the model's material";
+		info.color = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "castShadows");
+		info.description = "Does the model cast shadows?";
+	}
+}
+
+template<> void initType<TileModelComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(TileModelComponent, model),
+		sf_field(TileModelComponent, shadowModel),
+		sf_field(TileModelComponent, material),
+		sf_field(TileModelComponent, position),
+		sf_field(TileModelComponent, rotation),
+		sf_field(TileModelComponent, scale),
+		sf_field(TileModelComponent, stretch),
+		sf_field(TileModelComponent, tintColor),
+		sf_field(TileModelComponent, castShadows),
+	};
+	sf_struct_base(t, TileModelComponent, Component, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "model");
@@ -146,7 +206,9 @@ template<> void initType<PointLightComponent>(Type *t)
 		sf_field(PointLightComponent, intensity),
 		sf_field(PointLightComponent, radius),
 		sf_field(PointLightComponent, position),
-		sf_field(PointLightComponent, castShadows),
+		sf_field(PointLightComponent, hasShadows),
+		sf_field(PointLightComponent, fadeInTime),
+		sf_field(PointLightComponent, fadeOutTime),
 	};
 	sf_struct_base(t, PointLightComponent, Component, fields);
 
@@ -167,8 +229,16 @@ template<> void initType<PointLightComponent>(Type *t)
 		info.description = "Offset (in meters) of the light in the entity";
 	}
 	{
-		ReflectionInfo &info = addTypeReflectionInfo(t, "castShadows");
+		ReflectionInfo &info = addTypeReflectionInfo(t, "hasShadows");
 		info.description = "Does this light have shadows";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "fadeInTime");
+		info.description = "Time to fade in when spawning";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "fadeOutTime");
+		info.description = "Time to fade out when spawning";
 	}
 }
 
@@ -381,6 +451,7 @@ template<> void initType<CharacterModelComponent>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(CharacterModelComponent, modelName),
+		sf_field(CharacterModelComponent, materials),
 		sf_field(CharacterModelComponent, scale),
 		sf_field(CharacterModelComponent, animations),
 		sf_field(CharacterModelComponent, attachBones),
@@ -389,7 +460,20 @@ template<> void initType<CharacterModelComponent>(Type *t)
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "modelName");
+		info.description = "Character model asset";
 		info.asset = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "materials");
+		info.description = "Material asset links";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "scale");
+		info.description = "Scale of the character";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "attachBones");
+		info.description = "Bone mapping for attaching objects";
 	}
 }
 
@@ -437,6 +521,19 @@ template<> void initType<CardAttachComponent>(Type *t)
 	}
 }
 
+template<> void initType<CardStatusComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(CardStatusComponent, statusName),
+	};
+	sf_struct_base(t, CardStatusComponent, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "statusName");
+		info.prefab = true;
+	}
+}
+
 template<> void initType<CardMeleeComponent>(Type *t)
 {
 	static Field fields[] = {
@@ -445,14 +542,14 @@ template<> void initType<CardMeleeComponent>(Type *t)
 	sf_struct_base(t, CardMeleeComponent, Component, fields);
 }
 
-template<> void initType<CardProjectileComponent>(Type *t)
+template<> void initType<ProjectileComponent>(Type *t)
 {
 	static Field fields[] = {
-		sf_field(CardProjectileComponent, prefabName),
-		sf_field(CardProjectileComponent, hitEffect),
-		sf_field(CardProjectileComponent, flightSpeed),
+		sf_field(ProjectileComponent, prefabName),
+		sf_field(ProjectileComponent, hitEffect),
+		sf_field(ProjectileComponent, flightSpeed),
 	};
-	sf_struct_base(t, CardProjectileComponent, Component, fields);
+	sf_struct_base(t, ProjectileComponent, Component, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "prefabName");
@@ -912,6 +1009,14 @@ template<> void initType<RemovePropEdit>(Type *t)
 	sf_struct_base(t, RemovePropEdit, Component, fields);
 }
 
+template<> void initType<AddCharacterEdit>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(AddCharacterEdit, character),
+	};
+	sf_struct_base(t, AddCharacterEdit, Component, fields);
+}
+
 template<> void initType<DiceRoll>(Type *t)
 {
 	static Field fields[] = {
@@ -1033,8 +1138,29 @@ template<> void initType<AnimationInfo>(Type *t)
 	sf_struct_base(t, AnimationInfo, Component, fields);
 
 	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "tags");
+		info.description = "Tags for when to play the animation";
+	}
+	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "file");
+		info.description = "Animation .fbx asset file";
 		info.asset = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "weight");
+		info.description = "How often to play the animation (for equal tags)";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "loop");
+		info.description = "Should the animation blend the ending with the beginning";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "speed");
+		info.description = "How fast to play the animation";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "speedVariation");
+		info.description = "Random playback speed variation added on top of speed";
 	}
 }
 
@@ -1046,6 +1172,38 @@ template<> void initType<AttachBone>(Type *t)
 		sf_field(AttachBone, scale),
 	};
 	sf_struct_base(t, AttachBone, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "name");
+		info.description = "Name of the attachment point eg. ItemL";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "boneName");
+		info.description = "Name of the .fbx bone eg. bnd_object";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "scale");
+		info.description = "Scale factor for attached objects";
+	}
+}
+
+template<> void initType<CharacterMaterial>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(CharacterMaterial, name),
+		sf_field(CharacterMaterial, material),
+	};
+	sf_struct_base(t, CharacterMaterial, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "name");
+		info.description = "Name of the material in the .fbx file";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "material");
+		info.description = "Material asset name";
+		info.asset = true;
+	}
 }
 
 template<> void initType<ShadowBlob>(Type *t)

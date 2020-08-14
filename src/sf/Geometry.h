@@ -41,6 +41,9 @@ struct Bounds3
 	static Bounds3 minMax(const sf::Vec3 &min, const sf::Vec3 &max) {
 		return { (min + max) * 0.5f, (max - min) * 0.5f };
 	}
+
+	bool operator==(const Bounds3 &bounds) const { return origin == bounds.origin && extent == bounds.extent; }
+	bool operator!=(const Bounds3 &bounds) const { return origin != bounds.origin && extent != bounds.extent; }
 };
 
 struct Cube3

@@ -1314,6 +1314,18 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 						}
 					}
 				}
+			} else if (sf::beginsWith(prefabName, "Prefabs/Characters/")) {
+				if (es->svState->prefabs.find(prefabName)) {
+
+					if (!es->mouseDown && es->prevMouseDown) {
+						sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();
+						auto ed = sf::box<sv::AddCharacterEdit>();
+						ed->character.tile = mouseTileInt;
+						ed->character.prefabName = prefabName;
+						edits.push(ed);
+						es->ghostPropId = 0;
+					}
+				}
 			}
 		}
 	}

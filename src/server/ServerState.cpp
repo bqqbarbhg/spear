@@ -575,7 +575,7 @@ static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, s
 	for (Component *component : prefab->components) {
 		if (auto *c = component->as<CardAttachComponent>()) {
 			walkPrefabs(state, events, marks, c->prefabName);
-		} else if (auto *c = component->as<CardProjectileComponent>()) {
+		} else if (auto *c = component->as<ProjectileComponent>()) {
 			walkPrefabs(state, events, marks, c->prefabName);
 		} else if (auto *c = component->as<CastOnReceiveDamageComponent>()) {
 			walkPrefabs(state, events, marks, c->spellName);
@@ -583,6 +583,8 @@ static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, s
 			walkPrefabs(state, events, marks, c->spellName);
 		} else if (auto *c = component->as<CardCastComponent>()) {
 			walkPrefabs(state, events, marks, c->spellName);
+		} else if (auto *c = component->as<CardStatusComponent>()) {
+			walkPrefabs(state, events, marks, c->statusName);
 		} else if (auto *c = component->as<SpellStatusComponent>()) {
 			walkPrefabs(state, events, marks, c->statusName);
 		} else if (auto *c = component->as<StatusComponent>()) {
@@ -1407,6 +1409,11 @@ void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit,
 
 			removeProp(events, ed->propId);
 		}
+	} else if (const auto *ed = edit.as<AddCharacterEdit>()) {
+		// TODO: Undo
+
+		addCharacter(events, ed->character);
+
 	} else {
 		sf_failf("Unhandled edit type: %u", edit.type);
 	}

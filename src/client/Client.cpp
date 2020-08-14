@@ -22,6 +22,8 @@
 #include "client/ClientState.h"
 #include "client/EditorState.h"
 #include "client/ParticleTexture.h"
+#include "client/TileMaterial.h"
+#include "client/MeshMaterial.h"
 
 #include "game/DebugDraw.h"
 #include "game/shader/Line.h"
@@ -275,12 +277,16 @@ static void recreateTargets(Client *c, const sf::Vec2i &systemRes)
 void clientGlobalInit()
 {
 	gameShaders.load();
+	MeshMaterial::globalInit();
+	TileMaterial::globalInit();
 	ParticleTexture::globalInit();
 }
 
 void clientGlobalCleanup()
 {
 	ParticleTexture::globalCleanup();
+	TileMaterial::globalCleanup();
+	MeshMaterial::globalCleanup();
 }
 
 void clientGlobalUpdate()
@@ -448,6 +454,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 		}
 	}
 
+	c->frameArgs.gameTime += dt;
 	c->frameArgs.frameIndex++;
 	c->frameArgs.dt = dt;
 
@@ -473,7 +480,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 		}
 	}
 
-	sf::Vec3 eye = sf::Vec3(0.0f, 5.0f, 3.0f) * 1.5f;
+	sf::Vec3 eye = sf::Vec3(0.0f, 5.0f, 3.0f) * 1.0f;
 	sf::Mat34 worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.4f));
 	sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.3f, (float)sapp_width()/(float)sapp_height(), 1.0f, 100.0f);
 	sf::Mat44 worldToClip = viewToClip * worldToView;
@@ -537,6 +544,8 @@ bool clientUpdate(Client *c, const ClientInput &input)
 
 sg_image clientRender(Client *c)
 {
+	c->clState->renderShadows();
+
 	{
 		sg_pass_action action = { };
 		action.colors[0].action = SG_ACTION_CLEAR;

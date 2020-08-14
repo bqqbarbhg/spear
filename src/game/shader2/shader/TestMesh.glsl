@@ -20,14 +20,13 @@ varying vec4 v_tint;
 
 uniform Transform
 {
-	mat4 transform;
-	mat4 normalTransform;
+	mat4 worldToClip;
 };
 
 void main()
 {
 	v_position = a_position;
-    gl_Position = mul(vec4(a_position, 1.0), transform);
+    gl_Position = mul(vec4(a_position, 1.0), worldToClip);
 	v_normal = a_normal;
 	v_tangent = a_tangent.xyz;
 	v_bitangent = a_tangent.w * cross(v_normal, v_tangent); 

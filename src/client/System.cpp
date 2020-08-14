@@ -1,7 +1,9 @@
 #include "System.h"
 
 #include "client/AreaSystem.h"
+#include "client/LightSystem.h"
 #include "client/ModelSystem.h"
+#include "client/TileModelSystem.h"
 #include "client/CharacterModelSystem.h"
 #include "client/ParticleSystem.h"
 #include "client/GameSystem.h"
@@ -13,10 +15,34 @@ System::~System() { }
 void Systems::init(const SystemsDesc &desc)
 {
 	area = AreaSystem::create();
+	light = LightSystem::create();
 	model = ModelSystem::create();
+	tileModel = TileModelSystem::create();
 	characterModel = CharacterModelSystem::create(desc);
 	particle = ParticleSystem::create(desc);
 	game = GameSystem::create();
+}
+
+void Systems::updateVisibility(VisibleAreas &areas, uint32_t areaFlags, const sf::Frustum &frustum)
+{
+	areas.areas.clear();
+	area->queryFrustum(areas.areas, areaFlags, frustum);
+
+	for (sf::Array<uint32_t> &groupIds : areas.groups) {
+		groupIds.clear();
+	}
+
+	for (const Area &area : areas.areas) {
+		if ((uint32_t)area.group >= sf_arraysize(areas.groups)) continue;
+		areas.groups[(uint32_t)area.group].push(area.userId);
+	}
+}
+
+void Systems::renderShadows(const RenderArgs &renderArgs)
+{
+	updateVisibility(shadowAreas, Area::Shadow, renderArgs.frustum);
+
+	tileModel->renderShadow(shadowAreas, renderArgs);
 }
 
 bool EntitySystem::prepareForRemove(Systems &systems, uint32_t entityId, const EntityComponent &ec, const FrameArgs &args)
@@ -149,12 +175,16 @@ void Entities::addComponents(Systems &systems, uint32_t entityId, const Transfor
 	uint8_t compIx = 0;
 	for (const sf::Box<sv::Component> &comp : prefab.svPrefab->components) {
 
-		if (const auto *c = comp->as<sv::ModelComponent>()) {
+		if (const auto *c = comp->as<sv::DynamicModelComponent>()) {
 			systems.model->addModel(systems, entityId, compIx, *c, transform);
+		} else if (const auto *c = comp->as<sv::TileModelComponent>()) {
+			systems.tileModel->addModel(systems, entityId, compIx, *c, transform);
 		} else if (const auto *c = comp->as<sv::CharacterModelComponent>()) {
 			systems.characterModel->addCharacterModel(systems, entityId, compIx, *c, transform);
 		} else if (const auto *c = comp->as<sv::ParticleSystemComponent>()) {
 			systems.particle->addEffect(systems, entityId, compIx, comp.cast<sv::ParticleSystemComponent>(), transform);
+		} else if (const auto *c = comp->as<sv::PointLightComponent>()) {
+			systems.light->addPointLight(systems, entityId, compIx, *c, transform);
 		}
 
 		compIx++;

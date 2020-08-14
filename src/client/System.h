@@ -120,9 +120,11 @@ struct Entities
 
 enum class AreaGroup : uint32_t
 {
-	Model,
+	DynamicModel,
 	CharacterModel,
+	TileChunk,
 	ParticleEffect,
+	PointLight,
 	Custom0,
 };
 
@@ -164,23 +166,12 @@ struct EntityHit
 };
 
 struct AreaSystem;
+struct LightSystem;
 struct ModelSystem;
+struct TileModelSystem;
 struct CharacterModelSystem;
 struct ParticleSystem;
 struct GameSystem;
-
-struct Systems
-{
-	Entities entities;
-	VisibleAreas visibleAreas;
-	sf::Box<AreaSystem> area;
-	sf::Box<ModelSystem> model;
-	sf::Box<CharacterModelSystem> characterModel;
-	sf::Box<ParticleSystem> particle;
-	sf::Box<GameSystem> game;
-
-	void init(const SystemsDesc &desc);
-};
 
 struct RenderArgs
 {
@@ -195,9 +186,30 @@ struct FrameArgs
 {
 	uint64_t frameIndex = 0;
 	double gameTime = 0.0;
-	float dt = 0.0f;
+	float dt = 100.0f;
 
 	RenderArgs mainRenderArgs;
+};
+
+struct Systems
+{
+	Entities entities;
+	VisibleAreas visibleAreas;
+	VisibleAreas shadowAreas;
+	sf::Box<AreaSystem> area;
+	sf::Box<LightSystem> light;
+	sf::Box<ModelSystem> model;
+	sf::Box<TileModelSystem> tileModel;
+	sf::Box<CharacterModelSystem> characterModel;
+	sf::Box<ParticleSystem> particle;
+	sf::Box<GameSystem> game;
+	FrameArgs frameArgs;
+
+	void init(const SystemsDesc &desc);
+
+	void updateVisibility(VisibleAreas &areas, uint32_t areaFlags, const sf::Frustum &frustum);
+
+	void renderShadows(const RenderArgs &renderArgs);
 };
 
 }
