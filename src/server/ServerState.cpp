@@ -1133,6 +1133,7 @@ void ServerState::giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, u
 			}
 			if (select) {
 				selectCard(events, cardId, ownerId, i);
+				break;
 			}
 		}
 	}

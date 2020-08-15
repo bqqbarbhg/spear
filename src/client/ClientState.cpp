@@ -158,4 +158,9 @@ void ClientState::renderMain(const RenderArgs &args)
 	systems.particle->renderMain(systems.visibleAreas, args);
 }
 
+void ClientState::handleGui(const GuiArgs &guiArgs)
+{
+	systems.game->handleGui(systems, guiArgs);
+}
+
 }

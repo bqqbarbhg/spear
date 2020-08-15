@@ -18,9 +18,10 @@ struct RichFont
 	sp::FontRef boldItalic;
 	bool hasColor = false;
 	bool noBreak = false;
-	sf::Vec4 color = sf::Vec4(0.0f);
+	sf::Vec4 color = sf::Vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	float relativeHeight = 1.0f;
 	float depth = 0.0f;
+	float weight = 0.48f;
 };
 
 struct RichSprite
@@ -51,7 +52,7 @@ struct RichTextStyle
 
 struct RichTextDesc
 {
-	RichTextStyle *style = nullptr;
+	const RichTextStyle *style = nullptr;
 	bool allowBold = true;
 	bool allowItalic = true;
 	bool allowColorHex = true;
@@ -64,7 +65,7 @@ struct RichTextDesc
 	bool overrideBaseFontColor = false;
 	bool overflow = false;
 	sf::Vec2 offset;
-	sf::Vec4 baseColor;
+	sf::Vec4 baseColor = sf::Vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	float wrapWidth = 10000.0f;
 	float fontHeight = 0.0f;
 	float lineSpacing = 1.0f;

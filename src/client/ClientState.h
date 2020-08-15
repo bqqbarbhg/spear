@@ -27,6 +27,8 @@ struct ClientState
 
 	void renderMain(const RenderArgs &renderArgs);
 
+	void handleGui(const GuiArgs &guiArgs);
+
 };
 
 }

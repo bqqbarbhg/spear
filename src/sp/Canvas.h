@@ -38,6 +38,7 @@ struct TextDraw
 	float height = 1.0f;
 	sf::Vec4 color = sf::Vec4(1.0f);
 	float depth = 0.0f;
+	float weight = 0.48f;
 };
 
 struct CanvasDraw

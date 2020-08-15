@@ -259,6 +259,7 @@ struct BlobShadowComponent : ComponentBase<Component::BlobShadow>
 
 struct CardComponent : ComponentBase<Component::Card>
 {
+	sf::Symbol image sv_reflect(asset);
 	sf::Symbol name;
 	sf::Symbol description sv_reflect(multiline);
 	uint32_t cooldown;

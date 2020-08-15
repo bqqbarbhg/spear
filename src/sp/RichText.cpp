@@ -7,6 +7,7 @@ struct RichDynamicStyle
 	sp::Font *font;
 	sf::Vec4 color;
 	float fontHeight;
+	float fontWeight;
 	float depth;
 	bool noBreak = false;
 };
@@ -178,6 +179,7 @@ static sf::Vec2 drawRichLine(sf::Slice<const RichTextDraw> draws, const RichOffs
 			textDraw.height = draw.style.fontHeight;
 			textDraw.color = draw.style.color;
 			textDraw.depth = draw.style.depth;
+			textDraw.weight = draw.style.fontWeight;
 			canvas.drawText(textDraw);
 
 			origin.x += draw.style.font->measureText(part, draw.style.fontHeight).x;
@@ -191,6 +193,7 @@ static sf::Vec2 drawRichLine(sf::Slice<const RichTextDraw> draws, const RichOffs
 				textDraw.height = draw.style.fontHeight;
 				textDraw.color = draw.style.color;
 				textDraw.depth = draw.style.depth;
+				textDraw.weight = draw.style.fontWeight;
 				canvas.drawText(textDraw);
 
 				origin.x += draw.style.font->measureText(part, draw.style.fontHeight).x;
@@ -253,11 +256,13 @@ static RichDynamicStyle evaluateStyle(float fontHeight, const RichFont &baseFont
 	style.color = baseColor;
 	style.font = selectFont(baseFont, nullptr, boldCount, italicCount);
 	style.fontHeight = fontHeight;
+	style.fontWeight = baseFont.weight;
 	style.depth = baseFont.depth;
 	style.noBreak = noBreakCount > 0;
 	for (const auto *pair : fonts) {
 		style.font = selectFont(baseFont, style.font, boldCount, italicCount);
 		style.fontHeight = fontHeight * pair->val.relativeHeight;
+		style.fontWeight = pair->val.weight;
 		style.noBreak |= pair->val.noBreak;
 		style.depth = pair->val.depth;
 		if (pair->val.hasColor) {
@@ -292,7 +297,7 @@ sf::Vec2 drawRichText(sp::Canvas &canvas, const RichTextDesc &desc, sf::String t
 	sf::SmallArray<sf::Vec4, 8> colorStack;
 	sf::SmallArray<const sf::KeyVal<RichTagString, RichFont>*, 8> fontStack;
 	sf::SmallArray<RichTagString, 8> tagStack;
-	RichTextStyle &style = *desc.style;
+	const RichTextStyle &style = *desc.style;
 
 	sf::Vec4 baseColor = desc.overrideBaseFontColor || !style.font.hasColor ? desc.baseColor : style.font.color;
 

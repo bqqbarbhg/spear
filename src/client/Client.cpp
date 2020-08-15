@@ -228,7 +228,6 @@ struct Client
 	// Errors
 	uint32_t totalErrors = 0;
 	sf::Array<sf::StringBuf> errors;
-
 };
 
 static void sendMessage(Client &client, const sv::Message &msg)
@@ -537,6 +536,12 @@ bool clientUpdate(Client *c, const ClientInput &input)
 
 	c->canvas.clear();
 
+	GuiArgs guiArgs;
+	guiArgs.canvas = &c->canvas;
+	guiArgs.resolution = c->uiResolution;
+	guiArgs.dt = dt;
+	c->clState->handleGui(guiArgs);
+
 	c->canvas.prepareForRendering();
 
 	return false;
@@ -549,9 +554,15 @@ sg_image clientRender(Client *c)
 	{
 		sg_pass_action action = { };
 		action.colors[0].action = SG_ACTION_CLEAR;
-		action.colors[0].val[0] = 0.01f;
-		action.colors[0].val[1] = 0.01f;
-		action.colors[0].val[2] = 0.01f;
+		#if SF_DEBUG
+			action.colors[0].val[0] = 0.5f;
+			action.colors[0].val[1] = 0.5f;
+			action.colors[0].val[2] = 0.5f;
+		#else
+			action.colors[0].val[0] = 0.0f;
+			action.colors[0].val[1] = 0.0f;
+			action.colors[0].val[2] = 0.0f;
+		#endif
 		action.colors[0].val[3] = 1.0f;
 		action.depth.action = SG_ACTION_CLEAR;
 		action.depth.val = 1.0f;

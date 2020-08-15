@@ -14,6 +14,7 @@
 #include "client/Transform.h"
 
 namespace sv { struct Prefab; }
+namespace sp { struct Canvas; }
 
 namespace cl {
 
@@ -83,6 +84,13 @@ struct Entity
 	uint32_t prefabId = ~0u;
 	uint32_t indexInPrefab = 0;
 	sf::SmallArray<EntityComponent, 4> components;
+};
+
+struct GuiArgs
+{
+	sp::Canvas *canvas = nullptr;
+	sf::Vec2 resolution;
+	float dt = 0.0f;
 };
 
 struct Entities

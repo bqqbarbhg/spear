@@ -359,7 +359,7 @@ void Font::getQuads(sf::Array<FontQuad> &quads, const sp::TextDraw &draw, uint32
 			sf::Vec2 origin = nextOrigin;
 			// origin.x += (float)glyph.bearing * scale;
 
-			float radius = 0.45f;
+			float radius = draw.weight;
 			float width = AtlasSize * (SdfStepsPerPixel / 255.0f) * 1.0f;
 
 			uint32_t params = 0;

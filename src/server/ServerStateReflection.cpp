@@ -488,6 +488,7 @@ template<> void initType<BlobShadowComponent>(Type *t)
 template<> void initType<CardComponent>(Type *t)
 {
 	static Field fields[] = {
+		sf_field(CardComponent, image),
 		sf_field(CardComponent, name),
 		sf_field(CardComponent, description),
 		sf_field(CardComponent, cooldown),
@@ -498,6 +499,10 @@ template<> void initType<CardComponent>(Type *t)
 	};
 	sf_struct_base(t, CardComponent, Component, fields);
 
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "image");
+		info.asset = true;
+	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "description");
 		info.multiline = true;
