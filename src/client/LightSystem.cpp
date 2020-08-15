@@ -7,6 +7,8 @@
 #include "game/shader/GameShaders.h"
 #include "game/shader/ShadowGrid.h"
 
+#include "game/DebugDraw.h"
+
 namespace cl {
 
 struct ShadowCache
@@ -376,6 +378,19 @@ struct LightSystemImp final : LightSystem
 	{
 		return shadowCache.shadowTexture.image;
 	}
+
+	void editorHighlight(Systems &systems, const EntityComponent &ec, EditorHighlight type) override
+	{
+		if (type != EditorHighlight::Select) return;
+
+		if (ec.subsystemIndex == 0) {
+			uint32_t pointId = ec.userId;
+			const PointLightImp &point = pointLights[pointId];
+
+			debugDrawSphere(point.sphere.origin, 0.1f);
+		}
+	}
+
 };
 
 sf::Box<LightSystem> LightSystem::create() { return sf::box<LightSystemImp>(); }
