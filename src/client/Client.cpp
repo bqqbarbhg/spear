@@ -531,9 +531,6 @@ bool clientUpdate(Client *c, const ClientInput &input)
 
 	c->clState->update(c->svState, c->frameArgs);
 
-#if 0
-#endif
-
 	c->canvas.clear();
 
 	GuiArgs guiArgs;

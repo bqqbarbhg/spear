@@ -65,7 +65,7 @@ struct ModelSystemImp final : ModelSystem
 		if (model.areaId != ~0u) {
 			areaSystem->updateBoxArea(model.areaId, model.modelBounds, model.modelToWorld);
 		} else {
-			uint32_t areaFlags = Area::Visibilty | Area::EditorPick;
+			uint32_t areaFlags = Area::Visibility | Area::EditorPick;
 			if (model.shadowModel) areaFlags |= Area::Shadow;
 			model.areaId = areaSystem->addBoxArea(AreaGroup::DynamicModel, modelId, model.modelBounds, model.modelToWorld, areaFlags);
 		}

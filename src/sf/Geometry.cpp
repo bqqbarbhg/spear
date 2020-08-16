@@ -126,7 +126,7 @@ Bounds3 boundsUnion(const Bounds3 &a, const Bounds3 &b)
 {
 	return Bounds3::minMax(
 		sf::min(a.origin - a.extent, b.origin - b.extent),
-		sf::min(a.origin + a.extent, b.origin + b.extent));
+		sf::max(a.origin + a.extent, b.origin + b.extent));
 }
 
 Sphere sphereUnion(const Sphere &a, const Sphere &b)

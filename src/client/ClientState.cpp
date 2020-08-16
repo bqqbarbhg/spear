@@ -12,6 +12,8 @@
 
 #include "sp/Renderer.h"
 
+#include "ext/imgui/imgui.h"
+
 namespace cl {
 
 static Transform getPropTransform(const sv::PropTransform &transform)
@@ -97,7 +99,7 @@ void ClientState::editorPick(sf::Array<EntityHit> &hits, const sf::Ray &ray) con
 		switch (area.group)
 		{
 		case AreaGroup::DynamicModel: systems.model->editorPick(hits, fastRay, area.userId); break;
-		case AreaGroup::TileChunk: systems.tileModel->editorPick(hits, fastRay, area.userId); break;
+		case AreaGroup::TileChunkCulling: systems.tileModel->editorPick(hits, fastRay, area.userId); break;
 		default:
 			sf_failf("Unhandled EditorPick group: %u", area.group);
 			break;
@@ -117,7 +119,6 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 {
 	systems.frameArgs = frameArgs;
 
-	systems.tileModel->startFrame();
 	systems.tileModel->garbageCollectChunks(systems.area, frameArgs);
 	systems.entities.updateQueuedRemoves(systems, frameArgs);
 
@@ -131,16 +132,18 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 
 	systems.light->updateLightFade(frameArgs);
 
+	systems.updateVisibility(systems.activeAreas, Area::Activate, frameArgs.mainRenderArgs.frustum);
+
+	systems.tileModel->uploadVisibleChunks(systems.activeAreas, systems.area, frameArgs);
+	systems.particle->updateParticles(systems.activeAreas, frameArgs);
+	systems.characterModel->updateAnimations(systems.activeAreas, frameArgs.dt);
+	systems.characterModel->updateAttachedEntities(systems);
+
+	systems.updateVisibility(systems.visibleAreas, Area::Visibility, frameArgs.mainRenderArgs.frustum);
+
 	systems.area->optimize();
 
-	systems.updateVisibility(systems.visibleAreas, Area::Visibilty, frameArgs.mainRenderArgs.frustum);
-
-	systems.tileModel->uploadVisibleChunks(systems.visibleAreas, systems.area, frameArgs);
-
-	systems.particle->updateParticles(systems.visibleAreas, frameArgs);
-
-	systems.characterModel->updateAnimations(systems.visibleAreas, frameArgs.dt);
-	systems.characterModel->updateAttachedEntities(systems);
+	ImGui::Text("%s", systems.visibleAreas.groups[(uint32_t)AreaGroup::TileChunkCulling].size ? "ok" : "YEEEEEET");
 }
 
 
@@ -151,7 +154,6 @@ void ClientState::renderShadows()
 
 void ClientState::renderMain(const RenderArgs &args)
 {
-
 	systems.model->renderMain(systems.visibleAreas, args);
 	systems.tileModel->renderMain(systems.light, systems.visibleAreas, args);
 	systems.characterModel->renderMain(systems.light, systems.visibleAreas, args);

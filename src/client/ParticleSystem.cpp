@@ -665,7 +665,7 @@ struct ParticleSystemImp final : ParticleSystem
 		effect.emitOnTimer = c->emitterOnTime;
 
 		sf::Sphere sphere = { transform.position, c->updateRadius };
-		effect.areaId = systems.area->addSphereArea(AreaGroup::ParticleEffect, effectId, sphere, Area::Visibilty);
+		effect.areaId = systems.area->addSphereArea(AreaGroup::ParticleEffect, effectId, sphere, Area::Activate | Area::Visibility);
 
 		systems.entities.addComponent(entityId, this, effectId, 0, componentIndex, Entity::UpdateTransform|Entity::PrepareForRemove);
 	}
@@ -714,11 +714,11 @@ struct ParticleSystemImp final : ParticleSystem
 		freeEffectIds.push(effectId);
 	}
 
-	void updateParticles(const VisibleAreas &visibleAreas, const FrameArgs &args) override
+	void updateParticles(const VisibleAreas &activeAreas, const FrameArgs &args) override
 	{
 		float clampedDt = sf::min(args.dt, 0.1f);
 
-		for (uint32_t effectId : visibleAreas.get(AreaGroup::ParticleEffect)) {
+		for (uint32_t effectId : activeAreas.get(AreaGroup::ParticleEffect)) {
 			Effect &effect = effects[effectId];
 			effect.lastUpdateTime = args.gameTime;
 

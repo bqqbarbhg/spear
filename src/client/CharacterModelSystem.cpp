@@ -214,7 +214,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		if (model.areaId != ~0u) {
 			areaSystem->updateBoxArea(model.areaId, model.bounds);
 		} else {
-			uint32_t areaFlags = Area::Visibilty;
+			uint32_t areaFlags = Area::Activate | Area::Visibility;
 			model.areaId = areaSystem->addBoxArea(AreaGroup::CharacterModel, modelId, model.bounds, areaFlags);
 		}
 	}
@@ -508,13 +508,13 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		}
 	}
 
-	void updateAnimations(const VisibleAreas &visibleAreas, float realDt) override
+	void updateAnimations(const VisibleAreas &activeAreas, float realDt) override
 	{
 		AnimWorkCtx &ctx = animCtx;
 
 		ctx.updateTime += realDt;
 
-		for (uint32_t modelId : visibleAreas.get(AreaGroup::CharacterModel)) {
+		for (uint32_t modelId : activeAreas.get(AreaGroup::CharacterModel)) {
 			Model &model = models[modelId];
 
 			float dt = (float)(ctx.updateTime - model.lastUpdateTime);

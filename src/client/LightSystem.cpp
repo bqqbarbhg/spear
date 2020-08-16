@@ -258,7 +258,7 @@ struct LightSystemImp final : LightSystem
 		point.baseColor = c.color * c.intensity;
 		point.hasShadows = c.hasShadows;
 
-		point.areaId = systems.area->addSphereArea(AreaGroup::PointLight, pointId, point.sphere, Area::Visibilty);
+		point.areaId = systems.area->addSphereArea(AreaGroup::PointLight, pointId, point.sphere, Area::Visibility);
 
 		if (point.fadeInSpeed > 0.0f) {
 			point.fadeIndex = fadingPointLightIds.size;

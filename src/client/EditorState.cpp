@@ -974,8 +974,10 @@ static void prepareDragTransform(EditorState *es, int32_t &dragCos, int32_t &dra
 	}
 }
 
-static void applyDragTransform(EditorState *es, sv::PropTransform &transform, int32_t dragCos, int32_t dragSin, bool snap)
+static bool applyDragTransform(EditorState *es, sv::PropTransform &transform, int32_t dragCos, int32_t dragSin, bool snap)
 {
+	sv::PropTransform prev = transform;
+
 	transform.position += es->dragPrevOffset;
 	transform.offsetY += es->dragPrevYOffset;
 	transform.rotation = (transform.rotation + es->dragRotation) % (360<<6);
@@ -1000,6 +1002,8 @@ static void applyDragTransform(EditorState *es, sv::PropTransform &transform, in
 		transform.position.x = (transform.position.x + 0x7fff) & ~0xffff;
 		transform.position.y = (transform.position.y + 0x7fff) & ~0xffff;
 	}
+
+	return memcmp(&transform, &prev, sizeof(sv::PropTransform)) != 0;
 }
 
 void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput &input, const EditorInput &editorInput)
@@ -1089,7 +1093,10 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 
 				applyDragTransform(es, transform, dragCos, dragSin, !es->dragSmooth);
 
-				es->svState->moveProp(es->editEvents, prop.id, transform);
+				sv::Prop *svProp = es->svState->props.find(prop.id);
+				if (!svProp || memcmp(&transform, &svProp->transform, sizeof(sv::PropTransform)) != 0) {
+					es->svState->moveProp(es->editEvents, prop.id, transform);
+				}
 			}
 		}
 	} else {

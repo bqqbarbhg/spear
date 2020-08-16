@@ -21,6 +21,9 @@ struct TileModelSystemImp final : TileModelSystem
 {
 	static const constexpr float ChunkSize = 8.0f;
 
+	static const constexpr float ChunkPadding = 16.0f;
+	static const constexpr float ShadowPadding = 32.0f;
+
 	struct MapSrcVertex
 	{
 		sf::Vec3 position;
@@ -38,10 +41,16 @@ struct TileModelSystemImp final : TileModelSystem
 		uint32_t tint;
 	};
 
-	struct Model
+	struct ChunkRef
 	{
 		uint32_t chunkId = ~0u;
 		uint32_t indexInChunk = ~0u;
+	};
+
+	struct Model
+	{
+		sf::Vec2i chunkPos;
+		ChunkRef chunks[2];
 
 		uint32_t entityId;
 
@@ -50,7 +59,6 @@ struct TileModelSystemImp final : TileModelSystem
 		sp::ModelRef shadowModel;
 		cl::TileMaterialRef material;
 
-		sf::Vec2i chunkPos;
 		sf::Mat34 modelToEntity;
 		sf::Mat34 modelToWorld;
 
@@ -64,18 +72,72 @@ struct TileModelSystemImp final : TileModelSystem
 		}
 	};
 
-	struct Geometry
+	struct Chunk
 	{
-		uint32_t areaId = ~0u;
+		sf::Vec2i chunkPos;
+
+		uint32_t cullingAreaId = ~0u;
+		uint32_t activeAreaId = ~0u;
+
+		sf::Array<uint32_t> modelIds;
+
 		sp::Buffer vertexBuffer;
 		sp::Buffer indexBuffer;
 		sf::Bounds3 bounds;
 		uint32_t numIndices = 0;
 		bool largeIndices = false;
 
+		bool dirty = false;
+		bool uploaded = false;
+
+		bool shadow = false;
+
 		void resetBuffers() {
 			vertexBuffer.reset();
 			indexBuffer.reset();
+		}
+
+		void setBounds(uint32_t chunkId, AreaSystem *areaSystem, const sf::Bounds3 &newBounds) {
+
+			bounds = newBounds;
+
+			float padding;
+			uint32_t areaFlags;
+			if (shadow) {
+				padding = ShadowPadding;
+				areaFlags = Area::Shadow;
+			} else {
+				padding = ShadowPadding;
+				areaFlags = Area::Visibility | Area::EditorPick;
+			}
+
+			if (cullingAreaId == ~0u) {
+				cullingAreaId = areaSystem->addBoxArea(AreaGroup::TileChunkCulling, chunkId, newBounds, areaFlags);
+			} else {
+				areaSystem->updateBoxArea(cullingAreaId, newBounds);
+			}
+
+			sf::Bounds3 activeBounds = newBounds;
+			activeBounds.extent += sf::Vec3(padding);
+
+			if (activeAreaId == ~0u) {
+				activeAreaId = areaSystem->addBoxArea(AreaGroup::TileChunkActive, chunkId, activeBounds, Area::Activate);
+			} else {
+				areaSystem->updateBoxArea(activeAreaId, activeBounds);
+			}
+		}
+
+		void expandBounds(uint32_t chunkId, AreaSystem *areaSystem,const sf::Bounds3 &modelBounds) {
+			sf::Bounds3 newBounds;
+			if (modelIds.size == 1) {
+				newBounds = modelBounds;
+			} else {
+				newBounds = sf::boundsUnion(bounds, modelBounds);
+			}
+
+			if (newBounds != bounds) {
+				setBounds(chunkId, areaSystem, newBounds);
+			}
 		}
 	};
 
@@ -87,7 +149,6 @@ struct TileModelSystemImp final : TileModelSystem
 		uint16_t *indicesDst16 = nullptr;
 		uint32_t *indicesDst32 = nullptr;
 		sf::Float4 aabbMin = sf::Float4(+HUGE_VALF), aabbMax = sf::Float4(-HUGE_VALF);
-		bool loading = false;
 
 		void count(sp::Model *model) {
 			if (!model) return;
@@ -129,7 +190,7 @@ struct TileModelSystemImp final : TileModelSystem
 			aabbMax = aabbMax.max(pos);
 		}
 
-		void finish(const char *indexName, Geometry &dst, AreaSystem *areaSystem, uint32_t chunkId, uint32_t areaFlags) {
+		void finish(const char *indexName, Chunk &dst, AreaSystem *areaSystem, uint32_t chunkId) {
 			if (indicesDst16) {
 				dst.indexBuffer.initIndex(indexName, indices16.slice());
 				dst.largeIndices = false;
@@ -141,25 +202,8 @@ struct TileModelSystemImp final : TileModelSystem
 			}
 			dst.numIndices = numIndices;
 			sf::Bounds3 bounds = sf::Bounds3::minMax(aabbMin.asVec3(), aabbMax.asVec3());
-			dst.bounds = bounds;
-
-			if (dst.areaId == ~0u) {
-				dst.areaId = areaSystem->addBoxArea(AreaGroup::TileChunk, chunkId, bounds, areaFlags);
-			} else {
-				areaSystem->updateBoxArea(dst.areaId, bounds);
-			}
+			dst.setBounds(chunkId, areaSystem, bounds);
 		}
-	};
-
-	struct Chunk
-	{
-		bool dirty = false;
-		sf::Array<uint32_t> modelIds;
-		sf::Vec2i chunkPos;
-		Geometry main;
-		Geometry shadow;
-		bool uploaded = false;
-		double lastVisibleTime = 0;
 	};
 
 	static sf::Mat34 getComponentTransform(const sv::TileModelComponent &c)
@@ -176,9 +220,9 @@ struct TileModelSystemImp final : TileModelSystem
 
 	sf::Array<Chunk> chunks;
 	sf::Array<uint32_t> freeChunkIds;
-	sf::Array<uint32_t> freeChunkIdsNextFrame;
 
-	sf::HashMap<sf::Vec2i, uint32_t> chunkMapping;
+	sf::HashMap<sf::Vec2i, uint32_t> chunkMapping[2];
+	sf::HashSet<uint32_t> emptyChunks;
 
 	sf::Array<uint32_t> loadQueue;
 
@@ -192,70 +236,45 @@ struct TileModelSystemImp final : TileModelSystem
 	{
 		Chunk &chunk = chunks[chunkId];
 
-		GeometryBuilder mainBuilder, shadowBuilder;
+		GeometryBuilder builder;
 		for (uint32_t &modelId : chunk.modelIds) {
 			Model &model = models[modelId];
-			mainBuilder.count(model.model);
-			shadowBuilder.count(model.shadowModel);
+			builder.count(chunk.shadow ? model.shadowModel : model.model);
 		}
 
-		chunk.main.resetBuffers();
-		chunk.shadow.resetBuffers();
+		chunk.resetBuffers();
 
-		mainBuilder.finishCount();
-		shadowBuilder.finishCount();
+		builder.finishCount();
 
-		sf::Array<MapVertex> vertices;
-		sf::Array<sf::Vec3> shadowVertices;
-		vertices.resizeUninit(mainBuilder.numVertices);
-		shadowVertices.resizeUninit(shadowBuilder.numVertices);
-		MapVertex *vertexDst = vertices.data;
-		sf::Vec3 *shadowVertexDst = shadowVertices.data;
+		const constexpr float roundScale = 1000.0f;
+		const constexpr float rcpRoundScale = 1.0f / roundScale;
 
-		for (uint32_t modelId : chunk.modelIds) {
-			Model &model = models[modelId];
-			sf::Mat34 transform = model.modelToWorld;
+		sf::SmallStringBuf<256> name;
+		if (chunk.shadow) {
+			name.format("ShadowChunk(%d,%d) ", chunk.chunkPos.x, chunk.chunkPos.y);
+		} else {
+			name.format("MapChunk(%d,%d) ", chunk.chunkPos.x, chunk.chunkPos.y);
+		}
+		uint32_t prefixLen = name.size;
 
-			sf::Float4 col0 = sf::Float4::loadu(transform.cols[0].v).clearW();
-			sf::Float4 col1 = sf::Float4::loadu(transform.cols[1].v).clearW();
-			sf::Float4 col2 = sf::Float4::loadu(transform.cols[2].v).clearW();
-			sf::Float4 col3 = sf::Float4::loadu(transform.cols[3].v - 1).rotateLeft().clearW();
+		if (chunk.shadow) {
+			sf::Array<sf::Vec3> vertices;
+			vertices.resizeUninit(builder.numVertices);
+			sf::Vec3 *vertexDst = vertices.data;
 
-			const constexpr float roundScale = 1000.0f;
-			const constexpr float rcpRoundScale = 1.0f / roundScale;
+			for (uint32_t modelId : chunk.modelIds) {
+				Model &model = models[modelId];
+				sf::Mat34 transform = model.modelToWorld;
 
-			cl::TileMaterial *material = model.material;
-			for (sp::Mesh &mesh : model.model->meshes) {
-				sf_assert(mesh.streams[0].stride == sizeof(MapSrcVertex));
-				mainBuilder.appendIndices(sf::slice(mesh.cpuIndexData16, mesh.numIndices), (uint32_t)(vertexDst - vertices.data));
-				for (MapSrcVertex &vertex : sf::slice((MapSrcVertex*)mesh.streams[0].cpuData, mesh.numVertices)) {
-					MapVertex &dst = *vertexDst++;
-					const sf::Vec3 &vp = vertex.position;
-					const sf::Vec3 &vn = vertex.normal;
-					const sf::Vec4 &vt = vertex.tangent;
+				sf::Float4 col0 = sf::Float4::loadu(transform.cols[0].v).clearW();
+				sf::Float4 col1 = sf::Float4::loadu(transform.cols[1].v).clearW();
+				sf::Float4 col2 = sf::Float4::loadu(transform.cols[2].v).clearW();
+				sf::Float4 col3 = sf::Float4::loadu(transform.cols[3].v - 1).rotateLeft().clearW();
 
-					sf::Float4 tp = col0*vp.x + col1*vp.y + col2*vp.z + col3;
-					sf::Float4 tn = col0*vn.x + col1*vn.y + col2*vn.z;
-					sf::Float4 tt = col0*vt.x + col1*vt.y + col2*vt.z;
-
-					tp = (tp * roundScale).round() * rcpRoundScale;
-					tn *= sf::broadcastRcpLengthXYZ(tn);
-					tt *= sf::broadcastRcpLengthXYZ(tt);
-
-					dst.position = tp.asVec3();
-					dst.normal = tn.asVec3();
-					dst.tangent = sf::Vec4(tt.asVec3(), vertex.tangent.w);
-					dst.uv = vertex.uv * material->uvScale + material->uvBase;
-					dst.tint = model.tint;
-					mainBuilder.updateBounds(tp);
-				}
-			}
-
-			if (model.shadowModel) {
 				for (sp::Mesh &mesh : model.shadowModel->meshes) {
-					shadowBuilder.appendIndices(sf::slice(mesh.cpuIndexData16, mesh.numIndices), (uint32_t)(shadowVertexDst - shadowVertices.data));
+					builder.appendIndices(sf::slice(mesh.cpuIndexData16, mesh.numIndices), (uint32_t)(vertexDst - vertices.data));
 					for (MapSrcVertex &vertex : sf::slice((MapSrcVertex*)mesh.streams[0].cpuData, mesh.numVertices)) {
-						sf::Vec3 &dst = *shadowVertexDst++;
+						sf::Vec3 &dst = *vertexDst++;
 
 						const sf::Vec3 &vp = vertex.position;
 
@@ -264,31 +283,66 @@ struct TileModelSystemImp final : TileModelSystem
 						tp = (tp * roundScale).round() * rcpRoundScale;
 
 						dst = tp.asVec3();
-						shadowBuilder.updateBounds(tp);
+						builder.updateBounds(tp);
 					}
 				}
 			}
-		}
 
-		sf::SmallStringBuf<256> name;
-		name.format("MapChunk(%d,%d) ", chunk.chunkPos.x, chunk.chunkPos.y);
-		uint32_t prefixLen = name.size;
+			if (vertices.size) {
+				name.resize(prefixLen); name.append(" vertices");
+				chunk.vertexBuffer.initVertex(name.data, vertices.slice());
+			}
 
-		if (vertices.size) {
-			name.resize(prefixLen); name.append(" vertices");
-			chunk.main.vertexBuffer.initVertex(name.data, vertices.slice());
+		} else {
+			sf::Array<MapVertex> vertices;
+			vertices.resizeUninit(builder.numVertices);
+			MapVertex *vertexDst = vertices.data;
+
+			for (uint32_t modelId : chunk.modelIds) {
+				Model &model = models[modelId];
+				sf::Mat34 transform = model.modelToWorld;
+
+				sf::Float4 col0 = sf::Float4::loadu(transform.cols[0].v).clearW();
+				sf::Float4 col1 = sf::Float4::loadu(transform.cols[1].v).clearW();
+				sf::Float4 col2 = sf::Float4::loadu(transform.cols[2].v).clearW();
+				sf::Float4 col3 = sf::Float4::loadu(transform.cols[3].v - 1).rotateLeft().clearW();
+
+				cl::TileMaterial *material = model.material;
+				for (sp::Mesh &mesh : model.model->meshes) {
+					sf_assert(mesh.streams[0].stride == sizeof(MapSrcVertex));
+					builder.appendIndices(sf::slice(mesh.cpuIndexData16, mesh.numIndices), (uint32_t)(vertexDst - vertices.data));
+					for (MapSrcVertex &vertex : sf::slice((MapSrcVertex*)mesh.streams[0].cpuData, mesh.numVertices)) {
+						MapVertex &dst = *vertexDst++;
+						const sf::Vec3 &vp = vertex.position;
+						const sf::Vec3 &vn = vertex.normal;
+						const sf::Vec4 &vt = vertex.tangent;
+
+						sf::Float4 tp = col0*vp.x + col1*vp.y + col2*vp.z + col3;
+						sf::Float4 tn = col0*vn.x + col1*vn.y + col2*vn.z;
+						sf::Float4 tt = col0*vt.x + col1*vt.y + col2*vt.z;
+
+						tp = (tp * roundScale).round() * rcpRoundScale;
+						tn *= sf::broadcastRcpLengthXYZ(tn);
+						tt *= sf::broadcastRcpLengthXYZ(tt);
+
+						dst.position = tp.asVec3();
+						dst.normal = tn.asVec3();
+						dst.tangent = sf::Vec4(tt.asVec3(), vertex.tangent.w);
+						dst.uv = vertex.uv * material->uvScale + material->uvBase;
+						dst.tint = model.tint;
+						builder.updateBounds(tp);
+					}
+				}
+			}
+
+			if (vertices.size) {
+				name.resize(prefixLen); name.append(" vertices");
+				chunk.vertexBuffer.initVertex(name.data, vertices.slice());
+			}
 		}
 
 		name.resize(prefixLen); name.append(" indices");
-		mainBuilder.finish(name.data, chunk.main, areaSystem, chunkId, Area::Visibilty|Area::EditorPick);
-
-		if (shadowVertices.size) {
-			name.resize(prefixLen); name.append(" shadow vertices");
-			chunk.shadow.vertexBuffer.initVertex(name.data, shadowVertices.slice());
-		}
-
-		name.resize(prefixLen); name.append(" shadow indices");
-		shadowBuilder.finish(name.data, chunk.shadow, areaSystem, chunkId, Area::Shadow);
+		builder.finish(name.data, chunk, areaSystem, chunkId);
 	}
 
 	void addDirtyChunk(uint32_t chunkId)
@@ -297,9 +351,9 @@ struct TileModelSystemImp final : TileModelSystem
 		chunk.dirty = true;
 	}
 
-	void addToChunkImp(AreaSystem *areaSystem, Model &model, uint32_t modelId)
+	void addToChunkImp(AreaSystem *areaSystem, Model &model, uint32_t modelId, const sf::Vec2i &chunkPos, bool shadow)
 	{
-		auto res = chunkMapping.insert(model.chunkPos);
+		auto res = chunkMapping[shadow].insert(chunkPos);
 		if (res.inserted) {
 			uint32_t chunkId = chunks.size;
 			if (freeChunkIds.size > 0) {
@@ -309,48 +363,39 @@ struct TileModelSystemImp final : TileModelSystem
 			}
 
 			Chunk &chunk = chunks[chunkId];
-			chunk.chunkPos = model.chunkPos;
+			chunk.chunkPos = chunkPos;
+			chunk.shadow = shadow;
 			res.entry.val = chunkId;
 		}
 
 		uint32_t chunkId = res.entry.val;
 		Chunk &chunk = chunks[chunkId];
-		model.chunkId = chunkId;
-		model.indexInChunk = chunk.modelIds.size;
+		sf_assert(chunk.shadow == shadow);
+
+		model.chunks[shadow].chunkId = chunkId;
+		model.chunks[shadow].indexInChunk = chunk.modelIds.size;
 		chunk.modelIds.push(modelId);
 
 		sf::Bounds3 bounds = sf::transformBounds(model.modelToWorld, model.model->bounds);
-		if (chunk.modelIds.size > 1) {
-			bounds = sf::boundsUnion(chunk.main.bounds, bounds);
-		}
-
-		if (bounds != chunk.main.bounds || chunk.modelIds.size == 1) {
-			chunk.main.bounds = bounds;
-
-			if (chunk.main.areaId == ~0u) {
-				chunk.main.areaId = areaSystem->addBoxArea(AreaGroup::TileChunk, chunkId, bounds, Area::Visibilty|Area::EditorPick);
-			} else {
-				areaSystem->updateBoxArea(chunk.main.areaId, bounds);
-			}
-		}
+		chunk.expandBounds(chunkId, areaSystem, bounds);
 
 		addDirtyChunk(chunkId);
 	}
 
-	void removeFromChunkImp(Model &model, uint32_t modelId, AreaSystem *areaSystem)
+	void removeFromChunkImp(Model &model, uint32_t modelId, AreaSystem *areaSystem, bool shadow)
 	{
-		uint32_t chunkId = model.chunkId;
+		uint32_t chunkId = model.chunks[shadow].chunkId;
+		uint32_t indexInChunk = model.chunks[shadow].indexInChunk;
 		Chunk &chunk = chunks[chunkId];
+		sf_assert(chunk.modelIds[indexInChunk] == modelId);
+		sf_assert(chunk.shadow == shadow);
 		if (chunk.modelIds.size > 1) {
-			models[chunk.modelIds.back()].indexInChunk = model.indexInChunk;
-			chunk.modelIds.removeSwap(model.indexInChunk);
+			models[chunk.modelIds.back()].chunks[shadow].indexInChunk = indexInChunk;
+			chunk.modelIds.removeSwap(indexInChunk);
 			addDirtyChunk(chunkId);
 		} else {
-			if (chunk.main.areaId != ~0u) areaSystem->removeBoxArea(chunk.main.areaId);
-			if (chunk.shadow.areaId != ~0u) areaSystem->removeBoxArea(chunk.shadow.areaId);
-			chunkMapping.remove(chunk.chunkPos);
-			freeChunkIdsNextFrame.push(chunkId);
-			sf::reset(chunk);
+			chunk.modelIds.clear();
+			emptyChunks.insert(chunkId);
 		}
 	}
 
@@ -359,10 +404,24 @@ struct TileModelSystemImp final : TileModelSystem
 		return sf::Vec2i(sf::floor(sf::Vec2(pos.x, pos.z) * (1.0f / ChunkSize)));
 	}
 
+	static sf::Vec2i getShadowChunkFromChunk(const sf::Vec2i &chunk)
+	{
+		return sf::Vec2i(chunk.x >> 1, chunk.y >> 1);
+	}
+
 	void finishLoadingModel(AreaSystem *areaSystem, uint32_t modelId)
 	{
 		Model &model = models[modelId];
-		addToChunkImp(areaSystem, model, modelId);
+
+		if (model.model.isLoaded()) {
+			addToChunkImp(areaSystem, model, modelId, model.chunkPos, false);
+		}
+
+		if (model.shadowModel.isLoaded()) {
+			sf::Vec2i shadowPos = getShadowChunkFromChunk(model.chunkPos);
+			addToChunkImp(areaSystem, model, modelId, shadowPos, true);
+		}
+
 	}
 
 	void startLoadingModel(AreaSystem *areaSystem, uint32_t modelId)
@@ -416,7 +475,8 @@ struct TileModelSystemImp final : TileModelSystem
 		model.modelToEntity = getComponentTransform(c);
 		model.modelToWorld = transform.asMatrix() * model.modelToEntity;
 
-		model.chunkPos = getChunkFromPosition(transform.position);
+		sf::Vec2i chunkPos = getChunkFromPosition(transform.position);
+		model.chunkPos = chunkPos;
 
 		sp::ModelProps modelProps;
 		modelProps.cpuData = true;
@@ -444,17 +504,28 @@ struct TileModelSystemImp final : TileModelSystem
 		model.modelToWorld = update.entityToWorld * model.modelToEntity;
 
 		sf::Vec2i chunkPos = getChunkFromPosition(update.transform.position);
-		if (model.chunkId != ~0u) {
+
+		if (model.chunks[0].chunkId != ~0u) {
 			if (chunkPos != model.chunkPos) {
-				removeFromChunkImp(model, modelId, systems.area);
-				model.chunkPos = chunkPos;
-				addToChunkImp(systems.area, model, modelId);
+				removeFromChunkImp(model, modelId, systems.area, false);
+				addToChunkImp(systems.area, model, modelId, chunkPos, false);
 			} else {
-				addDirtyChunk(model.chunkId);
+				addDirtyChunk(model.chunks[0].chunkId);
 			}
-		} else {
-			model.chunkPos = chunkPos;
 		}
+
+		if (model.chunks[1].chunkId != ~0u) {
+			sf::Vec2i shadowPos = getShadowChunkFromChunk(chunkPos);
+
+			if (shadowPos != getShadowChunkFromChunk(model.chunkPos)) {
+				removeFromChunkImp(model, modelId, systems.area, true);
+				addToChunkImp(systems.area, model, modelId, shadowPos, true);
+			} else {
+				addDirtyChunk(model.chunks[1].chunkId);
+			}
+		}
+
+		model.chunkPos = chunkPos;
 	}
 
 	void remove(Systems &systems, uint32_t entityId, const EntityComponent &ec) override
@@ -462,18 +533,15 @@ struct TileModelSystemImp final : TileModelSystem
 		uint32_t modelId = ec.userId;
 		Model &model = models[modelId];
 
-		if (model.chunkId != ~0u) {
-			removeFromChunkImp(model, modelId, systems.area);
+		if (model.chunks[0].chunkId != ~0u) {
+			removeFromChunkImp(model, modelId, systems.area, false);
+		}
+		if (model.chunks[1].chunkId != ~0u) {
+			removeFromChunkImp(model, modelId, systems.area, true);
 		}
 
 		freeModelIds.push(modelId);
 		sf::reset(model);
-	}
-
-	void startFrame() override
-	{
-		freeChunkIds.push(freeChunkIdsNextFrame);
-		freeChunkIdsNextFrame.clear();
 	}
 
 	void updateLoadQueue(AreaSystem *areaSystem) override
@@ -493,12 +561,11 @@ struct TileModelSystemImp final : TileModelSystem
 		}
 	}
 
-	void uploadVisibleChunks(const VisibleAreas &visibleAreas, AreaSystem *areaSystem, const FrameArgs &frameArgs) override
+	void uploadVisibleChunks(const VisibleAreas &activeAreas, AreaSystem *areaSystem, const FrameArgs &frameArgs) override
 	{
-		for (uint32_t chunkId : visibleAreas.get(AreaGroup::TileChunk)) {
+		for (uint32_t chunkId : activeAreas.get(AreaGroup::TileChunkActive)) {
 			Chunk &chunk = chunks[chunkId];
-
-			chunk.lastVisibleTime = frameArgs.gameTime;
+			if (chunk.modelIds.size == 0) continue;
 
 			if (!chunk.uploaded || chunk.dirty) {
 				updateChunkGeometry(chunkId, areaSystem);
@@ -512,24 +579,19 @@ struct TileModelSystemImp final : TileModelSystem
 	{
 		if (chunks.size == 0) return;
 
-		double unloadTimer = 10.0;
-		uint32_t numChunksToUpdate = 16;
+		for (uint32_t i = 0; i < emptyChunks.size(); i++) {
+			uint32_t chunkId = emptyChunks.data[i];
+			Chunk &chunk = chunks[chunkId];
 
-		for (uint32_t i = 0; i < numChunksToUpdate; i++) {
-			garbageCollectChunkIndex++;
-			if (garbageCollectChunkIndex >= chunks.size) {
-				garbageCollectChunkIndex = 0;
-			}
+			if (chunk.modelIds.size == 0) {
+				if (chunk.cullingAreaId != ~0u) areaSystem->removeBoxArea(chunk.cullingAreaId);
+				if (chunk.activeAreaId != ~0u) areaSystem->removeBoxArea(chunk.activeAreaId);
 
-			Chunk &chunk = chunks[garbageCollectChunkIndex];
-			if (!chunk.uploaded) continue;
-
-			if (frameArgs.gameTime - chunk.lastVisibleTime > unloadTimer) {
-				if (chunk.main.areaId != ~0u) areaSystem->removeBoxArea(chunk.main.areaId);
-				if (chunk.shadow.areaId != ~0u) areaSystem->removeBoxArea(chunk.shadow.areaId);
-				chunk.main.resetBuffers();
-				chunk.shadow.resetBuffers();
-				chunk.uploaded = false;
+				chunkMapping[chunk.shadow].remove(chunk.chunkPos);
+				freeChunkIds.push(chunkId);
+				emptyChunks.remove(chunkId);
+				sf::reset(chunk);
+				i--;
 			}
 		}
 	}
@@ -539,13 +601,12 @@ struct TileModelSystemImp final : TileModelSystem
 		bool first = true;
 		sg_bindings bindings = { };
 
-		for (uint32_t chunkId : shadowAreas.get(AreaGroup::TileChunk)) {
+		for (uint32_t chunkId : shadowAreas.get(AreaGroup::TileChunkCulling)) {
 			Chunk &chunk = chunks[chunkId];
+			sf_assert(chunk.shadow);
+			if (!chunk.indexBuffer.buffer.id) continue;
 
-			Geometry &geo = chunk.shadow;
-			if (!geo.indexBuffer.buffer.id) continue;
-
-			sp::Pipeline &pipe = gameShaders.mapChunkShadowPipe[geo.largeIndices];
+			sp::Pipeline &pipe = gameShaders.mapChunkShadowPipe[chunk.largeIndices];
 			if (pipe.bind() || first) {
 				first = false;
 				MapShadow_Vertex_t vu;
@@ -554,11 +615,11 @@ struct TileModelSystemImp final : TileModelSystem
 				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_MapShadow_Vertex, &vu, sizeof(vu));
 			}
 
-			bindings.vertex_buffers[0] = geo.vertexBuffer.buffer;
-			bindings.index_buffer = geo.indexBuffer.buffer;
+			bindings.vertex_buffers[0] = chunk.vertexBuffer.buffer;
+			bindings.index_buffer = chunk.indexBuffer.buffer;
 			sg_apply_bindings(&bindings);
 
-			sg_draw(0, geo.numIndices, 1);
+			sg_draw(0, chunk.numIndices, 1);
 		}
 	}
 
@@ -579,18 +640,17 @@ struct TileModelSystemImp final : TileModelSystem
 		bindImageFS(chunkMeshShader, bindings, TEX_normalAtlas, cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Normal));
 		bindImageFS(chunkMeshShader, bindings, TEX_maskAtlas, cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Mask));
 
-		for (uint32_t chunkId : visibleAreas.get(AreaGroup::TileChunk)) {
+		for (uint32_t chunkId : visibleAreas.get(AreaGroup::TileChunkCulling)) {
 			Chunk &chunk = chunks[chunkId];
+			sf_assert(!chunk.shadow);
+			if (!chunk.indexBuffer.buffer.id) continue;
 
-			Geometry &geo = chunk.main;
-			if (!geo.indexBuffer.buffer.id) continue;
-
-			if (chunkMeshPipe[geo.largeIndices].bind()) {
+			if (chunkMeshPipe[chunk.largeIndices].bind()) {
 				bindUniformVS(chunkMeshShader, tu);
 			}
 
 			pointLights.clear();
-			lightSystem->queryVisiblePointLights(visibleAreas, pointLights, geo.bounds);
+			lightSystem->queryVisiblePointLights(visibleAreas, pointLights, chunk.bounds);
 
 			// TODO: Prioritize
 			if (pointLights.size > maxLights) {
@@ -606,12 +666,12 @@ struct TileModelSystemImp final : TileModelSystem
 
 			bindUniformFS(chunkMeshShader, pu);
 
-			bindings.vertex_buffers[0] = geo.vertexBuffer.buffer;
-			bindings.index_buffer = geo.indexBuffer.buffer;
+			bindings.vertex_buffers[0] = chunk.vertexBuffer.buffer;
+			bindings.index_buffer = chunk.indexBuffer.buffer;
 
 			sg_apply_bindings(&bindings);
 
-			sg_draw(0, geo.numIndices, 1);
+			sg_draw(0, chunk.numIndices, 1);
 		}
 	}
 

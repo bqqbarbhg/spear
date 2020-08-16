@@ -130,7 +130,8 @@ enum class AreaGroup : uint32_t
 {
 	DynamicModel,
 	CharacterModel,
-	TileChunk,
+	TileChunkCulling,
+	TileChunkActive,
 	ParticleEffect,
 	PointLight,
 	Custom0,
@@ -140,9 +141,10 @@ struct Area
 {
 	enum Flags
 	{
-		Visibilty = 0x1,
-		EditorPick = 0x2,
-		Shadow = 0x4,
+		Activate = 0x1,
+		Visibility = 0x2,
+		EditorPick = 0x4,
+		Shadow = 0x8,
 	};
 
 	AreaGroup group;
@@ -202,6 +204,7 @@ struct FrameArgs
 struct Systems
 {
 	Entities entities;
+	VisibleAreas activeAreas;
 	VisibleAreas visibleAreas;
 	VisibleAreas shadowAreas;
 	sf::Box<AreaSystem> area;
