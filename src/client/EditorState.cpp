@@ -1417,6 +1417,19 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 		sf::UintFind find = es->clState->systems.entities.svToEntity.findAll(svId);
 		while (find.next(entityId)) {
 			es->clState->editorHighlight(entityId, cl::EditorHighlight::Select);
+
+			Entity &entity = es->clState->systems.entities.entities[entityId];
+			Prefab &prefab = es->clState->systems.entities.prefabs[entity.prefabId];
+			for (const sv::Component *comp : prefab.svPrefab->components) {
+				if (const auto *c = comp->as<sv::TileAreaComponent>()) {
+					sf::Vec2 min = sf::Vec2(c->minCorner) * (1.0f / 65536.0f) - sf::Vec2(0.45f);
+					sf::Vec2 max = sf::Vec2(c->maxCorner) * (1.0f / 65536.0f) + sf::Vec2(0.45f);
+					Transform transform = entity.transform;
+					transform.position.y = 0.0f;
+					debugDrawBox(sf::Bounds3::minMax(sf::Vec3(min.x, 0.0f, min.y), sf::Vec3(max.x, 0.1f, max.y)),
+						transform.asMatrix());
+				}
+			}
 		}
 	}
 
