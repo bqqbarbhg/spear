@@ -180,7 +180,14 @@ struct Mat44
 		, m10(rhs.m10), m11(rhs.m11), m12(rhs.m12), m13(rhs.m13)
 		, m20(rhs.m20), m21(rhs.m21), m22(rhs.m22), m23(rhs.m23)
 		, m30(0.0f), m31(0.0f), m32(0.0f), m33(1.0f)
-	{ } 
+	{ }
+    
+    Mat44(const Mat34_3 &rhs)
+    : m00(0.0f), m01(0.0f), m02(0.0f), m03(rhs.m03)
+    , m10(0.0f), m11(0.0f), m12(0.0f), m13(rhs.m13)
+    , m20(0.0f), m21(0.0f), m22(0.0f), m23(rhs.m23)
+    , m30(0.0f), m31(0.0f), m32(0.0f), m33(1.0f)
+    { }
 
 	Mat44(float m00, float m01, float m02, float m03, float m10, float m11, float m12, float m13, float m20, float m21, float m22, float m23, float m30, float m31, float m32, float m33)
 		: m00(m00), m01(m01), m02(m02), m03(m03)

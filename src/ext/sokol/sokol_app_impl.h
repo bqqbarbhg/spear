@@ -2269,7 +2269,7 @@ _SOKOL_PRIVATE void _sapp_macos_frame(void) {
         _sapp.macos.mtl_device = MTLCreateSystemDefaultDevice();
         _sapp.macos.view = [[_sapp_macos_view alloc] init];
         [_sapp.macos.view updateTrackingAreas];
-        _sapp.macos.view.preferredFramesPerSecond = 60 / _sapp.swap_interval;
+        _sapp.macos.view.preferredFramesPerSecond = UIScreen.mainScreen.maximumFramesPerSecond / _sapp.swap_interval;
         _sapp.macos.view.device = _sapp.macos.mtl_device;
         _sapp.macos.view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
         _sapp.macos.view.depthStencilPixelFormat = MTLPixelFormatDepth32Float_Stencil8;
@@ -2753,7 +2753,7 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
     #if defined(SOKOL_METAL)
         _sapp.ios.mtl_device = MTLCreateSystemDefaultDevice();
         _sapp.ios.view = [[_sapp_ios_view alloc] init];
-        _sapp.ios.view.preferredFramesPerSecond = 60 / _sapp.swap_interval;
+        _sapp.ios.view.preferredFramesPerSecond = UIScreen.mainScreen.maximumFramesPerSecond / _sapp.swap_interval;
         _sapp.ios.view.device = _sapp.ios.mtl_device;
         _sapp.ios.view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
         _sapp.ios.view.depthStencilPixelFormat = MTLPixelFormatDepth32Float_Stencil8;
@@ -3628,6 +3628,10 @@ _SOKOL_PRIVATE void _sapp_emsc_webgl_init(void) {
     attrs.premultipliedAlpha = _sapp.desc.html5_premultiplied_alpha;
     attrs.preserveDrawingBuffer = _sapp.desc.html5_preserve_drawing_buffer;
     attrs.enableExtensionsByDefault = true;
+    
+    // bqq patch
+    attrs.powerPreference = EM_WEBGL_POWER_PREFERENCE_HIGH_PERFORMANCE;
+    
     #if defined(SOKOL_GLES3)
         if (_sapp.desc.gl_force_gles2) {
             attrs.majorVersion = 1;

@@ -92,6 +92,48 @@ static mx_forceinline uint32_t mx_get_thread_id()
 
 // -- mx_os_semaphore
 
+#if defined(__MACH__)
+
+#include <dispatch/dispatch.h>
+
+typedef dispatch_semaphore_t mx_os_semaphore;
+
+static void mx_os_semaphore_init(mx_os_semaphore *s)
+{
+    *s = dispatch_semaphore_create(0);
+}
+
+static void mx_os_semaphore_free(mx_os_semaphore *s)
+{
+    dispatch_release(*s);
+}
+
+static void mx_os_semaphore_wait(mx_os_semaphore *s)
+{
+    dispatch_semaphore_wait(*s, DISPATCH_TIME_FOREVER);
+}
+
+static void mx_os_semaphore_signal(mx_os_semaphore *s)
+{
+    dispatch_semaphore_signal(*s);
+}
+
+static void mx_os_semaphore_wait_n(mx_os_semaphore *s, uint32_t count)
+{
+    do {
+        dispatch_semaphore_wait(*s, DISPATCH_TIME_FOREVER);
+    } while (--count > 0);
+}
+
+static void mx_os_semaphore_signal_n(mx_os_semaphore *s, uint32_t count)
+{
+    do {
+        dispatch_semaphore_signal(*s);
+    } while (--count > 0);
+}
+
+#else
+
 typedef sem_t mx_os_semaphore;
 
 static void mx_os_semaphore_init(mx_os_semaphore *s)
@@ -132,5 +174,7 @@ static void mx_os_semaphore_signal_n(mx_os_semaphore *s, uint32_t count)
 		sem_post(s);
 	} while (--count > 0);
 }
+
+#endif
 
 #endif

@@ -26,6 +26,19 @@ static const constexpr uint32_t MaxParticleCacheFrames = 16;
 static const constexpr float HugeParticleLife = 1e20f;
 static const constexpr float HugeParticleLifeCmp = 1e19f;
 
+struct ComponentKey
+{
+    void *ptr;
+    
+    bool operator==(const ComponentKey &rhs) const {
+        return ptr == rhs.ptr;
+    }
+};
+
+uint32_t hash(const ComponentKey &key) {
+    return sf::hashPointer(key.ptr);
+}
+
 sf_inline float approxAcos(float a) {
 	float x = sf::abs(a);
 	float v = -1.280827681872808f + 1.280827681872808f*sf::sqrt(1.0f - x) - 0.28996864492208857f*x;
@@ -225,7 +238,7 @@ struct ParticleSystemImp final : ParticleSystem
 
 	sf::Array<EffectType> types;
 	sf::Array<uint32_t> freeTypeIds;
-	sf::HashMap<uintptr_t, uint32_t> svCompponentToType;
+	sf::HashMap<ComponentKey, uint32_t> svCompponentToType;
 
 	sf::Array<SortedEffect> sortedEffects;
 
@@ -448,7 +461,7 @@ struct ParticleSystemImp final : ParticleSystem
 			}
 		}
 
-		sf::ScalarFloat4 dt4 = dt;
+		sf::Float4 dt4 = dt;
 		sf::ScalarFloat4 drag4 = comp.drag;
 
 		// Update spawning (scalar)
@@ -638,7 +651,7 @@ struct ParticleSystemImp final : ParticleSystem
 		}
 
 		uint32_t typeId;
-		uintptr_t key = (uintptr_t)c.ptr;
+        ComponentKey key = { (void*)c.ptr };
 		auto res = svCompponentToType.insert(key);
 		if (res.inserted) {
 			typeId = types.size;
@@ -708,7 +721,7 @@ struct ParticleSystemImp final : ParticleSystem
 		systems.area->removeSphereArea(effect.areaId);
 
 		if (--type.refCount == 0) {
-			uintptr_t key = (uintptr_t)type.svComponent.ptr;
+            ComponentKey key = { (void*)type.svComponent.ptr };
 			svCompponentToType.remove(key);
 
 			sf::reset(type);

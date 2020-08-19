@@ -74,6 +74,7 @@ workspace "spear"
 			"MetalKit.framework",
 			"QuartzCore.framework",
 			"CFNetwork.framework",
+			"AudioToolbox.framework",
 		}
 		buildoptions { "-fobjc-arc" }
 

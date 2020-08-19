@@ -236,7 +236,7 @@ void writeInstBinary(sf::Array<char> &dst, void *inst, Type *type)
 	}
 }
 
-bool readInstBinary(sf::Slice<char> &src, void *inst, Type *type)
+bool readInstBinary(sf::Slice<const char> &src, void *inst, Type *type)
 {
 	uint32_t flags = type->flags;
 	char *base = (char*)inst;

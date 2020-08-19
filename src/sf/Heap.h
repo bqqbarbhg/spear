@@ -72,7 +72,7 @@ sf_inline void upHeap(sf::Slice<T> values, uint32_t index, Cmp cmpFn) {
 template <typename T, typename Key>
 sf_inline void upHeapBy(sf::Slice<T> values, uint32_t index, Key keyFn) {
 	sf_assert(index < values.size);
-	upHeapImp(values.data, index, [](const T &a, const T &b) -> bool {
+	upHeapImp(values.data, index, [=](const T &a, const T &b) -> bool {
 		return keyFn(a) < keyFn(b);
 	});
 }
@@ -80,7 +80,7 @@ sf_inline void upHeapBy(sf::Slice<T> values, uint32_t index, Key keyFn) {
 template <typename T>
 sf_inline void downHeap(sf::Slice<T> values, uint32_t index) {
 	sf_assert(index < values.size);
-	downHeapImp(values.data, index, [](const T &a, const T &b) -> bool {
+	downHeapImp(values.data, index, [=](const T &a, const T &b) -> bool {
 		return a < b;
 	});
 }
@@ -94,7 +94,7 @@ sf_inline void downHeap(sf::Slice<T> values, uint32_t index, Cmp cmpFn) {
 template <typename T, typename Key>
 sf_inline void downHeapBy(sf::Slice<T> values, uint32_t index, Key keyFn) {
 	sf_assert(index < values.size);
-	downHeapImp(values.data, index, [](const T &a, const T &b) -> bool {
+	downHeapImp(values.data, index, [=](const T &a, const T &b) -> bool {
 		return keyFn(a) < keyFn(b);
 	});
 }
@@ -135,8 +135,8 @@ sf_inline void priorityEnqueue(sf::Array<T> &arr, U &&t, Cmp cmpFn) {
 
 template <typename T, typename U, typename Key>
 sf_inline void priorityEnqueueBy(sf::Array<T> &arr, U &&t, Key keyFn) {
-	sf_assert(index < values.size);
-	priorityEnqueueImp(arr, std::forward<U>(t), [](const T &a, const T &b) -> bool {
+	sf_assert(index < arr.size);
+	priorityEnqueueImp(arr, std::forward<U>(t), [=](const T &a, const T &b) -> bool {
 		return keyFn(a) < keyFn(b);
 	});
 }
@@ -154,8 +154,8 @@ sf_inline T priorityDequeue(sf::Array<T> &arr, Cmp cmpFn) {
 }
 
 template <typename T, typename Key>
-sf_inline void priorityDequeueBy(sf::Slice<T> values, uint32_t index, Key keyFn) {
-	return priorityDequeueImp(arr, [](const T &a, const T &b) -> bool {
+sf_inline void priorityDequeueBy(sf::Array<T> &arr, uint32_t index, Key keyFn) {
+	return priorityDequeueImp(arr, [=](const T &a, const T &b) -> bool {
 		return keyFn(a) < keyFn(b);
 	});
 }

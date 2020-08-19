@@ -33,7 +33,7 @@ sf::Box<Message> decodeMessage(sf::Slice<char> compressed)
 		}
 		jsi_free(value);
 	} else if (encoded.size >= 8 && !memcmp(encoded.data, "sfbinv01", 8)) {
-		sf::Slice<char> slice = encoded.drop(8);
+		sf::Slice<const char> slice = encoded.drop(8);
 		if (!sf::readBinary(slice, msg)) {
 			msg.reset();
 		}

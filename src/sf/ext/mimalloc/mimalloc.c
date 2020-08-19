@@ -1512,7 +1512,8 @@ mi_heap_t*  _mi_heap_main_get(void);    // statically allocated main backing hea
 
 #if defined(MI_MALLOC_OVERRIDE)
 #if defined(__MACH__) // OSX
-#define MI_TLS_SLOT               89  // seems unused? 
+// #define MI_TLS_SLOT               89  // seems unused?
+#define MI_TLS_PTHREAD
 // other possible unused ones are 9, 29, __PTK_FRAMEWORK_JAVASCRIPTCORE_KEY4 (94), __PTK_FRAMEWORK_GC_KEY9 (112) and __PTK_FRAMEWORK_OLDGC_KEY9 (89)
 // see <https://github.com/rweichler/substrate/blob/master/include/pthread_machdep.h>
 #elif defined(__OpenBSD__)
@@ -1904,7 +1905,7 @@ static inline uintptr_t _mi_thread_id(void) mi_attr_noexcept {
   return (uintptr_t)NtCurrentTeb();
 }
 
-#elif defined(__GNUC__) && \
+#elif defined(__GNUC__) && !defined(__MACH__) && \
       (defined(__x86_64__) || defined(__i386__) || defined(__arm__) || defined(__aarch64__))
 
 // TLS register on x86 is in the FS or GS register, see: https://akkadia.org/drepper/tls.pdf

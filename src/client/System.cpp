@@ -57,7 +57,7 @@ void EntitySystem::editorHighlight(Systems &systems, const EntityComponent &ec, 
 
 uint32_t Entities::addPrefab(const sv::Prefab &svPrefab)
 {
-	auto &res = nameToPrefab.insert(svPrefab.name);
+	auto res = nameToPrefab.insert(svPrefab.name);
 	if (!res.inserted) return res.entry.val;
 	
 	uint32_t prefabId = prefabs.size;

@@ -21,7 +21,7 @@ void clientGlobalInit();
 void clientGlobalCleanup();
 void clientGlobalUpdate();
 
-Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret);
+Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::String websocketUrl);
 void clientFree(Client *c);
 void clientQuit(Client *c);
 void clientEvent(Client *c, const sapp_event *e);

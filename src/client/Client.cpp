@@ -250,7 +250,7 @@ static void recreateTargets(Client *c, const sf::Vec2i &systemRes)
 	c->uiResolution.y = 720.0f;
 	c->uiResolution.x = c->uiResolution.y * ((float)systemRes.x / (float)systemRes.y);
 
-	float scale = c->resolutionScale;
+    float scale = c->resolutionScale * 0.5f;
 	sf::Vec2i mainRes = sf::Vec2i(sf::Vec2(systemRes) * sqrtf(scale));
 
 	int mainSamples = c->msaaSamples;
@@ -310,7 +310,7 @@ static sf::Box<cl::ClientState> makeClientState(Client *c)
 	return sf::box<cl::ClientState>(desc);
 }
 
-Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret)
+Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::String websocketUrl)
 {
 	Client *c = new Client();
 
@@ -319,13 +319,13 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret)
 	{
         sf::SmallStringBuf<128> url;
 
-#if defined(GAME_WEBSOCKET_URL)
-        url = GAME_WEBSOCKET_URL;
-		port = 80;
-#else
-        url.format("ws://localhost:%d", port);
-#endif
-        
+        if (websocketUrl.size > 0) {
+            url = websocketUrl;
+    		port = 80;
+        } else {
+            url.format("ws://localhost:%d", port);
+        }
+
 		bqws_opts opts = { };
 		opts.name = "Client";
 		opts.error_fn = &clientSocketError;

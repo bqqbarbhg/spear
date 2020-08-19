@@ -331,6 +331,8 @@ struct GameSystemImp final : GameSystem
 			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {
 
 				for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
+                    if (!touch.changed) continue;
+                    
 					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
 
 					Pointer *pointer = nullptr;
@@ -355,9 +357,10 @@ struct GameSystemImp final : GameSystem
 			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_MOVED) {
 
 				for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
+                    if (!touch.changed) continue;
+                    
 					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
 
-					Pointer *pointer = nullptr;
 					for (Pointer &p : pointers) {
 						if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
 							p.current = pos;
@@ -368,6 +371,8 @@ struct GameSystemImp final : GameSystem
 			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_ENDED) {
 
 				for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
+                    if (!touch.changed) continue;
+                    
 					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
 					for (Pointer &p : pointers) {
 						if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
@@ -380,6 +385,8 @@ struct GameSystemImp final : GameSystem
 			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_CANCELLED) {
 
 				for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
+                    if (!touch.changed) continue;
+                    
 					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
 					for (Pointer &p : pointers) {
 						if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
@@ -429,7 +436,7 @@ struct GameSystemImp final : GameSystem
 			for (Pointer &p : pointers) {
 				p.current.worldRay = pointerToWorld(clipToWorld, p.current.pos);
 
-				if (p.button == Pointer::MouseMiddle) {
+                if (p.button == Pointer::MouseMiddle || p.button == Pointer::Touch) {
 					sf::Vec3 a = intersectHorizontalPlane(0.0f, p.start.worldRay);
 					sf::Vec3 b = intersectHorizontalPlane(0.0f, p.current.worldRay);
 
@@ -465,8 +472,8 @@ struct GameSystemImp final : GameSystem
 				p.formatDebugString(str);
 				ImGui::Text("%s", str.data);
 			}
-			ImGui::End();
 		}
+        ImGui::End();
 
 		Camera::State state = Camera::lerp(camera.previous, camera.current, camera.timeDelta / cameraDt);
 		sf::Mat34 worldToView;

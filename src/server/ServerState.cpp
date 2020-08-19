@@ -1329,7 +1329,8 @@ void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit,
 			sv::Prefab clonePrefab;
 			sf::SmallArray<char, 4096> cloneBuf;
 			sf::writeBinary(cloneBuf, *prefab);
-			sf::readBinary(cloneBuf.slice(), clonePrefab);
+            sf::Slice<const char> input = cloneBuf.slice();
+			sf::readBinary(input, clonePrefab);
 
 			clonePrefab.name = cloneName;
 			reloadPrefab(events, clonePrefab);

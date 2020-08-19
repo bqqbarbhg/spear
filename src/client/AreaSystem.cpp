@@ -307,7 +307,7 @@ struct AreaSystemImp final : AreaSystem
 	Spatial *insertSpatial(const sf::Vec3 &origin, float extent)
 	{
 		sf::Vec3i key = sf::Vec3i(sf::floor((origin - SpatialGridOrigin) * (1.0f / SpatialTopLevelSize)));
-		auto &result = spatialRoots.insert(key);
+		auto result = spatialRoots.insert(key);
 		if (result.inserted) {
 			result.entry.val = initializeSpatialRoot(key);
 		}

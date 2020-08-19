@@ -65,7 +65,7 @@ struct TileModelSystemImp final : TileModelSystem
 		uint32_t tint = 0xffffffff;
 
 		bool isLoading() const {
-			return model.isLoading() && (shadowModel && shadowModel.isLoading()) && (material && material.isLoading());
+			return model.isLoading() || (shadowModel && shadowModel.isLoading()) || (material && material.isLoading());
 		}
 		bool isLoaded() const {
 			return model.isLoaded() && (!shadowModel || shadowModel.isLoaded()) && (!material || material.isLoaded());

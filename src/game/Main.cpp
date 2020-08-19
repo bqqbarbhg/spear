@@ -165,7 +165,12 @@ void spInit()
 	sf::debugPrintLine("Server: %p", server);
 
 	MainClient &client = clients.push();
-	client.client = cl::clientInit(port, sessionId, sessionSecret);
+    
+    sf::String websocketUrl;
+    #if defined(GAME_WEBSOCKET_URL)
+        websocketUrl = sf::String(GAME_WEBSOCKET_URL);
+    #endif
+	client.client = cl::clientInit(port, sessionId, sessionSecret, websocketUrl);
 
 	{
 		simgui_desc_t d = { };

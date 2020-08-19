@@ -941,7 +941,8 @@ void handleImguiPropertiesWindow(EditorState *es)
 					sf::reset(es->editedPrefab);
 					es->prefabCopyBuffer.clear();
 					sf::writeBinary(es->prefabCopyBuffer, *sourcePrefab);
-					sf::readBinary(es->prefabCopyBuffer.slice(), es->editedPrefab);
+                    sf::Slice<const char> input = es->prefabCopyBuffer.slice();
+					sf::readBinary(input, es->editedPrefab);
 				}
 
 				ImguiStatus status;
