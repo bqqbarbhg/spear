@@ -25,6 +25,37 @@ static Transform getCharacterTransform(const sv::Character &chr)
 	return ret;
 }
 
+struct Camera
+{
+	struct State
+	{
+		sf::Vec3 origin;
+
+		void asMatrices(sf::Mat34 &worldToView, sf::Mat44 &viewToClip, float aspect)
+		{
+			sf::Vec3 eye = origin + sf::Vec3(0.0f, 5.0f, 3.0f) * 1.0f;
+			worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.4f));
+			viewToClip = sf::mat::perspectiveD3D(1.0f, aspect, 1.0f, 100.0f);
+		}
+	};
+
+	State previous;
+	State current;
+
+	sf::Vec3 targetDelta;
+	sf::Vec3 velocity;
+	sf::Vec3 smoothVelocity;
+
+	float timeDelta = 0.0f;
+
+	static State lerp(const State &a, const State &b, float t)
+	{
+		State s;
+		s.origin = sf::lerp(a.origin, b.origin, t);
+		return s;
+	}
+};
+
 struct GameSystemImp final : GameSystem
 {
 	uint32_t selectedCharacterId = 102;
@@ -73,6 +104,7 @@ struct GameSystemImp final : GameSystem
 			Down,
 			Hold,
 			Up,
+			Cancel,
 		};
 
 		struct Position
@@ -108,6 +140,7 @@ struct GameSystemImp final : GameSystem
 			case Down: actionStr = "Down"; break;
 			case Hold: actionStr = "Hold"; break;
 			case Up: actionStr = "Up"; break;
+			case Cancel: actionStr = "Cancel"; break;
 			default: actionStr = "(???)"; break;
 			}
 
@@ -154,37 +187,6 @@ struct GameSystemImp final : GameSystem
 		v.y = height;
 		return v;
 	}
-
-	struct Camera
-	{
-		struct State
-		{
-			sf::Vec3 origin;
-
-			void asMatrices(sf::Mat34 &worldToView, sf::Mat44 &viewToClip, float aspect)
-			{
-				sf::Vec3 eye = origin + sf::Vec3(0.0f, 5.0f, 3.0f) * 1.0f;
-				worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.4f));
-				viewToClip = sf::mat::perspectiveD3D(1.0f, aspect, 1.0f, 100.0f);
-			}
-		};
-
-		State previous;
-		State current;
-
-		sf::Vec3 targetDelta;
-		sf::Vec3 velocity;
-		sf::Vec3 smoothVelocity;
-
-		float timeDelta = 0.0f;
-
-		static State lerp(const State &a, const State &b, float t)
-		{
-			State s;
-			s.origin = sf::lerp(a.origin, b.origin, t);
-			return s;
-		}
-	};
 
 	sf::Array<Character> characters;
 	sf::Array<uint32_t> freeCharacterIds;
@@ -268,7 +270,11 @@ struct GameSystemImp final : GameSystem
 			if (p.action == Pointer::Down) {
 				p.action = Pointer::Hold;
 			} else if (p.action == Pointer::Up) {
-				pointers.removeOrdered(i--);
+				pointers.removeOrdered(i);
+				i--;
+			} else if (p.action == Pointer::Cancel) {
+				pointers.removeOrdered(i);
+				i--;
 			}
 		}
 
@@ -290,7 +296,6 @@ struct GameSystemImp final : GameSystem
 					pointer = &pointers.push();
 					pointer->button = button;
 				}
-
 
 				pointer->time = 0.0f;
 				pointer->action = Pointer::Down;
@@ -315,7 +320,70 @@ struct GameSystemImp final : GameSystem
 					}
 				}
 
+			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {
+
+				for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
+					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
+
+					Pointer *pointer = nullptr;
+					for (Pointer &p : pointers) {
+						if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
+							pointer = &p;
+							break;
+						}
+					}
+
+					if (!pointer) {
+						pointer = &pointers.push();
+						pointer->button = Pointer::Touch;
+						pointer->touchId = touch.identifier;
+					}
+
+					pointer->time = 0.0f;
+					pointer->action = Pointer::Down;
+					pointer->current = pointer->previous = pointer->start = pos;
+				}
+
+			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_MOVED) {
+
+				for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
+					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
+
+					Pointer *pointer = nullptr;
+					for (Pointer &p : pointers) {
+						if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
+							p.current = pos;
+						}
+					}
+				}
+
+			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_ENDED) {
+
+				for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
+					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
+					for (Pointer &p : pointers) {
+						if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
+							p.action = Pointer::Up;
+							p.current = pos;
+						}
+					}
+				}
+
+			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_CANCELLED) {
+
+				for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
+					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
+					for (Pointer &p : pointers) {
+						if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
+							p.action = Pointer::Up;
+							p.current = pos;
+						}
+					}
+				}
+
+
 			}
+
 		}
 
 		for (Pointer &p : pointers) {

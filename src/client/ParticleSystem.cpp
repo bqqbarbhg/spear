@@ -334,8 +334,13 @@ struct ParticleSystemImp final : ParticleSystem
 			splineTex[i * 4 + 2] = (uint8_t)sf::clamp((int)(splineY[i] * 255.0f), 0, 255);
 		}
 
+		if (c.erosionSpline.points.size >= 1) {
+			cl::discretizeBSplineY(splineY, c.erosionSpline.points, 0.0f, 1.0f);
+		} else {
+			for (float &v : splineY) v = 1.0f;
+		}
 		for (uint32_t i = 0; i < SplineSampleRate; i++) {
-			splineTex[i * 4 + 3] = 0;
+			splineTex[i * 4 + 3] = (uint8_t)sf::clamp((int)(splineY[i] * 255.0f), 0, 255);
 		}
 
 		uint8_t *gradientTex = splineTex + SplineSampleRate * 4;

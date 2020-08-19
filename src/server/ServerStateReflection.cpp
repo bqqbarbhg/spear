@@ -277,6 +277,7 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		sf_field(ParticleSystemComponent, scaleSpline),
 		sf_field(ParticleSystemComponent, alphaSpline),
 		sf_field(ParticleSystemComponent, additiveSpline),
+		sf_field(ParticleSystemComponent, erosionSpline),
 		sf_field(ParticleSystemComponent, gradient),
 		sf_field(ParticleSystemComponent, frameRate),
 		sf_field(ParticleSystemComponent, relativeFrameRate),
@@ -392,6 +393,10 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "additiveSpline");
 		info.description = "Additive blending over particle lifetime";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "erosionSpline");
+		info.description = "Particle alpha erosion amount";
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "gradient");

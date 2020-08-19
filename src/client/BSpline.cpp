@@ -37,6 +37,11 @@ sf_inline float evaluateBSplineY(const sf::Vec2 &a, const sf::Vec2 &b, const sf:
 void discretizeBSplineY(sf::Slice<float> yValues, sf::Slice<const sf::Vec2> points, float xMin, float xMax)
 {
 	if (yValues.size == 0) return;
+	if (yValues.size == 1) {
+		float y = points[0].y;
+		for (float &dst : yValues) dst = y;
+		return;
+	}
 
 	float curX = xMin;
 	float xStep = (xMax - xMin) / (float)(yValues.size - 1);

@@ -11,11 +11,11 @@ layout(location=1) in vec4 a_VelocitySeed;
 
 uniform sampler2D u_SplineTexture;
 
-out vec4 v_Color;
 out vec2 v_Uv0;
 out vec2 v_Uv1;
 
-flat out float v_FrameBlend;
+flat out vec4 v_Color;
+flat out vec4 v_Params;
 
 uniform VertexInstance
 {
@@ -112,15 +112,17 @@ void main()
 	vec2 frame0 = vec2(mod(frameI, u_FrameCount.x), mod(floor(frameI / u_FrameCount.x), u_FrameCount.y));
 	vec2 frame1 = vec2(mod(frameI + 1, u_FrameCount.x), mod(floor((frameI + 1) / u_FrameCount.x), u_FrameCount.y));
 
-	vec4 color = vec4(gradientColor, 1.0);
-	color *= clamp(alpha, 0.0, 1.0);
-	color.a *= spline.z;
+	vec4 color = vec4(gradientColor, alpha);
+	float erode = spline.w < 1.0 ? 1.0 / max(spline.w, 0.01) : 1.0;
 
 	gl_Position = ndc;
 	v_Color = color;
 	v_Uv0 = (frame0 + uv) / u_FrameCount;
 	v_Uv1 = (frame1 + uv) / u_FrameCount;
-	v_FrameBlend = frameD;
+	v_Params.x = frameD;
+	v_Params.y = spline.z;
+	v_Params.z = erode;
+	v_Params.w = 0.0;
 }
 
 @end
@@ -129,10 +131,11 @@ void main()
 
 uniform sampler2D u_Texture;
 
-in vec4 v_Color;
 in vec2 v_Uv0;
 in vec2 v_Uv1;
-flat in float v_FrameBlend;
+
+flat in vec4 v_Color;
+flat in vec4 v_Params;
 
 out vec4 o_color;
 
@@ -141,12 +144,22 @@ void main()
 	vec4 tex0 = texture(u_Texture, v_Uv0);
 	vec4 tex1 = texture(u_Texture, v_Uv1);
 
-	tex0.xyz *= tex0.w;
-	tex1.xyz *= tex1.w;
+	float frameBlend = v_Params.x;
+	float additive = v_Params.y;
+	float erode = v_Params.z;
 
-	vec4 tex = mix(tex0, tex1, v_FrameBlend);
+	vec4 tex = mix(tex0, tex1, frameBlend);
+	tex.xyz *= v_Color.xyz;
+	if (erode > 1.0) {
+		tex.w = clamp((tex.w + v_Color.w - 1.001) * erode, 0.0, 1.0);
+	} else {
+		tex.w *= v_Color.w;
+	}
 
-	o_color = v_Color * tex;
+	tex.xyz *= tex.w;
+	tex.w *= additive;
+
+	o_color = tex;
 }
 
 @end

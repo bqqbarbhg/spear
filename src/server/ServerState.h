@@ -187,6 +187,7 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 	BSpline2 scaleSpline; //! Particle scale over particle lifetime
 	BSpline2 alphaSpline; //! Particle alpha over particle lifetime
 	BSpline2 additiveSpline; //! Additive blending over particle lifetime
+	BSpline2 erosionSpline; //! Particle alpha erosion amount
 	Gradient gradient; //! Color gradient over particle lifetime
 
 	float frameRate = 0.0f; //! Texture animation speed in frames per second
