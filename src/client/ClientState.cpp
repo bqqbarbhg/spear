@@ -113,6 +113,12 @@ void ClientState::editorHighlight(uint32_t entityId, EditorHighlight type)
 	}
 }
 
+void ClientState::updateCamera(FrameArgs &frameArgs)
+{
+	systems.frameArgs = frameArgs;
+	systems.game->updateCamera(frameArgs);
+}
+
 void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameArgs)
 {
 	systems.frameArgs = frameArgs;

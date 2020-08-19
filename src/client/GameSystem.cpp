@@ -7,8 +7,14 @@
 #include "game/DebugDraw.h"
 
 #include "sf/UintMap.h"
+#include "sf/Reflection.h"
 
 #include "client/GuiCard.h"
+
+#include "sp/Renderer.h"
+
+#include "ext/sokol/sokol_app.h"
+#include "ext/imgui/imgui.h"
 
 namespace cl {
 
@@ -49,6 +55,137 @@ struct GameSystemImp final : GameSystem
 		sf::Array<uint32_t> entityIds;
 	};
 
+	struct Pointer
+	{
+		enum Button
+		{
+			MouseHover,
+			MouseLeft,
+			MouseRight,
+			MouseMiddle,
+			Touch,
+
+			LastMouse = MouseMiddle,
+		};
+
+		enum Action
+		{
+			Down,
+			Hold,
+			Up,
+		};
+
+		struct Position
+		{
+			sf::Vec2 pos;
+			sf::Ray worldRay;
+		};
+
+		uintptr_t touchId = 0;
+		Button button;
+		Action action;
+
+		float time = 0.0f;
+		float dragFactor = -0.1f;
+
+		Position start;
+		Position previous;
+		Position current;
+
+		void formatDebugString(sf::StringBuf &str) const
+		{
+			const char *buttonStr, *actionStr;
+			switch (button) {
+			case MouseHover: buttonStr = "Hover"; break;
+			case MouseLeft: buttonStr = "Left"; break;
+			case MouseRight: buttonStr = "Right"; break;
+			case MouseMiddle: buttonStr = "Middle"; break;
+			case Touch: buttonStr = "Touch"; break;
+			default: buttonStr = "(???)"; break;
+			}
+
+			switch (action) {
+			case Down: actionStr = "Down"; break;
+			case Hold: actionStr = "Hold"; break;
+			case Up: actionStr = "Up"; break;
+			default: actionStr = "(???)"; break;
+			}
+
+			str.format("(%2.2fs) %s %s - (%.2f, %.2f) [drag:%.2f]", time, buttonStr, actionStr,
+				current.pos.x, current.pos.y, dragFactor);
+		}
+	};
+
+	struct ScreenToWorld
+	{
+		sf::Vec2 rcpResolution;
+		sf::Mat44 clipToWorld;
+	};
+
+	static Pointer::Button sappToPointerButton(sapp_mousebutton button)
+	{
+		sf_assert(button >= SAPP_MOUSEBUTTON_LEFT && button <= SAPP_MOUSEBUTTON_MIDDLE);
+		return (Pointer::Button)((uint32_t)button + 1);
+	}
+
+	static sf::Ray pointerToWorld(const sf::Mat44 &clipToWorld, const sf::Vec2 &relativePos)
+	{
+		sf::Ray ray;
+		sf::Vec2 clipMouse = relativePos * sf::Vec2(+2.0f, -2.0f) + sf::Vec2(-1.0f, +1.0f);
+		sf::Vec4 rayBegin = clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 0.0f, 1.0f);
+		sf::Vec4 rayEnd = clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 1.0f, 1.0f);
+		ray.origin = sf::Vec3(rayBegin.v) / rayBegin.w;
+		ray.direction = sf::normalize(sf::Vec3(rayEnd.v) / rayEnd.w - ray.origin);
+		return ray;
+	}
+
+	static Pointer::Position sappToPointerPosition(const ScreenToWorld &stw, const sf::Vec2 &pos)
+	{
+		Pointer::Position p;
+		p.pos = stw.rcpResolution * pos;
+		p.worldRay = pointerToWorld(stw.clipToWorld, p.pos);
+		return p;
+	}
+
+	static sf::Vec3 intersectHorizontalPlane(float height, const sf::Ray &ray)
+	{
+		float t = (ray.origin.y - height) / - ray.direction.y;
+		sf::Vec3 v = ray.origin + ray.direction * t;
+		v.y = height;
+		return v;
+	}
+
+	struct Camera
+	{
+		struct State
+		{
+			sf::Vec3 origin;
+
+			void asMatrices(sf::Mat34 &worldToView, sf::Mat44 &viewToClip, float aspect)
+			{
+				sf::Vec3 eye = origin + sf::Vec3(0.0f, 5.0f, 3.0f) * 1.0f;
+				worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.4f));
+				viewToClip = sf::mat::perspectiveD3D(1.0f, aspect, 1.0f, 100.0f);
+			}
+		};
+
+		State previous;
+		State current;
+
+		sf::Vec3 targetDelta;
+		sf::Vec3 velocity;
+		sf::Vec3 smoothVelocity;
+
+		float timeDelta = 0.0f;
+
+		static State lerp(const State &a, const State &b, float t)
+		{
+			State s;
+			s.origin = sf::lerp(a.origin, b.origin, t);
+			return s;
+		}
+	};
+
 	sf::Array<Character> characters;
 	sf::Array<uint32_t> freeCharacterIds;
 
@@ -59,6 +196,10 @@ struct GameSystemImp final : GameSystem
 	sf::UintMap entityToCharacter;
 
 	sf::UintMap svToCard;
+
+	sf::Array<Pointer> pointers;
+
+	Camera camera;
 
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
 	{
@@ -112,28 +253,159 @@ struct GameSystemImp final : GameSystem
 
 	// -- API
 
-	void update(const sv::ServerState &svState, const FrameArgs &frameArgs) override
+	void updateCamera(FrameArgs &frameArgs) override
 	{
-		{
-			const sv::Character *chr = svState.characters.find(selectedCharacterId);
+		ScreenToWorld screenToWorld;
+		screenToWorld.rcpResolution = sf::Vec2(1.0f) / sf::Vec2(frameArgs.resolution);
+		screenToWorld.clipToWorld = sf::inverse(frameArgs.mainRenderArgs.worldToClip);
 
-#if 0
-			if (chr) {
-				sv::PathfindOpts opts;
-				opts.isBlockedFn = &sv::isBlockedByPropOrCharacter;
-				opts.maxDistance = 10;
-				sv::ReachableSet reachable = sv::findReachableSet(svState, opts, chr->tile);
+		for (uint32_t i = 0; i < pointers.size; i++) {
+			Pointer &p = pointers[i];
+			p.time += frameArgs.dt;
 
-				for (const auto &pair : reachable.distanceToTile) {
-					sf::Bounds3 bounds;
-					bounds.origin = sf::Vec3((float)pair.key.x, 0.0f, (float)pair.key.y);
-					bounds.extent = sf::Vec3(0.95f, 0.2f, 0.95f) / 2.0f;
-					debugDrawBox(bounds, sf::Vec3(1.0f, 1.0f, 0.0f));
+			p.previous = p.current;
+
+			if (p.action == Pointer::Down) {
+				p.action = Pointer::Hold;
+			} else if (p.action == Pointer::Up) {
+				pointers.removeOrdered(i--);
+			}
+		}
+
+		for (const sapp_event &e : frameArgs.events) {
+
+			if (e.type == SAPP_EVENTTYPE_MOUSE_DOWN) {
+				Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(e.mouse_x, e.mouse_y));
+
+				Pointer *pointer = nullptr;
+				Pointer::Button button = sappToPointerButton(e.mouse_button);
+				for (Pointer &p : pointers) {
+					if (p.button == button) {
+						pointer = &p;
+						break;
+					}
+				}
+
+				if (!pointer) {
+					pointer = &pointers.push();
+					pointer->button = button;
+				}
+
+
+				pointer->time = 0.0f;
+				pointer->action = Pointer::Down;
+				pointer->current = pointer->previous = pointer->start = pos;
+			} else if (e.type == SAPP_EVENTTYPE_MOUSE_MOVE) {
+				Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(e.mouse_x, e.mouse_y));
+
+				for (Pointer &p : pointers) {
+					if (p.button <= Pointer::LastMouse) {
+						p.current = pos;
+					}
+				}
+
+			} else if (e.type == SAPP_EVENTTYPE_MOUSE_UP) {
+				Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(e.mouse_x, e.mouse_y));
+
+				Pointer::Button button = sappToPointerButton(e.mouse_button);
+				for (Pointer &p : pointers) {
+					if (p.button == button) {
+						p.action = Pointer::Up;
+						p.current = pos;
+					}
+				}
+
+			}
+		}
+
+		for (Pointer &p : pointers) {
+			float move = sf::length(p.current.pos - p.previous.pos);
+			float dist = 0.2f + sf::lengthSq(p.current.pos - p.start.pos);
+			float time = 0.1f + sf::min(p.time, 0.3f);
+			p.dragFactor = sf::min(1.0f, p.dragFactor + dist * move * time * 2000.0f);
+		}
+
+		const float cameraDt = 0.001f;
+		camera.timeDelta = sf::min(camera.timeDelta + frameArgs.dt, 0.1f);
+
+		float aspect = (float)frameArgs.resolution.x / (float)frameArgs.resolution.y;
+
+		sf::Vec3 hackA, hackB;
+
+		static float cameraExp = 0.02f;
+		static float cameraLinear = 0.00005f;
+		static float decayExp = 0.008f;
+		static float decayLinear = 0.00005f;
+
+		ImGui::InputFloat("cameraExp", &cameraExp, 0.0f, 0.0f, "%.8f");
+		ImGui::InputFloat("cameraLinear", &cameraLinear, 0.0f, 0.0f, "%.8f");
+		ImGui::InputFloat("decayExp", &decayExp, 0.0f, 0.0f, "%.8f");
+		ImGui::InputFloat("decayLinear", &decayLinear, 0.0f, 0.0f, "%.8f");
+
+		while (camera.timeDelta >= cameraDt) {
+			camera.timeDelta -= cameraDt;
+			camera.previous = camera.current;
+
+			sf::Mat34 worldToView;
+			sf::Mat44 viewToClip;
+			camera.current.asMatrices(worldToView, viewToClip, aspect);
+			sf::Mat44 clipToWorld = sf::inverse(viewToClip * worldToView);
+
+			for (Pointer &p : pointers) {
+				p.current.worldRay = pointerToWorld(clipToWorld, p.current.pos);
+
+				if (p.button == Pointer::MouseMiddle) {
+					sf::Vec3 a = intersectHorizontalPlane(0.0f, p.start.worldRay);
+					sf::Vec3 b = intersectHorizontalPlane(0.0f, p.current.worldRay);
+
+					hackA = a;
+					hackB = b;
+
+					camera.targetDelta = a - b;
 				}
 			}
-#endif
 
+			sf::Vec3 delta = camera.targetDelta;
+			float deltaLen = sf::length(delta);
+
+			if (deltaLen > 0.00001f) {
+				float applyLen = sf::min(cameraLinear + deltaLen*cameraExp, deltaLen);
+				camera.current.origin += delta * (applyLen / deltaLen);
+
+				float decayLen = sf::min(decayLinear + deltaLen*decayExp, deltaLen);
+				camera.targetDelta -= camera.targetDelta * (decayLen / deltaLen);
+			} else {
+				camera.current.origin += delta;
+				camera.targetDelta = sf::Vec3();
+			}
 		}
+
+		ImGui::InputFloat3("a", hackA.v);
+		ImGui::InputFloat3("b", hackB.v);
+
+		if (ImGui::Begin("Pointers")) {
+			sf::SmallStringBuf<128> str;
+			for (Pointer &p : pointers) {
+				str.clear();
+				p.formatDebugString(str);
+				ImGui::Text("%s", str.data);
+			}
+			ImGui::End();
+		}
+
+		Camera::State state = Camera::lerp(camera.previous, camera.current, camera.timeDelta / cameraDt);
+		sf::Mat34 worldToView;
+		sf::Mat44 viewToClip;
+		state.asMatrices(worldToView, viewToClip, aspect);
+
+		frameArgs.mainRenderArgs.worldToView = worldToView;
+		frameArgs.mainRenderArgs.viewToClip = viewToClip;
+		frameArgs.mainRenderArgs.worldToClip = viewToClip * worldToView;
+		frameArgs.mainRenderArgs.frustum = sf::Frustum(frameArgs.mainRenderArgs.worldToClip, sp::getClipNearW());
+	}
+
+	void update(const sv::ServerState &svState, const FrameArgs &frameArgs) override
+	{
 	}
 
 	void updateTransform(Systems &systems, uint32_t entityId, const EntityComponent &ec, const TransformUpdate &update) override

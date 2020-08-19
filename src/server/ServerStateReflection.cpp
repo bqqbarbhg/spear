@@ -739,7 +739,7 @@ template<> void initType<AllocateIdEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(AllocateIdEvent, id),
 	};
-	sf_struct_base(t, AllocateIdEvent, Component, fields);
+	sf_struct_base(t, AllocateIdEvent, Event, fields);
 }
 
 template<> void initType<CardCooldownTickEvent>(Type *t)
@@ -747,7 +747,7 @@ template<> void initType<CardCooldownTickEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(CardCooldownTickEvent, cardId),
 	};
-	sf_struct_base(t, CardCooldownTickEvent, Component, fields);
+	sf_struct_base(t, CardCooldownTickEvent, Event, fields);
 }
 
 template<> void initType<StatusAddEvent>(Type *t)
@@ -756,7 +756,7 @@ template<> void initType<StatusAddEvent>(Type *t)
 		sf_field(StatusAddEvent, turnsRoll),
 		sf_field(StatusAddEvent, status),
 	};
-	sf_struct_base(t, StatusAddEvent, Component, fields);
+	sf_struct_base(t, StatusAddEvent, Event, fields);
 }
 
 template<> void initType<StatusTickEvent>(Type *t)
@@ -764,7 +764,7 @@ template<> void initType<StatusTickEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(StatusTickEvent, statusId),
 	};
-	sf_struct_base(t, StatusTickEvent, Component, fields);
+	sf_struct_base(t, StatusTickEvent, Event, fields);
 }
 
 template<> void initType<StatusRemoveEvent>(Type *t)
@@ -772,7 +772,7 @@ template<> void initType<StatusRemoveEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(StatusRemoveEvent, statusId),
 	};
-	sf_struct_base(t, StatusRemoveEvent, Component, fields);
+	sf_struct_base(t, StatusRemoveEvent, Event, fields);
 }
 
 template<> void initType<ResistDamageEvent>(Type *t)
@@ -785,7 +785,7 @@ template<> void initType<ResistDamageEvent>(Type *t)
 		sf_field(ResistDamageEvent, successRoll),
 		sf_field(ResistDamageEvent, success),
 	};
-	sf_struct_base(t, ResistDamageEvent, Component, fields);
+	sf_struct_base(t, ResistDamageEvent, Event, fields);
 }
 
 template<> void initType<CastSpellEvent>(Type *t)
@@ -794,7 +794,7 @@ template<> void initType<CastSpellEvent>(Type *t)
 		sf_field(CastSpellEvent, spellInfo),
 		sf_field(CastSpellEvent, successRoll),
 	};
-	sf_struct_base(t, CastSpellEvent, Component, fields);
+	sf_struct_base(t, CastSpellEvent, Event, fields);
 }
 
 template<> void initType<MeleeAttackEvent>(Type *t)
@@ -803,7 +803,7 @@ template<> void initType<MeleeAttackEvent>(Type *t)
 		sf_field(MeleeAttackEvent, meleeInfo),
 		sf_field(MeleeAttackEvent, hitRoll),
 	};
-	sf_struct_base(t, MeleeAttackEvent, Component, fields);
+	sf_struct_base(t, MeleeAttackEvent, Event, fields);
 }
 
 template<> void initType<DamageEvent>(Type *t)
@@ -814,7 +814,7 @@ template<> void initType<DamageEvent>(Type *t)
 		sf_field(DamageEvent, finalDamage),
 		sf_field(DamageEvent, meleeArmor),
 	};
-	sf_struct_base(t, DamageEvent, Component, fields);
+	sf_struct_base(t, DamageEvent, Event, fields);
 }
 
 template<> void initType<LoadPrefabEvent>(Type *t)
@@ -822,7 +822,7 @@ template<> void initType<LoadPrefabEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(LoadPrefabEvent, prefab),
 	};
-	sf_struct_base(t, LoadPrefabEvent, Component, fields);
+	sf_struct_base(t, LoadPrefabEvent, Event, fields);
 }
 
 template<> void initType<ReloadPrefabEvent>(Type *t)
@@ -830,7 +830,7 @@ template<> void initType<ReloadPrefabEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(ReloadPrefabEvent, prefab),
 	};
-	sf_struct_base(t, ReloadPrefabEvent, Component, fields);
+	sf_struct_base(t, ReloadPrefabEvent, Event, fields);
 }
 
 template<> void initType<MakeUniquePrefabEvent>(Type *t)
@@ -841,7 +841,7 @@ template<> void initType<MakeUniquePrefabEvent>(Type *t)
 		sf_field(MakeUniquePrefabEvent, uniquePrefabName),
 		sf_field(MakeUniquePrefabEvent, propIds),
 	};
-	sf_struct_base(t, MakeUniquePrefabEvent, Component, fields);
+	sf_struct_base(t, MakeUniquePrefabEvent, Event, fields);
 }
 
 template<> void initType<RemoveGarbageIdsEvent>(Type *t)
@@ -849,7 +849,7 @@ template<> void initType<RemoveGarbageIdsEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(RemoveGarbageIdsEvent, ids),
 	};
-	sf_struct_base(t, RemoveGarbageIdsEvent, Component, fields);
+	sf_struct_base(t, RemoveGarbageIdsEvent, Event, fields);
 }
 
 template<> void initType<RemoveGarbagePrefabsEvent>(Type *t)
@@ -857,7 +857,7 @@ template<> void initType<RemoveGarbagePrefabsEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(RemoveGarbagePrefabsEvent, names),
 	};
-	sf_struct_base(t, RemoveGarbagePrefabsEvent, Component, fields);
+	sf_struct_base(t, RemoveGarbagePrefabsEvent, Event, fields);
 }
 
 template<> void initType<AddPropEvent>(Type *t)
@@ -865,7 +865,7 @@ template<> void initType<AddPropEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(AddPropEvent, prop),
 	};
-	sf_struct_base(t, AddPropEvent, Component, fields);
+	sf_struct_base(t, AddPropEvent, Event, fields);
 }
 
 template<> void initType<RemovePropEvent>(Type *t)
@@ -873,7 +873,7 @@ template<> void initType<RemovePropEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(RemovePropEvent, propId),
 	};
-	sf_struct_base(t, RemovePropEvent, Component, fields);
+	sf_struct_base(t, RemovePropEvent, Event, fields);
 }
 
 template<> void initType<ReplaceLocalPropEvent>(Type *t)
@@ -883,7 +883,7 @@ template<> void initType<ReplaceLocalPropEvent>(Type *t)
 		sf_field(ReplaceLocalPropEvent, localId),
 		sf_field(ReplaceLocalPropEvent, prop),
 	};
-	sf_struct_base(t, ReplaceLocalPropEvent, Component, fields);
+	sf_struct_base(t, ReplaceLocalPropEvent, Event, fields);
 }
 
 template<> void initType<AddCharacterEvent>(Type *t)
@@ -891,7 +891,7 @@ template<> void initType<AddCharacterEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(AddCharacterEvent, character),
 	};
-	sf_struct_base(t, AddCharacterEvent, Component, fields);
+	sf_struct_base(t, AddCharacterEvent, Event, fields);
 }
 
 template<> void initType<AddCardEvent>(Type *t)
@@ -899,7 +899,7 @@ template<> void initType<AddCardEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(AddCardEvent, card),
 	};
-	sf_struct_base(t, AddCardEvent, Component, fields);
+	sf_struct_base(t, AddCardEvent, Event, fields);
 }
 
 template<> void initType<MovePropEvent>(Type *t)
@@ -908,7 +908,7 @@ template<> void initType<MovePropEvent>(Type *t)
 		sf_field(MovePropEvent, propId),
 		sf_field(MovePropEvent, transform),
 	};
-	sf_struct_base(t, MovePropEvent, Component, fields);
+	sf_struct_base(t, MovePropEvent, Event, fields);
 }
 
 template<> void initType<GiveCardEvent>(Type *t)
@@ -918,7 +918,7 @@ template<> void initType<GiveCardEvent>(Type *t)
 		sf_field(GiveCardEvent, previousOwnerId),
 		sf_field(GiveCardEvent, ownerId),
 	};
-	sf_struct_base(t, GiveCardEvent, Component, fields);
+	sf_struct_base(t, GiveCardEvent, Event, fields);
 }
 
 template<> void initType<SelectCardEvent>(Type *t)
@@ -928,7 +928,7 @@ template<> void initType<SelectCardEvent>(Type *t)
 		sf_field(SelectCardEvent, cardId),
 		sf_field(SelectCardEvent, slot),
 	};
-	sf_struct_base(t, SelectCardEvent, Component, fields);
+	sf_struct_base(t, SelectCardEvent, Event, fields);
 }
 
 template<> void initType<AddCharacterToSpawn>(Type *t)
@@ -937,7 +937,7 @@ template<> void initType<AddCharacterToSpawn>(Type *t)
 		sf_field(AddCharacterToSpawn, selectPrefab),
 		sf_field(AddCharacterToSpawn, count),
 	};
-	sf_struct_base(t, AddCharacterToSpawn, Component, fields);
+	sf_struct_base(t, AddCharacterToSpawn, Event, fields);
 }
 
 template<> void initType<SelectCharacterToSpawnEvent>(Type *t)
@@ -946,7 +946,7 @@ template<> void initType<SelectCharacterToSpawnEvent>(Type *t)
 		sf_field(SelectCharacterToSpawnEvent, selectPrefab),
 		sf_field(SelectCharacterToSpawnEvent, playerId),
 	};
-	sf_struct_base(t, SelectCharacterToSpawnEvent, Component, fields);
+	sf_struct_base(t, SelectCharacterToSpawnEvent, Event, fields);
 }
 
 template<> void initType<MoveEvent>(Type *t)
@@ -956,7 +956,7 @@ template<> void initType<MoveEvent>(Type *t)
 		sf_field(MoveEvent, position),
 		sf_field(MoveEvent, waypoints),
 	};
-	sf_struct_base(t, MoveEvent, Component, fields);
+	sf_struct_base(t, MoveEvent, Event, fields);
 }
 
 template<> void initType<PreloadPrefabEdit>(Type *t)
@@ -964,7 +964,7 @@ template<> void initType<PreloadPrefabEdit>(Type *t)
 	static Field fields[] = {
 		sf_field(PreloadPrefabEdit, prefabName),
 	};
-	sf_struct_base(t, PreloadPrefabEdit, Component, fields);
+	sf_struct_base(t, PreloadPrefabEdit, Edit, fields);
 }
 
 template<> void initType<ModifyPrefabEdit>(Type *t)
@@ -972,7 +972,7 @@ template<> void initType<ModifyPrefabEdit>(Type *t)
 	static Field fields[] = {
 		sf_field(ModifyPrefabEdit, prefab),
 	};
-	sf_struct_base(t, ModifyPrefabEdit, Component, fields);
+	sf_struct_base(t, ModifyPrefabEdit, Edit, fields);
 }
 
 template<> void initType<MakeUniquePrefabEdit>(Type *t)
@@ -982,7 +982,7 @@ template<> void initType<MakeUniquePrefabEdit>(Type *t)
 		sf_field(MakeUniquePrefabEdit, prefabName),
 		sf_field(MakeUniquePrefabEdit, propIds),
 	};
-	sf_struct_base(t, MakeUniquePrefabEdit, Component, fields);
+	sf_struct_base(t, MakeUniquePrefabEdit, Edit, fields);
 }
 
 template<> void initType<AddPropEdit>(Type *t)
@@ -990,7 +990,7 @@ template<> void initType<AddPropEdit>(Type *t)
 	static Field fields[] = {
 		sf_field(AddPropEdit, prop),
 	};
-	sf_struct_base(t, AddPropEdit, Component, fields);
+	sf_struct_base(t, AddPropEdit, Edit, fields);
 }
 
 template<> void initType<ClonePropEdit>(Type *t)
@@ -1000,7 +1000,7 @@ template<> void initType<ClonePropEdit>(Type *t)
 		sf_field(ClonePropEdit, localId),
 		sf_field(ClonePropEdit, prop),
 	};
-	sf_struct_base(t, ClonePropEdit, Component, fields);
+	sf_struct_base(t, ClonePropEdit, Edit, fields);
 }
 
 template<> void initType<MovePropEdit>(Type *t)
@@ -1009,7 +1009,7 @@ template<> void initType<MovePropEdit>(Type *t)
 		sf_field(MovePropEdit, propId),
 		sf_field(MovePropEdit, transform),
 	};
-	sf_struct_base(t, MovePropEdit, Component, fields);
+	sf_struct_base(t, MovePropEdit, Edit, fields);
 }
 
 template<> void initType<RemovePropEdit>(Type *t)
@@ -1017,7 +1017,7 @@ template<> void initType<RemovePropEdit>(Type *t)
 	static Field fields[] = {
 		sf_field(RemovePropEdit, propId),
 	};
-	sf_struct_base(t, RemovePropEdit, Component, fields);
+	sf_struct_base(t, RemovePropEdit, Edit, fields);
 }
 
 template<> void initType<AddCharacterEdit>(Type *t)
@@ -1025,7 +1025,7 @@ template<> void initType<AddCharacterEdit>(Type *t)
 	static Field fields[] = {
 		sf_field(AddCharacterEdit, character),
 	};
-	sf_struct_base(t, AddCharacterEdit, Component, fields);
+	sf_struct_base(t, AddCharacterEdit, Edit, fields);
 }
 
 template<> void initType<DiceRoll>(Type *t)
@@ -1036,7 +1036,7 @@ template<> void initType<DiceRoll>(Type *t)
 		sf_field(DiceRoll, bias),
 		sf_field(DiceRoll, check),
 	};
-	sf_struct_base(t, DiceRoll, Component, fields);
+	sf_struct(t, DiceRoll, fields);
 }
 
 template<> void initType<BSpline2>(Type *t)
@@ -1044,7 +1044,7 @@ template<> void initType<BSpline2>(Type *t)
 	static Field fields[] = {
 		sf_field(BSpline2, points),
 	};
-	sf_struct_base(t, BSpline2, Component, fields);
+	sf_struct(t, BSpline2, fields);
 }
 
 template<> void initType<GradientPoint>(Type *t)
@@ -1053,7 +1053,7 @@ template<> void initType<GradientPoint>(Type *t)
 		sf_field(GradientPoint, t),
 		sf_field(GradientPoint, color),
 	};
-	sf_struct_base(t, GradientPoint, Component, fields);
+	sf_struct(t, GradientPoint, fields);
 }
 
 template<> void initType<Gradient>(Type *t)
@@ -1062,7 +1062,7 @@ template<> void initType<Gradient>(Type *t)
 		sf_field(Gradient, defaultColor),
 		sf_field(Gradient, points),
 	};
-	sf_struct_base(t, Gradient, Component, fields);
+	sf_struct(t, Gradient, fields);
 }
 
 template<> void initType<RandomSphere>(Type *t)
@@ -1076,7 +1076,7 @@ template<> void initType<RandomSphere>(Type *t)
 		sf_field(RandomSphere, maxRadius),
 		sf_field(RandomSphere, scale),
 	};
-	sf_struct_base(t, RandomSphere, Component, fields);
+	sf_struct(t, RandomSphere, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "minTheta");
@@ -1116,7 +1116,7 @@ template<> void initType<RandomVec3>(Type *t)
 		sf_field(RandomVec3, sphere),
 		sf_field(RandomVec3, rotation),
 	};
-	sf_struct_base(t, RandomVec3, Component, fields);
+	sf_struct(t, RandomVec3, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "offset");
@@ -1146,7 +1146,7 @@ template<> void initType<AnimationInfo>(Type *t)
 		sf_field(AnimationInfo, speed),
 		sf_field(AnimationInfo, speedVariation),
 	};
-	sf_struct_base(t, AnimationInfo, Component, fields);
+	sf_struct(t, AnimationInfo, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "tags");
@@ -1182,7 +1182,7 @@ template<> void initType<AttachBone>(Type *t)
 		sf_field(AttachBone, boneName),
 		sf_field(AttachBone, scale),
 	};
-	sf_struct_base(t, AttachBone, Component, fields);
+	sf_struct(t, AttachBone, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "name");
@@ -1204,7 +1204,7 @@ template<> void initType<CharacterMaterial>(Type *t)
 		sf_field(CharacterMaterial, name),
 		sf_field(CharacterMaterial, material),
 	};
-	sf_struct_base(t, CharacterMaterial, Component, fields);
+	sf_struct(t, CharacterMaterial, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "name");
@@ -1225,7 +1225,7 @@ template<> void initType<ShadowBlob>(Type *t)
 		sf_field(ShadowBlob, alpha),
 		sf_field(ShadowBlob, offset),
 	};
-	sf_struct_base(t, ShadowBlob, Component, fields);
+	sf_struct(t, ShadowBlob, fields);
 }
 
 template<> void initType<StarterCard>(Type *t)
@@ -1234,7 +1234,7 @@ template<> void initType<StarterCard>(Type *t)
 		sf_field(StarterCard, prefabName),
 		sf_field(StarterCard, probability),
 	};
-	sf_struct_base(t, StarterCard, Component, fields);
+	sf_struct(t, StarterCard, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "prefabName");
@@ -1248,7 +1248,7 @@ template<> void initType<Prefab>(Type *t)
 		sf_field(Prefab, name),
 		sf_field(Prefab, components),
 	};
-	sf_struct_base(t, Prefab, Component, fields);
+	sf_struct(t, Prefab, fields);
 }
 
 template<> void initType<PropTransform>(Type *t)
@@ -1259,7 +1259,7 @@ template<> void initType<PropTransform>(Type *t)
 		sf_field(PropTransform, rotation),
 		sf_field(PropTransform, scale),
 	};
-	sf_struct_base(t, PropTransform, Component, fields);
+	sf_struct(t, PropTransform, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "position");
@@ -1286,7 +1286,7 @@ template<> void initType<Prop>(Type *t)
 		sf_field(Prop, transform),
 		sf_field(Prop, prefabName),
 	};
-	sf_struct_base(t, Prop, Component, fields);
+	sf_struct(t, Prop, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "prefabName");
@@ -1302,7 +1302,7 @@ template<> void initType<Card>(Type *t)
 		sf_field(Card, prefabName),
 		sf_field(Card, cooldownLeft),
 	};
-	sf_struct_base(t, Card, Component, fields);
+	sf_struct(t, Card, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "prefabName");
@@ -1321,7 +1321,7 @@ template<> void initType<Status>(Type *t)
 		sf_field(Status, casterId),
 		sf_field(Status, turnsLeft),
 	};
-	sf_struct_base(t, Status, Component, fields);
+	sf_struct(t, Status, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "prefabName");
@@ -1346,7 +1346,7 @@ template<> void initType<Character>(Type *t)
 		sf_field(Character, tile),
 		sf_field(Character, armor),
 	};
-	sf_struct_base(t, Character, Component, fields);
+	sf_struct(t, Character, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "prefabName");
@@ -1363,7 +1363,7 @@ template<> void initType<StatusInfo>(Type *t)
 		sf_field(StatusInfo, statusName),
 		sf_field(StatusInfo, cardName),
 	};
-	sf_struct_base(t, StatusInfo, Component, fields);
+	sf_struct(t, StatusInfo, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "statusName");
@@ -1384,7 +1384,7 @@ template<> void initType<SpellInfo>(Type *t)
 		sf_field(SpellInfo, spellName),
 		sf_field(SpellInfo, cardName),
 	};
-	sf_struct_base(t, SpellInfo, Component, fields);
+	sf_struct(t, SpellInfo, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "spellName");
@@ -1403,7 +1403,7 @@ template<> void initType<MeleeInfo>(Type *t)
 		sf_field(MeleeInfo, targetId),
 		sf_field(MeleeInfo, cardName),
 	};
-	sf_struct_base(t, MeleeInfo, Component, fields);
+	sf_struct(t, MeleeInfo, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "cardName");
@@ -1423,7 +1423,7 @@ template<> void initType<DamageInfo>(Type *t)
 		sf_field(DamageInfo, targetId),
 		sf_field(DamageInfo, damageRoll),
 	};
-	sf_struct_base(t, DamageInfo, Component, fields);
+	sf_struct(t, DamageInfo, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "spellName");
@@ -1438,7 +1438,7 @@ template<> void initType<RollInfo>(Type *t)
 		sf_field(RollInfo, roll),
 		sf_field(RollInfo, total),
 	};
-	sf_struct_base(t, RollInfo, Component, fields);
+	sf_struct(t, RollInfo, fields);
 }
 
 template<> void initType<CastInfo>(Type *t)
@@ -1448,7 +1448,7 @@ template<> void initType<CastInfo>(Type *t)
 		sf_field(CastInfo, rolls),
 		sf_field(CastInfo, succeeded),
 	};
-	sf_struct_base(t, CastInfo, Component, fields);
+	sf_struct(t, CastInfo, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "spellInfo");
@@ -1461,7 +1461,7 @@ template<> void initType<Waypoint>(Type *t)
 	static Field fields[] = {
 		sf_field(Waypoint, position),
 	};
-	sf_struct_base(t, Waypoint, Component, fields);
+	sf_struct(t, Waypoint, fields);
 }
 
 }

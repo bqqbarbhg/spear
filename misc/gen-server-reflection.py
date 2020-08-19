@@ -140,14 +140,17 @@ escape = str.maketrans({
     "\\": "\\\\",
 })
 
-def write_struct(s):
+def write_struct(s, base=""):
     push(f"template<> void initType<{s.type_name}>(Type *t)")
     push("{")
     push("\tstatic Field fields[] = {")
     for f in s.fields:
         push(f"\t\tsf_field({s.type_name}, {f.name}),")
     push("\t};")
-    push(f"\tsf_struct_base(t, {s.type_name}, Component, fields);")
+    if base:
+        push(f"\tsf_struct_base(t, {s.type_name}, {base}, fields);")
+    else:
+        push(f"\tsf_struct(t, {s.type_name}, fields);")
     if any(f.flags or f.description for f in s.fields):
         push("")
         for f in s.fields:
@@ -164,13 +167,13 @@ def write_struct(s):
     push("")
 
 for s in components:
-    write_struct(s)
+    write_struct(s, "Component")
 
 for s in events:
-    write_struct(s)
+    write_struct(s, "Event")
 
 for s in edits:
-    write_struct(s)
+    write_struct(s, "Edit")
 
 for s in reflects:
     write_struct(s)

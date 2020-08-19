@@ -456,6 +456,8 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	c->frameArgs.gameTime += dt;
 	c->frameArgs.frameIndex++;
 	c->frameArgs.dt = dt;
+	c->frameArgs.events = input.events;
+	c->frameArgs.resolution = input.resolution;
 
 	if (input.resolution != c->resolution || c->forceRecreateTargets) {
 		c->forceRecreateTargets = false;
@@ -479,18 +481,8 @@ bool clientUpdate(Client *c, const ClientInput &input)
 		}
 	}
 
-	sf::Vec3 eye = sf::Vec3(0.0f, 5.0f, 3.0f) * 1.0f;
-	sf::Mat34 worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.4f));
-	sf::Mat44 viewToClip = sf::mat::perspectiveD3D(1.3f, (float)sapp_width()/(float)sapp_height(), 1.0f, 100.0f);
-	sf::Mat44 worldToClip = viewToClip * worldToView;
-
-	c->mainRenderArgs.cameraPosition = eye;
-	c->mainRenderArgs.worldToView = worldToView;
-	c->mainRenderArgs.viewToClip = viewToClip;
-	c->mainRenderArgs.worldToClip = worldToClip;
-	c->mainRenderArgs.frustum = sf::Frustum(c->mainRenderArgs.worldToClip, sp::getClipNearW());
-
-	c->frameArgs.mainRenderArgs = c->mainRenderArgs;
+	c->clState->updateCamera(c->frameArgs);
+	c->mainRenderArgs = c->frameArgs.mainRenderArgs;
 
 	if (c->editor) {
 		EditorInput editorInput;

@@ -13,6 +13,7 @@
 
 #include "client/Transform.h"
 
+struct sapp_event;
 namespace sv { struct Prefab; }
 namespace sp { struct Canvas; }
 
@@ -197,6 +198,8 @@ struct FrameArgs
 	uint64_t frameIndex = 0;
 	double gameTime = 0.0;
 	float dt = 100.0f;
+	sf::Slice<const sapp_event> events;
+	sf::Vec2i resolution;
 
 	RenderArgs mainRenderArgs;
 };

@@ -317,7 +317,7 @@ struct Slice
 	Slice(T *data, size_t size) : data(data), size(size) { }
 	template <size_t N>
 	Slice(T (&arr)[N]) : data(arr), size(N) { }
-	operator Slice<const T>() { return Slice<const T>(data, size); }
+	operator Slice<const T>() const { return Slice<const T>(data, size); }
 
 	T *begin() const { return data; }
 	T *end() const { return data + size; }
