@@ -411,7 +411,9 @@ void clientEvent(Client *c, const sapp_event *e)
 		editorPeekSokolEvent(c->editor, e);
 	}
 	if (e->type == SAPP_EVENTTYPE_MOUSE_UP && e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
-		sapp_lock_mouse(false);
+		#ifndef SP_NO_APP
+			sapp_lock_mouse(false);
+		#endif
 	}
 }
 

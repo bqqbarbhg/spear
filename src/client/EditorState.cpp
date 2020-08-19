@@ -246,7 +246,9 @@ void editorFree(EditorState *es)
 void editorPeekSokolEvent(EditorState *es, const struct sapp_event *e)
 {
 	if (es->draggingSelection && es->dragSmooth && e->type == SAPP_EVENTTYPE_MOUSE_DOWN && e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
-		sapp_lock_mouse(true);
+		#ifndef SP_NO_APP
+			sapp_lock_mouse(true);
+		#endif
 		es->dragSmoothRotate = true;
 	}
 	if (e->type == SAPP_EVENTTYPE_MOUSE_UP && e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
