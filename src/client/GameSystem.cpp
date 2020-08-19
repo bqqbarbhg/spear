@@ -31,9 +31,9 @@ struct Camera
 	{
 		sf::Vec3 origin;
 
-		void asMatrices(sf::Mat34 &worldToView, sf::Mat44 &viewToClip, float aspect)
+		void asMatrices(sf::Vec3 &eye, sf::Mat34 &worldToView, sf::Mat44 &viewToClip, float aspect)
 		{
-			sf::Vec3 eye = origin + sf::Vec3(0.0f, 5.0f, 3.0f) * 1.0f;
+			eye = origin + sf::Vec3(0.0f, 5.0f, 3.0f) * 1.0f;
 			worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.4f));
 			viewToClip = sf::mat::perspectiveD3D(1.0f, aspect, 1.0f, 100.0f);
 		}
@@ -421,9 +421,10 @@ struct GameSystemImp final : GameSystem
 			camera.timeDelta -= cameraDt;
 			camera.previous = camera.current;
 
+			sf::Vec3 eye;
 			sf::Mat34 worldToView;
 			sf::Mat44 viewToClip;
-			camera.current.asMatrices(worldToView, viewToClip, aspect);
+			camera.current.asMatrices(eye, worldToView, viewToClip, aspect);
 			sf::Mat44 clipToWorld = sf::inverse(viewToClip * worldToView);
 
 			for (Pointer &p : pointers) {
@@ -469,10 +470,13 @@ struct GameSystemImp final : GameSystem
 		}
 
 		Camera::State state = Camera::lerp(camera.previous, camera.current, camera.timeDelta / cameraDt);
+
+		sf::Vec3 eye;
 		sf::Mat34 worldToView;
 		sf::Mat44 viewToClip;
-		state.asMatrices(worldToView, viewToClip, aspect);
+		state.asMatrices(eye, worldToView, viewToClip, aspect);
 
+		frameArgs.mainRenderArgs.cameraPosition = eye;
 		frameArgs.mainRenderArgs.worldToView = worldToView;
 		frameArgs.mainRenderArgs.viewToClip = viewToClip;
 		frameArgs.mainRenderArgs.worldToClip = viewToClip * worldToView;
