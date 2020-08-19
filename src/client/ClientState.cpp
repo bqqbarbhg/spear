@@ -12,8 +12,6 @@
 
 #include "sp/Renderer.h"
 
-#include "ext/imgui/imgui.h"
-
 namespace cl {
 
 static Transform getPropTransform(const sv::PropTransform &transform)
@@ -142,8 +140,6 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 	systems.updateVisibility(systems.visibleAreas, Area::Visibility, frameArgs.mainRenderArgs.frustum);
 
 	systems.area->optimize();
-
-	ImGui::Text("%s", systems.visibleAreas.groups[(uint32_t)AreaGroup::TileChunkCulling].size ? "ok" : "YEEEEEET");
 }
 
 

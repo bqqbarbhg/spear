@@ -200,6 +200,10 @@ static void savePrefab(const sv::Prefab &prefab)
 		return;
 	#endif
 
+	if (prefab.name.size() > 0 && prefab.name.data[0] == '<') {
+		return;
+	}
+
 	jso_stream s = { };
 	jso_init_file(&s, prefab.name.data);
 	s.pretty = true;
@@ -705,8 +709,14 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 	} else if (type == sf::typeOf<sf::Vec3>()) {
 		sf::Vec3 &vec = *(sf::Vec3*)inst;
 
-		status.modified |= ImGui::InputFloat3(label.data, vec.v, 4);
-		status.changed |= ImGui::IsItemDeactivatedAfterEdit();
+		if (info.color) {
+			status.modified |= ImGui::ColorEdit3(label.data, vec.v, 0);
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
+			handleCopyPasteImp(status, inst, type, label, info.description);
+		} else {
+			status.modified |= ImGui::InputFloat3(label.data, vec.v, 4);
+			status.changed |= ImGui::IsItemDeactivatedAfterEdit();
+		}
 
 		handleCopyPasteImp(status, inst, type, label, info.description);
 
@@ -736,7 +746,7 @@ static bool imguiCallback(void *user, ImguiStatus &status, void *inst, sf::Type 
 		}
 
 		return true;
-	} else if (type == sf::typeOf<sf::Vec3>()) {
+	} else if (type == sf::typeOf<sf::Vec3i>()) {
 		sf::Vec3i &vec = *(sf::Vec3i*)inst;
 
 		status.modified |= ImGui::InputInt3(label.data, vec.v);

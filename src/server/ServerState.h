@@ -104,11 +104,12 @@ struct TileModelComponent : ComponentBase<Component::TileModel>
 
 struct PointLightComponent : ComponentBase<Component::PointLight>
 {
-	sf::Vec3 color = sf::Vec3(1.0f); //! Color of the light
+	sf::Vec3 color = sf::Vec3(1.0f) sv_reflect(color); //! Color of the light
 	float intensity = 1.0f; //! Brightness of the light
 	float radius = 1.0f; //! Maximum eistance in meters that the light can reach
 	sf::Vec3 position; //! Offset (in meters) of the light in the entity
 	bool hasShadows = true; //! Does this light have shadows
+	uint8_t minQuality = 0; //! Minimum quality level needed for this light (0-10)
 	float fadeInTime = 0.0f; //! Time to fade in when spawning
 	float fadeOutTime = 0.0f; //! Time to fade out when spawning
 };
