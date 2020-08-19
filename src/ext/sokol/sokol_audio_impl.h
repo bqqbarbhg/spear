@@ -477,7 +477,7 @@
 
 /*=== MUTEX WRAPPER DECLARATIONS =============================================*/
 #if defined(SOKOL_DUMMY_BACKEND)
-typedef struct { } _saudio_mutex_t;
+typedef struct { int dummy_mutex; } _saudio_mutex_t;
 #elif (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
 
 typedef struct {
