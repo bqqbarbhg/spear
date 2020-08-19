@@ -320,6 +320,14 @@ struct GameSystemImp final : GameSystem
 					}
 				}
 
+			} else if (e.type == SAPP_EVENTTYPE_MOUSE_LEAVE) {
+
+				for (Pointer &p : pointers) {
+					if (p.button <= Pointer::LastMouse) {
+						p.action = Pointer::Cancel;
+					}
+				}
+
 			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {
 
 				for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
@@ -375,12 +383,11 @@ struct GameSystemImp final : GameSystem
 					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
 					for (Pointer &p : pointers) {
 						if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
-							p.action = Pointer::Up;
+							p.action = Pointer::Cancel;
 							p.current = pos;
 						}
 					}
 				}
-
 
 			}
 
