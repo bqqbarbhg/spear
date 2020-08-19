@@ -250,7 +250,7 @@ static void recreateTargets(Client *c, const sf::Vec2i &systemRes)
 	c->uiResolution.y = 720.0f;
 	c->uiResolution.x = c->uiResolution.y * ((float)systemRes.x / (float)systemRes.y);
 
-    float scale = c->resolutionScale * 0.5f;
+    float scale = c->resolutionScale;
 	sf::Vec2i mainRes = sf::Vec2i(sf::Vec2(systemRes) * sqrtf(scale));
 
 	int mainSamples = c->msaaSamples;
