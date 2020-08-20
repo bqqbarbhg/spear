@@ -40,6 +40,11 @@ newoption {
    description = "Build a dedicated server"
 }
 
+newoption {
+   trigger     = "asan",
+   description = "Use address sanitizer"
+}
+
 workspace "spear"
 	configurations { "debug", "develop", "release" }
 
@@ -55,7 +60,10 @@ workspace "spear"
 
 	defines { "BQWS_USE_IMPL=1" }
 	defines { "JSI_USE_IMPL=1" }
-	defines { "SF_USE_MIMALLOC=1" }
+
+	-- TODO: Fix mimalloc on WASM
+	filter { "not platforms:wasm" }
+		defines { "SF_USE_MIMALLOC=1" }
 
 	if cppdialect ~= nil then
 		cppdialect "C++14"
@@ -139,6 +147,10 @@ workspace "spear"
 			"libeay32",
 		}
 
+	filter { "options:asan" }
+		buildoptions { "-fsanitize=address" }
+		linkoptions { "-fsanitize=address" }
+
 	filter { "platforms:not wasm", "system:linux" }
 		linkoptions "-pthread"
 		toolset "clang"
@@ -190,6 +202,12 @@ workspace "spear"
 	filter { "platforms:wasm", "options:wasm-simd", "options:wasm-threads" }
 		targetsuffix "-simd-threads"
 		objdir "proj/obj/wasm-simd-threads/%{cfg.buildcfg}"
+
+	filter { "platforms:wasm", "configurations:debug" }
+		buildoptions { "-s SAFE_HEAP=1" }
+		linkoptions { "-s SAFE_HEAP=1" }
+		buildoptions { "-s ASSERTIONS=2" }
+		linkoptions { "-s ASSERTIONS=2" }
 
 	filter { "options:dedicated-processor" }
 		defines { "SP_DEDICATED_PROCESSOR=1", "SP_NO_APP=1" }
