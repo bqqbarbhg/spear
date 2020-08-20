@@ -3497,6 +3497,33 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_touch_cb(int emsc_type, const EmscriptenTouchE
     return retval;
 }
 
+_SOKOL_PRIVATE EM_BOOL _sapp_emsc_focus_cb(int emsc_type, const EmscriptenFocusEvent* emsc_event, void* user_data) {
+    _SOKOL_UNUSED(user_data);
+    bool retval = true;
+    if (_sapp_events_enabled()) {
+        sapp_event_type type;
+        switch (emsc_type) {
+            case EMSCRIPTEN_EVENT_FOCUS:
+                type = SAPP_EVENTTYPE_FOCUSED;
+                break;
+            case EMSCRIPTEN_EVENT_BLUR:
+                type = SAPP_EVENTTYPE_UNFOCUSED;
+                break;
+            default:
+                type = SAPP_EVENTTYPE_INVALID;
+                break;
+        }
+        if (type != SAPP_EVENTTYPE_INVALID) {
+            _sapp_init_event(type);
+            if (_sapp_call_event(&_sapp.event)) {
+                /* consume event via sapp_consume_event() */
+                retval = true;
+            }
+        }
+    }
+    return retval;
+}
+
 _SOKOL_PRIVATE void _sapp_emsc_keytable_init(void) {
     _sapp.keycodes[8]   = SAPP_KEYCODE_BACKSPACE;
     _sapp.keycodes[9]   = SAPP_KEYCODE_TAB;
@@ -3774,6 +3801,8 @@ _SOKOL_PRIVATE void _sapp_emsc_register_eventhandlers(void) {
     emscripten_set_touchcancel_callback(_sapp.html5_canvas_name, 0, true, _sapp_emsc_touch_cb);
     emscripten_set_pointerlockchange_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT, 0, true, _sapp_emsc_pointerlockchange_cb);
     emscripten_set_pointerlockerror_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT, 0, true, _sapp_emsc_pointerlockerror_cb);
+    emscripten_set_focus_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, true, _sapp_emsc_focus_cb);
+    emscripten_set_blur_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, true, _sapp_emsc_focus_cb);
     sapp_add_js_hook_beforeunload();
     if (_sapp.clipboard.enabled) {
         sapp_add_js_hook_clipboard();
@@ -4834,6 +4863,14 @@ _SOKOL_PRIVATE LRESULT CALLBACK _sapp_win32_wndproc(HWND hWnd, UINT uMsg, WPARAM
                     }
                     _sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_MOVE, SAPP_MOUSEBUTTON_INVALID);
                 }
+                break;
+
+            case WM_SETFOCUS:
+				_sapp_win32_app_event(SAPP_EVENTTYPE_FOCUSED);
+                break;
+            
+            case WM_KILLFOCUS:
+				_sapp_win32_app_event(SAPP_EVENTTYPE_UNFOCUSED);
                 break;
 
             case WM_MOUSELEAVE:
