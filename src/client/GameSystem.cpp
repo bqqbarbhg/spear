@@ -35,7 +35,7 @@ struct Camera
 		void asMatrices(sf::Vec3 &eye, sf::Mat34 &worldToView, sf::Mat44 &viewToClip, float aspect)
 		{
             eye = origin + sf::Vec3(0.0f, 5.0f, 1.0f) * powf(2.0f, zoom);
-            worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.7f + 0.15f * zoom));
+            worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.6f + 0.2f * zoom));
 			viewToClip = sf::mat::perspectiveD3D(1.0f, aspect, 1.0f, 100.0f);
 		}
 	};
