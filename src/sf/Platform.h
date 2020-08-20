@@ -273,9 +273,9 @@ void sf_set_debug_thread_name(const char *name);
 	#if SF_CC_MSC
 		#include <malloc.h>
 		#define sf_malloc_aligned(size, align) _aligned_malloc((size), (align))
-		#define sf_free_aligned(ptr, align) ((void)align, _aligned_free((ptr), (align))
+		#define sf_free_aligned(ptr, align) ((void)align, _aligned_free((ptr)))
 	#else
-		#define sf_malloc_aligned(size, align) aligned_alloc((size), (align))
-		#define sf_free_aligned(ptr, align) ((void)align, _aligned_free((ptr), (align))
+		#define sf_malloc_aligned(size, align) aligned_alloc((align), (size))
+		#define sf_free_aligned(ptr, align) ((void)align, free((ptr)))
 	#endif
 #endif
