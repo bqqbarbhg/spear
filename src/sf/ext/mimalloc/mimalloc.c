@@ -1,3 +1,5 @@
+#if defined(SF_USE_MIMALLOC) && SF_USE_MIMALLOC
+
 /* ----------------------------------------------------------------------------
 Copyright (c) 2018, Microsoft Research, Daan Leijen
 This is free software; you can redistribute it and/or modify it under the
@@ -741,7 +743,7 @@ static inline void mi_atomic_maxi64(volatile int64_t* p, int64_t x) {
     asm volatile("yield");
   }
 #endif
-#elif defined(__wasi__)
+#elif defined(__wasi__) || defined(__EMSCRIPTEN__)
   #include <sched.h>
   static inline void mi_atomic_yield(void) {
     sched_yield();
@@ -1461,7 +1463,7 @@ static inline bool mi_malloc_satisfies_alignment(size_t alignment, size_t size) 
 #endif
 static inline bool mi_mul_overflow(size_t count, size_t size, size_t* total) {
   #if (SIZE_MAX == UINT_MAX)
-    return __builtin_umul_overflow(count, size, total);
+    return __builtin_umul_overflow(count, size, (unsigned int*)total);
   #elif (SIZE_MAX == ULONG_MAX)
     return __builtin_umull_overflow(count, size, total);
   #else
@@ -2733,6 +2735,29 @@ static bool os_random_buf(void* buf, size_t buf_len) {
   close(fd);
   return (count==buf_len);
 }
+#elif defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+
+EM_JS(int, mi_emsc_random_bytes, (void *buf, size_t buf_len), {
+  if (window && window.crypto && window.crypto.getRandomValues) {
+  #if defined(__EMSCRIPTEN_PTHREADS__)
+    window.crypto.getRandomValues(new Uint8Array(HEAPU8.subarray(buf, buf + buf_len)));
+  #else
+    window.crypto.getRandomValues(HEAPU8.subarray(buf, buf + buf_len));
+  #endif
+    return 1;
+  } else {
+    return 0;
+  }
+});
+
+static bool os_random_buf(void* buf, size_t buf_len) {
+  if (mi_emsc_random_bytes(buf, buf_len)) {
+    return true;
+  } else {
+    return false;
+  }
+}
 #else
 static bool os_random_buf(void* buf, size_t buf_len) {
   return false;
@@ -3033,7 +3058,7 @@ void _mi_os_init(void) {
     mi_win_enable_large_os_pages();
   }
 }
-#elif defined(__wasi__)
+#elif defined(__wasi__) || defined(__EMSCRIPTEN__)
 void _mi_os_init() {
   os_page_size = 0x10000; // WebAssembly has a fixed page size: 64KB
   os_alloc_granularity = 16;
@@ -3061,7 +3086,7 @@ static bool mi_os_mem_free(void* addr, size_t size, bool was_committed, mi_stats
   bool err = false;
 #if defined(_WIN32)
   err = (VirtualFree(addr, 0, MEM_RELEASE) == 0);
-#elif defined(__wasi__)
+#elif defined(__wasi__) || defined(__EMSCRIPTEN__)
   err = 0; // WebAssembly's heap cannot be shrunk
 #else
   err = (munmap(addr, size) == -1);
@@ -3144,7 +3169,8 @@ static void* mi_win_virtual_alloc(void* addr, size_t size, size_t try_alignment,
   return p;
 }
 
-#elif defined(__wasi__)
+#elif defined(__wasi__) || (defined(__EMSCRIPTEN__) && defined(EMSCRIPTEN_ALLOW_MEMORY_GROWTH))
+
 static void* mi_wasm_heap_grow(size_t size, size_t try_alignment) {
   uintptr_t base = __builtin_wasm_memory_size(0) * _mi_os_page_size();
   uintptr_t aligned_base = _mi_align_up(base, (uintptr_t) try_alignment);
@@ -3157,6 +3183,28 @@ static void* mi_wasm_heap_grow(size_t size, size_t try_alignment) {
   }
   return (void*)aligned_base;
 }
+
+#elif defined(__EMSCRIPTEN__)
+
+static _Atomic(uintptr_t) mi_emscripten_base = 0x10000;
+
+static void* mi_wasm_heap_grow(size_t size, size_t try_alignment) {
+  size_t over_size = 0;
+  if (try_alignment > 0x10000) over_size = try_alignment;
+  uintptr_t base = mi_atomic_add(&mi_emscripten_base, size + over_size);
+  uintptr_t top = __builtin_wasm_memory_size(0) * _mi_os_page_size();
+  uintptr_t aligned_base = _mi_align_up(base, (uintptr_t) try_alignment);
+  size_t alloc_size = _mi_align_up( aligned_base - base + size, _mi_os_page_size());
+  mi_assert(alloc_size >= size && (alloc_size % _mi_os_page_size()) == 0);
+  if (alloc_size < size) return NULL;
+  if (aligned_base + alloc_size >= top) {
+    errno = ENOMEM;
+    return NULL;
+  }
+  fprintf(stderr, "ALLOC: %x/%x -> %x -> %x/%x\n", (unsigned)size, (unsigned)try_alignment, (unsigned)base, (unsigned)aligned_base, (unsigned)top);
+  return (void*)aligned_base;
+}
+
 #else
 #define MI_OS_USE_MMAP
 static void* mi_unix_mmapx(void* addr, size_t size, size_t try_alignment, int protect_flags, int flags, int fd) {
@@ -3345,7 +3393,7 @@ static void* mi_os_mem_alloc(size_t size, size_t try_alignment, bool commit, boo
     int flags = MEM_RESERVE;
     if (commit) flags |= MEM_COMMIT;
     p = mi_win_virtual_alloc(NULL, size, try_alignment, flags, false, allow_large, is_large);
-  #elif defined(__wasi__)
+  #elif defined(__wasi__) || defined(__EMSCRIPTEN__)
     *is_large = false;
     p = mi_wasm_heap_grow(size, try_alignment);
   #else
@@ -3536,7 +3584,7 @@ static bool mi_os_commitx(void* addr, size_t size, bool commit, bool conservativ
     BOOL ok = VirtualFree(start, csize, MEM_DECOMMIT);
     err = (ok ? 0 : GetLastError());
   }
-  #elif defined(__wasi__)
+  #elif defined(__wasi__) || defined(__EMSCRIPTEN__)
   // WebAssembly guests can't control memory protection
   #elif defined(MAP_FIXED)
   if (!commit) {
@@ -3612,7 +3660,7 @@ static bool mi_os_resetx(void* addr, size_t size, bool reset, mi_stats_t* stats)
     advice = MADV_DONTNEED;
     err = madvise(start, csize, advice);
   }
-#elif defined(__wasi__)
+#elif defined(__wasi__) || defined(__EMSCRIPTEN__)
   int err = 0;
 #else
   int err = madvise(start, csize, MADV_DONTNEED);
@@ -3666,7 +3714,7 @@ static  bool mi_os_protectx(void* addr, size_t size, bool protect) {
   DWORD oldprotect = 0;
   BOOL ok = VirtualProtect(start, csize, protect ? PAGE_NOACCESS : PAGE_READWRITE, &oldprotect);
   err = (ok ? 0 : GetLastError());
-#elif defined(__wasi__)
+#elif defined(__wasi__) || defined(__EMSCRIPTEN__)
   err = 0;
 #else
   err = mprotect(start, csize, protect ? PROT_NONE : (PROT_READ | PROT_WRITE));
@@ -9126,7 +9174,7 @@ mi_decl_restrict char* mi_strndup(const char* s, size_t n) mi_attr_noexcept {
   return mi_heap_strndup(mi_get_default_heap(),s,n);
 }
 
-#ifndef __wasi__
+#if !defined(__wasi__) && !defined(__EMSCRIPTEN__)
 // `realpath` using mi_malloc
 #ifdef _WIN32
 #ifndef PATH_MAX
@@ -10273,6 +10321,8 @@ void mi_thread_init(void) mi_attr_noexcept
   // ensure our process has started already
   mi_process_init();
 
+  fprintf(stderr, "THREAD INIT\n");
+
   // initialize the thread local default heap
   // (this will call `_mi_heap_set_default_direct` and thus set the
   //  fiber/pthread key to a non-zero value, ensuring `_mi_thread_done` is called)
@@ -10420,6 +10470,7 @@ void mi_process_init(void) mi_attr_noexcept {
   mi_stats_reset();  // only call stat reset *after* thread init (or the heap tld == NULL)
 
   if (mi_option_is_enabled(mi_option_reserve_huge_os_pages)) {
+      printf("WTF HUGE!?!?!\n");
     size_t pages = mi_option_get(mi_option_reserve_huge_os_pages);
     mi_reserve_huge_os_pages_interleave(pages, 0, pages*500);
   }
@@ -10917,7 +10968,11 @@ static inline int mi_strnicmp(const char* s, const char* t, size_t n) {
   return (n==0 ? 0 : *s - *t);
 }
 
-#if defined _WIN32
+#if 1
+static bool mi_getenv(const char* name, char* result, size_t result_size) {
+    return false;
+}
+#elif defined _WIN32
 // On Windows use GetEnvironmentVariable instead of getenv to work
 // reliably even when this is invoked before the C runtime is initialized.
 // i.e. when `_mi_preloading() == true`.
@@ -11026,3 +11081,5 @@ static void mi_option_init(mi_option_desc_t* desc) {
   }
 }
 /**** ended inlining options.c ****/
+
+#endif
