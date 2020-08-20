@@ -34,7 +34,7 @@ struct Camera
 
 		void asMatrices(sf::Vec3 &eye, sf::Mat34 &worldToView, sf::Mat44 &viewToClip, float aspect)
 		{
-            eye = origin + sf::Vec3(0.0f, 5.0f, 1.0f) * powf(2.0f, zoom);
+            eye = origin + sf::Vec3(0.0f, 5.0f, 1.0f) * exp2f(zoom);
             worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.6f + 0.2f * zoom));
 			viewToClip = sf::mat::perspectiveD3D(1.0f, aspect, 1.0f, 100.0f);
 		}
@@ -47,7 +47,6 @@ struct Camera
 	sf::Vec3 targetDelta;
     float zoomDelta = 0.0f;
 	sf::Vec3 velocity;
-	sf::Vec3 smoothVelocity;
 
 	float timeDelta = 0.0f;
 
@@ -217,6 +216,8 @@ struct GameSystemImp final : GameSystem
 
 	Camera camera;
 
+	bool keyDown[SAPP_MAX_KEYCODES] = { };
+
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
 	{
 		Character &chr = characters[characterId];
@@ -303,6 +304,7 @@ struct GameSystemImp final : GameSystem
 
 		bool mouseBlocked = ImGui::GetIO().WantCaptureMouse;
 
+		bool unfocused = false;
 		for (const sapp_event &e : frameArgs.events) {
 
 			if (e.type == SAPP_EVENTTYPE_MOUSE_DOWN) {
@@ -433,6 +435,30 @@ struct GameSystemImp final : GameSystem
 					camera.zoomDelta += e.scroll_y * -0.1f;
 				}
 
+			} else if (e.type == SAPP_EVENTTYPE_KEY_DOWN) {
+
+				keyDown[e.key_code] = true;
+
+			} else if (e.type == SAPP_EVENTTYPE_KEY_UP) {
+
+				keyDown[e.key_code] = false;
+
+
+			} else if (e.type == SAPP_EVENTTYPE_FOCUSED) {
+
+				unfocused = false;
+
+			} else if (e.type == SAPP_EVENTTYPE_UNFOCUSED) {
+
+				unfocused = true;
+
+			}
+		}
+
+		if (unfocused) {
+			sf::memZero(keyDown);
+			for (Pointer &pointer : pointers) {
+				pointer.action = Pointer::Cancel;
 			}
 		}
 
@@ -468,12 +494,31 @@ struct GameSystemImp final : GameSystem
 		static const float decayTouchExp = 0.004f;
 		static const float decayTouchLinear = 0.00005f;
 
+		sf::Vec2 cameraMove;
+
+		{
+			if (keyDown[SAPP_KEYCODE_A] || keyDown[SAPP_KEYCODE_LEFT]) cameraMove.x -= 1.0f;
+			if (keyDown[SAPP_KEYCODE_D] || keyDown[SAPP_KEYCODE_RIGHT]) cameraMove.x += 1.0f;
+			if (keyDown[SAPP_KEYCODE_W] || keyDown[SAPP_KEYCODE_UP]) cameraMove.y -= 1.0f;
+			if (keyDown[SAPP_KEYCODE_S] || keyDown[SAPP_KEYCODE_DOWN]) cameraMove.y += 1.0f;
+
+			if (sf::lengthSq(cameraMove) > 1.0f) {
+				cameraMove = sf::normalize(cameraMove);
+			}
+		}
+
 		while (camera.timeDelta >= cameraDt) {
 			camera.timeDelta -= cameraDt;
 			camera.previous = camera.current;
             
             camera.zoomDelta *= 0.99f;
             camera.zoomDelta -= sf::clamp(camera.zoomDelta, -0.0005f, 0.0005f);
+
+			camera.velocity *= 0.99f;
+
+			float accelSpeed = exp2f(camera.current.zoom * 0.5f) * cameraDt * 80.0f;
+			camera.velocity.x += cameraMove.x * accelSpeed;
+			camera.velocity.z += cameraMove.y * accelSpeed;
 
 			sf::Vec3 eye;
 			sf::Mat34 worldToView;
@@ -540,6 +585,8 @@ struct GameSystemImp final : GameSystem
 
 			sf::Vec3 delta = camera.targetDelta;
 			float deltaLen = sf::length(delta);
+
+			camera.current.origin += camera.velocity * cameraDt;
             
 			camera.zoomDelta = sf::clamp(camera.zoomDelta, -10.0f, 10.0f);
             camera.current.zoom += camera.zoomDelta * 0.01f;
