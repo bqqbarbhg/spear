@@ -590,10 +590,11 @@ jsi_copy_string(jsi_parser *p, const char *ptr, const char *end, jsi_value *valu
 		if (!jsi_result_grow_copy(p, &range)) return 0;
 		dst_begin = range.begin; dst_end = range.end;
 	}
-	size_t misalign = (size_t)(p->data_offset & 3u);
+	size_t misalign = (size_t)((uintptr_t)dst_begin & 3u);
 	size_t fixup = (4 - misalign) & 3u;
 	dst_begin += fixup + 4;
 	char *dst_ptr = dst_begin;
+	sf_assert((uintptr_t)dst_ptr % 4 == 0);
 
 	#if JSI_USE_SSE
 	__m128i sse_low = _mm_set1_epi8(31);

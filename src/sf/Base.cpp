@@ -131,10 +131,27 @@ uint32_t hashBuffer(const void *data, size_t size)
 
 	const uint32_t seed = UINT32_C(0x9e3779b9);
 	const uint32_t *word = (const uint32_t*)data;
+
+	#if SF_ARCH_WASM || (SF_ARCH_ARM && !SF_ARCH_ARM64)
+	if ((uintptr_t)data % 4 == 0) {
+		while (size >= 4) {
+			hash = ((hash << 5u | hash >> 27u) ^ *word++) * seed;
+			size -= 4;
+		}
+	} else {
+		while (size >= 4) {
+			const uint8_t *b = (const uint8_t*)word++;
+			uint32_t w = (uint32_t)b[0] | (uint32_t)b[1] << 8 | (uint32_t)b[2] << 16 | (uint32_t)b[3] << 24;
+			hash = ((hash << 5u | hash >> 27u) ^ w) * seed;
+			size -= 4;
+		}
+	}
+	#else
 	while (size >= 4) {
 		hash = ((hash << 5u | hash >> 27u) ^ *word++) * seed;
 		size -= 4;
 	}
+	#endif
 
 	const uint8_t *byte = (const uint8_t*)word;
 	if (size > 0) {
