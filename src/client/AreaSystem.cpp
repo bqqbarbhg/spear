@@ -467,7 +467,6 @@ struct AreaSystemImp final : AreaSystem
 		uint32_t spatialIndex = areaImp.spatialIndex;
 		if (spatial->isValidLeaf(bounds.origin, extent)) {
 			spatial->boxes[spatialIndex].bounds = bounds;
-			spatial->expand(bounds);
 		} else {
 			addToOptimizationQueue(spatial);
 
@@ -485,6 +484,7 @@ struct AreaSystemImp final : AreaSystem
 			box.areaId = areaId;
 			box.area = area;
 		}
+		spatial->expand(bounds);
 		addToOptimizationQueue(spatial);
 	}
 
@@ -561,7 +561,6 @@ struct AreaSystemImp final : AreaSystem
 		uint32_t spatialIndex = areaImp.spatialIndex;
 		if (spatial->isValidLeaf(bounds.origin, extent)) {
 			spatial->spheres[spatialIndex].sphere = sphere;
-			spatial->expand(bounds);
 		} else {
 			addToOptimizationQueue(spatial);
 
@@ -579,6 +578,8 @@ struct AreaSystemImp final : AreaSystem
 			sph.areaId = areaId;
 			sph.area = area;
 		}
+
+		spatial->expand(bounds);
 		addToOptimizationQueue(spatial);
 	}
 
