@@ -23,7 +23,11 @@ struct CharacterModelSystem : EntitySystem
 
 	virtual void addAttachedEntity(Systems &systems, uint32_t parentEntityId, uint32_t childEntityId, const AttachDesc &desc) = 0;
 
+	virtual uint32_t addBoneListener(Systems &systems, uint32_t parentEntityId, const sf::Symbol &boneName, BoneUpdates::Group group, uint32_t userId) = 0;
+	virtual void freeBoneListener(uint32_t listenerId) = 0;
+
 	virtual void updateAnimations(const VisibleAreas &activeAreas, float dt) = 0;
+	virtual void updateBoneListeners(BoneUpdates &boneUpdates, const VisibleAreas &activeAreas) = 0;
 	virtual void updateAttachedEntities(Systems &systems) = 0;
 	virtual void updateLoadQueue(AreaSystem *areaSystem) = 0;
 

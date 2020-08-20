@@ -6,9 +6,17 @@
 #include "client/TileModelSystem.h"
 #include "client/CharacterModelSystem.h"
 #include "client/ParticleSystem.h"
+#include "client/BlobShadowSystem.h"
 #include "client/GameSystem.h"
 
 namespace cl {
+
+void BoneUpdates::clear()
+{
+	for (sf::Array<BoneUpdates::Update> &group : updates) {
+		group.clear();
+	}
+}
 
 System::~System() { }
 
@@ -20,6 +28,7 @@ void Systems::init(const SystemsDesc &desc)
 	tileModel = TileModelSystem::create();
 	characterModel = CharacterModelSystem::create(desc);
 	particle = ParticleSystem::create(desc);
+	blobShadow = BlobShadowSystem::create();
 	game = GameSystem::create();
 }
 
@@ -185,6 +194,8 @@ void Entities::addComponents(Systems &systems, uint32_t entityId, const Transfor
 			systems.particle->addEffect(systems, entityId, compIx, comp.cast<sv::ParticleSystemComponent>(), transform);
 		} else if (const auto *c = comp->as<sv::PointLightComponent>()) {
 			systems.light->addPointLight(systems, entityId, compIx, *c, transform);
+		} else if (const auto *c = comp->as<sv::BlobShadowComponent>()) {
+			systems.blobShadow->addBlobShadow(systems, entityId, compIx, *c, transform);
 		}
 
 		compIx++;

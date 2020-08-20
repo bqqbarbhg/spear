@@ -1228,6 +1228,7 @@ template<> void initType<ShadowBlob>(Type *t)
 		sf_field(ShadowBlob, boneName),
 		sf_field(ShadowBlob, radius),
 		sf_field(ShadowBlob, alpha),
+		sf_field(ShadowBlob, fadeDistance),
 		sf_field(ShadowBlob, offset),
 	};
 	sf_struct(t, ShadowBlob, fields);

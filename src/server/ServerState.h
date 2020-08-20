@@ -251,6 +251,7 @@ struct ShadowBlob sv_reflect()
 	sf::Symbol boneName;
 	float radius = 0.0f;
 	float alpha = 0.0f;
+	float fadeDistance = 0.0f;
 	sf::Vec3 offset;
 };
 

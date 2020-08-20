@@ -54,6 +54,15 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		MeshMaterialRef material;
 	};
 
+	struct ModelBoneListener
+	{
+		sf::Symbol boneName;
+		uint32_t boneIndex = ~0u;
+		uint32_t listenerId;
+		BoneUpdates::Group group;
+		uint32_t userId;
+	};
+
 	struct Model
 	{
 		uint32_t areaId = ~0u;
@@ -68,6 +77,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 		sf::Array<sf::Mat34> boneToWorld;
 		sf::HashMap<sf::Symbol, AttachBone> attachBones;
+
+		sf::Array<ModelBoneListener> listeners;
 
 		sf::Mat34 modelToEntity;
 		sf::Mat34 modelToWorld;
@@ -135,11 +146,20 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		sf::Array<sp::BoneTransform> tempBoneTransforms;
 	};
 
+	struct BoneListener
+	{
+		uint32_t modelId;
+		sf::Mat34 boneToWorld;
+	};
+
 	sf::Array<Model> models;
 	sf::Array<uint32_t> freeModelIds;
 
 	sf::Array<Attachment> attachments;
 	sf::Array<uint32_t> freeAttachmentIds;
+
+	sf::Array<BoneListener> boneListeners;
+	sf::Array<uint32_t> freeBoneListenerIds;
 
 	sf::Array<uint32_t> attachmentsToUpdate;
 
@@ -186,6 +206,13 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		}
 	}
 
+	void finishLoadingListenerImp(ModelBoneListener &listener, Model &model)
+	{
+		if (uint32_t *boneIndex = model.model->boneNames.findValue(listener.boneName)) {
+			listener.boneIndex = *boneIndex;
+		}
+	}
+
 	void finishLoadingModel(AreaSystem *areaSystem, uint32_t modelId)
 	{
 		Model &model = models[modelId];
@@ -207,6 +234,10 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		for (uint32_t attachId : model.attachIds) {
 			Attachment &attach = attachments[attachId];
 			finishLoadingAttachmentImp(attach, model);
+		}
+
+		for (ModelBoneListener &listener : model.listeners) {
+			finishLoadingListenerImp(listener, model);
 		}
 
 		model.boneToWorld.resize(model.model->bones.size);
@@ -455,6 +486,65 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		}
 	}
 
+	uint32_t addBoneListener(Systems &systems, uint32_t parentEntityId, const sf::Symbol &boneName, BoneUpdates::Group group, uint32_t userId) override
+	{
+		Entity &parentEntity = systems.entities.entities[parentEntityId];
+
+		for (cl::EntityComponent &ec : parentEntity.components) {
+			if (ec.system == this && ec.subsystemIndex == 0) {
+				uint32_t modelId = ec.userId;
+				Model &model = models[modelId];
+
+				uint32_t listenerId = boneListeners.size;
+				if (freeBoneListenerIds.size > 0) {
+					listenerId = freeBoneListenerIds.popValue();
+				} else {
+					boneListeners.push();
+				}
+
+				BoneListener &listener = boneListeners[listenerId];
+				ModelBoneListener &modelListener = model.listeners.push();
+
+				listener.modelId = modelId;
+				modelListener.listenerId = listenerId;
+				modelListener.boneName = boneName;
+				modelListener.group = group;
+				modelListener.userId = userId;
+
+				if (model.loadQueueIndex == ~0u && model.model.isLoaded()) {
+					finishLoadingListenerImp(modelListener, model);
+				}
+
+				if (modelListener.boneIndex != ~0u) {
+					BoneUpdates::Update &update = systems.boneUpdates.updates[(uint32_t)group].push();
+					update.userId = userId;
+					update.boneToWorld = model.boneToWorld[modelListener.boneIndex];
+				}
+
+				return listenerId;
+			}
+		}
+
+		return ~0u;
+	}
+
+	void freeBoneListener(uint32_t listenerId) override
+	{
+		BoneListener &listener = boneListeners[listenerId];
+		if (listener.modelId != ~0u) {
+			Model &model = models[listener.modelId];
+			for (ModelBoneListener &l : model.listeners) {
+				if (l.listenerId == listenerId) {
+					model.listeners.removeSwapPtr(&l);
+					break;
+				}
+			}
+		}
+
+		sf::reset(listener);
+		freeBoneListenerIds.push(listenerId);
+	}
+
 	void updateTransform(Systems &systems, uint32_t entityId, const EntityComponent &ec, const TransformUpdate &update) override
 	{
 		sf_assert(ec.subsystemIndex == 0);
@@ -587,6 +677,19 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 			// TODO(threads): Mutex
 			attachmentsToUpdate.push(model.attachIds);
+		}
+	}
+
+	void updateBoneListeners(BoneUpdates &boneUpdates, const VisibleAreas &activeAreas) override
+	{
+		for (uint32_t modelId : activeAreas.get(AreaGroup::CharacterModel)) {
+			Model &model = models[modelId];
+			for (ModelBoneListener &l : model.listeners) {
+				if (l.boneIndex == ~0u) continue;
+				BoneUpdates::Update &update = boneUpdates.updates[(uint32_t)l.group].push();
+				update.userId = l.userId;
+				update.boneToWorld = model.boneToWorld[l.boneIndex];
+			}
 		}
 	}
 

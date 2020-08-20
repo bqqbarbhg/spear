@@ -135,6 +135,7 @@ enum class AreaGroup : uint32_t
 	TileChunkActive,
 	ParticleEffect,
 	PointLight,
+	BlobShadow,
 	Custom0,
 };
 
@@ -176,12 +177,33 @@ struct EntityHit
 	float t = 0.0f;
 };
 
+struct BoneUpdates
+{
+	enum class Group : uint32_t
+	{
+		BlobShadow,
+
+		Count,
+	};
+
+	struct Update
+	{
+		uint32_t userId;
+		sf::Mat34 boneToWorld;
+	};
+
+	sf::Array<Update> updates[(uint32_t)Group::Count];
+
+	void clear();
+};
+
 struct AreaSystem;
 struct LightSystem;
 struct ModelSystem;
 struct TileModelSystem;
 struct CharacterModelSystem;
 struct ParticleSystem;
+struct BlobShadowSystem;
 struct GameSystem;
 
 struct RenderArgs
@@ -210,12 +232,14 @@ struct Systems
 	VisibleAreas activeAreas;
 	VisibleAreas visibleAreas;
 	VisibleAreas shadowAreas;
+	BoneUpdates boneUpdates;
 	sf::Box<AreaSystem> area;
 	sf::Box<LightSystem> light;
 	sf::Box<ModelSystem> model;
 	sf::Box<TileModelSystem> tileModel;
 	sf::Box<CharacterModelSystem> characterModel;
 	sf::Box<ParticleSystem> particle;
+	sf::Box<BlobShadowSystem> blobShadow;
 	sf::Box<GameSystem> game;
 	FrameArgs frameArgs;
 
