@@ -42,6 +42,7 @@ struct Camera
 	State previous;
 	State current;
 
+	float touchMove = 0.0f;
 	sf::Vec3 targetDelta;
 	sf::Vec3 velocity;
 	sf::Vec3 smoothVelocity;
@@ -412,17 +413,12 @@ struct GameSystemImp final : GameSystem
 
 		float aspect = (float)frameArgs.resolution.x / (float)frameArgs.resolution.y;
 
-		sf::Vec3 hackA, hackB;
-
-		static float cameraExp = 0.02f;
-		static float cameraLinear = 0.00005f;
-		static float decayExp = 0.008f;
-		static float decayLinear = 0.00005f;
-
-		ImGui::InputFloat("cameraExp", &cameraExp, 0.0f, 0.0f, "%.8f");
-		ImGui::InputFloat("cameraLinear", &cameraLinear, 0.0f, 0.0f, "%.8f");
-		ImGui::InputFloat("decayExp", &decayExp, 0.0f, 0.0f, "%.8f");
-		ImGui::InputFloat("decayLinear", &decayLinear, 0.0f, 0.0f, "%.8f");
+		static const float cameraExp = 0.02f;
+		static const float cameraLinear = 0.00005f;
+		static const float decayExp = 0.008f;
+		static const float decayLinear = 0.00005f;
+		static const float decayTouchExp = 0.004f;
+		static const float decayTouchLinear = 0.00005f;
 
 		while (camera.timeDelta >= cameraDt) {
 			camera.timeDelta -= cameraDt;
@@ -441,8 +437,12 @@ struct GameSystemImp final : GameSystem
 					sf::Vec3 a = intersectHorizontalPlane(0.0f, p.start.worldRay);
 					sf::Vec3 b = intersectHorizontalPlane(0.0f, p.current.worldRay);
 
-					hackA = a;
-					hackB = b;
+					if (p.button == Pointer::Touch) {
+						camera.touchMove += cameraDt * 4.0f;
+					} else {
+						camera.touchMove -= cameraDt * 4.0f;
+					}
+					camera.touchMove = sf::clamp(camera.touchMove, 0.0f, 1.0f);
 
 					camera.targetDelta = a - b;
 				}
@@ -455,16 +455,19 @@ struct GameSystemImp final : GameSystem
 				float applyLen = sf::min(cameraLinear + deltaLen*cameraExp, deltaLen);
 				camera.current.origin += delta * (applyLen / deltaLen);
 
-				float decayLen = sf::min(decayLinear + deltaLen*decayExp, deltaLen);
-				camera.targetDelta -= camera.targetDelta * (decayLen / deltaLen);
+				{
+					float exp = sf::lerp(decayExp, decayTouchExp, camera.touchMove);
+					float lin = sf::lerp(decayLinear, decayTouchLinear, camera.touchMove);
+					float decayLen = sf::min(lin + deltaLen*exp, deltaLen);
+					camera.targetDelta -= camera.targetDelta * (decayLen / deltaLen);
+				}
+
 			} else {
 				camera.current.origin += delta;
 				camera.targetDelta = sf::Vec3();
 			}
 		}
 
-		ImGui::InputFloat3("a", hackA.v);
-		ImGui::InputFloat3("b", hackB.v);
 
 		if (ImGui::Begin("Pointers")) {
 			sf::SmallStringBuf<128> str;
