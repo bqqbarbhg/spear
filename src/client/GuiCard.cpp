@@ -61,6 +61,7 @@ void renderCard(sp::Canvas &canvas, const GuiCard &card)
 	static float bodyFontHeight = 50.0f;
 	static float bodyPad = 35.0f;
 
+#if 0
 	if (card.melee) {
 		if (ImGui::Begin("Card tweak")) {
 			ImGui::InputFloat("Name offset", &nameOffset);
@@ -71,6 +72,7 @@ void renderCard(sp::Canvas &canvas, const GuiCard &card)
 		}
 		ImGui::End();
 	}
+#endif
 
 	float nameY, descY;
 	nameY = nameOffset;
