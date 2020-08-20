@@ -34,8 +34,8 @@ struct Camera
 
 		void asMatrices(sf::Vec3 &eye, sf::Mat34 &worldToView, sf::Mat44 &viewToClip, float aspect)
 		{
-            eye = origin + sf::Vec3(0.0f, 5.0f, 3.0f) * powf(2.0f, zoom);
-            worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.4f + 0.15f * zoom));
+            eye = origin + sf::Vec3(0.0f, 5.0f, 1.0f) * powf(2.0f, zoom);
+            worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.7f + 0.15f * zoom));
 			viewToClip = sf::mat::perspectiveD3D(1.0f, aspect, 1.0f, 100.0f);
 		}
 	};
@@ -301,29 +301,34 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
+		bool mouseBlocked = ImGui::GetIO().WantCaptureMouse;
+
 		for (const sapp_event &e : frameArgs.events) {
 
 			if (e.type == SAPP_EVENTTYPE_MOUSE_DOWN) {
-				Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(e.mouse_x, e.mouse_y));
 
-				Pointer *pointer = nullptr;
-				Pointer::Button button = sappToPointerButton(e.mouse_button);
-				for (Pointer &p : pointers) {
-					if (p.button == button) {
-						pointer = &p;
-						break;
+				if (!mouseBlocked) {
+					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(e.mouse_x, e.mouse_y));
+
+					Pointer *pointer = nullptr;
+					Pointer::Button button = sappToPointerButton(e.mouse_button);
+					for (Pointer &p : pointers) {
+						if (p.button == button) {
+							pointer = &p;
+							break;
+						}
 					}
-				}
 
-				if (!pointer) {
-					pointer = &pointers.push();
-					pointer->button = button;
-				}
+					if (!pointer) {
+						pointer = &pointers.push();
+						pointer->button = button;
+					}
 
-				pointer->time = 0.0f;
-				pointer->action = Pointer::Down;
-                initPointer(*pointer, pos);
-                
+					pointer->time = 0.0f;
+					pointer->action = Pointer::Down;
+					initPointer(*pointer, pos);
+				}
+					
 			} else if (e.type == SAPP_EVENTTYPE_MOUSE_MOVE) {
 				Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(e.mouse_x, e.mouse_y));
 
@@ -354,28 +359,30 @@ struct GameSystemImp final : GameSystem
 
 			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {
 
-				for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
-                    if (!touch.changed) continue;
-                    
-					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
+				if (!mouseBlocked) {
+					for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
+						if (!touch.changed) continue;
+						
+						Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
 
-					Pointer *pointer = nullptr;
-					for (Pointer &p : pointers) {
-						if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
-							pointer = &p;
-							break;
+						Pointer *pointer = nullptr;
+						for (Pointer &p : pointers) {
+							if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
+								pointer = &p;
+								break;
+							}
 						}
-					}
 
-					if (!pointer) {
-						pointer = &pointers.push();
-						pointer->button = Pointer::Touch;
-						pointer->touchId = touch.identifier;
-					}
+						if (!pointer) {
+							pointer = &pointers.push();
+							pointer->button = Pointer::Touch;
+							pointer->touchId = touch.identifier;
+						}
 
-					pointer->time = 0.0f;
-					pointer->action = Pointer::Down;
-                    initPointer(*pointer, pos);
+						pointer->time = 0.0f;
+						pointer->action = Pointer::Down;
+						initPointer(*pointer, pos);
+					}
 				}
 
 			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_MOVED) {
@@ -419,6 +426,13 @@ struct GameSystemImp final : GameSystem
 						}
 					}
 				}
+
+			} else if (e.type == SAPP_EVENTTYPE_MOUSE_SCROLL) {
+
+				if (!mouseBlocked) {
+					camera.zoomDelta += e.scroll_y * -0.1f;
+				}
+
 			}
 		}
 
@@ -527,8 +541,9 @@ struct GameSystemImp final : GameSystem
 			sf::Vec3 delta = camera.targetDelta;
 			float deltaLen = sf::length(delta);
             
+			camera.zoomDelta = sf::clamp(camera.zoomDelta, -10.0f, 10.0f);
             camera.current.zoom += camera.zoomDelta * 0.01f;
-            camera.current.zoom = sf::clamp(camera.current.zoom, -2.0f, 2.0f);
+            camera.current.zoom = sf::clamp(camera.current.zoom, -1.5f, 1.5f);
 
 			if (deltaLen > 0.00001f) {
 				float applyLen = sf::min(cameraLinear + deltaLen*cameraExp, deltaLen);
