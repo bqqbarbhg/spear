@@ -3,7 +3,17 @@
 #include "ext/sokol/sokol_config.h"
 #include "sf/Array.h"
 
-#if defined(SOKOL_D3D11)
+#ifndef SP_USE_TIMING
+    #if SF_DEBUG
+        #define SP_USE_TIMING 1
+    #else
+        #define SP_USE_TIMING 0
+    #endif
+#endif
+
+#if SP_USE_TIMING
+    // Nop: No timing
+#elif defined(SOKOL_D3D11)
 	#define _WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
 	#include <d3d11.h>
@@ -114,7 +124,15 @@ namespace sp {
 
 static sf::Array<PassTime> g_passTimes;
 
-#if defined(SOKOL_D3D11)
+#if SP_USE_TIMING
+
+static void beginQueryFrame() { }
+static void endQueryFrame() { }
+
+static void beginQueryImp(sf::Symbol name) { }
+static void endQueryImp() { }
+
+#elif defined(SOKOL_D3D11)
 
 struct Query
 {
