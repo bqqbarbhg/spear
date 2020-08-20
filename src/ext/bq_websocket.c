@@ -692,7 +692,7 @@ static void msg_free_owned(bqws_socket *ws, bqws_msg_imp *msg)
 
 	size_t size = msg_alloc_size(&msg->msg);
 
-	if ((char*)msg != ws->error_msg_data) {
+	if ((char*)msg != ws->state.error_msg_data) {
 		ws_remove_memory_used(ws, size);
 
 		bqws_allocator at = msg->allocator;

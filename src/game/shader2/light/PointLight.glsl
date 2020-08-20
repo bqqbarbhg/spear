@@ -25,8 +25,11 @@ vec3 evaluatePointLight(vec3 P, vec3 N, vec3 V, vec3 cdiff, vec3 f0, float alpha
 		vec3 lightColor = data1.xyz;
 		vec3 shadowMul = data2.xyz;
 		vec3 shadowBias = data3.xyz;
-		vec3 shadowTexCoord = delta * shadowMul + shadowBias;
-		float shadow = evaluateShadowGrid(shadowTexCoord);
+		float shadow = 1.0;
+		if (shadowMul.x > 0.0) {
+			vec3 shadowTexCoord = delta * shadowMul + shadowBias;
+			shadow = evaluateShadowGrid(shadowTexCoord);
+		}
 
 		if (shadow > 0.0) {
 			float attenuation = 1.0 / (0.1 + distSq) - 1.0 / (0.1 + radiusSq);
