@@ -6,6 +6,7 @@
 #include "client/TileModelSystem.h"
 #include "client/CharacterModelSystem.h"
 #include "client/ParticleSystem.h"
+#include "client/BlobShadowSystem.h"
 #include "client/GameSystem.h"
 
 #include "sf/Frustum.h"
@@ -123,6 +124,8 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 {
 	systems.frameArgs = frameArgs;
 
+	systems.boneUpdates.clear();
+
 	systems.tileModel->garbageCollectChunks(systems.area, frameArgs);
 	systems.entities.updateQueuedRemoves(systems, frameArgs);
 
@@ -141,7 +144,10 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 	systems.tileModel->uploadVisibleChunks(systems.activeAreas, systems.area, frameArgs);
 	systems.particle->updateParticles(systems.activeAreas, frameArgs);
 	systems.characterModel->updateAnimations(systems.activeAreas, frameArgs.dt);
+	systems.characterModel->updateBoneListeners(systems.boneUpdates, systems.activeAreas);
 	systems.characterModel->updateAttachedEntities(systems);
+
+	systems.blobShadow->updatePositions(systems.area, systems.boneUpdates, frameArgs);
 
 	systems.updateVisibility(systems.visibleAreas, Area::Visibility, frameArgs.mainRenderArgs.frustum);
 
@@ -151,7 +157,7 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 
 void ClientState::renderShadows()
 {
-	systems.light->renderShadowMaps(systems, systems.visibleAreas);
+	systems.light->renderShadowMaps(systems, systems.visibleAreas, systems.frameArgs.frameIndex);
 }
 
 void ClientState::renderMain(const RenderArgs &args)
@@ -159,6 +165,7 @@ void ClientState::renderMain(const RenderArgs &args)
 	systems.model->renderMain(systems.visibleAreas, args);
 	systems.tileModel->renderMain(systems.light, systems.visibleAreas, args);
 	systems.characterModel->renderMain(systems.light, systems.visibleAreas, args);
+	systems.blobShadow->renderMain(systems.visibleAreas, args);
 	systems.particle->renderMain(systems.visibleAreas, args);
 }
 

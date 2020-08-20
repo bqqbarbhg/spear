@@ -9,6 +9,8 @@
 
 #include "game/DebugDraw.h"
 
+#include "sf/Sort.h"
+
 namespace cl {
 
 struct ShadowCache
@@ -97,6 +99,7 @@ struct LightSystemImp final : LightSystem
 		uint32_t entityId;
 
 		uint32_t fadeIndex = ~0u;
+		uint32_t shadowIndex = ~0u;
 
 		sf::Vec3 offset;
 
@@ -115,7 +118,13 @@ struct LightSystemImp final : LightSystem
 		bool isFadingOut = false;
 
 		bool hasShadows = false;
-		uint64_t shadowRenderFrame;
+	};
+
+	struct ShadowSlot
+	{
+		uint32_t pointId = ~0u;
+		uint64_t updateFrame = 0;
+		uint64_t activeFrame = 0;
 	};
 
 	ShadowCache shadowCache;
@@ -124,9 +133,12 @@ struct LightSystemImp final : LightSystem
 	sf::Array<uint32_t> freePointLightIds;
 	sf::Array<uint32_t> fadingPointLightIds;
 
+	sf::Array<ShadowSlot> shadowSlots;
+	sf::Array<uint32_t> shadowsToUpdate;
+
 	double gameTime = 0.0;
 
-	void renderPointLightShadows(Systems &systems, uint32_t pointId)
+	void renderPointLightShadows(Systems &systems, uint32_t pointId, uint32_t shadowIndex)
 	{
 		PointLightImp &point = pointLights[pointId];
 
@@ -180,7 +192,6 @@ struct LightSystemImp final : LightSystem
 		sf::Vec3 volumeOrigin = sf::Vec3(-radius, -1.0f, -radius) - p / f;
 		sf::Vec3 volumeExtent = sf::Vec3(radius*2.0f, height, radius*2.0f);
 
-		uint32_t shadowIndex = pointId;
 		uint32_t offsetX = shadowIndex % shadowCache.cacheNumTilesX;
 		uint32_t offsetY = shadowIndex / shadowCache.cacheNumTilesX;
 		sf::Vec3 uvw = -volumeOrigin / volumeExtent;
@@ -231,11 +242,44 @@ struct LightSystemImp final : LightSystem
 		}
 	}
 
+	uint32_t allocateShadowSlot(uint32_t pointId, uint64_t frameIndex)
+	{
+		ShadowSlot *oldest = nullptr;
+		uint64_t oldestFrame = frameIndex;
+
+		for (ShadowSlot &slot : shadowSlots) {
+			if (slot.activeFrame < oldestFrame) {
+				oldestFrame = slot.activeFrame;
+				oldest = &slot;
+			}
+		}
+
+		if (oldest) {
+			if (oldest->pointId != ~0u) {
+				PointLightImp &point = pointLights[oldest->pointId];
+				point.shadowIndex = ~0u;
+			}
+
+			oldest->pointId = pointId;
+			oldest->activeFrame = frameIndex;
+			oldest->updateFrame = 0;
+			return (uint32_t)(oldest - shadowSlots.data);
+		} else {
+			return ~0u;
+		}
+	}
+
+	void freeShadowSlot(uint32_t shadowIndex)
+	{
+		sf::reset(shadowSlots[shadowIndex]);
+	}
+
 	// API
 
 	LightSystemImp()
 	{
 		shadowCache.recreateTargets();
+		shadowSlots.resize(shadowCache.cacheNumTilesX * shadowCache.cacheNumTilesY);
 	}
 
 	void addPointLight(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::PointLightComponent &c, const Transform &transform) override
@@ -357,20 +401,47 @@ struct LightSystemImp final : LightSystem
 				outPoint.position = point.sphere.origin;
 				outPoint.radius = point.sphere.radius;
 				outPoint.color = point.currentColor;
-				outPoint.shadowMul = point.shadowMul;
-				outPoint.shadowBias = point.shadowBias;
+				if (point.shadowIndex != ~0u) {
+					outPoint.shadowMul = point.shadowMul;
+					outPoint.shadowBias = point.shadowBias;
+				} else {
+					outPoint.shadowMul = sf::Vec3(0.0f);
+					outPoint.shadowBias = sf::Vec3(0.0f);
+				}
 			}
 		}
 	}
 
-	void renderShadowMaps(Systems &systems, const VisibleAreas &visibleAreas) override
+	void renderShadowMaps(Systems &systems, const VisibleAreas &visibleAreas, uint64_t frameIndex) override
 	{
+		shadowsToUpdate.clear();
 		for (uint32_t pointId : visibleAreas.get(AreaGroup::PointLight)) {
 			PointLightImp &point = pointLights[pointId];
 			if (!point.hasShadows) continue;
 
-			renderPointLightShadows(systems, pointId);
-			point.shadowRenderFrame = systems.frameArgs.frameIndex;
+			if (point.shadowIndex == ~0u) {
+				point.shadowIndex = allocateShadowSlot(pointId, frameIndex);
+			}
+
+			if (point.shadowIndex != ~0u) {
+				shadowsToUpdate.push(point.shadowIndex);
+			}
+
+		}
+
+		sf::sortBy(shadowsToUpdate, [&](uint32_t shadowIndex) {
+			return shadowSlots[shadowIndex].updateFrame;
+		});
+
+		uint32_t updatesLeft = 1;
+		for (uint32_t shadowIndex : shadowsToUpdate) {
+			ShadowSlot &slot = shadowSlots[shadowIndex];
+			renderPointLightShadows(systems, slot.pointId, shadowIndex);
+
+			if (slot.updateFrame != 0) updatesLeft--;
+			slot.updateFrame = frameIndex;
+
+			if (updatesLeft == 0) break;
 		}
 	}
 

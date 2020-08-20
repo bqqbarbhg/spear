@@ -3,6 +3,7 @@
 #include "Thread.h"
 
 #include <stdio.h>
+#include <stdarg.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,6 +12,21 @@ extern "C" {
 void sf_debug_log(const char *str)
 {
 	sf::debugPrintLine("%s", str);
+}
+
+void sf_debug_logf(const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+
+	sf::SmallStringBuf<1024> line;
+	line.vformat(fmt, args);
+
+	va_end(args);
+
+	sf::debugPrint("%s\n", line.data);
+
+
 }
 
 #if SF_OS_WASM

@@ -236,6 +236,7 @@ extern "C" {
 #endif
 
 void sf_debug_log(const char *str);
+void sf_debug_logf(const char *fmt, ...);
 
 #if SF_OS_WASM
 void sf_wasm_debugbreak(const char *file, int line);
