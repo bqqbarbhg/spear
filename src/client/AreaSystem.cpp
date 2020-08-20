@@ -510,7 +510,7 @@ struct AreaSystemImp final : AreaSystem
 		freeAreaIds.push(areaId);
 	}
 
-	uint32_t addSphereArea(AreaGroup group, uint32_t userId, const sf::Sphere &sphere, uint32_t areaFlags)
+	uint32_t addSphereArea(AreaGroup group, uint32_t userId, const sf::Sphere &sphere, uint32_t areaFlags) override
 	{
 		uint32_t areaId = areaImps.size;
 		if (freeAreaIds.size > 0) {
@@ -543,7 +543,7 @@ struct AreaSystemImp final : AreaSystem
 		return areaId;
 	}
 
-	uint32_t addSphereArea(AreaGroup group, uint32_t userId, const sf::Sphere &sphere, const sf::Mat34 &transform, uint32_t areaFlags)
+	uint32_t addSphereArea(AreaGroup group, uint32_t userId, const sf::Sphere &sphere, const sf::Mat34 &transform, uint32_t areaFlags) override
 	{
 		// TODO: OBB support?
 		return addSphereArea(group, userId, sf::transformSphere(transform, sphere), areaFlags);
