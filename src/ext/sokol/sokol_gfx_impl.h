@@ -1126,17 +1126,10 @@ _SOKOL_PRIVATE const char* _sg_strptr(const _sg_str_t* str) {
 
 _SOKOL_PRIVATE void _sg_strcpy(_sg_str_t* dst, const char* src) {
     SOKOL_ASSERT(dst);
-    if (src) {
-        #if defined(_MSC_VER)
-        strncpy_s(dst->buf, _SG_STRING_SIZE, src, (_SG_STRING_SIZE-1));
-        #else
-        strncpy(dst->buf, src, _SG_STRING_SIZE);
-        #endif
-        dst->buf[_SG_STRING_SIZE-1] = 0;
-    }
-    else {
-        memset(dst->buf, 0, _SG_STRING_SIZE);
-    }
+    size_t len = src ? strlen(src) : 0;
+	if (len > _SG_STRING_SIZE - 1) len = _SG_STRING_SIZE - 1;
+	memcpy(dst->buf, src, len);
+    dst->buf[len] = '\0';
 }
 
 /* return byte size of a vertex format */
