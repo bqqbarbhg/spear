@@ -58,7 +58,7 @@ struct LightSystem : EntitySystem
 
 	virtual void queryVisiblePointLights(const VisibleAreas &visibleAreas, sf::Array<PointLight> &pointLights, const sf::Bounds3 &bounds) const = 0;
 
-	virtual void renderShadowMaps(Systems &systems, const VisibleAreas &visibleAreas) = 0;
+	virtual void renderShadowMaps(Systems &systems, const VisibleAreas &visibleAreas, uint64_t frameIndex) = 0;
 
 	virtual sg_image getShadowTexture() const = 0;
 };

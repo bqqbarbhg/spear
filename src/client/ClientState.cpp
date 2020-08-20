@@ -157,7 +157,7 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 
 void ClientState::renderShadows()
 {
-	systems.light->renderShadowMaps(systems, systems.visibleAreas);
+	systems.light->renderShadowMaps(systems, systems.visibleAreas, systems.frameArgs.frameIndex);
 }
 
 void ClientState::renderMain(const RenderArgs &args)

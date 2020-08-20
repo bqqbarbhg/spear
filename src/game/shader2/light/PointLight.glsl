@@ -26,7 +26,7 @@ vec3 evaluatePointLight(vec3 P, vec3 N, vec3 V, vec3 cdiff, vec3 f0, float alpha
 		vec3 shadowMul = data2.xyz;
 		vec3 shadowBias = data3.xyz;
 		float shadow = 1.0;
-		if (shadowMul.x > 0.0) {
+		if (shadowMul.x != 0.0) {
 			vec3 shadowTexCoord = delta * shadowMul + shadowBias;
 			shadow = evaluateShadowGrid(shadowTexCoord);
 		}
