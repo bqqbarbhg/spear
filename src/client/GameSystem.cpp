@@ -30,11 +30,12 @@ struct Camera
 	struct State
 	{
 		sf::Vec3 origin;
+        float zoom = 0.0f;
 
 		void asMatrices(sf::Vec3 &eye, sf::Mat34 &worldToView, sf::Mat44 &viewToClip, float aspect)
 		{
-			eye = origin + sf::Vec3(0.0f, 5.0f, 3.0f) * 1.0f;
-			worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.4f));
+            eye = origin + sf::Vec3(0.0f, 5.0f, 3.0f) * powf(2.0f, zoom);
+            worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.4f + 0.15f * zoom));
 			viewToClip = sf::mat::perspectiveD3D(1.0f, aspect, 1.0f, 100.0f);
 		}
 	};
@@ -44,6 +45,7 @@ struct Camera
 
 	float touchMove = 0.0f;
 	sf::Vec3 targetDelta;
+    float zoomDelta = 0.0f;
 	sf::Vec3 velocity;
 	sf::Vec3 smoothVelocity;
 
@@ -53,6 +55,7 @@ struct Camera
 	{
 		State s;
 		s.origin = sf::lerp(a.origin, b.origin, t);
+        s.zoom = sf::lerp(a.zoom, b.zoom, t);
 		return s;
 	}
 };
@@ -108,6 +111,13 @@ struct GameSystemImp final : GameSystem
 			Cancel,
 		};
 
+        enum HitType
+        {
+            None,
+            UI,
+            Background,
+        };
+
 		struct Position
 		{
 			sf::Vec2 pos;
@@ -117,11 +127,14 @@ struct GameSystemImp final : GameSystem
 		uintptr_t touchId = 0;
 		Button button;
 		Action action;
+        HitType hitType;
+        uint32_t hitIndex;
 
 		float time = 0.0f;
 		float dragFactor = -0.1f;
 
 		Position start;
+        Position dragStart;
 		Position previous;
 		Position current;
 
@@ -253,7 +266,16 @@ struct GameSystemImp final : GameSystem
 		if (id == ~0u) return nullptr;
 		return &cards[id];
 	}
-
+    
+    void initPointer(Pointer &pointer, const Pointer::Position &pos)
+    {
+        pointer.dragStart = pointer.current = pointer.previous = pointer.start = pos;
+        
+        // TODO: Hitscan
+        pointer.hitType = Pointer::Background;
+        pointer.hitIndex = 0;
+    }
+    
 	// -- API
 
 	void updateCamera(FrameArgs &frameArgs) override
@@ -300,7 +322,8 @@ struct GameSystemImp final : GameSystem
 
 				pointer->time = 0.0f;
 				pointer->action = Pointer::Down;
-				pointer->current = pointer->previous = pointer->start = pos;
+                initPointer(*pointer, pos);
+                
 			} else if (e.type == SAPP_EVENTTYPE_MOUSE_MOVE) {
 				Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(e.mouse_x, e.mouse_y));
 
@@ -352,7 +375,7 @@ struct GameSystemImp final : GameSystem
 
 					pointer->time = 0.0f;
 					pointer->action = Pointer::Down;
-					pointer->current = pointer->previous = pointer->start = pos;
+                    initPointer(*pointer, pos);
 				}
 
 			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_MOVED) {
@@ -396,9 +419,7 @@ struct GameSystemImp final : GameSystem
 						}
 					}
 				}
-
 			}
-
 		}
 
 		for (Pointer &p : pointers) {
@@ -406,6 +427,19 @@ struct GameSystemImp final : GameSystem
 			float dist = 0.2f + sf::lengthSq(p.current.pos - p.start.pos);
 			float time = 0.1f + sf::min(p.time, 0.3f);
 			p.dragFactor = sf::min(1.0f, p.dragFactor + dist * move * time * 2000.0f);
+            
+            // Resample dragStart for same class (at least for Background)
+            if (p.button == Pointer::Touch
+                && p.hitType == Pointer::Background
+                && (p.action == Pointer::Up || p.action == Pointer::Cancel)) {
+                for (Pointer &p2 : pointers) {
+                    if (p2.button == Pointer::Touch
+                        && p2.hitType == p.hitType
+                        && p2.action == Pointer::Hold) {
+                        p2.dragStart.worldRay = pointerToWorld(screenToWorld.clipToWorld, p2.current.pos);
+                    }
+                }
+            }
 		}
 
 		const float cameraDt = 0.001f;
@@ -423,6 +457,9 @@ struct GameSystemImp final : GameSystem
 		while (camera.timeDelta >= cameraDt) {
 			camera.timeDelta -= cameraDt;
 			camera.previous = camera.current;
+            
+            camera.zoomDelta *= 0.99f;
+            camera.zoomDelta -= sf::clamp(camera.zoomDelta, -0.0005f, 0.0005f);
 
 			sf::Vec3 eye;
 			sf::Mat34 worldToView;
@@ -430,12 +467,15 @@ struct GameSystemImp final : GameSystem
 			camera.current.asMatrices(eye, worldToView, viewToClip, aspect);
 			sf::Mat44 clipToWorld = sf::inverse(viewToClip * worldToView);
 
+            uint32_t numDrags = 0;
+            sf::Vec3 dragStart;
+            sf::Vec3 dragCurrent;
+
 			for (Pointer &p : pointers) {
 				p.current.worldRay = pointerToWorld(clipToWorld, p.current.pos);
 
-                if (p.button == Pointer::MouseMiddle || p.button == Pointer::Touch) {
-					sf::Vec3 a = intersectHorizontalPlane(0.0f, p.start.worldRay);
-					sf::Vec3 b = intersectHorizontalPlane(0.0f, p.current.worldRay);
+                if ((p.button == Pointer::MouseMiddle || p.button == Pointer::Touch)
+                    && p.action == Pointer::Hold && p.hitType == Pointer::Background) {
 
 					if (p.button == Pointer::Touch) {
 						camera.touchMove += cameraDt * 4.0f;
@@ -443,13 +483,52 @@ struct GameSystemImp final : GameSystem
 						camera.touchMove -= cameraDt * 4.0f;
 					}
 					camera.touchMove = sf::clamp(camera.touchMove, 0.0f, 1.0f);
-
-					camera.targetDelta = a - b;
+                    
+                    numDrags += 1;
+                    dragStart += intersectHorizontalPlane(0.0f, p.dragStart.worldRay);
+                    dragCurrent += intersectHorizontalPlane(0.0f, p.current.worldRay);
 				}
 			}
+            
+            if (numDrags > 0) {
+                dragStart /= (float)numDrags;
+                dragCurrent /= (float)numDrags;
+                
+                if (numDrags > 1) {
+                    camera.touchMove -= cameraDt * 20.0f * (float)numDrags;
+                    camera.touchMove = sf::clamp(camera.touchMove, 0.0f, 1.0f);
+
+                    float dragZoom = 0.0f;
+                    for (Pointer &p : pointers) {
+                        p.current.worldRay = pointerToWorld(clipToWorld, p.current.pos);
+    
+                        if ((p.button == Pointer::MouseMiddle || p.button == Pointer::Touch)
+                            && p.action == Pointer::Hold && p.hitType == Pointer::Background) {
+                            sf::Vec3 a = intersectHorizontalPlane(0.0f, p.dragStart.worldRay);
+                            sf::Vec3 b = intersectHorizontalPlane(0.0f, p.current.worldRay);
+    
+                            float ad = sf::length(a - dragStart);
+                            float bd = sf::length(b - dragCurrent);
+    
+                            if (ad > 0.1f && bd > 0.1f) {
+                                float zoom = log2f(ad / bd);
+
+                                dragZoom += zoom;
+                            }
+                        }
+                    }
+                    dragZoom /= (float)numDrags;
+                    camera.zoomDelta = dragZoom;
+                }
+                
+                camera.targetDelta = dragStart - dragCurrent;
+            }
 
 			sf::Vec3 delta = camera.targetDelta;
 			float deltaLen = sf::length(delta);
+            
+            camera.current.zoom += camera.zoomDelta * 0.01f;
+            camera.current.zoom = sf::clamp(camera.current.zoom, -2.0f, 2.0f);
 
 			if (deltaLen > 0.00001f) {
 				float applyLen = sf::min(cameraLinear + deltaLen*cameraExp, deltaLen);
