@@ -326,7 +326,7 @@ struct LightSystemImp final : LightSystem
 		systems.area->updateSphereArea(point.areaId, point.sphere);
 	}
 
-	bool prepareForRemove(Systems &systems, uint32_t entityId, const EntityComponent &ec, const FrameArgs &args)
+	bool prepareForRemove(Systems &systems, uint32_t entityId, const EntityComponent &ec, const FrameArgs &args) override
 	{
 		uint32_t pointId = ec.userId;
 		PointLightImp &point = pointLights[pointId];
@@ -361,7 +361,7 @@ struct LightSystemImp final : LightSystem
 		sf::reset(point);
 	}
 
-	void updateLightFade(const FrameArgs &frameArgs)
+	void updateLightFade(const FrameArgs &frameArgs) override
 	{
 		float dt = frameArgs.dt;
 		for (uint32_t i = 0; i < fadingPointLightIds.size; i++) {
@@ -412,7 +412,7 @@ struct LightSystemImp final : LightSystem
 		}
 	}
 
-	void renderShadowMaps(Systems &systems, const VisibleAreas &visibleAreas, uint64_t frameIndex) 
+	void renderShadowMaps(Systems &systems, const VisibleAreas &visibleAreas, uint64_t frameIndex) override
 	{
 		shadowsToUpdate.clear();
 		for (uint32_t pointId : visibleAreas.get(AreaGroup::PointLight)) {
@@ -445,7 +445,7 @@ struct LightSystemImp final : LightSystem
 		}
 	}
 
-	virtual sg_image getShadowTexture() const
+	virtual sg_image getShadowTexture() const override
 	{
 		return shadowCache.shadowTexture.image;
 	}
