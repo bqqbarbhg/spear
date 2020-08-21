@@ -199,6 +199,7 @@ struct ParticleSystemImp final : ParticleSystem
 
 		sf::Float4 emitterToWorld[4];
 		sf::Float4 prevEmitterToWorld[4];
+		sf::Float4 prevWorldToEmitter[4];
 
 		sf::Vec3 prevOrigin;
 
@@ -449,8 +450,10 @@ struct ParticleSystemImp final : ParticleSystem
 		EffectType &type = types[effect.typeId];
 		const sv::ParticleSystemComponent &comp = *type.svComponent;
 
+		bool firstEmit = effect.firstEmit;
+
 		uint32_t burstAmount = 0;
-		if (effect.firstEmit) {
+		if (firstEmit) {
 			memcpy(effect.prevEmitterToWorld, effect.emitterToWorld, sizeof(sf::Float4) * 4);
 			burstAmount = comp.burstAmount;
 			effect.firstEmit = false;
@@ -527,12 +530,20 @@ struct ParticleSystemImp final : ParticleSystem
 		sf::ScalarAddFloat4 lifeTime = comp.lifeTime;
 		sf::ScalarFloat4 lifeTimeVariance = comp.lifeTimeVariance * (1.0f / 16777216.0f);
 
-		sf::Vec3 delta = (effect.origin - effect.prevOrigin) * (comp.followAmount / dt);
-		effect.prevOrigin = effect.origin;
+		bool usePrevToCurrent = false;
+		sf::Float4 prevToCurrent[4];
+		if (comp.followAmount > 0.0f && !firstEmit) {
+			usePrevToCurrent = true;
 
-		sf::ScalarAddFloat4 deltaX = delta.x;
-		sf::ScalarAddFloat4 deltaY = delta.y;
-		sf::ScalarAddFloat4 deltaZ = delta.z;
+			const sf::Float4 *a = effect.emitterToWorld;
+			const sf::Float4 *b = effect.prevWorldToEmitter;
+			prevToCurrent[0] = a[0]*b[0].broadcastX() + a[1]*b[0].broadcastY() + a[2]*b[0].broadcastZ() + a[3]*b[0].broadcastW();
+			prevToCurrent[1] = a[0]*b[1].broadcastX() + a[1]*b[1].broadcastY() + a[2]*b[1].broadcastZ() + a[3]*b[1].broadcastW();
+			prevToCurrent[2] = a[0]*b[2].broadcastX() + a[1]*b[2].broadcastY() + a[2]*b[2].broadcastZ() + a[3]*b[2].broadcastW();
+			prevToCurrent[3] = a[0]*b[3].broadcastX() + a[1]*b[3].broadcastY() + a[2]*b[3].broadcastZ() + a[3]*b[3].broadcastW();
+		}
+
+		sf::Float4 rcpDt4 = 1.0f / dt;
 
 		for (Particle4 &p : effect.particles) {
 
@@ -553,9 +564,6 @@ struct ParticleSystemImp final : ParticleSystem
 
 			sf::Float4 seed = p.seed;
 
-			life -= dt4 / (seed * lifeTimeVariance + lifeTime);
-			p.life = life;
-
 			sf::Float4 px = p.px, py = p.py, pz = p.pz;
 			sf::Float4 vx = p.vx, vy = p.vy, vz = p.vz;
 
@@ -572,15 +580,21 @@ struct ParticleSystemImp final : ParticleSystem
 
 			p.vx = vx; p.vy = vy; p.vz = vz;
 
-			vx += deltaX;
-			vy += deltaY;
-			vz += deltaZ;
+			if (usePrevToCurrent) {
+				sf::Mask4 scale = rcpDt4.selectOrZero(life.compareLess(1.0f);
+				vx += (prevToCurrent[0].broadcastX()*px + prevToCurrent[1].broadcastX()*py + prevToCurrent[2].broadcastX()*pz + prevToCurrent[3].broadcastX() - px) * scale;
+				vy += (prevToCurrent[0].broadcastY()*px + prevToCurrent[1].broadcastY()*py + prevToCurrent[2].broadcastY()*pz + prevToCurrent[3].broadcastY() - py) * scale;
+				vz += (prevToCurrent[0].broadcastZ()*px + prevToCurrent[1].broadcastZ()*py + prevToCurrent[2].broadcastZ()*pz + prevToCurrent[3].broadcastZ() - pz) * scale;
+			}
 
 			px += vx * dt4;
 			py += vy * dt4;
 			pz += vz * dt4;
 
 			p.px = px; p.py = py; p.pz = pz;
+
+			life -= dt4 / (seed * lifeTimeVariance + lifeTime);
+			p.life = life;
 
 			sf::Float4::transpose4(px, py, pz, life);
 
@@ -644,6 +658,18 @@ struct ParticleSystemImp final : ParticleSystem
 		}
 
 		memcpy(effect.prevEmitterToWorld, effect.emitterToWorld, sizeof(sf::Float4) * 4);
+
+		if (comp.followAmount > 0.0f) {
+			sf::Mat34 prevEmitterToWorld = sf::Uninit;
+			prevEmitterToWorld.cols[0] = sf::Vec3((const float*)&effect.prevEmitterToWorld[0]);
+			prevEmitterToWorld.cols[1] = sf::Vec3((const float*)&effect.prevEmitterToWorld[1]);
+			prevEmitterToWorld.cols[2] = sf::Vec3((const float*)&effect.prevEmitterToWorld[2]);
+			prevEmitterToWorld.cols[3] = sf::Vec3((const float*)&effect.prevEmitterToWorld[3]);
+			sf::Mat34 prevWorldToEmitter = sf::inverse(prevEmitterToWorld);
+			sf::Mat34 identity = prevEmitterToWorld * prevWorldToEmitter;
+
+			prevWorldToEmitter.writeColMajor44((float*)effect.prevWorldToEmitter);
+		}
 
 		effect.gpuParticles.resizeUninit(dst - effect.gpuParticles.data);
 

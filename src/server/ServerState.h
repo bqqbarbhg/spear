@@ -38,6 +38,7 @@ struct Component
 		ParticleSystem,
 		Character,
 		CharacterModel,
+		TapArea,
 		BlobShadow,
 		Card,
 		CardAttach,
@@ -245,6 +246,12 @@ struct CharacterModelComponent : ComponentBase<Component::CharacterModel>
 	float scale = 1.0f; //! Scale of the character
 	sf::Array<AnimationInfo> animations;
 	sf::Array<AttachBone> attachBones; //! Bone mapping for attaching objects
+};
+
+struct TapAreaComponent : ComponentBase<Component::TapArea>
+{
+	sf::Vec3 offset; //! Offset from the character
+	sf::Vec3 extent; //! Size of the clickable/tappable box
 };
 
 struct ShadowBlob sv_reflect()

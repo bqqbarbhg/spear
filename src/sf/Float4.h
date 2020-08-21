@@ -109,6 +109,13 @@ using ScalarAddFloat4 = Float4;
 
 #elif SF_ARCH_X86 && !SF_FLOAT4_FORCE_SCALAR
 
+struct Mask4
+{
+	__m128 imp;
+
+	sf_forceinline Mask4(__m128 m) : imp(m) { }
+};
+
 struct Float4
 {
 	__m128 imp;
@@ -158,6 +165,9 @@ struct Float4
 
 	sf_forceinline bool anyGreaterThanZero() const { return _mm_movemask_ps(_mm_cmpgt_ps(imp, _mm_setzero_ps())) != 0; }
 	sf_forceinline bool allGreaterThanZero() const { return _mm_movemask_ps(_mm_cmpgt_ps(imp, _mm_setzero_ps())) == 0xf; }
+
+	sf_forceinline Mask4 compareLess(const Float4 &rhs) const { return _mm_cmplt_ps(imp, rhs.imp); }
+	sf_forceinline Float4 selectOrZero(const Mask4 &rhs) const { return _mm_and_ps(imp, rhs.imp); }
 
 	sf_forceinline Vec3 asVec3() const {
 		float a = _mm_cvtss_f32(imp);
