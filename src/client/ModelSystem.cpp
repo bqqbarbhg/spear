@@ -16,10 +16,18 @@ namespace cl {
 
 struct ModelSystemImp final : ModelSystem
 {
+	enum class VertexFormat
+	{
+		Tile,
+		Count,
+	};
+
 	struct Model
 	{
 		uint32_t areaId = ~0u;
 		uint32_t entityId;
+
+		VertexFormat vertexFormat;
 
 		uint32_t loadQueueIndex = ~0u;
 		sp::ModelRef model;
@@ -53,6 +61,9 @@ struct ModelSystemImp final : ModelSystem
 
 	sf::Array<uint32_t> loadQueue;
 
+	Shader2 meshShader;
+	sp::Pipeline meshPipes[(uint32_t)VertexFormat::Count];
+
 	void finishLoadingModel(AreaSystem *areaSystem, uint32_t modelId)
 	{
 		Model &model = models[modelId];
@@ -61,6 +72,9 @@ struct ModelSystemImp final : ModelSystem
 		if (model.shadowModel) {
 			model.modelBounds = sf::boundsUnion(model.modelBounds, model.shadowModel->bounds);
 		}
+
+		// TODO
+		model.vertexFormat = VertexFormat::Tile;
 
 		if (model.areaId != ~0u) {
 			areaSystem->updateBoxArea(model.areaId, model.modelBounds, model.modelToWorld);
@@ -83,6 +97,27 @@ struct ModelSystemImp final : ModelSystem
 	}
 
 	// API
+
+	ModelSystemImp()
+	{
+		uint8_t permutation[SP_NUM_PERMUTATIONS] = { };
+		#if CL_SHADOWCACHE_USE_ARRAY
+			permutation[SP_SHADOWGRID_USE_ARRAY] = 1;
+		#else
+			permutation[SP_SHADOWGRID_USE_ARRAY] = 0;
+		#endif
+		permutation[SP_NORMALMAP_REMAP] = MeshMaterial::useNormalMapRemap;
+		meshShader = getShader2(SpShader_DynamicMesh, permutation);
+
+		{
+			uint32_t flags = sp::PipeDepthWrite|sp::PipeCullCCW|sp::PipeIndex16;
+			auto &d = meshPipes[(uint32_t)VertexFormat::Tile].init(meshShader.handle, flags);
+			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+			d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+			d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT4;
+			d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2;
+		}
+	}
 
 	void addModel(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::DynamicModelComponent &c, const Transform &transform) override
 	{
@@ -156,33 +191,60 @@ struct ModelSystemImp final : ModelSystem
 		}
 	}
 
-	void renderMain(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
+	void renderMain(LightSystem *lightSystem,const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
 	{
+		sf::SmallArray<cl::PointLight, 64> pointLights;
+		const uint32_t maxLights = 16;
+
+		UBO_DynamicTransform tu;
+		UBO_Pixel pu;
+
+		sg_bindings bindings = { };
+		bindImageFS(meshShader, bindings, CL_SHADOWCACHE_TEX, lightSystem->getShadowTexture());
+
 		for (uint32_t modelId : visibleAreas.get(AreaGroup::DynamicModel)) {
 			Model &model = models[modelId];
 
+			sp::Pipeline &pipe = meshPipes[(uint32_t)model.vertexFormat];
+			tu.modelToWorld = model.modelToWorld;
+			tu.worldToClip = renderArgs.worldToClip;
+
+			sf::Bounds3 bounds = sf::transformBounds(model.modelToWorld, model.modelBounds);
+
+			pointLights.clear();
+			lightSystem->queryVisiblePointLights(visibleAreas, pointLights, bounds);
+
+			// TODO: Prioritize
+			if (pointLights.size > maxLights) {
+				pointLights.resizeUninit(maxLights);
+			}
+
+			pu.numLightsF = (float)pointLights.size;
+			pu.cameraPosition = renderArgs.cameraPosition;
+			sf::Vec4 *dst = pu.pointLightData;
+			for (PointLight &light : pointLights) {
+				light.writeShader(dst);
+			}
+
 			for (sp::Mesh &mesh : model.model->meshes) {
 
-				 // TODO TODO 
+				if (pipe.bind()) {
+					bindUniformVS(meshShader, tu);
+					bindUniformFS(meshShader, pu);
+				}
 
-#if 0
-				gameShaders.debugMeshPipe.bind();
+				sg_image *images = model.material ? model.material->images : MeshMaterial::defaultImages;
+				bindImageFS(meshShader, bindings, TEX_albedoTexture, images[(uint32_t)MaterialTexture::Albedo]);
+				bindImageFS(meshShader, bindings, TEX_normalTexture, images[(uint32_t)MaterialTexture::Normal]);
+				bindImageFS(meshShader, bindings, TEX_maskTexture, images[(uint32_t)MaterialTexture::Mask]);
 
-				sf::Mat44 meshToClip = renderArgs.worldToClip * model.modelToWorld;
-
-				DebugMesh_Vertex_t ubo;
-				meshToClip.writeColMajor44(ubo.worldToClip);
-				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_DebugMesh_Vertex, &ubo, sizeof(ubo));
-
-				sg_bindings binds = { };
-				binds.index_buffer = model.model->indexBuffer.buffer;
-				binds.index_buffer_offset = mesh.indexBufferOffset;
-				binds.vertex_buffers[0] = model.model->vertexBuffer.buffer;
-				binds.vertex_buffer_offsets[0] = mesh.streams[0].offset;
-				sg_apply_bindings(&binds);
+				bindings.index_buffer = model.model->indexBuffer.buffer;
+				bindings.index_buffer_offset = mesh.indexBufferOffset;
+				bindings.vertex_buffers[0] = model.model->vertexBuffer.buffer;
+				bindings.vertex_buffer_offsets[0] = mesh.streams[0].offset;
+				sg_apply_bindings(&bindings);
 
 				sg_draw(0, mesh.numIndices, 1);
-#endif
 			}
 
 		}

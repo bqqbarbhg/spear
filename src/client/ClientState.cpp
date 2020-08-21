@@ -170,7 +170,7 @@ void ClientState::renderShadows()
 
 void ClientState::renderMain(const RenderArgs &args)
 {
-	systems.model->renderMain(systems.visibleAreas, args);
+	systems.model->renderMain(systems.light, systems.visibleAreas, args);
 	systems.tileModel->renderMain(systems.light, systems.visibleAreas, args);
 	systems.characterModel->renderMain(systems.light, systems.visibleAreas, args);
 	systems.blobShadow->renderMain(systems.visibleAreas, args);

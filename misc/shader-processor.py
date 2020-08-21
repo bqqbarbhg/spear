@@ -6,6 +6,11 @@ import io
 import os
 import subprocess
 import sys
+import argparse
+
+cmd_parser = argparse.ArgumentParser(description="Process shaders")
+cmd_parser.add_argument("--config", nargs="*", default=[], help="Configurations to process (gles,glsl,hlsl,ios,macos)")
+cmd_args = cmd_parser.parse_args()
 
 tmp_name = "__sp__temp__"
 tmp_include = "__sp__temp__include__"
@@ -581,6 +586,10 @@ configs = [
     Config("ios", GLSL("450"), { "SP_METAL": 1 }, translate_metal_ios),
 ]
 
+filter_configs = set(cmd_args.config)
+if filter_configs:
+    configs = [c for c in configs if c.name in filter_configs]
+
 shader_root = os.path.join(g_root, "shader")
 
 shaders = []
@@ -650,6 +659,9 @@ for config in configs:
         return ix + 1
 
     for shader in shaders:
+        print("Processing: {} ({})".format(shader.name, config.name))
+        sys.stdout.flush()
+
         infos = [None, None]
         for frag in [False, True]:
             perms = shader.get_permutations(lang, frag, defines)
