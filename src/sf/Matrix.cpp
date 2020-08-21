@@ -427,6 +427,102 @@ Mat23 operator*(const Mat23 &l, const Mat23 &r)
 	};
 }
 
+// Multiply by scalar
+
+Mat33 operator*(const Mat33 &l, float r)
+{
+	Mat33 m = Uninit;
+	m.m00 = l.m00 * r; m.m10 = l.m10 * r; m.m20 = l.m20 * r;
+	m.m01 = l.m01 * r; m.m11 = l.m11 * r; m.m21 = l.m21 * r;
+	m.m02 = l.m02 * r; m.m12 = l.m12 * r; m.m22 = l.m22 * r;
+	return m;
+}
+
+Mat33_D operator*(const Mat33_D &l, float r)
+{
+	Mat33_D m = Uninit;
+	m.m00 = l.m00 * r;
+	m.m11 = l.m11 * r;
+	m.m22 = l.m22 * r;
+	return m;
+}
+
+Mat34_3 operator*(const Mat34_3 &l, float r)
+{
+	Mat34_3 m = Uninit;
+	m.m03 = l.m03 * r; m.m13 = l.m13 * r; m.m23 = l.m23 * r;
+	return m;
+}
+
+Mat34 operator*(const Mat34 &l, float r)
+{
+	Mat34 m = Uninit;
+	m.m00 = l.m00 * r; m.m10 = l.m10 * r; m.m20 = l.m20 * r;
+	m.m01 = l.m01 * r; m.m11 = l.m11 * r; m.m21 = l.m21 * r;
+	m.m02 = l.m02 * r; m.m12 = l.m12 * r; m.m22 = l.m22 * r;
+	m.m03 = l.m03 * r; m.m13 = l.m13 * r; m.m23 = l.m23 * r;
+	return m;
+}
+
+Mat44 operator*(const Mat44 &l, float r)
+{
+	Mat44 m = Uninit;
+	m.m00 = l.m00 * r; m.m10 = l.m10 * r; m.m20 = l.m20 * r; m.m30 = l.m30 * r;
+	m.m01 = l.m01 * r; m.m11 = l.m11 * r; m.m21 = l.m21 * r; m.m31 = l.m31 * r;
+	m.m02 = l.m02 * r; m.m12 = l.m12 * r; m.m22 = l.m22 * r; m.m32 = l.m32 * r;
+	m.m03 = l.m03 * r; m.m13 = l.m13 * r; m.m23 = l.m23 * r; m.m33 = l.m33 * r;
+	return m;
+}
+
+Mat33 lerpFromIdentity(const Mat33 &l, float r)
+{
+	float s = 1.0f - r;
+	Mat33 m = Uninit;
+	m.m00 = l.m00 * r + s; m.m10 = l.m10 * r; m.m20 = l.m20 * r;
+	m.m01 = l.m01 * r; m.m11 = l.m11 * r + s; m.m21 = l.m21 * r;
+	m.m02 = l.m02 * r; m.m12 = l.m12 * r; m.m22 = l.m22 * r + s;
+	return m;
+}
+
+Mat33_D lerpFromIdentity(const Mat33_D &l, float r)
+{
+	float s = 1.0f - r;
+	Mat33_D m = Uninit;
+	m.m00 = l.m00 * r + s;
+	m.m11 = l.m11 * r + s;
+	m.m22 = l.m22 * r + s;
+	return m;
+}
+
+Mat34_3 lerpFromIdentity(const Mat34_3 &l, float r)
+{
+	Mat34_3 m = Uninit;
+	m.m03 = l.m03 * r; m.m13 = l.m13 * r; m.m23 = l.m23 * r;
+	return m;
+}
+
+Mat34 lerpFromIdentity(const Mat34 &l, float r)
+{
+	float s = 1.0f - r;
+	Mat34 m = Uninit;
+	m.m00 = l.m00 * r + s; m.m10 = l.m10 * r; m.m20 = l.m20 * r;
+	m.m01 = l.m01 * r; m.m11 = l.m11 * r + s; m.m21 = l.m21 * r;
+	m.m02 = l.m02 * r; m.m12 = l.m12 * r; m.m22 = l.m22 * r + s;
+	m.m03 = l.m03 * r; m.m13 = l.m13 * r; m.m23 = l.m23 * r;
+	return m;
+}
+
+Mat44 lerpFromIdentity(const Mat44 &l, float r)
+{
+	float s = 1.0f - r;
+	Mat44 m = Uninit;
+	m.m00 = l.m00 * r + s; m.m10 = l.m10 * r; m.m20 = l.m20 * r; m.m30 = l.m30 * r;
+	m.m01 = l.m01 * r; m.m11 = l.m11 * r + s; m.m21 = l.m21 * r; m.m31 = l.m31 * r;
+	m.m02 = l.m02 * r; m.m12 = l.m12 * r; m.m22 = l.m22 * r + s; m.m32 = l.m32 * r;
+	m.m03 = l.m03 * r; m.m13 = l.m13 * r; m.m23 = l.m23 * r; m.m33 = l.m33 * r + s;
+	return m;
+}
+
 // Multiply by vector
 
 Vec4 operator*(const Mat34_3 &l, const Vec4 &r) {

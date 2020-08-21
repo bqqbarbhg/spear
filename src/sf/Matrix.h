@@ -260,6 +260,21 @@ Mat44 operator*(const Mat44 &l, const Mat44 &r);
 
 Mat23 operator*(const Mat23 &l, const Mat23 &r);
 
+// Multiply by scalar
+
+Mat33 operator*(const Mat33 &l, float r);
+Mat33_D operator*(const Mat33_D &l, float r);
+Mat34_3 operator*(const Mat34_3 &l, float r);
+Mat34 operator*(const Mat34 &l, float r);
+Mat44 operator*(const Mat44 &l, float r);
+
+Mat33 lerpFromIdentity(const Mat33 &l, float r);
+Mat33_D lerpFromIdentity(const Mat33_D &l, float r);
+Mat34_3 lerpFromIdentity(const Mat34_3 &l, float r);
+Mat34 lerpFromIdentity(const Mat34 &l, float r);
+Mat44 lerpFromIdentity(const Mat44 &l, float r);
+
+
 // Multiply by vector
 
 Vec4 operator*(const Mat34_3 &l, const Vec4 &r);
