@@ -19,6 +19,7 @@ flat out vec4 v_Params;
 
 uniform VertexInstance
 {
+	mat4 u_ParticleToWorld;
 	mat4 u_WorldToClip;
 	float u_InvDelta;
 	float u_Aspect;
@@ -63,8 +64,8 @@ void main()
 	uint id = uint(gl_VertexID);
 	float invDelta = u_InvDelta;
 
-	vec3 position = vec3(a_PositionLife.xyz);
-	vec3 velocity = vec3(a_VelocitySeed.xyz);
+	vec3 position = (u_ParticleToWorld * vec4(a_PositionLife.xyz, 1.0)).xyz;
+	vec3 velocity = (u_ParticleToWorld * vec4(a_VelocitySeed.xyz, 0.0)).xyz;
 	float packedSeed = a_VelocitySeed.w;
 
 	float absoluteTotalLifeTime = u_LifeTimeBaseVariance.x + u_LifeTimeBaseVariance.y * packedSeed;

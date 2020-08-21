@@ -17,6 +17,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, ParticleSystem, ParticleSystemComponent),
 		sf_poly(Component, Character, CharacterComponent),
 		sf_poly(Component, CharacterModel, CharacterModelComponent),
+		sf_poly(Component, TapArea, TapAreaComponent),
 		sf_poly(Component, BlobShadow, BlobShadowComponent),
 		sf_poly(Component, Card, CardComponent),
 		sf_poly(Component, CardAttach, CardAttachComponent),
@@ -264,7 +265,7 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		sf_field(ParticleSystemComponent, burstAmount),
 		sf_field(ParticleSystemComponent, burstAmountVariance),
 		sf_field(ParticleSystemComponent, emitterOnTime),
-		sf_field(ParticleSystemComponent, followAmount),
+		sf_field(ParticleSystemComponent, localSpace),
 		sf_field(ParticleSystemComponent, emitPosition),
 		sf_field(ParticleSystemComponent, emitVelocity),
 		sf_field(ParticleSystemComponent, emitVelocityAttractorOffset),
@@ -344,8 +345,8 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		info.description = "How long to emit particles (negative for infinite, zero for no emit)";
 	}
 	{
-		ReflectionInfo &info = addTypeReflectionInfo(t, "followAmount");
-		info.description = "How much should the particles follow the object (1 is attached to the object)";
+		ReflectionInfo &info = addTypeReflectionInfo(t, "localSpace");
+		info.description = "Simualte particles in entity-local space";
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "emitPosition");
@@ -490,6 +491,24 @@ template<> void initType<CharacterModelComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "attachBones");
 		info.description = "Bone mapping for attaching objects";
+	}
+}
+
+template<> void initType<TapAreaComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(TapAreaComponent, offset),
+		sf_field(TapAreaComponent, extent),
+	};
+	sf_struct_base(t, TapAreaComponent, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "offset");
+		info.description = "Offset from the character";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "extent");
+		info.description = "Size of the clickable/tappable box";
 	}
 }
 
