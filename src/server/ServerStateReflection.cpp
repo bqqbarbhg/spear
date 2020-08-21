@@ -264,6 +264,7 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		sf_field(ParticleSystemComponent, burstAmount),
 		sf_field(ParticleSystemComponent, burstAmountVariance),
 		sf_field(ParticleSystemComponent, emitterOnTime),
+		sf_field(ParticleSystemComponent, followAmount),
 		sf_field(ParticleSystemComponent, emitPosition),
 		sf_field(ParticleSystemComponent, emitVelocity),
 		sf_field(ParticleSystemComponent, emitVelocityAttractorOffset),
@@ -341,6 +342,10 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "emitterOnTime");
 		info.description = "How long to emit particles (negative for infinite, zero for no emit)";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "followAmount");
+		info.description = "How much should the particles follow the object (1 is attached to the object)";
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "emitPosition");

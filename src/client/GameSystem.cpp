@@ -618,6 +618,7 @@ struct GameSystemImp final : GameSystem
 		}
 
 
+#if 0
 		if (ImGui::Begin("Pointers")) {
 			sf::SmallStringBuf<128> str;
 			for (Pointer &p : pointers) {
@@ -627,6 +628,7 @@ struct GameSystemImp final : GameSystem
 			}
 		}
         ImGui::End();
+#endif
 
 		Camera::State state = Camera::lerp(camera.previous, camera.current, camera.timeDelta / cameraDt);
 

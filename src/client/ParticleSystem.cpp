@@ -200,6 +200,8 @@ struct ParticleSystemImp final : ParticleSystem
 		sf::Float4 emitterToWorld[4];
 		sf::Float4 prevEmitterToWorld[4];
 
+		sf::Vec3 prevOrigin;
+
 		bool stopEmit = false;
 		bool firstEmit = true;
 		float spawnTimer = 0.0f;
@@ -525,6 +527,13 @@ struct ParticleSystemImp final : ParticleSystem
 		sf::ScalarAddFloat4 lifeTime = comp.lifeTime;
 		sf::ScalarFloat4 lifeTimeVariance = comp.lifeTimeVariance * (1.0f / 16777216.0f);
 
+		sf::Vec3 delta = (effect.origin - effect.prevOrigin) * (comp.followAmount / dt);
+		effect.prevOrigin = effect.origin;
+
+		sf::ScalarAddFloat4 deltaX = delta.x;
+		sf::ScalarAddFloat4 deltaY = delta.y;
+		sf::ScalarAddFloat4 deltaZ = delta.z;
+
 		for (Particle4 &p : effect.particles) {
 
 			sf::Float4 life = p.life;
@@ -562,6 +571,10 @@ struct ParticleSystemImp final : ParticleSystem
 			vz += az * dt4;
 
 			p.vx = vx; p.vy = vy; p.vz = vz;
+
+			vx += deltaX;
+			vy += deltaY;
+			vz += deltaZ;
 
 			px += vx * dt4;
 			py += vy * dt4;
@@ -706,7 +719,7 @@ struct ParticleSystemImp final : ParticleSystem
 
 		effect.gravity = c->gravity;
 
-		effect.origin = transform.position;
+		effect.prevOrigin = effect.origin = transform.position;
 
 		effect.emitOnTimer = c->emitterOnTime;
 
