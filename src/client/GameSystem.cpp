@@ -279,6 +279,12 @@ struct GameSystemImp final : GameSystem
     
 	// -- API
 
+	GameSystemImp(const SystemsDesc &desc)
+	{
+		camera.previous.origin = camera.current.origin = sf::Vec3(desc.persist.camera.x, 0.0f, desc.persist.camera.y);
+		camera.previous.zoom = camera.current.zoom = desc.persist.zoom;
+	}
+
 	void updateCamera(FrameArgs &frameArgs) override
 	{
 		ScreenToWorld screenToWorld;
@@ -437,7 +443,9 @@ struct GameSystemImp final : GameSystem
 
 			} else if (e.type == SAPP_EVENTTYPE_KEY_DOWN) {
 
-				keyDown[e.key_code] = true;
+				if (!ImGui::GetIO().WantCaptureKeyboard) {
+					keyDown[e.key_code] = true;
+				}
 
 			} else if (e.type == SAPP_EVENTTYPE_KEY_UP) {
 
@@ -634,6 +642,13 @@ struct GameSystemImp final : GameSystem
 		frameArgs.mainRenderArgs.frustum = sf::Frustum(frameArgs.mainRenderArgs.worldToClip, sp::getClipNearW());
 	}
 
+	void writePersist(Systems &systems, ClientPersist &persist) override
+	{
+		persist.camera.x = camera.current.origin.x;
+		persist.camera.y = camera.current.origin.z;
+		persist.zoom = camera.current.zoom;
+	}
+
 	void update(const sv::ServerState &svState, const FrameArgs &frameArgs) override
 	{
 	}
@@ -724,6 +739,6 @@ struct GameSystemImp final : GameSystem
 
 };
 
-sf::Box<GameSystem> GameSystem::create() { return sf::box<GameSystemImp>(); }
+sf::Box<GameSystem> GameSystem::create(const SystemsDesc &desc) { return sf::box<GameSystemImp>(desc); }
 
 }

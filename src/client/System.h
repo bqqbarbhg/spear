@@ -19,8 +19,15 @@ namespace sp { struct Canvas; }
 
 namespace cl {
 
+struct ClientPersist
+{
+	sf::Vec2 camera;
+	float zoom = 0.0f;
+};
+
 struct SystemsDesc
 {
+	ClientPersist persist;
 	uint64_t seed[4];
 };
 
@@ -106,8 +113,11 @@ struct Entities
 
 	sf::Array<uint32_t> removeQueue;
 
-	uint32_t addPrefab(const sv::Prefab &svPrefab);
-	void removePrefab(uint32_t prefabId);
+	void addPrefabComponents(Systems &systems, uint32_t prefabId);
+	void removePrefabComponents(Systems &systems, uint32_t prefabId);
+
+	uint32_t addPrefab(Systems &systems, const sv::Prefab &svPrefab);
+	void removePrefab(Systems &systems, uint32_t prefabId);
 
 	sf::Box<sv::Prefab> findPrefab(const sf::Symbol &name) const;
 

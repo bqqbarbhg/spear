@@ -639,17 +639,22 @@ struct ParticleSystemImp final : ParticleSystem
 		effect.uploadFrameIndex = 0;
 	}
 
+	void releaseEffectTypeImp(uint32_t typeId)
+	{
+		EffectType &type = types[typeId];
+		if (--type.refCount == 0) {
+			ComponentKey key = { (void*)type.svComponent.ptr };
+			svCompponentToType.remove(key);
+
+			sf::reset(type);
+			freeTypeIds.push(typeId);
+		}
+	}
+
 	// API
 
-	virtual void addEffect(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sf::Box<sv::ParticleSystemComponent> &c, const Transform &transform) override
+	virtual uint32_t reserveEffectType(Systems &systems, const sf::Box<sv::ParticleSystemComponent> &c) override
 	{
-		uint32_t effectId = effects.size;
-		if (freeEffectIds.size > 0) {
-			effectId = freeEffectIds.popValue();
-		} else {
-			effects.push();
-		}
-
 		uint32_t typeId;
         ComponentKey key = { (void*)c.ptr };
 		auto res = svCompponentToType.insert(key);
@@ -670,6 +675,29 @@ struct ParticleSystemImp final : ParticleSystem
 
 		EffectType &type = types[typeId];
 		type.refCount++;
+
+		return typeId;
+	}
+
+	virtual void releaseEffectType(Systems &systems, const sf::Box<sv::ParticleSystemComponent> &c) override
+	{
+        ComponentKey key = { (void*)c.ptr };
+		if (uint32_t *typeId = svCompponentToType.findValue(key)) {
+			releaseEffectTypeImp(*typeId);
+		}
+	}
+
+	virtual void addEffect(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sf::Box<sv::ParticleSystemComponent> &c, const Transform &transform) override
+	{
+		uint32_t effectId = effects.size;
+		if (freeEffectIds.size > 0) {
+			effectId = freeEffectIds.popValue();
+		} else {
+			effects.push();
+		}
+
+		uint32_t typeId = reserveEffectType(systems, c);
+		EffectType &type = types[typeId];
 
 		Effect &effect = effects[effectId];
 		effect.typeId = typeId;
@@ -716,17 +744,9 @@ struct ParticleSystemImp final : ParticleSystem
 	{
 		uint32_t effectId = ec.userId;
 		Effect &effect = effects[effectId];
-		EffectType &type = types[effect.typeId];
 
 		systems.area->removeSphereArea(effect.areaId);
-
-		if (--type.refCount == 0) {
-            ComponentKey key = { (void*)type.svComponent.ptr };
-			svCompponentToType.remove(key);
-
-			sf::reset(type);
-			freeTypeIds.push(effect.typeId);
-		}
+		releaseEffectTypeImp(effect.typeId);
 
 		sf::reset(effect);
 		freeEffectIds.push(effectId);

@@ -32,9 +32,30 @@
 #include "ext/imgui/imgui.h"
 
 #include "sf/Random.h"
+#include "sp/Json.h"
+
+#if SF_OS_EMSCRIPTEN
+	#include <emscripten.h>
+#endif
 
 namespace cl {
 
+#if SF_OS_EMSCRIPTEN
+
+EM_JS(int, clientEmscReadPersist, (char *data, size_t size), {
+	var persist = sessionStorage.getItem("spear_persist");
+	if (persist) {
+		stringToUTF8(persist, data, size);
+	}
+});
+
+
+EM_JS(int, clientEmscWritePersist, (const char *data, size_t size), {
+	var str = UTF8ToString(data, size);
+	sessionStorage.setItem("spear_persist", str);
+});
+
+#endif
 
 struct DebugRenderHandles
 {
@@ -303,10 +324,11 @@ static void clientSocketError(void *user, bqws_socket *ws, bqws_error error)
 	}
 }
 
-static sf::Box<cl::ClientState> makeClientState(Client *c)
+static sf::Box<cl::ClientState> makeClientState(Client *c, const cl::ClientPersist &persist)
 {
 	cl::SystemsDesc desc;
 	sf::getSecureRandom(desc.seed, sizeof(desc.seed));
+	desc.persist = persist;
 	return sf::box<cl::ClientState>(desc);
 }
 
@@ -314,7 +336,25 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::Str
 {
 	Client *c = new Client();
 
-	c->clState = makeClientState(c);
+	cl::ClientPersist persist;
+
+	#if SF_OS_EMSCRIPTEN
+	{
+		sf::Array<char> jsonBuf;
+		jsonBuf.resizeUninit(33*1096);
+		clientEmscReadPersist(jsonBuf.data, jsonBuf.capacity);
+
+		jsi_value *value = jsi_parse_string(jsonBuf.data, NULL);
+		if (value) {
+			cl::ClientPersist parsed;
+			if (sp::readJson(value, parsed)) {
+				sf::impSwap(persist, parsed);
+			}
+		}
+	}
+	#endif
+
+	c->clState = makeClientState(c, persist);
 
 	{
         sf::SmallStringBuf<128> url;
@@ -426,9 +466,9 @@ bool clientUpdate(Client *c, const ClientInput &input)
 
 	// TODO: Don't always create editor
 	for (const sapp_event &event : input.events) {
-		if (event.type == SAPP_EVENTTYPE_KEY_DOWN && !ImGui::GetIO().WantCaptureKeyboard) {
+		if (event.type == SAPP_EVENTTYPE_KEY_DOWN) {
 			if (event.key_code == SAPP_KEYCODE_SPACE) {
-				if (c->svState) {
+				if (c->svState && !ImGui::GetIO().WantCaptureKeyboard) {
 					if (c->editor) {
 						editorFree(c->editor);
 						c->editor = nullptr;
@@ -438,12 +478,15 @@ bool clientUpdate(Client *c, const ClientInput &input)
 				}
 			} else if (event.key_code == SAPP_KEYCODE_F5) {
 				if (c->clState && c->svState) {
+					cl::ClientPersist persist;
+					c->clState->writePersist(persist);
+
 					if (c->editor) {
 						editorPreRefresh(c->editor);
 					}
 
 					c->clState.reset();
-					c->clState = makeClientState(c);
+					c->clState = makeClientState(c, persist);
 					c->clState->localClientId = c->svState->localClientId;
 					c->svState->getAsEvents(&handleLoadEvent, c);
 
@@ -452,6 +495,21 @@ bool clientUpdate(Client *c, const ClientInput &input)
 					}
 				}
 			}
+		} else if (event.type == SAPP_EVENTTYPE_QUIT_REQUESTED) {
+			#if SF_OS_EMSCRIPTEN
+			{
+				cl::ClientPersist persist;
+				c->clState->writePersist(persist);
+
+				sf::SmallArray<char, 4096> json;
+				jso_stream s;
+				sp::jsoInitArray(&s, json);
+				sp::writeJson(s, persist);
+				jso_close(&s);
+
+				clientEmscWritePersist(json.data, json.size);
+			}
+			#endif
 		}
 	}
 

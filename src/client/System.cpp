@@ -9,6 +9,8 @@
 #include "client/BlobShadowSystem.h"
 #include "client/GameSystem.h"
 
+#include "sf/Reflection.h"
+
 namespace cl {
 
 void BoneUpdates::clear()
@@ -29,7 +31,7 @@ void Systems::init(const SystemsDesc &desc)
 	characterModel = CharacterModelSystem::create(desc);
 	particle = ParticleSystem::create(desc);
 	blobShadow = BlobShadowSystem::create();
-	game = GameSystem::create();
+	game = GameSystem::create(desc);
 }
 
 void Systems::updateVisibility(VisibleAreas &areas, uint32_t areaFlags, const sf::Frustum &frustum)
@@ -64,7 +66,27 @@ void EntitySystem::editorHighlight(Systems &systems, const EntityComponent &ec, 
 	// Nop
 }
 
-uint32_t Entities::addPrefab(const sv::Prefab &svPrefab)
+void Entities::addPrefabComponents(Systems &systems, uint32_t prefabId)
+{
+	Prefab &prefab = prefabs[prefabId];
+	for (const sf::Box<sv::Component> &comp : prefab.svPrefab->components) {
+		if (const auto *c = comp->as<sv::ParticleSystemComponent>()) {
+			systems.particle->reserveEffectType(systems, comp.cast<sv::ParticleSystemComponent>());
+		}
+	}
+}
+
+void Entities::removePrefabComponents(Systems &systems, uint32_t prefabId)
+{
+	Prefab &prefab = prefabs[prefabId];
+	for (const sf::Box<sv::Component> &comp : prefab.svPrefab->components) {
+		if (const auto *c = comp->as<sv::ParticleSystemComponent>()) {
+			systems.particle->releaseEffectType(systems, comp.cast<sv::ParticleSystemComponent>());
+		}
+	}
+}
+
+uint32_t Entities::addPrefab(Systems &systems, const sv::Prefab &svPrefab)
 {
 	auto res = nameToPrefab.insert(svPrefab.name);
 	if (!res.inserted) return res.entry.val;
@@ -81,13 +103,17 @@ uint32_t Entities::addPrefab(const sv::Prefab &svPrefab)
 	Prefab &prefab = prefabs[prefabId];
 	prefab.svPrefab = sf::box<sv::Prefab>(svPrefab);
 
+	addPrefabComponents(systems, prefabId);
+
 	return prefabId;
 }
 
-void Entities::removePrefab(uint32_t prefabId)
+void Entities::removePrefab(Systems &systems, uint32_t prefabId)
 {
 	Prefab &prefab = prefabs[prefabId];
 	sf_assert(prefab.entityIds.size == 0);
+
+	removePrefabComponents(systems, prefabId);
 
 	sf::reset(prefab);
 	freePrefabIds.push(prefabId);
@@ -242,6 +268,19 @@ void Entities::updateQueuedRemoves(Systems &systems, const FrameArgs &frameArgs)
 			removeQueue.removeSwap(i--);
 		}
 	}
+}
+
+}
+
+namespace sf {
+
+template<> void initType<cl::ClientPersist>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(cl::ClientPersist, camera),
+		sf_field(cl::ClientPersist, zoom),
+	};
+	sf_struct(t, cl::ClientPersist, fields);
 }
 
 }

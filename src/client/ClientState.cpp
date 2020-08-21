@@ -50,7 +50,7 @@ ClientState::ClientState(const SystemsDesc &desc)
 void ClientState::applyEvent(const sv::Event &event)
 {
 	if (const auto *e = event.as<sv::LoadPrefabEvent>()) {
-		systems.entities.addPrefab(e->prefab);
+		systems.entities.addPrefab(systems, e->prefab);
 	} else if (const auto *e = event.as<sv::AddPropEvent>()) {
 		Transform transform = getPropTransform(e->prop.transform);
 		systems.entities.addEntity(systems, e->prop.id, transform, e->prop.prefabName);
@@ -72,7 +72,10 @@ void ClientState::applyEvent(const sv::Event &event)
 	} else if (const auto *e = event.as<sv::ReloadPrefabEvent>()) {
 		if (uint32_t *pPrefabId = systems.entities.nameToPrefab.findValue(e->prefab.name)) {
 			Prefab &prefab = systems.entities.prefabs[*pPrefabId];
+
+			systems.entities.removePrefabComponents(systems, *pPrefabId);
 			prefab.svPrefab = sf::box<sv::Prefab>(e->prefab);
+			systems.entities.addPrefabComponents(systems, *pPrefabId);
 
 			for (uint32_t entityId : prefab.entityIds) {
 				Transform transform = systems.entities.entities[entityId].transform;
@@ -80,11 +83,16 @@ void ClientState::applyEvent(const sv::Event &event)
 				systems.entities.addComponents(systems, entityId, transform, prefab);
 			}
 		} else {
-			systems.entities.addPrefab(e->prefab);
+			systems.entities.addPrefab(systems, e->prefab);
 		}
 	}
 
 	systems.game->applyEvent(systems, event);
+}
+
+void ClientState::writePersist(ClientPersist &persist)
+{
+	systems.game->writePersist(systems, persist);
 }
 
 void ClientState::editorPick(sf::Array<EntityHit> &hits, const sf::Ray &ray) const
@@ -175,3 +183,4 @@ void ClientState::handleGui(const GuiArgs &guiArgs)
 }
 
 }
+

@@ -17,8 +17,9 @@ struct ClientState
 
 	void applyEvent(const sv::Event &event);
 
-	void editorPick(sf::Array<EntityHit> &hits, const sf::Ray &ray) const;
+	void writePersist(ClientPersist &persist);
 
+	void editorPick(sf::Array<EntityHit> &hits, const sf::Ray &ray) const;
 	void editorHighlight(uint32_t entityId, EditorHighlight type);
 
 	void updateCamera(FrameArgs &frameArgs);

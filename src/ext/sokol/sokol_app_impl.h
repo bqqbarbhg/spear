@@ -2982,7 +2982,13 @@ EMSCRIPTEN_KEEPALIVE void _sapp_emsc_onpaste(const char* str) {
 
 /*  https://developer.mozilla.org/en-US/docs/Web/API/WindowEventHandlers/onbeforeunload */
 EMSCRIPTEN_KEEPALIVE int _sapp_html5_get_ask_leave_site(void) {
-    return _sapp.html5_ask_leave_site ? 1 : 0;
+    if (_sapp.html5_ask_leave_site) {
+        return 1;
+    } else {
+		_sapp_init_event(SAPP_EVENTTYPE_QUIT_REQUESTED);
+		_sapp_call_event(&_sapp.event);
+        return 0;
+    }
 }
 
 EM_JS(void, sapp_add_js_hook_beforeunload, (void), {
