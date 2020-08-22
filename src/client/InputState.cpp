@@ -117,10 +117,12 @@ void movePointer(InputState &state, Pointer &pointer, const PointerPosition &pos
 
 	pointer.current = pos;
 
-	float dist = sf::length(prev - next);
-	pointer.dragAmount = sf::min(pointer.dragAmount + sf::min(pointer.time*80.0f + 0.005f, 20.0f) * dist, 1.0f);
-	if (pointer.dragAmount >= 0.5f && sf::length(start - next) > 0.05f) {
-		pointer.canTap = false;
+	if (pointer.button != Pointer::MouseHover) {
+		float dist = sf::length(prev - next);
+		pointer.dragAmount = sf::min(pointer.dragAmount + sf::min(pointer.time*80.0f + 0.005f, 20.0f) * dist, 1.0f);
+		if (pointer.dragAmount >= 0.5f && sf::length(start - next) > 0.05f) {
+			pointer.canTap = false;
+		}
 	}
 }
 
@@ -140,7 +142,7 @@ void InputState::update(const InputUpdateArgs &args)
 		p.time += args.dt;
 
 		if (p.button == Pointer::MouseHover) {
-			if (args.mouseBlocked) {
+			if (args.mouseBlocked || p.action != Pointer::Down) {
 				pointers.removeOrdered(i);
 				i--;
 			}
@@ -162,7 +164,7 @@ void InputState::update(const InputUpdateArgs &args)
 			if (args.mouseBlocked) continue;
 			PointerPosition pos = sappToPointerPosition(*this, sf::Vec2(e.mouse_x, e.mouse_y));
 
-			if (args.simulateTap) {
+			if (args.simulateTouch) {
 				if (simulatedTouchId) {
 					Pointer *p = findTouch(*this, simulatedTouchId);
 					if (p->action != Pointer::Up) {
@@ -186,7 +188,7 @@ void InputState::update(const InputUpdateArgs &args)
 		} else if (e.type == SAPP_EVENTTYPE_MOUSE_MOVE) {
 			PointerPosition pos = sappToPointerPosition(*this, sf::Vec2(e.mouse_x, e.mouse_y));
 
-			if (args.simulateTap) {
+			if (args.simulateTouch) {
 				if (simulatedTouchId) {
 					if (Pointer *p = findTouch(*this, simulatedTouchId)) {
 						movePointer(*this, *p, pos);
@@ -195,7 +197,7 @@ void InputState::update(const InputUpdateArgs &args)
 			} else {
 				bool foundMouse = false;
 				for (Pointer &p : pointers) {
-					if (p.action <= Pointer::LastMouse) {
+					if (p.button <= Pointer::LastMouse && p.button != Pointer::MouseHover) {
 						foundMouse = true;
 						movePointer(*this, p, pos);
 					}
@@ -209,7 +211,7 @@ void InputState::update(const InputUpdateArgs &args)
 		} else if (e.type == SAPP_EVENTTYPE_MOUSE_UP) {
 			PointerPosition pos = sappToPointerPosition(*this, sf::Vec2(e.mouse_x, e.mouse_y));
 
-			if (args.simulateTap) {
+			if (args.simulateTouch) {
 				if (simulatedTouchId) {
 					if (Pointer *p = findTouch(*this, simulatedTouchId)) {
 						p->action = Pointer::Up;
@@ -275,6 +277,19 @@ void InputState::update(const InputUpdateArgs &args)
 			sf::memZero(prevKeyDown);
 			for (Pointer &p : pointers) {
 				p.action = Pointer::Cancel;
+			}
+		}
+	}
+
+	for (Pointer &p : pointers) {
+		// Resample dragStart for same class (at least for Background)
+		if (p.button == Pointer::Touch
+			&& (p.action == Pointer::Up || p.action == Pointer::Cancel)) {
+			for (Pointer &p2 : pointers) {
+				if (p2.button == Pointer::Touch
+					&& p2.action == Pointer::Hold) {
+					p2.dragStart.worldRay = pointerToWorld(clipToWorld, p2.current.pos);
+				}
 			}
 		}
 	}

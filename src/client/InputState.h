@@ -64,7 +64,7 @@ struct InputUpdateArgs
 	sf::Slice<const sapp_event> events;
 	bool mouseBlocked = false;
 	bool keyboardBlocked = false;
-	bool simulateTap = false;
+	bool simulateTouch = false;
 };
 
 struct InputState

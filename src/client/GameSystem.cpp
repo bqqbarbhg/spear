@@ -135,6 +135,8 @@ struct GameSystemImp final : GameSystem
 	sv::ReachableSet moveSet;
 	sf::Array<sf::Vec2i> moveWaypoints;
 
+	GuiCardResources guiCardRes;
+
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
 	{
 		Character &chr = characters[characterId];
@@ -199,11 +201,13 @@ struct GameSystemImp final : GameSystem
 		inputArgs.dt = frameArgs.dt;
 		inputArgs.resolution = sf::Vec2(frameArgs.resolution);
 		inputArgs.clipToWorld = sf::inverse(frameArgs.mainRenderArgs.worldToClip);
-		inputArgs.dpiScale = sapp_dpi_scale();
+		#if !defined(SP_NO_APP)
+			inputArgs.dpiScale = sapp_dpi_scale();
+		#endif
 		inputArgs.events = frameArgs.events;
 		inputArgs.mouseBlocked = ImGui::GetIO().WantCaptureMouse;
 		inputArgs.keyboardBlocked = ImGui::GetIO().WantCaptureKeyboard;
-		inputArgs.simulateTap = true;
+		inputArgs.simulateTouch = false;
 
 		input.update(inputArgs);
 
@@ -217,28 +221,6 @@ struct GameSystemImp final : GameSystem
 
 			}
 		}
-
-#if 0
-		for (Pointer &p : pointers) {
-			float move = sf::length(p.current.pos - p.previous.pos);
-			float dist = 0.2f + sf::lengthSq(p.current.pos - p.start.pos);
-			float time = 0.1f + sf::min(p.time, 0.3f);
-			p.dragFactor = sf::min(1.0f, p.dragFactor + dist * move * time * 2000.0f);
-            
-            // Resample dragStart for same class (at least for Background)
-            if (p.button == Pointer::Touch
-                && p.hitType == Pointer::Background
-                && (p.action == Pointer::Up || p.action == Pointer::Cancel)) {
-                for (Pointer &p2 : pointers) {
-                    if (p2.button == Pointer::Touch
-                        && p2.hitType == p.hitType
-                        && p2.action == Pointer::Hold) {
-                        p2.dragStart.worldRay = pointerToWorld(screenToWorld.clipToWorld, p2.current.pos);
-                    }
-                }
-            }
-		}
-#endif
 
 		const float cameraDt = 0.001f;
 		camera.timeDelta = sf::min(camera.timeDelta + frameArgs.dt, 0.1f);
@@ -303,7 +285,9 @@ struct GameSystemImp final : GameSystem
 
 					sf::Vec3 a = intersectHorizontalPlane(0.0f, p.dragStart.worldRay);
 					sf::Vec3 b = intersectHorizontalPlane(0.0f, p.current.worldRay);
-					if (p.dragAmount < 1.0f) b = sf::lerp(a, b, sf::max(0.0f, p.dragAmount));
+					float dragAmount = sf::max(0.0f, p.dragAmount);
+					if (p.button == Pointer::MouseMiddle) dragAmount = 1.0f;
+					if (dragAmount < 1.0f) b = sf::lerp(a, b, dragAmount);
 			
                     numDrags += 1;
                     dragStart += a;
@@ -326,7 +310,9 @@ struct GameSystemImp final : GameSystem
                             && p.action == Pointer::Hold) {
                             sf::Vec3 a = intersectHorizontalPlane(0.0f, p.dragStart.worldRay);
                             sf::Vec3 b = intersectHorizontalPlane(0.0f, p.current.worldRay);
-							if (p.dragAmount < 1.0f) b = sf::lerp(a, b, sf::max(0.0f, p.dragAmount));
+							float dragAmount = sf::max(0.0f, p.dragAmount);
+							if (p.button == Pointer::MouseMiddle) dragAmount = 1.0f;
+							if (dragAmount < 1.0f) b = sf::lerp(a, b, dragAmount);
     
                             float ad = sf::length(a - dragStart);
                             float bd = sf::length(b - dragCurrent);
@@ -673,21 +659,46 @@ struct GameSystemImp final : GameSystem
 		sp::Canvas &canvas = *guiArgs.canvas;
 
 		if (Character *chr = findCharacter(selectedCharacterId)) {
-			float cardHeight = 140.0f;
-			float cardWidth = cardHeight * GuiCard::canvasXByY;
-			float cardPad = 10.0f;
+			sv::CharacterComponent *chrComp = chr->svPrefab->findComponent<sv::CharacterComponent>();
+			if (chrComp) {
+				float cardHeight = 100.0f;
+				float cardWidth = cardHeight * GuiCard::canvasXByY;
+				float cardPad = 10.0f;
+				float cardMargin = 20.0f;
 
-			float x = 20.0f;
-			float y = guiArgs.resolution.y - 20.0f - cardHeight;
+				float x = cardMargin;
+				float y = guiArgs.resolution.y - cardMargin - cardHeight;
 
-			for (SelectedCard &selected : chr->selectedCards) {
-				if (Card *card = findCard(selected.currentSvId)) {
-					canvas.pushTransform(sf::mat2D::translate(x, y) * sf::mat2D::scale(cardHeight / GuiCard::canvasHeight));
-					cl::renderCard(canvas, card->gui);
-					canvas.popTransform();
+				canvas.draw(guiCardRes.inventory, sf::Vec2(guiArgs.resolution.x - cardMargin - cardWidth, y), sf::Vec2(cardWidth, cardHeight));
+
+				uint32_t lastMeleeSlot = 1;
+				uint32_t lastSkillSlot = lastMeleeSlot + chrComp->skillSlots;
+				uint32_t lastSpellSlot = lastSkillSlot + chrComp->spellSlots;
+				uint32_t lastItemSlot = lastSpellSlot + chrComp->itemSlots;
+
+				for (uint32_t slot = 0; slot < sv::NumSelectedCards; slot++) {
+					GuiCardSlot guiSlot = GuiCardSlot::Count;
+					if (slot < lastMeleeSlot) {
+						guiSlot = GuiCardSlot::Melee;
+					} else if (slot < lastSkillSlot) {
+						guiSlot = GuiCardSlot::Skill;
+					} else if (slot < lastSpellSlot) {
+						guiSlot = GuiCardSlot::Spell;
+					} else if (slot < lastItemSlot) {
+						guiSlot = GuiCardSlot::Item;
+					}
+
+					SelectedCard &selected = chr->selectedCards[slot];
+					if (Card *card = findCard(selected.currentSvId)) {
+						canvas.pushTransform(sf::mat2D::translate(x, y) * sf::mat2D::scale(cardHeight / GuiCard::canvasHeight));
+						cl::renderCard(canvas, card->gui);
+						canvas.popTransform();
+					} else if (guiSlot != GuiCardSlot::Count) {
+						canvas.draw(guiCardRes.slotPlaceholders[(uint32_t)guiSlot], sf::Vec2(x, y), sf::Vec2(cardWidth, cardHeight));
+					}
+
+					x += cardWidth + cardPad;
 				}
-
-				x += cardWidth + cardPad;
 			}
 		}
 	}

@@ -189,6 +189,10 @@ struct Ref
 		ptr = Asset::load<T>(name, prop);
 	}
 
+	void load(const char *name) {
+		load(sf::Symbol(name));
+	}
+
 	bool isLoading() const { return ptr && !ptr->isLoaded() && !ptr->isFailed(); }
 	bool isLoaded() const { return ptr && ptr->isLoaded(); }
 };

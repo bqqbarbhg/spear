@@ -9,6 +9,29 @@
 
 namespace cl {
 
+enum class GuiCardSlot
+{
+	Melee,
+	Skill,
+	Spell,
+	Item,
+	Count,
+};
+
+struct GuiCardResources
+{
+	sp::SpriteRef slotPlaceholders[(uint32_t)GuiCardSlot::Count];
+	sp::SpriteRef inventory { "Assets/Gui/Card/Inventory.png" };
+
+	GuiCardResources()
+	{
+		slotPlaceholders[(uint32_t)GuiCardSlot::Melee].load("Assets/Gui/Card/Slot_Melee.png");
+		slotPlaceholders[(uint32_t)GuiCardSlot::Skill].load("Assets/Gui/Card/Slot_Skill.png");
+		slotPlaceholders[(uint32_t)GuiCardSlot::Spell].load("Assets/Gui/Card/Slot_Spell.png");
+		slotPlaceholders[(uint32_t)GuiCardSlot::Item].load("Assets/Gui/Card/Slot_Item.png");
+	}
+};
+
 struct GuiCard
 {
 	static const constexpr float canvasWidth = 500.0f;
