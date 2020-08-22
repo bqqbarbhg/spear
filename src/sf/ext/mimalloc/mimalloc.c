@@ -3201,7 +3201,6 @@ static void* mi_wasm_heap_grow(size_t size, size_t try_alignment) {
     errno = ENOMEM;
     return NULL;
   }
-  fprintf(stderr, "ALLOC: %x/%x -> %x -> %x/%x\n", (unsigned)size, (unsigned)try_alignment, (unsigned)base, (unsigned)aligned_base, (unsigned)top);
   return (void*)aligned_base;
 }
 
@@ -10321,8 +10320,6 @@ void mi_thread_init(void) mi_attr_noexcept
   // ensure our process has started already
   mi_process_init();
 
-  fprintf(stderr, "THREAD INIT\n");
-
   // initialize the thread local default heap
   // (this will call `_mi_heap_set_default_direct` and thus set the
   //  fiber/pthread key to a non-zero value, ensuring `_mi_thread_done` is called)
@@ -10470,7 +10467,6 @@ void mi_process_init(void) mi_attr_noexcept {
   mi_stats_reset();  // only call stat reset *after* thread init (or the heap tld == NULL)
 
   if (mi_option_is_enabled(mi_option_reserve_huge_os_pages)) {
-      printf("WTF HUGE!?!?!\n");
     size_t pages = mi_option_get(mi_option_reserve_huge_os_pages);
     mi_reserve_huge_os_pages_interleave(pages, 0, pages*500);
   }
