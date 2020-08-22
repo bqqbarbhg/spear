@@ -644,6 +644,11 @@ struct ParticleSystemImp final : ParticleSystem
 
 		effect.gpuBounds.origin = ((pMin + pMax) * 0.5f).asVec3();
 		effect.gpuBounds.extent = ((pMax - pMin) * 0.5f + comp.cullPadding).asVec3();
+
+		if (comp.localSpace) {
+			effect.gpuBounds = sf::transformBounds(effect.particlesToWorld, effect.gpuBounds);
+		}
+
 		effect.uploadFrameIndex = 0;
 	}
 
