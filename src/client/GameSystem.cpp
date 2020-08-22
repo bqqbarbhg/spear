@@ -19,11 +19,9 @@
 #include "ext/sokol/sokol_app.h"
 #include "ext/imgui/imgui.h"
 
-namespace cl {
+#include "client/InputState.h"
 
-static Transform getCharacterTransform(const sv::Character &chr)
-{
-}
+namespace cl {
 
 static const constexpr float TapCancelDistance = 0.03f;
 static const constexpr float TapCancelDistanceSq = TapCancelDistance * TapCancelDistance;
@@ -93,88 +91,6 @@ struct GameSystemImp final : GameSystem
 		sf::Array<uint32_t> entityIds;
 	};
 
-	struct Pointer
-	{
-		enum Button
-		{
-			MouseHover,
-			MouseLeft,
-			MouseRight,
-			MouseMiddle,
-			Touch,
-
-			LastMouse = MouseMiddle,
-		};
-
-		enum Action
-		{
-			Down,
-			Hold,
-			Up,
-			Cancel,
-		};
-
-        enum HitType
-        {
-            None,
-            UI,
-            Background,
-        };
-
-		struct Position
-		{
-			sf::Vec2 pos;
-			sf::Ray worldRay;
-		};
-
-		uint64_t pointerId = 0;
-		uintptr_t touchId = 0;
-		Button button;
-		Action action;
-        HitType hitType;
-        uint32_t hitIndex;
-
-		float time = 0.0f;
-		float dragFactor = -0.1f;
-		bool canTap;
-
-		Position start;
-        Position dragStart;
-		Position previous;
-		Position current;
-
-		void formatDebugString(sf::StringBuf &str) const
-		{
-			const char *buttonStr, *actionStr;
-			switch (button) {
-			case MouseHover: buttonStr = "Hover"; break;
-			case MouseLeft: buttonStr = "Left"; break;
-			case MouseRight: buttonStr = "Right"; break;
-			case MouseMiddle: buttonStr = "Middle"; break;
-			case Touch: buttonStr = "Touch"; break;
-			default: buttonStr = "(???)"; break;
-			}
-
-			switch (action) {
-			case Down: actionStr = "Down"; break;
-			case Hold: actionStr = "Hold"; break;
-			case Up: actionStr = "Up"; break;
-			case Cancel: actionStr = "Cancel"; break;
-			default: actionStr = "(???)"; break;
-			}
-
-			str.format("(%2.2fs) %s %s - (%.2f, %.2f) [drag:%.2f]", time, buttonStr, actionStr,
-				current.pos.x, current.pos.y, dragFactor);
-		}
-	};
-
-	struct ScreenToWorld
-	{
-		sf::Vec2 rcpResolution;
-		sf::Mat44 clipToWorld;
-	};
-
-
 	struct TapTarget
 	{
 		enum Action
@@ -189,31 +105,6 @@ struct GameSystemImp final : GameSystem
 		sf::Vec2 tile;
 		sf::Vec2i tileInt;
 	};
-
-	static Pointer::Button sappToPointerButton(sapp_mousebutton button)
-	{
-		sf_assert(button >= SAPP_MOUSEBUTTON_LEFT && button <= SAPP_MOUSEBUTTON_MIDDLE);
-		return (Pointer::Button)((uint32_t)button + 1);
-	}
-
-	static sf::Ray pointerToWorld(const sf::Mat44 &clipToWorld, const sf::Vec2 &relativePos)
-	{
-		sf::Ray ray;
-		sf::Vec2 clipMouse = relativePos * sf::Vec2(+2.0f, -2.0f) + sf::Vec2(-1.0f, +1.0f);
-		sf::Vec4 rayBegin = clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 0.0f, 1.0f);
-		sf::Vec4 rayEnd = clipToWorld * sf::Vec4(clipMouse.x, clipMouse.y, 1.0f, 1.0f);
-		ray.origin = sf::Vec3(rayBegin.v) / rayBegin.w;
-		ray.direction = sf::normalize(sf::Vec3(rayEnd.v) / rayEnd.w - ray.origin);
-		return ray;
-	}
-
-	static Pointer::Position sappToPointerPosition(const ScreenToWorld &stw, const sf::Vec2 &pos)
-	{
-		Pointer::Position p;
-		p.pos = stw.rcpResolution * pos;
-		p.worldRay = pointerToWorld(stw.clipToWorld, p.pos);
-		return p;
-	}
 
 	static sf::Vec3 intersectHorizontalPlane(float height, const sf::Ray &ray)
 	{
@@ -234,9 +125,7 @@ struct GameSystemImp final : GameSystem
 
 	sf::UintMap svToCard;
 
-	sf::Array<Pointer> pointers;
-	uint64_t nextPointerId = 0;
-
+	InputState input;
 	sf::HashMap<uint64_t, TapTarget> tapTargets;
 
 	sf::Array<sf::Box<sv::Action>> requestedActions;
@@ -245,8 +134,6 @@ struct GameSystemImp final : GameSystem
 
 	sv::ReachableSet moveSet;
 	sf::Array<sf::Vec2i> moveWaypoints;
-
-	bool keyDown[SAPP_MAX_KEYCODES] = { };
 
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
 	{
@@ -298,18 +185,6 @@ struct GameSystemImp final : GameSystem
 		return &cards[id];
 	}
     
-    void initPointer(Pointer &pointer, const Pointer::Position &pos)
-    {
-		pointer.time = 0.0f;
-		pointer.canTap = true;
-		pointer.pointerId = ++nextPointerId;
-        pointer.dragStart = pointer.current = pointer.previous = pointer.start = pos;
-        
-        // TODO: Hitscan
-        pointer.hitType = Pointer::Background;
-        pointer.hitIndex = 0;
-    }
-    
 	// -- API
 
 	GameSystemImp(const SystemsDesc &desc)
@@ -320,227 +195,30 @@ struct GameSystemImp final : GameSystem
 
 	void updateCamera(FrameArgs &frameArgs) override
 	{
-		ScreenToWorld screenToWorld;
-		screenToWorld.rcpResolution = sf::Vec2(1.0f) / sf::Vec2(frameArgs.resolution);
-		screenToWorld.clipToWorld = sf::inverse(frameArgs.mainRenderArgs.worldToClip);
+		InputUpdateArgs inputArgs;
+		inputArgs.dt = frameArgs.dt;
+		inputArgs.resolution = sf::Vec2(frameArgs.resolution);
+		inputArgs.clipToWorld = sf::inverse(frameArgs.mainRenderArgs.worldToClip);
+		inputArgs.dpiScale = sapp_dpi_scale();
+		inputArgs.events = frameArgs.events;
+		inputArgs.mouseBlocked = ImGui::GetIO().WantCaptureMouse;
+		inputArgs.keyboardBlocked = ImGui::GetIO().WantCaptureKeyboard;
+		inputArgs.simulateTap = true;
 
-		for (uint32_t i = 0; i < pointers.size; i++) {
-			Pointer &p = pointers[i];
-			p.time += frameArgs.dt;
+		input.update(inputArgs);
 
-			p.previous = p.current;
-
-			if (p.action == Pointer::Down) {
-				if (p.button != Pointer::MouseHover) {
-					p.action = Pointer::Hold;
-				}
-			} else if (p.action == Pointer::Up) {
-				pointers.removeOrdered(i);
-				i--;
-			} else if (p.action == Pointer::Cancel) {
-				pointers.removeOrdered(i);
-				i--;
-			}
-		}
-
-		bool mouseBlocked = ImGui::GetIO().WantCaptureMouse;
-
-		bool unfocused = false;
 		for (const sapp_event &e : frameArgs.events) {
 
-			if (e.type == SAPP_EVENTTYPE_MOUSE_DOWN) {
+			if (e.type == SAPP_EVENTTYPE_MOUSE_SCROLL) {
 
-				if (!mouseBlocked) {
-					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(e.mouse_x, e.mouse_y));
-
-					Pointer *pointer = nullptr;
-					uint32_t hoverIndex = ~0u;
-					Pointer::Button button = sappToPointerButton(e.mouse_button);
-					for (Pointer &p : pointers) {
-						if (p.button == button) {
-							pointer = &p;
-						} else if (p.button == Pointer::MouseHover) {
-							hoverIndex = (uint32_t)(&p - pointers.data);
-						}
-					}
-
-					if (!pointer) {
-						pointer = &pointers.push();
-						pointer->button = button;
-					}
-
-					pointer->action = Pointer::Down;
-					initPointer(*pointer, pos);
-
-					if (hoverIndex != ~0u) {
-						pointers.removeSwap(hoverIndex);
-					}
-				}
-					
-			} else if (e.type == SAPP_EVENTTYPE_MOUSE_MOVE) {
-				Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(e.mouse_x, e.mouse_y));
-
-				bool hasMouse = false;
-				for (Pointer &p : pointers) {
-					if (p.button <= Pointer::LastMouse) {
-						hasMouse = true;
-
-						p.current = pos;
-
-						if (p.button == Pointer::MouseHover) {
-							p.start = p.current;
-						} else {
-							if (sf::lengthSq(pos.pos - p.start.pos) && p.button != Pointer::MouseHover) {
-								p.canTap = false;
-							}
-						}
-					}
-				}
-
-				if (!hasMouse) {
-					Pointer &pointer = pointers.push();
-					pointer.button = Pointer::MouseHover;
-					pointer.action = Pointer::Down;
-					initPointer(pointer, pos);
-				}
-
-			} else if (e.type == SAPP_EVENTTYPE_MOUSE_UP) {
-				Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(e.mouse_x, e.mouse_y));
-
-				bool hasMouse = false;
-				Pointer::Button button = sappToPointerButton(e.mouse_button);
-				for (Pointer &p : pointers) {
-					if (p.button == button) {
-						p.action = Pointer::Up;
-						p.current = pos;
-					} else if (p.button <= Pointer::LastMouse) {
-						hasMouse = true;
-					}
-				}
-
-				if (!hasMouse) {
-					Pointer &pointer = pointers.push();
-					pointer.button = Pointer::MouseHover;
-					pointer.action = Pointer::Down;
-					initPointer(pointer, pos);
-				}
-
-			} else if (e.type == SAPP_EVENTTYPE_MOUSE_LEAVE) {
-
-				for (Pointer &p : pointers) {
-					if (p.button <= Pointer::LastMouse) {
-						p.action = Pointer::Cancel;
-					}
-				}
-
-			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {
-
-				if (!mouseBlocked) {
-					for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
-						if (!touch.changed) continue;
-						
-						Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
-
-						Pointer *pointer = nullptr;
-						for (Pointer &p : pointers) {
-							if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
-								pointer = &p;
-								break;
-							}
-						}
-
-						if (!pointer) {
-							pointer = &pointers.push();
-							pointer->button = Pointer::Touch;
-							pointer->touchId = touch.identifier;
-						}
-
-						pointer->action = Pointer::Down;
-						initPointer(*pointer, pos);
-					}
-				}
-
-			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_MOVED) {
-
-				for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
-                    if (!touch.changed) continue;
-                    
-					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
-
-					for (Pointer &p : pointers) {
-						if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
-							p.current = pos;
-
-							if (sf::lengthSq(pos.pos - p.start.pos) > TapCancelDistanceSq) {
-								p.canTap = false;
-							}
-						}
-					}
-				}
-
-			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_ENDED) {
-
-				for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
-                    if (!touch.changed) continue;
-                    
-					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
-					for (Pointer &p : pointers) {
-						if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
-							p.action = Pointer::Up;
-							p.current = pos;
-						}
-					}
-				}
-
-			} else if (e.type == SAPP_EVENTTYPE_TOUCHES_CANCELLED) {
-
-				for (const sapp_touchpoint &touch : sf::slice(e.touches, e.num_touches)) {
-                    if (!touch.changed) continue;
-                    
-					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(touch.pos_x, touch.pos_y));
-					for (Pointer &p : pointers) {
-						if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
-							p.action = Pointer::Cancel;
-							p.current = pos;
-						}
-					}
-				}
-
-			} else if (e.type == SAPP_EVENTTYPE_MOUSE_SCROLL) {
-
-				if (!mouseBlocked) {
+				if (!input.mouseBlocked) {
 					camera.zoomDelta += e.scroll_y * -0.1f;
 				}
 
-			} else if (e.type == SAPP_EVENTTYPE_KEY_DOWN) {
-
-				if (!ImGui::GetIO().WantCaptureKeyboard) {
-					keyDown[e.key_code] = true;
-				}
-
-			} else if (e.type == SAPP_EVENTTYPE_KEY_UP) {
-
-				keyDown[e.key_code] = false;
-
-
-			} else if (e.type == SAPP_EVENTTYPE_FOCUSED) {
-
-				unfocused = false;
-
-			} else if (e.type == SAPP_EVENTTYPE_UNFOCUSED) {
-
-				unfocused = true;
-
 			}
 		}
 
-		if (unfocused) {
-			sf::memZero(keyDown);
-			for (Pointer &pointer : pointers) {
-				pointer.action = Pointer::Cancel;
-			}
-		}
-
+#if 0
 		for (Pointer &p : pointers) {
 			float move = sf::length(p.current.pos - p.previous.pos);
 			float dist = 0.2f + sf::lengthSq(p.current.pos - p.start.pos);
@@ -560,6 +238,7 @@ struct GameSystemImp final : GameSystem
                 }
             }
 		}
+#endif
 
 		const float cameraDt = 0.001f;
 		camera.timeDelta = sf::min(camera.timeDelta + frameArgs.dt, 0.1f);
@@ -576,10 +255,10 @@ struct GameSystemImp final : GameSystem
 		sf::Vec2 cameraMove;
 
 		{
-			if (keyDown[SAPP_KEYCODE_A] || keyDown[SAPP_KEYCODE_LEFT]) cameraMove.x -= 1.0f;
-			if (keyDown[SAPP_KEYCODE_D] || keyDown[SAPP_KEYCODE_RIGHT]) cameraMove.x += 1.0f;
-			if (keyDown[SAPP_KEYCODE_W] || keyDown[SAPP_KEYCODE_UP]) cameraMove.y -= 1.0f;
-			if (keyDown[SAPP_KEYCODE_S] || keyDown[SAPP_KEYCODE_DOWN]) cameraMove.y += 1.0f;
+			if (input.keyDown[SAPP_KEYCODE_A] || input.keyDown[SAPP_KEYCODE_LEFT]) cameraMove.x -= 1.0f;
+			if (input.keyDown[SAPP_KEYCODE_D] || input.keyDown[SAPP_KEYCODE_RIGHT]) cameraMove.x += 1.0f;
+			if (input.keyDown[SAPP_KEYCODE_W] || input.keyDown[SAPP_KEYCODE_UP]) cameraMove.y -= 1.0f;
+			if (input.keyDown[SAPP_KEYCODE_S] || input.keyDown[SAPP_KEYCODE_DOWN]) cameraMove.y += 1.0f;
 
 			if (sf::lengthSq(cameraMove) > 1.0f) {
 				cameraMove = sf::normalize(cameraMove);
@@ -609,9 +288,9 @@ struct GameSystemImp final : GameSystem
             sf::Vec3 dragStart;
             sf::Vec3 dragCurrent;
 
-			for (Pointer &p : pointers) {
+			for (Pointer &p : input.pointers) {
                 if ((p.button == Pointer::MouseMiddle || p.button == Pointer::Touch)
-                    && p.action == Pointer::Hold && p.hitType == Pointer::Background) {
+                    && p.action == Pointer::Hold) {
 
 					p.current.worldRay = pointerToWorld(clipToWorld, p.current.pos);
 
@@ -621,10 +300,14 @@ struct GameSystemImp final : GameSystem
 						camera.touchMove -= cameraDt * 4.0f;
 					}
 					camera.touchMove = sf::clamp(camera.touchMove, 0.0f, 1.0f);
-                    
+
+					sf::Vec3 a = intersectHorizontalPlane(0.0f, p.dragStart.worldRay);
+					sf::Vec3 b = intersectHorizontalPlane(0.0f, p.current.worldRay);
+					if (p.dragAmount < 1.0f) b = sf::lerp(a, b, sf::max(0.0f, p.dragAmount));
+			
                     numDrags += 1;
-                    dragStart += intersectHorizontalPlane(0.0f, p.dragStart.worldRay);
-                    dragCurrent += intersectHorizontalPlane(0.0f, p.current.worldRay);
+                    dragStart += a;
+                    dragCurrent += b;
 				}
 			}
             
@@ -637,12 +320,13 @@ struct GameSystemImp final : GameSystem
                     camera.touchMove = sf::clamp(camera.touchMove, 0.0f, 1.0f);
 
                     float dragZoom = 0.0f;
-                    for (Pointer &p : pointers) {
+                    for (Pointer &p : input.pointers) {
     
                         if ((p.button == Pointer::MouseMiddle || p.button == Pointer::Touch)
-                            && p.action == Pointer::Hold && p.hitType == Pointer::Background) {
+                            && p.action == Pointer::Hold) {
                             sf::Vec3 a = intersectHorizontalPlane(0.0f, p.dragStart.worldRay);
                             sf::Vec3 b = intersectHorizontalPlane(0.0f, p.current.worldRay);
+							if (p.dragAmount < 1.0f) b = sf::lerp(a, b, sf::max(0.0f, p.dragAmount));
     
                             float ad = sf::length(a - dragStart);
                             float bd = sf::length(b - dragCurrent);
@@ -687,10 +371,10 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
-#if 0
+#if 1
 		if (ImGui::Begin("Pointers")) {
 			sf::SmallStringBuf<128> str;
-			for (Pointer &p : pointers) {
+			for (Pointer &p : input.pointers) {
 				str.clear();
 				p.formatDebugString(str);
 				ImGui::Text("%s", str.data);
@@ -708,7 +392,7 @@ struct GameSystemImp final : GameSystem
 		sf::Mat44 worldToClip = viewToClip * worldToView;
 
 		sf::Mat44 clipToWorld = sf::inverse(worldToClip);
-		for (Pointer &p : pointers) {
+		for (Pointer &p : input.pointers) {
 			p.current.worldRay = pointerToWorld(clipToWorld, p.current.pos);
 		}
 
@@ -736,9 +420,8 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
-		for (Pointer &pointer : pointers) {
+		for (Pointer &pointer : input.pointers) {
 			if (pointer.action == Pointer::Down
-				&& pointer.hitType == Pointer::Background
 				&& (pointer.button == Pointer::MouseHover || pointer.button == Pointer::MouseLeft || pointer.button == Pointer::Touch)) {
 
 				sf::Vec3 tilePos = intersectHorizontalPlane(0.0f, pointer.start.worldRay);
@@ -761,16 +444,16 @@ struct GameSystemImp final : GameSystem
 					target.svId = entity.svId;
 				}
 
-				tapTargets.insert(pointer.pointerId, target);
+				tapTargets.insert(pointer.id, target);
 			}
 
 			if (pointer.action == Pointer::Up || pointer.action == Pointer::Cancel || !pointer.canTap) {
 				if (pointer.action == Pointer::Up && pointer.canTap) {
-					if (TapTarget *target = tapTargets.findValue(pointer.pointerId)) {
+					if (TapTarget *target = tapTargets.findValue(pointer.id)) {
 						target->action = TapTarget::Finish;
 					}
 				} else {
-					tapTargets.remove(pointer.pointerId);
+					tapTargets.remove(pointer.id);
 				}
 			}
 		}
