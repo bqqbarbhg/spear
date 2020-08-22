@@ -3,6 +3,9 @@
 #include "server/Pathfinding.h"
 
 #include "client/CharacterModelSystem.h"
+#include "client/BillboardSystem.h"
+#include "client/AreaSystem.h"
+#include "client/TapAreaSystem.h"
 
 #include "game/DebugDraw.h"
 
@@ -20,10 +23,10 @@ namespace cl {
 
 static Transform getCharacterTransform(const sv::Character &chr)
 {
-	Transform ret;
-	ret.position = sf::Vec3((float)chr.tile.x, 0.0f, (float)chr.tile.y);
-	return ret;
 }
+
+static const constexpr float TapCancelDistance = 0.03f;
+static const constexpr float TapCancelDistanceSq = TapCancelDistance * TapCancelDistance;
 
 struct Camera
 {
@@ -61,7 +64,7 @@ struct Camera
 
 struct GameSystemImp final : GameSystem
 {
-	uint32_t selectedCharacterId = 102;
+	uint32_t selectedCharacterId = 0;
 
 	struct SelectedCard
 	{
@@ -72,6 +75,7 @@ struct GameSystemImp final : GameSystem
 	struct Character
 	{
 		sf::Box<sv::Prefab> svPrefab;
+		sf::Vec2i tile;
 		uint32_t svId;
 		uint32_t entityId;
 
@@ -123,6 +127,7 @@ struct GameSystemImp final : GameSystem
 			sf::Ray worldRay;
 		};
 
+		uint64_t pointerId = 0;
 		uintptr_t touchId = 0;
 		Button button;
 		Action action;
@@ -131,6 +136,7 @@ struct GameSystemImp final : GameSystem
 
 		float time = 0.0f;
 		float dragFactor = -0.1f;
+		bool canTap;
 
 		Position start;
         Position dragStart;
@@ -166,6 +172,22 @@ struct GameSystemImp final : GameSystem
 	{
 		sf::Vec2 rcpResolution;
 		sf::Mat44 clipToWorld;
+	};
+
+
+	struct TapTarget
+	{
+		enum Action
+		{
+			Hover,
+			Start,
+			Finish,
+		};
+
+		Action action = Action::Start;
+		uint32_t svId = 0;
+		sf::Vec2 tile;
+		sf::Vec2i tileInt;
 	};
 
 	static Pointer::Button sappToPointerButton(sapp_mousebutton button)
@@ -213,8 +235,16 @@ struct GameSystemImp final : GameSystem
 	sf::UintMap svToCard;
 
 	sf::Array<Pointer> pointers;
+	uint64_t nextPointerId = 0;
+
+	sf::HashMap<uint64_t, TapTarget> tapTargets;
+
+	sf::Array<sf::Box<sv::Action>> requestedActions;
 
 	Camera camera;
+
+	sv::ReachableSet moveSet;
+	sf::Array<sf::Vec2i> moveWaypoints;
 
 	bool keyDown[SAPP_MAX_KEYCODES] = { };
 
@@ -270,6 +300,9 @@ struct GameSystemImp final : GameSystem
     
     void initPointer(Pointer &pointer, const Pointer::Position &pos)
     {
+		pointer.time = 0.0f;
+		pointer.canTap = true;
+		pointer.pointerId = ++nextPointerId;
         pointer.dragStart = pointer.current = pointer.previous = pointer.start = pos;
         
         // TODO: Hitscan
@@ -298,7 +331,9 @@ struct GameSystemImp final : GameSystem
 			p.previous = p.current;
 
 			if (p.action == Pointer::Down) {
-				p.action = Pointer::Hold;
+				if (p.button != Pointer::MouseHover) {
+					p.action = Pointer::Hold;
+				}
 			} else if (p.action == Pointer::Up) {
 				pointers.removeOrdered(i);
 				i--;
@@ -319,11 +354,13 @@ struct GameSystemImp final : GameSystem
 					Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(e.mouse_x, e.mouse_y));
 
 					Pointer *pointer = nullptr;
+					uint32_t hoverIndex = ~0u;
 					Pointer::Button button = sappToPointerButton(e.mouse_button);
 					for (Pointer &p : pointers) {
 						if (p.button == button) {
 							pointer = &p;
-							break;
+						} else if (p.button == Pointer::MouseHover) {
+							hoverIndex = (uint32_t)(&p - pointers.data);
 						}
 					}
 
@@ -332,29 +369,60 @@ struct GameSystemImp final : GameSystem
 						pointer->button = button;
 					}
 
-					pointer->time = 0.0f;
 					pointer->action = Pointer::Down;
 					initPointer(*pointer, pos);
+
+					if (hoverIndex != ~0u) {
+						pointers.removeSwap(hoverIndex);
+					}
 				}
 					
 			} else if (e.type == SAPP_EVENTTYPE_MOUSE_MOVE) {
 				Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(e.mouse_x, e.mouse_y));
 
+				bool hasMouse = false;
 				for (Pointer &p : pointers) {
 					if (p.button <= Pointer::LastMouse) {
+						hasMouse = true;
+
 						p.current = pos;
+
+						if (p.button == Pointer::MouseHover) {
+							p.start = p.current;
+						} else {
+							if (sf::lengthSq(pos.pos - p.start.pos) && p.button != Pointer::MouseHover) {
+								p.canTap = false;
+							}
+						}
 					}
+				}
+
+				if (!hasMouse) {
+					Pointer &pointer = pointers.push();
+					pointer.button = Pointer::MouseHover;
+					pointer.action = Pointer::Down;
+					initPointer(pointer, pos);
 				}
 
 			} else if (e.type == SAPP_EVENTTYPE_MOUSE_UP) {
 				Pointer::Position pos = sappToPointerPosition(screenToWorld, sf::Vec2(e.mouse_x, e.mouse_y));
 
+				bool hasMouse = false;
 				Pointer::Button button = sappToPointerButton(e.mouse_button);
 				for (Pointer &p : pointers) {
 					if (p.button == button) {
 						p.action = Pointer::Up;
 						p.current = pos;
+					} else if (p.button <= Pointer::LastMouse) {
+						hasMouse = true;
 					}
+				}
+
+				if (!hasMouse) {
+					Pointer &pointer = pointers.push();
+					pointer.button = Pointer::MouseHover;
+					pointer.action = Pointer::Down;
+					initPointer(pointer, pos);
 				}
 
 			} else if (e.type == SAPP_EVENTTYPE_MOUSE_LEAVE) {
@@ -387,7 +455,6 @@ struct GameSystemImp final : GameSystem
 							pointer->touchId = touch.identifier;
 						}
 
-						pointer->time = 0.0f;
 						pointer->action = Pointer::Down;
 						initPointer(*pointer, pos);
 					}
@@ -403,6 +470,10 @@ struct GameSystemImp final : GameSystem
 					for (Pointer &p : pointers) {
 						if (p.button == Pointer::Touch && p.touchId == touch.identifier) {
 							p.current = pos;
+
+							if (sf::lengthSq(pos.pos - p.start.pos) > TapCancelDistanceSq) {
+								p.canTap = false;
+							}
 						}
 					}
 				}
@@ -539,10 +610,10 @@ struct GameSystemImp final : GameSystem
             sf::Vec3 dragCurrent;
 
 			for (Pointer &p : pointers) {
-				p.current.worldRay = pointerToWorld(clipToWorld, p.current.pos);
-
                 if ((p.button == Pointer::MouseMiddle || p.button == Pointer::Touch)
                     && p.action == Pointer::Hold && p.hitType == Pointer::Background) {
+
+					p.current.worldRay = pointerToWorld(clipToWorld, p.current.pos);
 
 					if (p.button == Pointer::Touch) {
 						camera.touchMove += cameraDt * 4.0f;
@@ -567,7 +638,6 @@ struct GameSystemImp final : GameSystem
 
                     float dragZoom = 0.0f;
                     for (Pointer &p : pointers) {
-                        p.current.worldRay = pointerToWorld(clipToWorld, p.current.pos);
     
                         if ((p.button == Pointer::MouseMiddle || p.button == Pointer::Touch)
                             && p.action == Pointer::Hold && p.hitType == Pointer::Background) {
@@ -617,7 +687,6 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
-
 #if 0
 		if (ImGui::Begin("Pointers")) {
 			sf::SmallStringBuf<128> str;
@@ -636,11 +705,17 @@ struct GameSystemImp final : GameSystem
 		sf::Mat34 worldToView;
 		sf::Mat44 viewToClip;
 		state.asMatrices(eye, worldToView, viewToClip, aspect);
+		sf::Mat44 worldToClip = viewToClip * worldToView;
+
+		sf::Mat44 clipToWorld = sf::inverse(worldToClip);
+		for (Pointer &p : pointers) {
+			p.current.worldRay = pointerToWorld(clipToWorld, p.current.pos);
+		}
 
 		frameArgs.mainRenderArgs.cameraPosition = eye;
 		frameArgs.mainRenderArgs.worldToView = worldToView;
 		frameArgs.mainRenderArgs.viewToClip = viewToClip;
-		frameArgs.mainRenderArgs.worldToClip = viewToClip * worldToView;
+		frameArgs.mainRenderArgs.worldToClip = worldToClip;
 		frameArgs.mainRenderArgs.frustum = sf::Frustum(frameArgs.mainRenderArgs.worldToClip, sp::getClipNearW());
 	}
 
@@ -651,8 +726,183 @@ struct GameSystemImp final : GameSystem
 		persist.zoom = camera.current.zoom;
 	}
 
-	void update(const sv::ServerState &svState, const FrameArgs &frameArgs) override
+	void update(const sv::ServerState &svState, Systems &systems, const FrameArgs &frameArgs) override
 	{
+		for (uint32_t i = 0; i < tapTargets.size(); i++) {
+			TapTarget &target = tapTargets.data[i].val;
+			if (target.action == TapTarget::Finish || target.action == TapTarget::Hover) {
+				tapTargets.remove(tapTargets.data[i].key);
+				i--;
+			}
+		}
+
+		for (Pointer &pointer : pointers) {
+			if (pointer.action == Pointer::Down
+				&& pointer.hitType == Pointer::Background
+				&& (pointer.button == Pointer::MouseHover || pointer.button == Pointer::MouseLeft || pointer.button == Pointer::Touch)) {
+
+				sf::Vec3 tilePos = intersectHorizontalPlane(0.0f, pointer.start.worldRay);
+
+				TapTarget target;
+				uint32_t entityId = systems.tapArea->getClosestTapAreaEntity(systems.area, pointer.start.worldRay);
+
+				target.tile.x = tilePos.x;
+				target.tile.y = tilePos.z;
+				target.tileInt = sf::Vec2i(sf::floor(target.tile + sf::Vec2(0.5f)));
+
+				if (pointer.button == Pointer::MouseHover) {
+					target.action = TapTarget::Hover;
+				} else {
+					target.action = TapTarget::Start;
+				}
+
+				if (entityId != ~0u) {
+					Entity &entity = systems.entities.entities[entityId];
+					target.svId = entity.svId;
+				}
+
+				tapTargets.insert(pointer.pointerId, target);
+			}
+
+			if (pointer.action == Pointer::Up || pointer.action == Pointer::Cancel || !pointer.canTap) {
+				if (pointer.action == Pointer::Up && pointer.canTap) {
+					if (TapTarget *target = tapTargets.findValue(pointer.pointerId)) {
+						target->action = TapTarget::Finish;
+					}
+				} else {
+					tapTargets.remove(pointer.pointerId);
+				}
+			}
+		}
+
+		if (frameArgs.editorOpen) {
+			tapTargets.clear();
+		}
+
+		bool hasNonHover = false;
+		for (auto &pair : tapTargets) {
+			if (pair.val.action != TapTarget::Hover) {
+				hasNonHover = true;
+			}
+		}
+
+		for (auto &pair : tapTargets) {
+			TapTarget &target = pair.val;
+
+			if (hasNonHover && target.action == TapTarget::Hover) continue;
+
+			uint32_t chrId = svToCharacter.findOne(target.svId, ~0u);
+			if (chrId != ~0u) {
+				Character &chr = characters[chrId];
+				sf::Vec3 tilePos = sf::Vec3((float)chr.tile.x, 0.0f, (float)chr.tile.y);
+
+				sf::Vec4 color;
+				if (target.action == TapTarget::Hover) {
+					color = sf::Vec4(0.2f, 0.2f, 0.2f, 1.0f) * 0.5f;
+				} else {
+					color = sf::Vec4(0.5f, 0.2f, 0.2f, 1.0f) * 0.5f;
+				}
+
+				if (target.action == TapTarget::Finish) {
+					selectedCharacterId = chr.svId;
+				}
+
+				sp::SpriteRef sprite { "Assets/Billboards/Character_Select.png" };
+				sf::Mat34 t;
+				t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f);
+				t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f);
+				t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
+				t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
+				systems.billboard->addBillboard(sprite, t, color, 1.0f);
+
+			} else if (selectedCharacterId != 0) {
+
+				sf::Vec2i targetTile = target.tileInt;
+				if (sv::ReachableTile *moveTile = moveSet.distanceToTile.findValue(targetTile)) {
+					moveWaypoints.clear();
+
+					do {
+						moveWaypoints.push(targetTile);
+
+						sf::Vec3 tilePos = sf::Vec3((float)targetTile.x, 0.0f, (float)targetTile.y);
+						sf::Vec3 prevPos = sf::Vec3((float)moveTile->previous.x, 0.0f, (float)moveTile->previous.y);
+
+						sp::SpriteRef sprite { "Assets/Billboards/Character_Path.png" };
+
+						Billboard bb;
+
+						sf::Vec4 color;
+						if (target.action == TapTarget::Hover) {
+							bb.color = sf::Vec4(0.2f, 0.2f, 0.2f, 1.0f) * 0.5f;
+						} else {
+							bb.color = sf::Vec4(0.5f, 0.2f, 0.2f, 1.0f) * 0.5f;
+						}
+
+						bb.sprite = sprite;
+						bb.transform.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
+						bb.transform.cols[1] = sf::normalizeOrZero(tilePos - prevPos);
+						bb.transform.cols[0] = sf::cross(bb.transform.cols[2], bb.transform.cols[1]);
+						bb.transform.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
+						bb.depth = 2.0f;
+						bb.anchor.y = 1.0f;
+
+						systems.billboard->addBillboard(bb);
+
+						targetTile = moveTile->previous;
+						moveTile = moveSet.distanceToTile.findValue(targetTile);
+					} while (moveTile);
+
+					if (target.action == TapTarget::Finish) {
+						auto action = sf::box<sv::MoveAction>();
+						action->charcterId = selectedCharacterId;
+						action->tile = target.tileInt;
+						action->waypoints = moveWaypoints;
+						requestedActions.push(action);
+					}
+
+				}
+
+			}
+		}
+
+		if (selectedCharacterId != 0) {
+			uint32_t chrId = svToCharacter.findOne(selectedCharacterId, ~0u);
+			if (chrId != ~0u) {
+				Character &chr = characters[chrId];
+				sf::Vec3 tilePos = sf::Vec3((float)chr.tile.x, 0.0f, (float)chr.tile.y);
+
+				if (false)
+				{
+					sp::SpriteRef sprite { "Assets/Billboards/Character_Select.png" };
+					sf::Mat34 t;
+					t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f);
+					t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f);
+					t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
+					t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
+					systems.billboard->addBillboard(sprite, t);
+				}
+
+				sv::PathfindOpts opts;
+				opts.isBlockedFn = &sv::isBlockedByPropOrCharacter;
+				opts.maxDistance = 5;
+				sv::findReachableSet(moveSet, svState, opts, chr.tile);
+
+				for (auto &pair : moveSet.distanceToTile) {
+					sp::SpriteRef sprite { "Assets/Billboards/Character_Move.png" };
+
+					sf::Vec3 tilePos = sf::Vec3((float)pair.key.x, 0.0f, (float)pair.key.y);
+					sf::Vec3 prevPos = sf::Vec3((float)pair.val.previous.x, 0.0f, (float)pair.val.previous.y);
+
+					sf::Mat34 t;
+					t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f);
+					t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f);
+					t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
+					t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
+					systems.billboard->addBillboard(sprite, t);
+				}
+
+			}
+		}
 	}
 
 	void updateTransform(Systems &systems, uint32_t entityId, const EntityComponent &ec, const TransformUpdate &update) override
@@ -663,11 +913,12 @@ struct GameSystemImp final : GameSystem
 	{
 	}
 
-	void applyEvent(Systems &systems, const sv::Event &event) override
+	void applyEvent(Systems &systems, const sv::Event &event, bool immediate) override
 	{
 		if (const auto *e = event.as<sv::AddCharacterEvent>()) {
 
-			Transform transform = getCharacterTransform(e->character);
+			Transform transform;
+			transform.position = sf::Vec3((float)e->character.tile.x, 0.0f, (float)e->character.tile.y);
 			uint32_t entityId = systems.entities.addEntity(systems, e->character.id, transform, e->character.prefabName);
 			uint32_t svId = e->character.id;
 
@@ -682,6 +933,7 @@ struct GameSystemImp final : GameSystem
 			character.svPrefab = systems.entities.prefabs[systems.entities.entities[entityId].prefabId].svPrefab;
 			character.entityId = entityId;
 			character.svId = svId;
+			character.tile = e->character.tile;
 
 			entityToCharacter.insertDuplicate(entityId, characterId);
 			svToCharacter.insertDuplicate(svId, characterId);
@@ -704,6 +956,18 @@ struct GameSystemImp final : GameSystem
 
 			svToCard.insertDuplicate(svId, cardId);
 
+		} else if (const auto *e = event.as<sv::MoveEvent>()) {
+
+			uint32_t chrId = svToCharacter.findOne(e->characterId, ~0u);
+			if (chrId != ~0u) {
+				Character &character = characters[chrId];
+				character.tile = e->position;
+
+				Transform transform;
+				transform.position = sf::Vec3((float)e->position.x, 0.0f, (float)e->position.y);
+				systems.entities.updateTransform(systems, character.entityId, transform);
+			}
+
 		} else if (const auto *e = event.as<sv::SelectCardEvent>()) {
 			uint32_t characterId = svToCharacter.findOne(e->ownerId, ~0u);
 			uint32_t cardId = svToCard.findOne(e->cardId, ~0u);
@@ -713,6 +977,12 @@ struct GameSystemImp final : GameSystem
 			}
 
 		}
+	}
+
+	void getRequestedActions(sf::Array<sf::Box<sv::Action>> &actions) override
+	{
+		actions.push(requestedActions);
+		requestedActions.clear();
 	}
 
 	void handleGui(Systems &systems, const GuiArgs &guiArgs) override

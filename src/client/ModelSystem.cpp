@@ -14,11 +14,30 @@
 
 namespace cl {
 
+static const spmdl_attrib tileAttribs[] = {
+	SP_VERTEX_ATTRIB_POSITION, SP_FORMAT_RGB32_FLOAT, 0, 0,
+	SP_VERTEX_ATTRIB_NORMAL, SP_FORMAT_RGB32_FLOAT, 0, 3*4,
+	SP_VERTEX_ATTRIB_TANGENT, SP_FORMAT_RGBA32_FLOAT, 0, 6*4,
+	SP_VERTEX_ATTRIB_UV, SP_FORMAT_RG32_FLOAT, 0, 10*4,
+};
+
+static const spmdl_attrib packedAttribs[] = {
+	SP_VERTEX_ATTRIB_POSITION, SP_FORMAT_RGB32_FLOAT, 0, 0,
+	SP_VERTEX_ATTRIB_NORMAL, SP_FORMAT_RGBA16_SNORM, 0, 3*4,
+	SP_VERTEX_ATTRIB_TANGENT, SP_FORMAT_RGBA16_SNORM, 0, 5*4,
+	SP_VERTEX_ATTRIB_UV, SP_FORMAT_RG32_FLOAT, 0, 7*4,
+};
+
+static const sf::Slice<const spmdl_attrib> vertexFormatAttribs[] = {
+	tileAttribs, packedAttribs
+};
+
 struct ModelSystemImp final : ModelSystem
 {
 	enum class VertexFormat
 	{
 		Tile,
+		Packed,
 		Count,
 	};
 
@@ -40,10 +59,16 @@ struct ModelSystemImp final : ModelSystem
 		sf::Mat34 modelToWorld;
 
 		bool isLoading() const {
-			return model.isLoading() && (shadowModel && shadowModel.isLoading());
+			if (model.isLoading()) return true;
+			if (shadowModel && shadowModel.isLoading()) return true;
+			if (material && material.isLoading()) return true;
+			return false;
 		}
 		bool isLoaded() const {
-			return model.isLoaded() && (!shadowModel || shadowModel.isLoaded());
+			if (!model.isLoaded()) return false;
+			if (shadowModel && !shadowModel.isLoaded()) return false;
+			if (material && !material.isLoaded()) return false;
+			return true;
 		}
 	};
 
@@ -68,13 +93,44 @@ struct ModelSystemImp final : ModelSystem
 	{
 		Model &model = models[modelId];
 
+		VertexFormat vertexFormat = VertexFormat::Count;
+
+		if (model.model->meshes.size > 0) {
+			sp::Mesh &mesh = model.model->meshes[0];
+
+			// Assume all meshes have the same vertex format
+			for (uint32_t i = 0; i < (uint32_t)VertexFormat::Count; i++) {
+				sf::Slice<const spmdl_attrib> ref = vertexFormatAttribs[i];
+				if (ref.size != mesh.attribs.size) continue;
+				bool match = true;
+				for (uint32_t j = 0; j < ref.size; j++) {
+					if (memcmp(&ref[j], &mesh.attribs[j], sizeof(spmdl_attrib)) != 0) {
+						match = false;
+						break;
+					}
+				}
+
+				if (match) {
+					vertexFormat = (VertexFormat)i;
+					break;
+				}
+			}
+
+		} else {
+			// No meshes, nothing to render
+		}
+
+		if (vertexFormat == VertexFormat::Count) {
+			// Early return: Invalid vertex format
+			return;
+		}
+
+		model.vertexFormat = vertexFormat;
+
 		model.modelBounds = model.model->bounds;
 		if (model.shadowModel) {
 			model.modelBounds = sf::boundsUnion(model.modelBounds, model.shadowModel->bounds);
 		}
-
-		// TODO
-		model.vertexFormat = VertexFormat::Tile;
 
 		if (model.areaId != ~0u) {
 			areaSystem->updateBoxArea(model.areaId, model.modelBounds, model.modelToWorld);
@@ -109,12 +165,22 @@ struct ModelSystemImp final : ModelSystem
 		permutation[SP_NORMALMAP_REMAP] = MeshMaterial::useNormalMapRemap;
 		meshShader = getShader2(SpShader_DynamicMesh, permutation);
 
+
+		uint32_t flags = sp::PipeDepthWrite|sp::PipeCullCCW|sp::PipeIndex16;
+
 		{
-			uint32_t flags = sp::PipeDepthWrite|sp::PipeCullCCW|sp::PipeIndex16;
 			auto &d = meshPipes[(uint32_t)VertexFormat::Tile].init(meshShader.handle, flags);
 			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
 			d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
 			d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT4;
+			d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2;
+		}
+
+		{
+			auto &d = meshPipes[(uint32_t)VertexFormat::Packed].init(meshShader.handle, flags);
+			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+			d.layout.attrs[1].format = SG_VERTEXFORMAT_SHORT4N;
+			d.layout.attrs[2].format = SG_VERTEXFORMAT_SHORT4N;
 			d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2;
 		}
 	}

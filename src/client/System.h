@@ -146,6 +146,7 @@ enum class AreaGroup : uint32_t
 	ParticleEffect,
 	PointLight,
 	BlobShadow,
+	TapArea,
 	Custom0,
 };
 
@@ -155,8 +156,9 @@ struct Area
 	{
 		Activate = 0x1,
 		Visibility = 0x2,
-		EditorPick = 0x4,
-		Shadow = 0x8,
+		Shadow = 0x4,
+		EditorPick = 0x8,
+		GamePick = 0x10,
 	};
 
 	AreaGroup group;
@@ -185,6 +187,7 @@ struct EntityHit
 {
 	uint32_t entityId = ~0u;
 	float t = 0.0f;
+	bool approximate = false;
 };
 
 struct BoneUpdates
@@ -215,6 +218,8 @@ struct CharacterModelSystem;
 struct ParticleSystem;
 struct BlobShadowSystem;
 struct GameSystem;
+struct TapAreaSystem;
+struct BillboardSystem;
 
 struct RenderArgs
 {
@@ -232,6 +237,7 @@ struct FrameArgs
 	float dt = 100.0f;
 	sf::Slice<const sapp_event> events;
 	sf::Vec2i resolution;
+	bool editorOpen = false;
 
 	RenderArgs mainRenderArgs;
 };
@@ -251,6 +257,8 @@ struct Systems
 	sf::Box<ParticleSystem> particle;
 	sf::Box<BlobShadowSystem> blobShadow;
 	sf::Box<GameSystem> game;
+	sf::Box<TapAreaSystem> tapArea;
+	sf::Box<BillboardSystem> billboard;
 	FrameArgs frameArgs;
 
 	void init(const SystemsDesc &desc);

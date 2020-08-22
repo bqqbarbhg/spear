@@ -251,7 +251,7 @@ struct CharacterModelComponent : ComponentBase<Component::CharacterModel>
 struct TapAreaComponent : ComponentBase<Component::TapArea>
 {
 	sf::Vec3 offset; //! Offset from the character
-	sf::Vec3 extent; //! Size of the clickable/tappable box
+	sf::Vec3 extent = sf::Vec3(1.0f); //! Size of the clickable/tappable box
 };
 
 struct ShadowBlob sv_reflect()
@@ -937,6 +937,7 @@ struct ServerState
 	void selectCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId, uint32_t slot);
 
 	void applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit, sf::Array<sf::Box<Edit>> &undoBuf);
+	bool requestAction(sf::Array<sf::Box<Event>> &events, const Action &action);
 
 	void garbageCollectIds(sf::Array<uint32_t> &garbageIds) const;
 	void garbageCollectPrefabs(sf::Array<sf::Symbol> &garbagePrefabs) const;

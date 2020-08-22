@@ -31,6 +31,6 @@ struct ReachableSet
 
 bool isBlockedByPropOrCharacter(void *user, const ServerState &state, const sf::Vec2i &tile);
 
-ReachableSet findReachableSet(const ServerState &state, const PathfindOpts &opts, const sf::Vec2i &tile);
+void findReachableSet(ReachableSet &set, const ServerState &state, const PathfindOpts &opts, const sf::Vec2i &tile);
 
 }

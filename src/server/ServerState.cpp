@@ -430,6 +430,12 @@ void ServerState::applyEvent(const Event &event)
 		charactersToSelect[e->selectPrefab] += e->count;
 	} else if (auto *e = event.as<SelectCharacterToSpawnEvent>()) {
 		charactersToSelect[e->selectPrefab]--;
+	} else if (auto *e = event.as<MoveEvent>()) {
+		if (Character *chr = findCharacter(*this, e->characterId)) {
+			chr->tile = e->position;
+			removeEntityFromAllTiles(e->characterId);
+			addCharacterToTiles(*this, *chr);
+		}
 	}
 }
 
@@ -1418,6 +1424,27 @@ void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit,
 
 	} else {
 		sf_failf("Unhandled edit type: %u", edit.type);
+	}
+}
+
+bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action &action)
+{
+	if (const auto *ac = action.as<MoveAction>()) {
+		// TODO: Check turns etc
+
+		auto e = sf::box<MoveEvent>();
+		e->characterId = ac->charcterId;
+		e->position = ac->tile;
+		e->waypoints.reserve(ac->waypoints.size);
+		for (const sf::Vec2i &tile : ac->waypoints) {
+			Waypoint &waypoint = e->waypoints.push();
+			waypoint.position = tile;
+		}
+		pushEvent(*this, events, e);
+
+		return true;
+	} else {
+		return false;
 	}
 }
 

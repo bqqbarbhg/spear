@@ -304,6 +304,7 @@ static void finishLoad(SpriteContext &ctx, SpriteToCreate &create)
 		desc.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
 		desc.mag_filter = SG_FILTER_LINEAR;
 		desc.max_lod = (float)(AtlasLevels - 1);
+		desc.max_anisotropy = 4; // TODO(setting)
 		desc.wrap_u = SG_WRAP_REPEAT;
 		desc.wrap_v = SG_WRAP_REPEAT;
 		desc.wrap_w = SG_WRAP_REPEAT;

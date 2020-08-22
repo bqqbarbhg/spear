@@ -77,8 +77,12 @@ void ParticleTextureImp::assetStartLoading()
 {
 	sf::SmallStringBuf<256> path;
 
-    path.clear(); path.format("%s.%s.sptex", name.data, sp::getPixelFormatSuffix(ParticleTexture::pixelFormat));
-	sp::ContentFile::loadMainThread(path, &loadTextureImp, this);
+	if (name.size() > 0) {
+		path.clear(); path.format("%s.%s.sptex", name.data, sp::getPixelFormatSuffix(ParticleTexture::pixelFormat));
+		sp::ContentFile::loadMainThread(path, &loadTextureImp, this);
+	} else {
+		assetFailLoading();
+	}
 }
 
 void ParticleTextureImp::assetUnload()

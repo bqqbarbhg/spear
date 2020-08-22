@@ -58,16 +58,10 @@ struct AssetTypeImp
 static_assert(sizeof(AssetType::impData) >= sizeof(AssetTypeImp), "impData too small");
 static_assert(sizeof(AssetType::impData) <= sizeof(AssetTypeImp) * 4, "impData too large");
 
-struct PendingAsset
-{
-	Asset *asset;
-	uint32_t frameIndex;
-};
-
 struct AssetContext
 {
 	sf::Mutex mutex;
-	sf::Array<PendingAsset> assetsToFree;
+	sf::Array<Asset*> assetsToFree;
 	sf::Array<AssetTypeImp*> types;
 	uint32_t frameIndex = 0;
 	uint32_t reloadCount = 0;
@@ -157,14 +151,13 @@ struct AssetContext
 	void addPendingFree(Asset *asset)
 	{
 		sf::MutexGuard mg(mutex);
+		asset->impFreeFrame = frameIndex;
 		if (asset->impFlags & Flag_Freed) return;
 		asset->impFlags |= Flag_Freed;
 
 		sp_asset_log("Queue free: %s %s", asset->type->name, asset->name.data);
 
-		PendingAsset &pendingFree = assetsToFree.push();
-		pendingFree.asset = asset;
-		pendingFree.frameIndex = frameIndex;
+		assetsToFree.push(asset);
 	}
 
 	void update()
@@ -173,11 +166,10 @@ struct AssetContext
 		frameIndex++;
 
 		for (uint32_t index = 0; index < assetsToFree.size; index++) {
-			PendingAsset &pendingFree = assetsToFree[index];
-			Asset *asset = pendingFree.asset;
+			Asset *asset = assetsToFree[index];
 
 			// Still waiting in the free queue
-			if (frameIndex - pendingFree.frameIndex < FreeQueueFrames) {
+			if (frameIndex - asset->impFreeFrame < FreeQueueFrames) {
 				continue;
 			}
 

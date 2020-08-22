@@ -252,6 +252,10 @@ static void updateSession(Session &session)
 					client.redoStack.pop();
 					if (undoBundle.size > 0) client.undoStack.push(std::move(undoBundle));
 				}
+			} else if (auto m = msg->as<sv::MessageRequestAction>()) {
+
+				session.state->requestAction(session.events, *m->action);
+
 			} else if (auto m = msg->as<sv::MessageQueryFiles>()) {
 
 					if (!sf::contains(m->root, ".")) {

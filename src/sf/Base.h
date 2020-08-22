@@ -323,8 +323,7 @@ struct Slice
 	T *end() const { return data + size; }
 
 	Slice<T> take(size_t num) const {
-		sf_assert(num <= size);
-		return { data, num };
+		return { data, sf::min(num, size) };
 	}
 
 	Slice<T> drop(size_t num) const {

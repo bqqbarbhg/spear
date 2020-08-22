@@ -31,9 +31,9 @@ bool isBlockedByPropOrCharacter(void *user, const ServerState &state, const sf::
 	return false;
 }
 
-ReachableSet findReachableSet(const ServerState &state, const PathfindOpts &opts, const sf::Vec2i &tile)
+void findReachableSet(ReachableSet &set, const ServerState &state, const PathfindOpts &opts, const sf::Vec2i &tile)
 {
-	ReachableSet set;
+	set.distanceToTile.clear();
 
 	sf::SmallArray<ReachableQueueItem, 256> queue;
 
@@ -48,7 +48,7 @@ ReachableSet findReachableSet(const ServerState &state, const PathfindOpts &opts
 			sf::Vec2i nbTile = item.tile + dir;
 			uint32_t nbDist = item.distance + 1;
 
-			if (opts.isBlockedFn(opts.isBlockedUser, state, nbTile)) {
+			if (nbTile == tile || opts.isBlockedFn(opts.isBlockedUser, state, nbTile)) {
 				continue;
 			}
 
@@ -62,8 +62,6 @@ ReachableSet findReachableSet(const ServerState &state, const PathfindOpts &opts
 			}
 		}
 	}
-
-	return set;
 }
 
 }

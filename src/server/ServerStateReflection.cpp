@@ -86,6 +86,14 @@ template<> void initType<Edit>(Type *t)
 	sf_struct_poly(t, Edit, type, { }, polys);
 }
 
+template<> void initType<Action>(Type *t)
+{
+	static PolymorphType polys[] = {
+		sf_poly(Action, Move, MoveAction),
+	};
+	sf_struct_poly(t, Action, type, { }, polys);
+}
+
 template<> void initType<DynamicModelComponent>(Type *t)
 {
 	static Field fields[] = {
@@ -1055,6 +1063,16 @@ template<> void initType<AddCharacterEdit>(Type *t)
 		sf_field(AddCharacterEdit, character),
 	};
 	sf_struct_base(t, AddCharacterEdit, Edit, fields);
+}
+
+template<> void initType<MoveAction>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(MoveAction, charcterId),
+		sf_field(MoveAction, tile),
+		sf_field(MoveAction, waypoints),
+	};
+	sf_struct_base(t, MoveAction, Action, fields);
 }
 
 template<> void initType<DiceRoll>(Type *t)

@@ -19,6 +19,7 @@ Field = namedtuple("Field", "type_name, name, flags, description")
 RE_COMPONENT = re.compile(r"struct (\w+) : ComponentBase<Component::(\w+)>")
 RE_EVENT = re.compile(r"struct (\w+) : EventBase<Event::(\w+)>")
 RE_EDIT = re.compile(r"struct (\w+) : EditBase<Edit::(\w+)>")
+RE_ACTION = re.compile(r"struct (\w+) : ActionBase<Action::(\w+)>")
 RE_REFLECT = re.compile(r"struct (\w+).*sv_reflect*")
 RE_FIELD = re.compile(r"([A-Za-z_][A-Za-z0-9<>:_*]*)\s+([A-Za-z0-9]+).*")
 RE_DESCRIPTION = re.compile(r".*//!\s*(.*)")
@@ -49,6 +50,7 @@ def parse_reflect_flags(line):
 components = []
 events = []
 edits = []
+actions = []
 reflects = []
 last_struct = None
 with open(source_path) as f:
@@ -77,6 +79,11 @@ with open(source_path) as f:
         if m:
             last_struct = Struct(m.group(1), m.group(2), [])
             edits.append(last_struct)
+            continue
+        m = RE_ACTION.match(line)
+        if m:
+            last_struct = Struct(m.group(1), m.group(2), [])
+            actions.append(last_struct)
             continue
         m = RE_REFLECT.match(line)
         if m:
@@ -135,6 +142,16 @@ push("\tsf_struct_poly(t, Edit, type, { }, polys);")
 push("}")
 push("")
 
+push("template<> void initType<Action>(Type *t)")
+push("{")
+push("\tstatic PolymorphType polys[] = {")
+for c in actions:
+    push(f"\t\tsf_poly(Action, {c.enum_name}, {c.type_name}),")
+push("\t};")
+push("\tsf_struct_poly(t, Action, type, { }, polys);")
+push("}")
+push("")
+
 escape = str.maketrans({
     "\"": "\\\"",
     "\\": "\\\\",
@@ -174,6 +191,9 @@ for s in events:
 
 for s in edits:
     write_struct(s, "Edit")
+
+for s in actions:
+    write_struct(s, "Action")
 
 for s in reflects:
     write_struct(s)

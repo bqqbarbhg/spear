@@ -8,6 +8,8 @@
 #include "client/ParticleSystem.h"
 #include "client/BlobShadowSystem.h"
 #include "client/GameSystem.h"
+#include "client/TapAreaSystem.h"
+#include "client/BillboardSystem.h"
 
 #include "sf/Reflection.h"
 
@@ -32,6 +34,8 @@ void Systems::init(const SystemsDesc &desc)
 	particle = ParticleSystem::create(desc);
 	blobShadow = BlobShadowSystem::create();
 	game = GameSystem::create(desc);
+	tapArea = TapAreaSystem::create();
+	billboard = BillboardSystem::create();
 }
 
 void Systems::updateVisibility(VisibleAreas &areas, uint32_t areaFlags, const sf::Frustum &frustum)
@@ -222,6 +226,8 @@ void Entities::addComponents(Systems &systems, uint32_t entityId, const Transfor
 			systems.light->addPointLight(systems, entityId, compIx, *c, transform);
 		} else if (const auto *c = comp->as<sv::BlobShadowComponent>()) {
 			systems.blobShadow->addBlobShadow(systems, entityId, compIx, *c, transform);
+		} else if (const auto *c = comp->as<sv::TapAreaComponent>()) {
+			systems.tapArea->addTapArea(systems, entityId, compIx, *c, transform);
 		}
 
 		compIx++;

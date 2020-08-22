@@ -119,8 +119,9 @@ struct Asset
 	static void globalUpdate();
 
 	// -- Implementation
-	uint32_t impState; // < Atomic
-	uint32_t impFlags; // < Protected by AssetLibrary::mutex
+	uint32_t impState;     // < Atomic
+	uint32_t impFlags;     // < Protected by AssetLibrary::mutex
+	uint32_t impFreeFrame; // < Protected by AssetLibrary::mutex
 
 	static Asset *impFind(AssetType *type, const sf::Symbol &name, const AssetProps &props);
 	static Asset *impCreate(AssetType *type, const sf::Symbol &name, const AssetProps &props);

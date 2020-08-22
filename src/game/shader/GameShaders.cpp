@@ -21,6 +21,7 @@
 #include "FakeShadow.h"
 #include "DebugMesh.h"
 #include "DebugSkinnedMesh.h"
+#include "Billboard.h"
 
 #include "GameShaders.h"
 
@@ -47,6 +48,7 @@ void GameShaders::load()
 	fakeShadow = sg_make_shader(FakeShadow_FakeShadow_shader_desc());
 	debugMesh = sg_make_shader(DebugMesh_DebugMesh_shader_desc());
 	debugSkinnedMesh = sg_make_shader(DebugSkinnedMesh_DebugSkinnedMesh_shader_desc());
+	billboard = sg_make_shader(Billboard_Billboard_shader_desc());
 
 	{
 		sf::Vec2 verts[] = {
@@ -92,5 +94,12 @@ void GameShaders::load()
 		d.layout.attrs[3].format = SG_VERTEXFORMAT_SHORT4N;
 		d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4;
 		d.layout.attrs[5].format = SG_VERTEXFORMAT_UBYTE4N;
+	}
+
+	{
+		sg_pipeline_desc &d = billboardPipe.init(billboard, sp::PipeIndex16 | sp::PipeDepthTest | sp::PipeBlendPremultiply);
+		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT2;
+		d.layout.attrs[2].format = SG_VERTEXFORMAT_UBYTE4N;
 	}
 }

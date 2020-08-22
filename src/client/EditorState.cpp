@@ -1294,6 +1294,14 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 	sf::Array<cl::EntityHit> hits;
 	es->clState->editorPick(hits, mouseRay);
 
+	if (!ImGui::IsKeyDown(SAPP_KEYCODE_G)) {
+		for (uint32_t i = 0; i < hits.size; i++) {
+			if (hits[i].approximate) {
+				hits.removeSwap(i--);
+			}
+		}
+	}
+
 	sf::sortBy(hits, [](const cl::EntityHit &a) { return a.t; });
 
 	bool draggingGhostProp = false;
@@ -1364,8 +1372,8 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 
 			if (es->mouseDown && !es->prevMouseDown) {
 
-				if (sv::Prop *prop = es->svState->props.find(entity.svId)) {
-					es->selectedPrefab = prop->prefabName;
+				if (entity.prefabId != ~0u) {
+					es->selectedPrefab = es->clState->systems.entities.prefabs[entity.prefabId].svPrefab->name;
 				}
 
 				if (ImGui::IsMouseDoubleClicked(0) && !shiftDown) {
@@ -1481,7 +1489,7 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 	handleImguiDebugWindows(es);
 
 	for (sv::Event *event : es->editEvents) {
-		es->clState->applyEvent(*event);
+		es->clState->applyEvent(*event, true);
 	}
 	es->editEvents.clear();
 

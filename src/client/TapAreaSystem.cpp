@@ -1,188 +1,103 @@
-#include "ModelSystem.h"
+#include "TapAreaSystem.h"
 
 #include "client/AreaSystem.h"
 
+#include "game/DebugDraw.h"
+
+#include "sf/Geometry.h"
+
 namespace cl {
 
-#if 0
-struct ModelSystemImp final : ModelSystem
+struct TapAreaSystemImp final : TapAreaSystem
 {
-	struct Model
+	struct TapArea
 	{
 		uint32_t areaId = ~0u;
 		uint32_t entityId;
 
-		uint32_t loadQueueIndex = ~0u;
-		sp::ModelRef model;
-		sp::ModelRef shadowModel;
-		cl::MeshMaterialRef material;
-
-		sf::Bounds3 modelBounds;
-
-		sf::Mat34 modelToEntity;
-		sf::Mat34 modelToWorld;
-
-		bool isLoading() const {
-			return model.isLoading() && (shadowModel && shadowModel.isLoading());
-		}
-		bool isLoaded() const {
-			return model.isLoaded() && (!shadowModel || shadowModel.isLoaded());
-		}
+		sf::Mat34 entityToWorld;
+		sf::Bounds3 bounds;
 	};
 
-	static sf::Mat34 getComponentTransform(const sv::DynamicModelComponent &c)
-	{
-		return sf::mat::translate(c.position) * (
-		sf::mat::rotateZ(c.rotation.z * (sf::F_PI/180.0f)) *
-		sf::mat::rotateY(c.rotation.y * (sf::F_PI/180.0f)) *
-		sf::mat::rotateX(c.rotation.x * (sf::F_PI/180.0f)) *
-		sf::mat::scale(c.stretch * c.scale * 0.01f));
-	}
-
-	sf::Array<Model> models;
-	sf::Array<uint32_t> freeModelIds;
+	sf::Array<TapArea> tapAreas;
+	sf::Array<uint32_t> freeTapAreaIds;
 
 	sf::Array<uint32_t> loadQueue;
 
-	void finishLoadingModel(AreaSystem *areaSystem, uint32_t modelId)
-	{
-		Model &model = models[modelId];
-
-		model.modelBounds = model.model->bounds;
-		if (model.shadowModel) {
-			model.modelBounds = sf::boundsUnion(model.modelBounds, model.shadowModel->bounds);
-		}
-
-		if (model.areaId != ~0u) {
-			areaSystem->updateBoxArea(model.areaId, model.modelBounds, model.modelToWorld);
-		} else {
-			uint32_t areaFlags = Area::Visibility | Area::EditorPick;
-			if (model.shadowModel) areaFlags |= Area::Shadow;
-			model.areaId = areaSystem->addBoxArea(AreaGroup::DynamicModel, modelId, model.modelBounds, model.modelToWorld, areaFlags);
-		}
-	}
-
-	void startLoadingModel(AreaSystem *areaSystem, uint32_t modelId)
-	{
-		Model &model = models[modelId];
-		if (model.isLoaded()) {
-			finishLoadingModel(areaSystem, modelId);
-		} else if (model.loadQueueIndex == ~0u && model.isLoading()) {
-			model.loadQueueIndex = loadQueue.size;
-			loadQueue.push(modelId);
-		}
-	}
-
 	// API
 
-	void addModel(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::DynamicModelComponent &c, const Transform &transform) override
+	void addTapArea(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::TapAreaComponent &c, const Transform &transform) override
 	{
-		uint32_t modelId = models.size;
-		if (freeModelIds.size > 0) {
-			modelId = freeModelIds.popValue();
+		uint32_t tapAreaId = tapAreas.size;
+		if (freeTapAreaIds.size > 0) {
+			tapAreaId = freeTapAreaIds.popValue();
 		} else {
-			models.push();
+			tapAreas.push();
 		}
 
-		Model &model = models[modelId];
-		model.entityId = entityId;
+		TapArea &tapArea = tapAreas[tapAreaId];
 
-		model.modelToEntity = getComponentTransform(c);
-		model.modelToWorld = transform.asMatrix() * model.modelToEntity;
+		tapArea.bounds.origin = c.offset;
+		tapArea.bounds.extent = c.extent;
+		tapArea.entityId = entityId;
+		tapArea.entityToWorld = transform.asMatrix();
 
-		model.model.load(c.model);
-		if (c.castShadows) {
-			if (c.shadowModel) {
-				model.shadowModel.load(c.shadowModel);
-			} else {
-				model.shadowModel = model.model;
-			}
-		}
-		model.material.load(c.material);
-
-		startLoadingModel(systems.area, modelId);
-
-		systems.entities.addComponent(entityId, this, modelId, 0, componentIndex, Entity::UpdateTransform);
+		systems.entities.addComponent(entityId, this, tapAreaId, 0, componentIndex, Entity::UpdateTransform);
+		tapArea.areaId = systems.area->addBoxArea(AreaGroup::TapArea, tapAreaId, tapArea.bounds, tapArea.entityToWorld, Area::EditorPick|Area::GamePick);
 	}
 
 	void updateTransform(Systems &systems, uint32_t entityId, const EntityComponent &ec, const TransformUpdate &update) override
 	{
-		uint32_t modelId = ec.userId;
-		Model &model = models[modelId];
+		uint32_t tapAreaId = ec.userId;
+		TapArea &tapArea = tapAreas[tapAreaId];
 
-		model.modelToWorld = update.entityToWorld * model.modelToEntity;
-
-		if (model.areaId != ~0u) {
-			systems.area->updateBoxArea(model.areaId, model.modelBounds, model.modelToWorld);
-		}
+		tapArea.entityToWorld = update.entityToWorld;
+		systems.area->updateBoxArea(tapArea.areaId, tapArea.bounds, tapArea.entityToWorld);
 	}
 
 	void remove(Systems &systems, uint32_t entityId, const EntityComponent &ec) override
 	{
-		uint32_t modelId = ec.userId;
-		Model &model = models[modelId];
+		uint32_t tapAreaId = ec.userId;
+		TapArea &tapArea = tapAreas[tapAreaId];
 
-		if (model.areaId != ~0u) {
-			systems.area->removeBoxArea(model.areaId);
-		}
+		systems.area->removeBoxArea(tapArea.areaId);
 
-		freeModelIds.push(modelId);
-		sf::reset(model);
+		freeTapAreaIds.push(tapAreaId);
+		sf::reset(tapArea);
 	}
 
-	void updateLoadQueue(AreaSystem *areaSystem) override
+	virtual uint32_t getClosestTapAreaEntity(const AreaSystem *areaSystem, const sf::Ray &ray) const override
 	{
-		for (uint32_t i = 0; i < loadQueue.size; i++) {
-			uint32_t modelId = loadQueue[i];
-			Model &model = models[modelId];
-			if (model.isLoading()) continue;
+		float bestDistSq = HUGE_VALF;
+		uint32_t bestEntityId = ~0u;
 
-			if (model.isLoaded()) {
-				finishLoadingModel(areaSystem, modelId);
+		sf::FastRay fastRay { ray };
+
+		sf::SmallArray<Area, 64> areas;
+		areaSystem->castRay(areas, Area::GamePick, fastRay);
+		for (Area &area : areas) {
+			if (area.group != AreaGroup::TapArea) continue;
+			uint32_t tapAreaId = area.userId;
+			const TapArea &tapArea = tapAreas[tapAreaId];
+			sf::Vec3 origin = sf::transformPoint(tapArea.entityToWorld, tapArea.bounds.origin);
+
+			sf::Vec3 delta = origin - ray.origin;
+			sf::Vec3 projected = ray.direction * sf::dot(ray.direction, delta) / sf::lengthSq(ray.direction);
+			float dist = sf::lengthSq(delta - projected);
+
+			if (dist < bestDistSq) {
+				bestDistSq = dist;
+				bestEntityId = tapArea.entityId;
 			}
-
-			models[loadQueue.back()].loadQueueIndex = i;
-			model.loadQueueIndex = ~0u;
-			loadQueue.removeSwap(i--);
 		}
-	}
 
-	void renderMain(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
-	{
-		for (uint32_t modelId : visibleAreas.get(AreaGroup::DynamicModel)) {
-			Model &model = models[modelId];
-
-			for (sp::Mesh &mesh : model.model->meshes) {
-
-				 // TODO TODO 
-
-#if 0
-				gameShaders.debugMeshPipe.bind();
-
-				sf::Mat44 meshToClip = renderArgs.worldToClip * model.modelToWorld;
-
-				DebugMesh_Vertex_t ubo;
-				meshToClip.writeColMajor44(ubo.worldToClip);
-				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_DebugMesh_Vertex, &ubo, sizeof(ubo));
-
-				sg_bindings binds = { };
-				binds.index_buffer = model.model->indexBuffer.buffer;
-				binds.index_buffer_offset = mesh.indexBufferOffset;
-				binds.vertex_buffers[0] = model.model->vertexBuffer.buffer;
-				binds.vertex_buffer_offsets[0] = mesh.streams[0].offset;
-				sg_apply_bindings(&binds);
-
-				sg_draw(0, mesh.numIndices, 1);
-#endif
-			}
-
-		}
+		return bestEntityId;
 	}
 
 	void editorHighlight(Systems &systems, const EntityComponent &ec, EditorHighlight type) override
 	{
-		uint32_t modelId = ec.userId;
-		const Model &model = models[modelId];
+		uint32_t tapAreaId = ec.userId;
+		const TapArea &tapArea = tapAreas[tapAreaId];
 
 		sf::Vec3 color;
 		switch (type) {
@@ -190,24 +105,26 @@ struct ModelSystemImp final : ModelSystem
 		default: color = sf::Vec3(1.0f, 0.8f, 0.8f); break;
 		}
 
-		debugDrawBox(model.modelBounds, model.modelToWorld, color);
+		debugDrawBox(tapArea.bounds, tapArea.entityToWorld, color);
 	}
 
 	void editorPick(sf::Array<EntityHit> &hits, const sf::FastRay &ray, uint32_t userId) const override
 	{
-		uint32_t modelId = userId;
-		const Model &model = models[modelId];
-		if (!model.isLoaded()) return;
+		uint32_t tapAreaId = userId;
+		const TapArea &tapArea = tapAreas[tapAreaId];
 
-		float t = model.model->castModelRay(ray.ray, model.modelToWorld);
-		if (t < HUGE_VALF) {
-			hits.push({ model.entityId, t });
+		sf::Ray localRay = sf::transformRay(sf::inverse(tapArea.entityToWorld), ray.ray);
+		float t;
+		if (sf::intesersectRay(t, localRay, tapArea.bounds)) {
+			EntityHit &hit = hits.push();
+			hit.entityId = tapArea.entityId;
+			hit.t = t;
+			hit.approximate = true;
 		}
 	}
 
 };
 
-sf::Box<ModelSystem> ModelSystem::create() { return sf::box<ModelSystemImp>(); }
-#endif
+sf::Box<TapAreaSystem> TapAreaSystem::create() { return sf::box<TapAreaSystemImp>(); }
 
 }

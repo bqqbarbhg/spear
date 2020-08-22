@@ -24,6 +24,7 @@
 #include "client/ParticleTexture.h"
 #include "client/TileMaterial.h"
 #include "client/MeshMaterial.h"
+#include "client/GameSystem.h"
 
 #include "game/DebugDraw.h"
 #include "game/shader/Line.h"
@@ -126,8 +127,8 @@ struct DebugRenderHandles
 		debugDrawFlipBuffers();
 		DebugDrawData data = debugDrawGetData();
 
-		sf::Slice<DebugLine> lines = data.lines.take(sf::min(MaxLinesPerFrame, (uint32_t)data.lines.size));
-		sf::Slice<DebugSphere> spheres = data.spheres.take(sf::min(MaxSpheresPerFrame, (uint32_t)data.spheres.size));
+		sf::Slice<DebugLine> lines = data.lines.take(MaxLinesPerFrame);
+		sf::Slice<DebugSphere> spheres = data.spheres.take(MaxSpheresPerFrame);
 
 		if (!lines.size && !spheres.size) return;
 
@@ -402,7 +403,7 @@ void clientQuit(Client *c)
 static void handleLoadEvent(void *user, sv::Event &event)
 {
 	Client *c = (Client*)user;
-	c->clState->applyEvent(event);
+	c->clState->applyEvent(event, true);
 }
 
 void handleMessage(Client *c, sv::Message &msg)
@@ -424,7 +425,7 @@ void handleMessage(Client *c, sv::Message &msg)
 			}
 
 			c->svState->applyEvent(*event);
-			c->clState->applyEvent(*event);
+			c->clState->applyEvent(*event, false);
 		}
 
 	} else if (auto m = msg.as<sv::MessageQueryFilesResult>()) {
@@ -518,6 +519,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	c->frameArgs.dt = dt;
 	c->frameArgs.events = input.events;
 	c->frameArgs.resolution = input.resolution;
+	c->frameArgs.editorOpen = c->editor != nullptr;
 
 	if (input.resolution != c->resolution || c->forceRecreateTargets) {
 		c->forceRecreateTargets = false;
@@ -582,6 +584,16 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	}
 
 	c->clState->update(c->svState, c->frameArgs);
+
+	sf::SmallArray<sf::Box<sv::Action>, 8> requestedActions;
+	c->clState->systems.game->getRequestedActions(requestedActions);
+	if (requestedActions.size > 0) {
+		for (sf::Box<sv::Action> &action : requestedActions) {
+			sv::MessageRequestAction msg;
+			msg.action = action;
+			sendMessage(*c, msg);
+		}
+	}
 
 	c->canvas.clear();
 

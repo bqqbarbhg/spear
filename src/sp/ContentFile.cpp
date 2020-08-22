@@ -253,6 +253,8 @@ static ContentLoadHandle loadImp(const sf::String &name, ContentFile::Callback c
 	ContentFileContext &ctx = g_contentFileContext;
 	sf::MutexGuard mg(ctx.mutex);
 
+	sf_assert(name != sf::String(".bc3.sptex"));
+
 	uint32_t id = ++ctx.nextId;
 	if (id >= 0x0fffffff) {
 		// Wrap around before 0x10000000

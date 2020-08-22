@@ -8,6 +8,8 @@
 #include "client/ParticleSystem.h"
 #include "client/BlobShadowSystem.h"
 #include "client/GameSystem.h"
+#include "client/TapAreaSystem.h"
+#include "client/BillboardSystem.h"
 
 #include "sf/Frustum.h"
 
@@ -47,7 +49,7 @@ ClientState::ClientState(const SystemsDesc &desc)
 	systems.init(desc);
 }
 
-void ClientState::applyEvent(const sv::Event &event)
+void ClientState::applyEvent(const sv::Event &event, bool immediate)
 {
 	if (const auto *e = event.as<sv::LoadPrefabEvent>()) {
 		systems.entities.addPrefab(systems, e->prefab);
@@ -87,7 +89,7 @@ void ClientState::applyEvent(const sv::Event &event)
 		}
 	}
 
-	systems.game->applyEvent(systems, event);
+	systems.game->applyEvent(systems, event, immediate);
 }
 
 void ClientState::writePersist(ClientPersist &persist)
@@ -107,6 +109,7 @@ void ClientState::editorPick(sf::Array<EntityHit> &hits, const sf::Ray &ray) con
 		{
 		case AreaGroup::DynamicModel: systems.model->editorPick(hits, fastRay, area.userId); break;
 		case AreaGroup::TileChunkCulling: systems.tileModel->editorPick(hits, fastRay, area.userId); break;
+		case AreaGroup::TapArea: systems.tapArea->editorPick(hits, fastRay, area.userId); break;
 		default:
 			sf_failf("Unhandled EditorPick group: %u", area.group);
 			break;
@@ -138,7 +141,7 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 	systems.entities.updateQueuedRemoves(systems, frameArgs);
 
 	if (svState) {
-		systems.game->update(*svState, frameArgs);
+		systems.game->update(*svState, systems, frameArgs);
 	}
 
 	systems.model->updateLoadQueue(systems.area);
@@ -174,6 +177,7 @@ void ClientState::renderMain(const RenderArgs &args)
 	systems.tileModel->renderMain(systems.light, systems.visibleAreas, args);
 	systems.characterModel->renderMain(systems.light, systems.visibleAreas, args);
 	systems.blobShadow->renderMain(systems.visibleAreas, args);
+	systems.billboard->renderMain(systems.visibleAreas, args);
 	systems.particle->renderMain(systems.visibleAreas, args);
 }
 

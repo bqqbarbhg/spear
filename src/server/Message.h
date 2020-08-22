@@ -30,6 +30,7 @@ struct Message
 		RequestEdit,
 		RequestEditUndo,
 		RequestEditRedo,
+		RequestAction,
 		QueryFiles,
 		QueryFilesResult,
 		ErrorList,
@@ -84,6 +85,11 @@ struct MessageRequestEditUndo : MessageBase<Message::RequestEditUndo>
 
 struct MessageRequestEditRedo : MessageBase<Message::RequestEditRedo>
 {
+};
+
+struct MessageRequestAction : MessageBase<Message::RequestAction>
+{
+	sf::Box<sv::Action> action;
 };
 
 struct MessageQueryFiles : MessageBase<Message::QueryFiles>

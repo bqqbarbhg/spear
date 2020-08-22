@@ -1005,6 +1005,62 @@ struct TileModelTask : Task
 	}
 };
 
+struct ObjectModelTask : Task
+{
+	ObjectModelTask()
+	{
+		name = "ObjectModelTask";
+		tools.push("sp-model");
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (sf::endsWith(path, ".fbx") && sf::containsDirectory(path, "Objects")) {
+			ti.inputs[s_src] = path;
+		} else {
+			return false;
+		}
+		ti.outputs[s_dst] = symf("%s.spmdl", path.data);
+		ti.assets.insert(path);
+		return true;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		sf::Array<sf::StringBuf> args;
+
+		sf::StringBuf srcFile, tempFile, dstFile;
+		sf::appendPath(srcFile, p.dataRoot, ti.inputs[s_src]);
+		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+
+		args.push("--level");
+		args.push().format("%d", p.level);
+
+		args.push("--vertex");
+		args.push("pos_rgb32f,nrm_rgba16sn,tan_rgba16sn,uv_rg32f");
+
+		args.push("--combine-materials");
+		args.push("--transform-to-root");
+		args.push("--mesh");
+
+		args.push("--bvh");
+
+		args.push("--input");
+		args.push(srcFile);
+
+		args.push("--output");
+		args.push(tempFile);
+
+		JobQueue jq;
+		jq.mkdirsToFile(tempFile);
+		jq.mkdirsToFile(dstFile);
+		jq.exec("sp-model", std::move(args));
+		jq.move(tempFile, dstFile);
+		p.addJobs(JobPriority::Normal, ti, jq);
+	}
+};
+
 struct FontTask : Task
 {
 	FontTask()
@@ -1164,8 +1220,10 @@ void initializeProcessing(const ProcessingDesc &desc)
 
 	int maxGuiExtent = 512;
 	int maxCardExtent = 256;
+	int maxBillboardExtent = 512;
 	p.tasks.push(sf::box<GuiTextureTask>("rgba8", "Gui", maxGuiExtent));
 	p.tasks.push(sf::box<GuiTextureTask>("rgba8", "Cards", maxCardExtent));
+	p.tasks.push(sf::box<GuiTextureTask>("rgba8", "Billboards", maxBillboardExtent));
 
 	int maxParticleExtent = 1024;
 	p.tasks.push(sf::box<ParticleTextureTask>("bc3", "Particles", maxParticleExtent));
@@ -1175,6 +1233,7 @@ void initializeProcessing(const ProcessingDesc &desc)
 	p.tasks.push(sf::box<AnimationTask>());
 	p.tasks.push(sf::box<CharacterModelTask>());
 	p.tasks.push(sf::box<TileModelTask>());
+	p.tasks.push(sf::box<ObjectModelTask>());
 
 	p.tasks.push(sf::box<FontTask>());
 	p.tasks.push(sf::box<VorbisTask>());
