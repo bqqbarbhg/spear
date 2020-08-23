@@ -39,7 +39,9 @@ struct GuiCard
 	static const constexpr float canvasXByY = canvasWidth / canvasHeight;
 	static const constexpr float canvasYByX = canvasHeight / canvasWidth;
 
-	void init(const sv::Prefab &prefab);
+	void init(const sv::Prefab &prefab, uint32_t svId);
+
+	uint32_t svId;
 
 	sp::SpriteRef background;
 	sp::SpriteRef frame;
@@ -50,6 +52,7 @@ struct GuiCard
 	sp::RichTextStyle descriptionStyle;
 
 	bool melee = false;
+	GuiCardSlot slot = GuiCardSlot::Count;
 
 	sf::Symbol name;
 	sf::Symbol description;

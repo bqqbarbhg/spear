@@ -4,10 +4,12 @@
 
 namespace cl {
 
-void GuiCard::init(const sv::Prefab &prefab)
+void GuiCard::init(const sv::Prefab &prefab, uint32_t svId)
 {
 	const sv::CardComponent *cardComp = prefab.findComponent<sv::CardComponent>();
 	if (!cardComp) return;
+
+	this->svId = svId;
 
 	nameFont.load(sf::Symbol("Assets/Gui/Font/Alegreya-Regular.ttf"));
 	descriptionStyle.font.regular.load(sf::Symbol("Assets/Gui/Font/Overlock-Regular.ttf"));
@@ -16,6 +18,18 @@ void GuiCard::init(const sv::Prefab &prefab)
 	descriptionStyle.font.boldItalic.load(sf::Symbol("Assets/Gui/Font/Overlock-BoldItalic.ttf"));
 
 	image.load(cardComp->image);
+
+	if (cardComp->melee) {
+		slot = GuiCardSlot::Melee;
+	} else if (cardComp->skill) {
+		slot = GuiCardSlot::Skill;
+	} else if (cardComp->spell) {
+		slot = GuiCardSlot::Spell;
+	} else if (cardComp->item) {
+		slot = GuiCardSlot::Item;
+	} else {
+		slot = GuiCardSlot::Count;
+	}
 
 	name = cardComp->name;
 	description = cardComp->description;

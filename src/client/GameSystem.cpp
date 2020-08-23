@@ -25,14 +25,16 @@
 #include "client/gui/GlueWidgets.h"
 #include "client/gui/WidgetLinearLayout.h"
 #include "client/gui/WidgetScroll.h"
+#include "client/gui/WidgetCardSlot.h"
+#include "client/gui/GuiBuilder.h"
+#include "client/gui/GuiResources.h"
 
 namespace cl {
 
 static const constexpr float TapCancelDistance = 0.03f;
 static const constexpr float TapCancelDistanceSq = TapCancelDistance * TapCancelDistance;
 
-
-struct WidgetTest : gui::Widget
+struct WidgetTest : gui::WidgetBase<'t','e','s','t'>
 {
 	sp::SpriteRef sprite;
 	sp::FontRef font;
@@ -153,7 +155,7 @@ struct GameSystemImp final : GameSystem
 		uint32_t prefabId;
 		uint32_t svId;
 
-		GuiCard gui;
+		sf::Box<GuiCard> gui;
 
 		sf::Array<uint32_t> entityIds;
 	};
@@ -211,11 +213,12 @@ struct GameSystemImp final : GameSystem
 	sv::ReachableSet moveSet;
 	sf::Array<sf::Vec2i> moveWaypoints;
 
-	GuiCardResources guiCardRes;
+	gui::GuiResources guiResources;
 
 	sf::ImplicitHashMap<PointerState, sv::KeyId> pointerStates;
 
 	sf::Array<gui::Widget*> guiWorkArray;
+	gui::GuiBuilder guiBuilder;
 	sf::Box<gui::Widget> guiRoot;
 
 	bool showDebugMenu = false;
@@ -226,6 +229,10 @@ struct GameSystemImp final : GameSystem
 	{
 		Character &chr = characters[characterId];
 		Card &card = cards[cardId];
+
+		if (Card *prev = findCard(chr.selectedCards[slot].currentSvId)) {
+			unequipCardImp(systems, chr, *prev);
+		}
 
 		SelectedCard &selected = chr.selectedCards[slot];
 		selected.prevSvId = selected.currentSvId;
@@ -279,36 +286,7 @@ struct GameSystemImp final : GameSystem
 		camera.previous.origin = camera.current.origin = sf::Vec3(desc.persist.camera.x, 0.0f, desc.persist.camera.y);
 		camera.previous.zoom = camera.current.zoom = desc.persist.zoom;
 
-		auto root = sf::box<gui::Widget>();
-
-		auto sc = sf::box<gui::WidgetScroll>();
-		sc->boxOffset.x = 300.0f;
-		sc->boxOffset.y = 300.0f;
-		sc->boxExtent.x = 300.0f;
-		sc->boxExtent.y = 100.0f;
-		sc->direction = gui::DirX;
-
-		auto ll = sf::box<gui::WidgetLinearLayout>();
-		ll->direction = gui::DirX;
-		ll->boxExtent.y = 100.0f;
-		ll->marginBefore = 10.0f;
-		ll->marginAfter = 10.0f;
-		ll->padding = 10.0f;
-
-		for (uint32_t i = 0; i < 10; i++) {
-			auto sp = sf::box<WidgetTest>();
-			sp->sprite = guiCardRes.inventory;
-			sp->font.load("Assets/Gui/Font/Alegreya-Bold.ttf");
-			sp->index = i;
-			sp->boxExtent = sf::Vec2(100.0f, 100.0f);
-			ll->children.push(sp);
-		}
-
-		sc->children.push(ll);
-
-		root->children.push(sc);
-
-		guiRoot = root;
+		guiRoot = sf::box<gui::Widget>(1000);
 	}
 
 	void updateCamera(FrameArgs &frameArgs) override
@@ -343,6 +321,8 @@ struct GameSystemImp final : GameSystem
 
 			}
 		}
+
+		sf::Array<gui::GuiPointer> drops;
 
 		for (Pointer &p : input.pointers) {
 			PointerState &ps = pointerStates[p.id];
@@ -387,6 +367,25 @@ struct GameSystemImp final : GameSystem
 					ps.hitGui = true;
 				}
 			}
+
+			if (gp.dropType) {
+				gui::GuiPointer &gp2 = drops.push();
+				gp2.position = gp.position;
+				gp2.delta = gp.delta;
+				gp2.dragFactor = gp.dragFactor;
+				gp2.button = gp.button;
+				if (p.action == gui::GuiPointer::Up) {
+					gp2.action = gui::GuiPointer::DropCommit;
+				} else {
+					gp2.action = gui::GuiPointer::DropHover;
+				}
+				gp2.dropType = std::move(gp.dropType);
+				gp2.dropData = std::move(gp.dropData);
+			}
+		}
+
+		for (gui::GuiPointer &gp : drops) {
+			guiRoot->onPointer(gp);
 		}
 
 		if (sf::abs(scrollAmount) > 0.0f) {
@@ -782,8 +781,80 @@ struct GameSystemImp final : GameSystem
 		}
 
 		{
+			gui::GuiBuilder &b = guiBuilder;
+			b.init(guiRoot);
+
+			auto sc = b.push<gui::WidgetScroll>();
+			sc->boxOffset.x = 300.0f;
+			sc->boxOffset.y = 300.0f;
+			sc->boxExtent.x = 300.0f;
+			sc->boxExtent.y = 100.0f;
+			sc->direction = gui::DirX;
+
+			auto ll = b.push<gui::WidgetLinearLayout>();
+			ll->direction = gui::DirX;
+			ll->boxExtent.y = 100.0f;
+			ll->marginBefore = 10.0f;
+			ll->marginAfter = 10.0f;
+			ll->padding = 10.0f;
+
+			if (Character *chr = findCharacter(selectedCharacterId)) {
+				sv::CharacterComponent *chrComp = chr->svPrefab->findComponent<sv::CharacterComponent>();
+				if (chrComp) {
+					uint32_t lastMeleeSlot = 1;
+					uint32_t lastSkillSlot = lastMeleeSlot + chrComp->skillSlots;
+					uint32_t lastSpellSlot = lastSkillSlot + chrComp->spellSlots;
+					uint32_t lastItemSlot = lastSpellSlot + chrComp->itemSlots;
+
+					for (uint32_t slot = 0; slot < sv::NumSelectedCards; slot++) {
+						GuiCardSlot guiSlot = GuiCardSlot::Count;
+						if (slot < lastMeleeSlot) {
+							guiSlot = GuiCardSlot::Melee;
+						} else if (slot < lastSkillSlot) {
+							guiSlot = GuiCardSlot::Skill;
+						} else if (slot < lastSpellSlot) {
+							guiSlot = GuiCardSlot::Spell;
+						} else if (slot < lastItemSlot) {
+							guiSlot = GuiCardSlot::Item;
+						}
+
+						if (guiSlot != GuiCardSlot::Count) {
+							auto sl = b.push<gui::WidgetCardSlot>(slot);
+							sl->boxExtent = sf::Vec2(100.0f, 100.0f);
+							sl->slot = guiSlot;
+
+							uint32_t cardId = chr->selectedCards[slot].currentSvId;
+							if (Card *card = findCard(cardId)) {
+								sl->card = card->gui;
+							} else {
+								sl->card.reset();
+							}
+
+							if (sl->droppedCard) {
+								auto action = sf::box<sv::SelectCardAction>();
+								action->ownerId = chr->svId;
+								action->slot = slot;
+								action->cardId = sl->droppedCard->svId;
+								requestedActions.push(action);
+								sl->droppedCard.reset();
+							}
+
+							b.pop();
+						}
+					}
+				}
+			}
+
+			b.pop(); // LinearLayout
+			b.pop(); // Scroll
+
+			b.finish();
+		}
+
+		{
 			gui::GuiLayout layout;
 			layout.dt = frameArgs.dt;
+			layout.resources = &guiResources;
 			guiRoot->layout(layout, frameArgs.guiResolution, frameArgs.guiResolution);
 			gui::Widget::finishLayout(guiWorkArray, guiRoot);
 		}
@@ -846,7 +917,8 @@ struct GameSystemImp final : GameSystem
 			Card &card = cards[cardId];
 			card.svId = svId;
 			card.svPrefab = systems.entities.findPrefab(e->card.prefabName);
-			card.gui.init(*card.svPrefab);
+			card.gui = sf::box<GuiCard>();
+			card.gui->init(*card.svPrefab, card.svId);
 
 			svToCard.insertDuplicate(svId, cardId);
 
@@ -869,7 +941,17 @@ struct GameSystemImp final : GameSystem
 			if (characterId != ~0u && cardId != ~0u) {
 				equipCardImp(systems, characterId, cardId, e->slot);
 			}
-
+		} else if (const auto *e = event.as<sv::UnselectCardEvent>()) {
+			if (Character *chr = findCharacter(e->ownerId)) {
+				SelectedCard &selected = chr->selectedCards[e->slot];
+				if (selected.currentSvId) {
+					if (Card *card = findCard(selected.currentSvId)) {
+						unequipCardImp(systems, *chr, *card);
+					}
+					selected.prevSvId = selected.currentSvId;
+					selected.currentSvId = 0;
+				}
+			}
 		}
 	}
 
@@ -886,6 +968,7 @@ struct GameSystemImp final : GameSystem
 		{
 			gui::GuiPaint paint;
 			paint.canvas = guiArgs.canvas;
+			paint.resources = &guiResources;
 			paint.crop.max = guiArgs.resolution;
 			guiRoot->paint(paint);
 		}

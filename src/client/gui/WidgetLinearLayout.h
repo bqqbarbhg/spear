@@ -4,7 +4,7 @@
 
 namespace cl { namespace gui {
 
-struct WidgetLinearLayout : Widget
+struct WidgetLinearLayout : WidgetBase<'l','l','a','y'>
 {
 	Direction direction = DirX;
 	float marginBefore = 0.0f;

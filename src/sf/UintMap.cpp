@@ -103,6 +103,19 @@ uint32_t UintMap::findOne(uint32_t key, uint32_t missing) const
 	}
 }
 
+uint32_t UintMap::removeOne(uint32_t key, uint32_t missing)
+{
+	uint32_t hash = sf::hash(key);
+	uint32_t scan = 0;
+	uint32_t value;
+	if (rhmap_find_inline(&map, hash, &scan, &value)) {
+		rhmap_remove_inline(&map, hash, scan);
+		return value;
+	} else {
+		return missing;
+	}
+}
+
 void UintMap::removeExistingPair(uint32_t key, uint32_t value)
 {
 	uint32_t hash = sf::hash(key);

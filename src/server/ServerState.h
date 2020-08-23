@@ -527,6 +527,7 @@ struct Event
 		MoveProp,
 		GiveCard,
 		SelectCard,
+		UnselectCard,
 		AddCharacterToSpawn,
 		SelectCharacterToSpawn,
 		Move,
@@ -682,6 +683,13 @@ struct SelectCardEvent : EventBase<Event::SelectCard>
 	uint32_t slot;
 };
 
+struct UnselectCardEvent : EventBase<Event::UnselectCard>
+{
+	uint32_t ownerId;
+	uint32_t prevCardId;
+	uint32_t slot;
+};
+
 struct AddCharacterToSpawn : EventBase<Event::AddCharacterToSpawn>
 {
 	sf::Symbol selectPrefab;
@@ -808,6 +816,7 @@ struct Action
 	{
 		Error,
 		Move,
+		SelectCard,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -834,6 +843,13 @@ struct MoveAction : ActionBase<Action::Move>
 	uint32_t charcterId;
 	sf::Vec2i tile;
 	sf::Array<sf::Vec2i> waypoints;
+};
+
+struct SelectCardAction : ActionBase<Action::SelectCard>
+{
+	uint32_t ownerId;
+	uint32_t cardId;
+	uint32_t slot;
 };
 
 static const constexpr uint32_t NumServerIdTypes = 100;

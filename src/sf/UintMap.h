@@ -40,6 +40,8 @@ struct UintMap
 	bool insertIfNew(uint32_t key, uint32_t value);
 	uint32_t findOne(uint32_t key, uint32_t missing) const;
 
+	uint32_t removeOne(uint32_t key, uint32_t missing);
+
 	void removeExistingPair(uint32_t key, uint32_t value);
 	bool removePotentialPair(uint32_t key, uint32_t value);
 

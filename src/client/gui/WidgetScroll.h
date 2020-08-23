@@ -5,7 +5,7 @@
 
 namespace cl { namespace gui {
 
-struct WidgetScroll : Widget
+struct WidgetScroll : WidgetBase<'s','c','r','l'>
 {
 	Direction direction = DirY;
 

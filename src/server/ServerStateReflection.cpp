@@ -64,6 +64,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, MoveProp, MovePropEvent),
 		sf_poly(Event, GiveCard, GiveCardEvent),
 		sf_poly(Event, SelectCard, SelectCardEvent),
+		sf_poly(Event, UnselectCard, UnselectCardEvent),
 		sf_poly(Event, AddCharacterToSpawn, AddCharacterToSpawn),
 		sf_poly(Event, SelectCharacterToSpawn, SelectCharacterToSpawnEvent),
 		sf_poly(Event, Move, MoveEvent),
@@ -90,6 +91,7 @@ template<> void initType<Action>(Type *t)
 {
 	static PolymorphType polys[] = {
 		sf_poly(Action, Move, MoveAction),
+		sf_poly(Action, SelectCard, SelectCardAction),
 	};
 	sf_struct_poly(t, Action, type, { }, polys);
 }
@@ -968,6 +970,16 @@ template<> void initType<SelectCardEvent>(Type *t)
 	sf_struct_base(t, SelectCardEvent, Event, fields);
 }
 
+template<> void initType<UnselectCardEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(UnselectCardEvent, ownerId),
+		sf_field(UnselectCardEvent, prevCardId),
+		sf_field(UnselectCardEvent, slot),
+	};
+	sf_struct_base(t, UnselectCardEvent, Event, fields);
+}
+
 template<> void initType<AddCharacterToSpawn>(Type *t)
 {
 	static Field fields[] = {
@@ -1073,6 +1085,16 @@ template<> void initType<MoveAction>(Type *t)
 		sf_field(MoveAction, waypoints),
 	};
 	sf_struct_base(t, MoveAction, Action, fields);
+}
+
+template<> void initType<SelectCardAction>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(SelectCardAction, ownerId),
+		sf_field(SelectCardAction, cardId),
+		sf_field(SelectCardAction, slot),
+	};
+	sf_struct_base(t, SelectCardAction, Action, fields);
 }
 
 template<> void initType<DiceRoll>(Type *t)
