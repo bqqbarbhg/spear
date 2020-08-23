@@ -218,6 +218,10 @@ struct GameSystemImp final : GameSystem
 	sf::Array<gui::Widget*> guiWorkArray;
 	sf::Box<gui::Widget> guiRoot;
 
+	bool showDebugMenu = false;
+	bool showDebugPointers = false;
+	bool simulateTouch = false;
+
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
 	{
 		Character &chr = characters[characterId];
@@ -319,9 +323,13 @@ struct GameSystemImp final : GameSystem
 		inputArgs.events = frameArgs.events;
 		inputArgs.mouseBlocked = ImGui::GetIO().WantCaptureMouse;
 		inputArgs.keyboardBlocked = ImGui::GetIO().WantCaptureKeyboard;
-		inputArgs.simulateTouch = true;
+		inputArgs.simulateTouch = simulateTouch;
 
 		input.update(inputArgs);
+
+		if (input.keyDown[SAPP_KEYCODE_F3] && !input.prevKeyDown[SAPP_KEYCODE_F3]) {
+			showDebugMenu = true;
+		}
 
 		float scrollAmount = 0.0f;
 
@@ -547,17 +555,27 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
-#if 1
-		if (ImGui::Begin("Pointers")) {
-			sf::SmallStringBuf<128> str;
-			for (Pointer &p : input.pointers) {
-				str.clear();
-				p.formatDebugString(str);
-				ImGui::Text("%s", str.data);
+		if (showDebugMenu) {
+			ImGui::SetNextWindowSize(ImVec2(200.0f, 200.0f), ImGuiCond_Appearing);
+			if (ImGui::Begin("Game Debug", &showDebugMenu)) {
+				ImGui::Checkbox("Simulate touch", &simulateTouch);
+				if (ImGui::Button("Pointers")) showDebugPointers = true;
 			}
+			ImGui::End();
 		}
-        ImGui::End();
-#endif
+
+		if (showDebugPointers) {
+			ImGui::SetNextWindowSize(ImVec2(400.0f, 100.0f), ImGuiCond_Appearing);
+			if (ImGui::Begin("Pointers"), &showDebugPointers) {
+				sf::SmallStringBuf<128> str;
+				for (Pointer &p : input.pointers) {
+					str.clear();
+					p.formatDebugString(str);
+					ImGui::Text("%s", str.data);
+				}
+			}
+			ImGui::End();
+		}
 
 		Camera::State state = Camera::lerp(camera.previous, camera.current, camera.timeDelta / cameraDt);
 
