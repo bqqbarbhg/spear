@@ -119,7 +119,7 @@ void movePointer(InputState &state, Pointer &pointer, const PointerPosition &pos
 
 	if (pointer.button != Pointer::MouseHover) {
 		float dist = sf::length(prev - next);
-		pointer.dragFactor = sf::min(pointer.dragFactor + sf::min(pointer.time*80.0f + 1.0f, 100.0f) * dist, 1.0f);
+		pointer.dragFactor = sf::min(pointer.dragFactor + sf::min(pointer.time*80.0f + 10.0f, 100.0f) * dist, 1.0f);
 		if (pointer.dragFactor >= 0.5f && sf::length(start - next) > 0.05f) {
 			pointer.canTap = false;
 		}
