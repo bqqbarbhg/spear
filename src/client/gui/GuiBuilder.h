@@ -46,7 +46,7 @@ struct GuiBuilder
 	template <typename T>
 	T *push(const void *id)
 	{
-		return push<T>((uint64_t)(uintptr_t)id):
+        return push<T>((uint64_t)(uintptr_t)id);
 	}
 
 	template <typename T>
