@@ -520,6 +520,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	c->frameArgs.events = input.events;
 	c->frameArgs.resolution = input.resolution;
 	c->frameArgs.editorOpen = c->editor != nullptr;
+	c->frameArgs.guiResolution = c->uiResolution;
 
 	if (input.resolution != c->resolution || c->forceRecreateTargets) {
 		c->forceRecreateTargets = false;

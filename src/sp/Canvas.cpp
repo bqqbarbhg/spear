@@ -6,6 +6,8 @@
 #include "sf/Array.h"
 #include "sf/Sort.h"
 
+#include "sp/Renderer.h"
+
 #include "ext/sokol/sokol_gfx.h"
 #include "ext/sokol/sokol_app.h"
 #include "shader/Sprite.h"
@@ -17,10 +19,18 @@ static const uint32_t MaxQuadsPerDraw = 16*1024;
 static const uint32_t MaxQuadsPerFrame = 32*1024;
 static const uint32_t MaxTextQuadsPerFrame = 32*1024;
 
+static const sf::Vec4i NoCropRect = sf::Vec4i(0, 0, INT32_MAX, INT32_MAX);
+
+struct CropRectImp
+{
+	sf::Vec2 min, max;
+};
+
 struct SpriteDrawImp
 {
 	SpriteDraw draw;
 	uint64_t sortKey;
+	uint32_t cropIndex;
 };
 
 struct TextDrawImp
@@ -28,12 +38,14 @@ struct TextDrawImp
 	TextDraw draw;
 	uint64_t sortKey;
 	uint32_t textOffset;
+	uint32_t cropIndex;
 };
 
 struct CanvasDrawImp
 {
 	CanvasDraw draw;
 	uint64_t sortKey;
+	uint32_t cropIndex;
 };
 
 struct Quad
@@ -67,6 +79,8 @@ struct CanvasContext
 
 	sf::Array<FontQuad> fontQuads;
 	size_t textQuadsLeftThisFrame = MaxTextQuadsPerFrame;
+
+	sf::Vec4i cropRect = NoCropRect;
 };
 
 extern sg_buffer g_hackSharedQuadIndexBuffer;
@@ -80,12 +94,16 @@ struct CanvasImp
 
 	sf::Array<char> textData;
 
+	sf::Array<CropRectImp> cropRects;
 	sf::Array<SpriteDrawImp> spriteDraws;
 	sf::Array<TextDrawImp> textDraws;
 	sf::Array<CanvasDrawImp> canvasDraws;
 	sf::Array<sf::Mat23> transformStack;
+	sf::Array<uint32_t> cropStack;
 	uint32_t nextDrawIndex = 0;
 	sf::Mat23 transform;
+
+	uint32_t cropIndex = ~0u;
 
 	bool spriteDrawsSorted = true;
 	bool textDrawsSorted = true;
@@ -148,6 +166,7 @@ void Canvas::clear()
 		draw.draw.font->release();
 	}
 
+	imp->cropRects.clear();
 	imp->spriteDraws.clear();
 	imp->textDraws.clear();
 	imp->canvasDraws.clear();
@@ -163,6 +182,10 @@ void Canvas::clear()
 	imp->textData.clear();
 
 	imp->transformStack.clear();
+	imp->cropStack.clear();
+
+	imp->transform = sf::Mat23();
+	imp->cropIndex = ~0u;
 }
 
 static uint64_t makeSortKey(float depth, uint32_t index)
@@ -193,6 +216,7 @@ void Canvas::draw(const SpriteDraw &draw)
 	drawImp.draw = draw;
 	drawImp.draw.transform = imp->transform * draw.transform;
 	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
+	drawImp.cropIndex = imp->cropIndex;
 }
 
 void Canvas::drawText(const TextDraw &draw)
@@ -212,6 +236,7 @@ void Canvas::drawText(const TextDraw &draw)
 	drawImp.draw = draw;
 	drawImp.draw.transform = imp->transform * draw.transform;
 	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
+	drawImp.cropIndex = imp->cropIndex;
 
 	// Copy string data
 	drawImp.textOffset = imp->textData.size;
@@ -231,6 +256,7 @@ void Canvas::drawCanvas(const CanvasDraw &draw)
 	drawImp.draw = draw;
 	drawImp.draw.transform = imp->transform * draw.transform;
 	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
+	drawImp.cropIndex = imp->cropIndex;
 }
 
 void Canvas::draw(Sprite *sprite, const sf::Vec2 &pos, const sf::Vec2 &size)
@@ -267,6 +293,34 @@ void Canvas::popTransform()
 {
 	CanvasImp *imp = (CanvasImp*)impData;
 	imp->transform = imp->transformStack.popValue();
+}
+
+void Canvas::pushCrop(const sf::Vec2 &min, const sf::Vec2 &max)
+{
+	CanvasImp *imp = (CanvasImp*)impData;
+	imp->cropStack.push(imp->cropIndex);
+
+	CropRectImp &rect = imp->cropRects.push();
+
+	sf::Vec2 cropMin = min * sf::Vec2(imp->transform.m00, imp->transform.m11) + sf::Vec2(imp->transform.m02, imp->transform.m12);
+	sf::Vec2 cropMax = max * sf::Vec2(imp->transform.m00, imp->transform.m11) + sf::Vec2(imp->transform.m02, imp->transform.m12);
+
+	if (imp->cropIndex != ~0u) {
+		CropRectImp &refRect = imp->cropRects[imp->cropIndex];
+		cropMin = sf::clamp(cropMin, refRect.min, refRect.max);
+		cropMax = sf::clamp(cropMax, refRect.min, refRect.max);
+	}
+
+	rect.min = cropMin;
+	rect.max = cropMax;
+
+	imp->cropIndex = imp->cropRects.size - 1;
+}
+
+void Canvas::popCrop()
+{
+	CanvasImp *imp = (CanvasImp*)impData;
+	imp->cropIndex = imp->cropStack.popValue();
 }
 
 static uint32_t packChannel(float f)
@@ -334,6 +388,36 @@ static void spriteToQuad(Quad &quad, const SpriteDraw &draw, const CanvasRenderO
 	quad.v[3].texCoord.x = uvMaxX;
 	quad.v[3].texCoord.y = uvMaxY;
 	quad.v[3].color = color;
+}
+
+static void disableCrop(CanvasContext &ctx)
+{
+	if (ctx.cropRect != NoCropRect) {
+		ctx.cropRect = NoCropRect;
+		sf::Vec2i resolution = sp::getPassResolution();
+		sg_apply_scissor_rect(0, 0, resolution.x, resolution.y, true);
+	}
+}
+
+static void updateCrop(CanvasContext &ctx, const CanvasRenderOpts &opts, const CropRectImp &cropImp)
+{
+	sf::Vec2i resolution = sp::getPassResolution();
+	sf::Vec2 resolutionF = sf::Vec2(resolution);
+	sf::Vec2 halfResF = resolutionF * 0.5f;
+	sf::Vec2 scale = sf::Vec2(opts.transform.m00 * halfResF.x, opts.transform.m11 * -halfResF.y);
+	sf::Vec2 bias = sf::Vec2(opts.transform.m03 * halfResF.x + halfResF.x, opts.transform.m13 * -halfResF.y + halfResF.y);
+	sf::Vec2 a = sf::clamp(cropImp.min * scale + bias, sf::Vec2(), resolutionF);
+	sf::Vec2 b = sf::clamp(cropImp.max * scale + bias, sf::Vec2(), resolutionF);
+	sf::Vec2 min = sf::min(a, b);
+	sf::Vec2 max = sf::max(a, b);
+
+	int cropX = (int)min.x, cropY = (int)min.y;
+	int cropW = (int)(max.x - min.x), cropH = (int)(max.y - min.y);
+	sf::Vec4i cropRect = sf::Vec4i(cropX, cropY, cropW, cropH);
+	if (cropRect != ctx.cropRect) {
+		ctx.cropRect = cropRect;
+		sg_apply_scissor_rect(cropX, cropY, cropW, cropH, true);
+	}
 }
 
 static void drawSprites(CanvasContext &ctx, sf::Slice<SpriteDrawImp> draws, Atlas *atlas, const CanvasRenderOpts &opts)
@@ -450,6 +534,8 @@ void Canvas::render(const CanvasRenderOpts &opts)
     uint64_t nextText = imp->textDraws.size > 0 ? imp->textDraws[0].sortKey : UINT64_MAX;
     uint64_t nextCanvas = imp->canvasDraws.size > 0 ? imp->canvasDraws[0].sortKey : UINT64_MAX;
 
+	uint32_t prevCropIndex = ~0u;
+
     uint64_t next = sf::min(nextSprite, nextText, nextCanvas);
     while (next != UINT64_MAX) {
 
@@ -471,6 +557,7 @@ void Canvas::render(const CanvasRenderOpts &opts)
 
                 if (sprite->shouldBeLoaded()) {
                     Atlas *atlas = sprite->atlas;
+					uint32_t cropIndex = draws[spriteI].cropIndex;
 
                     // Keep appending sprites that are in the same atlas
                     uint32_t end = spriteI + 1;
@@ -478,12 +565,24 @@ void Canvas::render(const CanvasRenderOpts &opts)
                         if (draws[end].sortKey > next) break;
                         sprite = draws[end].draw.sprite;
                         if (!sprite->shouldBeLoaded()) break;
+						if (draws[end].cropIndex != cropIndex) {
+							break;
+						}
                         if (sprite->atlas != atlas) {
                             atlas->brokeBatch();
                             sprite->atlas->brokeBatch();
                             break;
                         }
                     }
+
+					if (cropIndex != prevCropIndex) {
+						prevCropIndex = cropIndex;
+						if (cropIndex != ~0u) {
+							updateCrop(ctx, opts, imp->cropRects[cropIndex]);
+						} else {
+							disableCrop(ctx);
+						}
+					}
 
                     drawSprites(ctx, sf::slice(draws + spriteI, end - spriteI), atlas, opts);
                     spriteI = end;
@@ -502,11 +601,31 @@ void Canvas::render(const CanvasRenderOpts &opts)
             uint32_t begin = textI;
 
             do {
-                textI++;
+				uint32_t end = textI + 1;
+				uint32_t cropIndex = draws[textI].cropIndex;
+
+				for (; end < numDraws && end - textI < MaxQuadsPerDraw; end++) {
+					if (draws[end].sortKey > next) break;
+					if (draws[end].cropIndex != cropIndex) {
+						break;
+					}
+				}
+
+				if (cropIndex != prevCropIndex) {
+					prevCropIndex = cropIndex;
+					if (cropIndex != ~0u) {
+						updateCrop(ctx, opts, imp->cropRects[cropIndex]);
+					} else {
+						disableCrop(ctx);
+					}
+				}
+
+				drawTexts(ctx, sf::slice(draws + textI, end - textI), imp->textData.data, opts);
+                textI = end;
+
                 nextText = textI < numDraws ? draws[textI].sortKey : UINT64_MAX;
             } while (nextText < next);
 
-            drawTexts(ctx, sf::slice(draws + begin, textI - begin), imp->textData.data, opts);
 
         } else if (next == nextCanvas) {
             next = sf::min(nextSprite, nextText);
@@ -514,7 +633,17 @@ void Canvas::render(const CanvasRenderOpts &opts)
             uint32_t numDraws = imp->canvasDraws.size;
 
             do {
+				uint32_t cropIndex = draws[canvasI].cropIndex;
                 CanvasDraw &draw = draws[canvasI++].draw;
+
+				if (cropIndex != prevCropIndex) {
+					prevCropIndex = cropIndex;
+					if (cropIndex != ~0u) {
+						updateCrop(ctx, opts, imp->cropRects[cropIndex]);
+					} else {
+						disableCrop(ctx);
+					}
+				}
 
                 sf::Mat44 transform;
                 transform.m00 = draw.transform.m00;
@@ -533,6 +662,10 @@ void Canvas::render(const CanvasRenderOpts &opts)
             } while (nextCanvas < next);
         }
     }
+
+	if (prevCropIndex != ~0u) {
+		disableCrop(ctx);
+	}
 }
 
 bool Canvas::isLoaded() const

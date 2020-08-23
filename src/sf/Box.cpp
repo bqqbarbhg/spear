@@ -5,8 +5,35 @@
 
 namespace sf {
 
-thread_local uint64_t t_boxCounter;
-uint32_t g_boxThreadCounter = 0;
+static constexpr const size_t BoxHeaderSize = 16;
+
+#if SF_DEBUG
+static constexpr const size_t BoxMagicSize = 16;
+
+const char boxMagic[] = "\x0b\x1b\x2b\x3b\x4b\x5b\x6b\x7b\x8b\x9b\xab\xbb\xcb\xdb\xeb\xfb";
+const char boxDeletedMagic[] = "\x0d\x1d\x2d\x3d\x4d\x5d\x6d\x7d\x8d\x9d\xad\xbd\xcd\xdd\xed\xfd";
+
+static_assert(sizeof(boxMagic) == BoxMagicSize + 1, "boxMagic size");
+static_assert(sizeof(boxDeletedMagic) == BoxMagicSize + 1, "boxDeletedMagic size");
+
+sf_inline void boxInitMagic(BoxHeader *header) {
+	char *magic = (char*)header + BoxHeaderSize + header->size;
+	memcpy(magic, boxMagic, BoxMagicSize);
+}
+sf_inline void boxDeleteMagic(BoxHeader *header) {
+	char *magic = (char*)header + BoxHeaderSize + header->size;
+	memcpy(magic, boxDeletedMagic, BoxMagicSize);
+}
+sf_inline void boxCheckMagic(const BoxHeader *header) {
+	const char *magic = (const char*)header + BoxHeaderSize + header->size;
+	sf_assert(!memcmp(magic, boxMagic, BoxMagicSize));
+}
+#else
+static constexpr const size_t BoxMagicSize = 0;
+sf_inline void boxInitMagic(BoxHeader *header) { }
+sf_inline void boxDeleteMagic(BoxHeader *header) { }
+sf_inline void boxCheckMagic(const BoxHeader *header) { }
+#endif
 
 struct WeakBoxData
 {
@@ -25,36 +52,29 @@ void boxFree(void *ptr, size_t size)
 	memFree(ptr);
 }
 
-static_assert(sizeof(BoxHeader) <= 32, "BoxHeader is too large");
+static_assert(sizeof(BoxHeader) <= BoxHeaderSize, "BoxHeader is too large");
 
 BoxHeader *getHeader(void *ptr)
 {
 	sf_assert(ptr);
-	return (BoxHeader*)((char*)ptr - 32);
+	return (BoxHeader*)((char*)ptr - BoxHeaderSize);
 }
 
 void *impBoxAllocate(size_t size, DestructRangeFn dtor)
 {
-	void *data = boxAlloc(size + 32);
+	void *data = boxAlloc(size + (BoxHeaderSize + BoxMagicSize));
 	BoxHeader *header = (BoxHeader*)data;
 	header->refCount = 1;
 	header->size = (uint32_t)size;
 	header->dtor = dtor;
-	header->weakData = nullptr;
-	uint64_t id = t_boxCounter;
-	if (id == 0) {
-		id = ((uint64_t)(mxa_inc32(&g_boxThreadCounter) + 1) << 32u) + 1;
-	} else {
-		id++;
-	}
-	t_boxCounter = id;
-	header->id = id;
-	return (char*)data + 32;
+	boxInitMagic(header);
+	return (char*)data + BoxHeaderSize;
 }
 
 void impBoxIncRef(void *ptr)
 {
 	BoxHeader *header = getHeader(ptr);
+	boxCheckMagic(header);
 	uint32_t refs = mxa_inc32(&header->refCount);
 	sf_assert(refs > 0);
 }
@@ -62,77 +82,12 @@ void impBoxIncRef(void *ptr)
 void impBoxDecRef(void *ptr)
 {
 	BoxHeader *header = getHeader(ptr);
+	boxCheckMagic(header);
 	uint32_t left = mxa_dec32(&header->refCount) - 1;
 	if (left == 0) {
-		WeakBoxData *weak = (WeakBoxData*)mxa_load_ptr_acq(&header->weakData);
-		if (weak) {
-			mx_mutex_lock(&weak->mutex);
-			weak->ptr = nullptr;
-			mx_mutex_unlock(&weak->mutex);
-			impBoxDecRef(weak);
-		}
-
 		header->dtor(ptr, 1);
-		boxFree(header, header->size + 32);
+		boxFree(header, header->size + (BoxHeaderSize + BoxMagicSize));
 	}
-}
-
-uint64_t impBoxGetId(void *ptr)
-{
-	if (!ptr) return 0;
-	BoxHeader *header = getHeader(ptr);
-	return header->id;
-}
-
-uint64_t impWeakBoxGetId(WeakBoxData *data)
-{
-	return data->id;
-}
-
-WeakBoxData *impWeakBoxMake(void *ptr)
-{
-	BoxHeader *header = getHeader(ptr);
-	sf_assert(header->refCount > 0);
-
-	WeakBoxData *weak = (WeakBoxData*)mxa_load_ptr_acq(&header->weakData);
-	if (weak) {
-		impBoxIncRef(weak);
-	} else {
-		weak = (WeakBoxData*)impBoxAllocate(sizeof(WeakBoxData), &sf::destructRangeImp<WeakBoxData>);
-		weak->mutex.state = 0;
-		weak->ptr = ptr;
-		weak->id = header->id;
-		if (!mxa_cas_ptr_rel(&header->weakData, nullptr, weak)) {
-			impBoxDecRef(weak);
-			weak = (WeakBoxData*)mxa_load_ptr_acq(&header->weakData);
-			impBoxIncRef(weak);
-		}
-	}
-	return weak;
-}
-
-bool impWeakBoxValid(WeakBoxData *data)
-{
-	return data->ptr != nullptr;
-}
-
-void *impWeakBoxRetain(WeakBoxData *data)
-{
-	mx_mutex_lock(&data->mutex);
-	void *ptr = data->ptr;
-	if (ptr) {
-		BoxHeader *header = getHeader(ptr);
-		uint32_t left;
-		do {
-			left = mxa_load32_nf(&header->refCount);
-			if (left == 0) {
-				ptr = nullptr;
-				break;
-			}
-		} while (!mxa_cas32_nf(&header->refCount, left, left + 1));
-	}
-	mx_mutex_unlock(&data->mutex);
-	return ptr;
 }
 
 struct BoxType final : Type

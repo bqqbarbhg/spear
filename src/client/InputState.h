@@ -46,11 +46,12 @@ struct Pointer
 
 	PointerPosition start; // Initial state when clicked/tapped
 	PointerPosition dragStart; // Resampled when touches are lifted
+	PointerPosition prev; // Previous frame state
 	PointerPosition current; // Current frame state
 
 	float time = 0.0f;
 	bool canTap = true;
-	float dragAmount = -0.1f;
+	float dragFactor = -0.1f;
 
 	void formatDebugString(sf::StringBuf &str) const;
 };

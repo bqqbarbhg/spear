@@ -21,10 +21,77 @@
 
 #include "client/InputState.h"
 
+#include "client/gui/Gui.h"
+#include "client/gui/GlueWidgets.h"
+#include "client/gui/WidgetLinearLayout.h"
+#include "client/gui/WidgetScroll.h"
+
 namespace cl {
 
 static const constexpr float TapCancelDistance = 0.03f;
 static const constexpr float TapCancelDistanceSq = TapCancelDistance * TapCancelDistance;
+
+
+struct WidgetTest : gui::Widget
+{
+	sp::SpriteRef sprite;
+	sp::FontRef font;
+	bool tapped = false;
+	bool pressed = false;
+
+	uint32_t index;
+
+	virtual void layout(gui::GuiLayout &layout, const sf::Vec2 &min, const sf::Vec2 &max) override
+	{
+		if (sprite->isLoaded()) {
+			float aspect = sprite->aspect;
+			sf::Vec2 size = sf::clamp(boxExtent, min, max);
+			float scale = sf::min(size.x / aspect, size.y);
+			layoutSize = sf::Vec2(scale * aspect, scale);
+		} else {
+			layoutSize = sf::Vec2();
+		}
+	}
+
+	virtual void paint(gui::GuiPaint &paint) override
+	{
+		paint.canvas->draw(sprite, layoutOffset, layoutSize, pressed ? sf::Vec4(1.0f, 0.0f, 0.0f, 1.0f) : sf::Vec4(1.0f));
+
+		sf::SmallStringBuf<16> number;
+		number.format("%u", index);
+		sp::TextDraw td;
+		td.string = number;
+		td.font = font;
+		td.depth = 1.0f;
+		td.height = 30.0f;
+		td.color = tapped ? sf::Vec4(0.0f, 0.0f, 0.0f, 1.0f) : sf::Vec4(1.0f);
+		sf::Vec2 measure = font->measureText(number, td.height);
+		td.transform = sf::mat2D::translate(layoutOffset + layoutSize * 0.5f - sf::Vec2(measure.x, -measure.y*0.5f) * 0.5f);
+		paint.canvas->drawText(td);
+	}
+
+	virtual bool onPointer(gui::GuiPointer &pointer) override
+	{
+		if (pointer.button == gui::GuiPointer::MouseHover && pointer.action == gui::GuiPointer::Down) {
+			return true;
+		}
+
+		if (pointer.button == gui::GuiPointer::Touch && pointer.action == gui::GuiPointer::Tap) {
+			tapped = !tapped;
+			return true;
+		}
+
+		if (pointer.button == gui::GuiPointer::Touch && pointer.action == gui::GuiPointer::LongPress) {
+			if (!pointer.trackWidget) {
+				pressed = !pressed;
+			}
+			pointer.trackWidget = sf::boxFromPointer(this);
+			return true;
+		}
+
+		return false;
+	}
+};
 
 struct Camera
 {
@@ -106,6 +173,15 @@ struct GameSystemImp final : GameSystem
 		sf::Vec2i tileInt;
 	};
 
+	struct PointerState
+	{
+		uint64_t id;
+		bool active = true;
+		bool hitGui = false;
+		bool hitBackground = false;
+		sf::Box<gui::Widget> trackWidget;
+	};
+
 	static sf::Vec3 intersectHorizontalPlane(float height, const sf::Ray &ray)
 	{
 		float t = (ray.origin.y - height) / - ray.direction.y;
@@ -136,6 +212,11 @@ struct GameSystemImp final : GameSystem
 	sf::Array<sf::Vec2i> moveWaypoints;
 
 	GuiCardResources guiCardRes;
+
+	sf::ImplicitHashMap<PointerState, sv::KeyId> pointerStates;
+
+	sf::Array<gui::Widget*> guiWorkArray;
+	sf::Box<gui::Widget> guiRoot;
 
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
 	{
@@ -193,6 +274,37 @@ struct GameSystemImp final : GameSystem
 	{
 		camera.previous.origin = camera.current.origin = sf::Vec3(desc.persist.camera.x, 0.0f, desc.persist.camera.y);
 		camera.previous.zoom = camera.current.zoom = desc.persist.zoom;
+
+		auto root = sf::box<gui::Widget>();
+
+		auto sc = sf::box<gui::WidgetScroll>();
+		sc->boxOffset.x = 300.0f;
+		sc->boxOffset.y = 300.0f;
+		sc->boxExtent.x = 300.0f;
+		sc->boxExtent.y = 100.0f;
+		sc->direction = gui::DirX;
+
+		auto ll = sf::box<gui::WidgetLinearLayout>();
+		ll->direction = gui::DirX;
+		ll->boxExtent.y = 100.0f;
+		ll->marginBefore = 10.0f;
+		ll->marginAfter = 10.0f;
+		ll->padding = 10.0f;
+
+		for (uint32_t i = 0; i < 10; i++) {
+			auto sp = sf::box<WidgetTest>();
+			sp->sprite = guiCardRes.inventory;
+			sp->font.load("Assets/Gui/Font/Alegreya-Bold.ttf");
+			sp->index = i;
+			sp->boxExtent = sf::Vec2(100.0f, 100.0f);
+			ll->children.push(sp);
+		}
+
+		sc->children.push(ll);
+
+		root->children.push(sc);
+
+		guiRoot = root;
 	}
 
 	void updateCamera(FrameArgs &frameArgs) override
@@ -207,20 +319,91 @@ struct GameSystemImp final : GameSystem
 		inputArgs.events = frameArgs.events;
 		inputArgs.mouseBlocked = ImGui::GetIO().WantCaptureMouse;
 		inputArgs.keyboardBlocked = ImGui::GetIO().WantCaptureKeyboard;
-		inputArgs.simulateTouch = false;
+		inputArgs.simulateTouch = true;
 
 		input.update(inputArgs);
+
+		float scrollAmount = 0.0f;
 
 		for (const sapp_event &e : frameArgs.events) {
 
 			if (e.type == SAPP_EVENTTYPE_MOUSE_SCROLL) {
 
 				if (!input.mouseBlocked) {
-					camera.zoomDelta += e.scroll_y * -0.1f;
+					scrollAmount += -e.scroll_y;
 				}
 
 			}
 		}
+
+		for (Pointer &p : input.pointers) {
+			PointerState &ps = pointerStates[p.id];
+			ps.id = p.id;
+			ps.active = true;
+
+			if (ps.hitBackground) continue;
+
+			gui::GuiPointer gp;
+			gp.position = p.current.pos * frameArgs.guiResolution;
+			gp.delta = (p.current.pos - p.prev.pos) * frameArgs.guiResolution;
+			gp.button = (gui::GuiPointer::Button)p.button;
+
+			if (p.action == Pointer::Down) {
+				gp.action = gui::GuiPointer::Down;
+			} else if (p.action == Pointer::Hold) {
+				if (p.canTap && p.time > 0.5f) {
+					gp.action = gui::GuiPointer::LongPress;
+				} else if (p.dragFactor > 0.0f) {
+					gp.action = gui::GuiPointer::Drag;
+					gp.dragFactor = p.dragFactor;
+				} else {
+					gp.action = gui::GuiPointer::Hold;
+				}
+			} else if (p.action == Pointer::Up) {
+				if (p.canTap && p.time < 0.5f) {
+					gp.action = gui::GuiPointer::Tap;
+				} else {
+					gp.action = gui::GuiPointer::Up;
+				}
+			}
+
+			if (ps.trackWidget) {
+				gp.trackWidget = ps.trackWidget;
+				ps.trackWidget->onPointer(gp);
+			} else if (gp.action != gui::GuiPointer::NoAction) {
+				bool ate = guiRoot->onPointer(gp);
+				if (gp.trackWidget) {
+					ps.trackWidget = gp.trackWidget;
+				}
+				if (gp.trackWidget || ate || gp.blocked) {
+					ps.hitGui = true;
+				}
+			}
+		}
+
+		if (sf::abs(scrollAmount) > 0.0f) {
+			Pointer *mousePointer = nullptr;
+			for (Pointer &p : input.pointers) {
+				if (p.button <= Pointer::LastMouse) {
+					mousePointer = &p;
+					break;
+				}
+			}
+
+			if (mousePointer) {
+				gui::GuiPointer gp;
+				gp.position = mousePointer->current.pos * frameArgs.guiResolution;
+				gp.delta = (mousePointer->current.pos - mousePointer->prev.pos) * frameArgs.guiResolution;
+				gp.button = (gui::GuiPointer::Button)mousePointer->button;
+				gp.action = gui::GuiPointer::Scroll;
+				gp.scrollDelta = scrollAmount;
+				if (guiRoot->onPointer(gp)) {
+					scrollAmount = 0.0f;
+				}
+			}
+		}
+
+		camera.zoomDelta += scrollAmount * 0.1f;
 
 		const float cameraDt = 0.001f;
 		camera.timeDelta = sf::min(camera.timeDelta + frameArgs.dt, 0.1f);
@@ -270,9 +453,13 @@ struct GameSystemImp final : GameSystem
             sf::Vec3 dragStart;
             sf::Vec3 dragCurrent;
 
-			for (Pointer &p : input.pointers) {
+			for (Pointer &p : input.pointers.slice()) {
+				PointerState &ps = pointerStates[p.id];
+				if (ps.hitGui) continue;
+
                 if ((p.button == Pointer::MouseMiddle || p.button == Pointer::Touch)
                     && p.action == Pointer::Hold) {
+					ps.hitBackground = true;
 
 					p.current.worldRay = pointerToWorld(clipToWorld, p.current.pos);
 
@@ -285,9 +472,9 @@ struct GameSystemImp final : GameSystem
 
 					sf::Vec3 a = intersectHorizontalPlane(0.0f, p.dragStart.worldRay);
 					sf::Vec3 b = intersectHorizontalPlane(0.0f, p.current.worldRay);
-					float dragAmount = sf::max(0.0f, p.dragAmount);
-					if (p.button == Pointer::MouseMiddle) dragAmount = 1.0f;
-					if (dragAmount < 1.0f) b = sf::lerp(a, b, dragAmount);
+					float dragFactor = sf::max(0.0f, p.dragFactor);
+					if (p.button == Pointer::MouseMiddle) dragFactor = 1.0f;
+					if (dragFactor < 1.0f) b = sf::lerp(a, b, dragFactor);
 			
                     numDrags += 1;
                     dragStart += a;
@@ -305,14 +492,17 @@ struct GameSystemImp final : GameSystem
 
                     float dragZoom = 0.0f;
                     for (Pointer &p : input.pointers) {
+						PointerState &ps = pointerStates[p.id];
+						if (ps.hitGui) continue;
     
                         if ((p.button == Pointer::MouseMiddle || p.button == Pointer::Touch)
                             && p.action == Pointer::Hold) {
+
                             sf::Vec3 a = intersectHorizontalPlane(0.0f, p.dragStart.worldRay);
                             sf::Vec3 b = intersectHorizontalPlane(0.0f, p.current.worldRay);
-							float dragAmount = sf::max(0.0f, p.dragAmount);
-							if (p.button == Pointer::MouseMiddle) dragAmount = 1.0f;
-							if (dragAmount < 1.0f) b = sf::lerp(a, b, dragAmount);
+							float dragFactor = sf::max(0.0f, p.dragFactor);
+							if (p.button == Pointer::MouseMiddle) dragFactor = 1.0f;
+							if (dragFactor < 1.0f) b = sf::lerp(a, b, dragFactor);
     
                             float ad = sf::length(a - dragStart);
                             float bd = sf::length(b - dragCurrent);
@@ -572,6 +762,23 @@ struct GameSystemImp final : GameSystem
 
 			}
 		}
+
+		{
+			gui::GuiLayout layout;
+			layout.dt = frameArgs.dt;
+			guiRoot->layout(layout, frameArgs.guiResolution, frameArgs.guiResolution);
+			gui::Widget::finishLayout(guiWorkArray, guiRoot);
+		}
+
+		for (uint32_t i = 0; i < pointerStates.size(); i++) {
+			PointerState &ps = pointerStates.data[i];
+			if (!ps.active) {
+				pointerStates.remove(ps.id);
+				i--;
+			} else {
+				ps.active = false;
+			}
+		}
 	}
 
 	void updateTransform(Systems &systems, uint32_t entityId, const EntityComponent &ec, const TransformUpdate &update) override
@@ -658,6 +865,18 @@ struct GameSystemImp final : GameSystem
 	{
 		sp::Canvas &canvas = *guiArgs.canvas;
 
+		{
+			gui::GuiPaint paint;
+			paint.canvas = guiArgs.canvas;
+			paint.crop.max = guiArgs.resolution;
+			guiRoot->paint(paint);
+		}
+
+#if 0
+
+		canvas.pushCrop(sf::Vec2(0.0f, guiArgs.resolution.y - 60.0f), sf::Vec2(1000.0f, guiArgs.resolution.y));
+		canvas.pushCrop(sf::Vec2(150.0f, 0.0f), sf::Vec2(300.0f, 10000.0f));
+
 		if (Character *chr = findCharacter(selectedCharacterId)) {
 			sv::CharacterComponent *chrComp = chr->svPrefab->findComponent<sv::CharacterComponent>();
 			if (chrComp) {
@@ -701,6 +920,11 @@ struct GameSystemImp final : GameSystem
 				}
 			}
 		}
+
+		canvas.popCrop();
+		canvas.popCrop();
+
+#endif
 	}
 
 };

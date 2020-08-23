@@ -791,10 +791,14 @@ static const sg_pass_action defaultAction = {
 	0,
 };
 
+sf::Vec2i renderPassResolution;
+
 void beginPass(const RenderPass &pass, const sg_pass_action *action)
 {
 	sf_assert(g_activeFramebufferType == 0);
 	if (!action) action = &defaultAction;
+
+	renderPassResolution = pass.resolution;
 
 	beginQueryImp(pass.name);
 	sg_begin_pass(pass.pass, action);
@@ -809,6 +813,8 @@ void beginDefaultPass(uint32_t width, uint32_t height, const sg_pass_action *act
 {
 	sf_assert(g_activeFramebufferType == 0);
 	if (!action) action = &defaultAction;
+
+	renderPassResolution = sf::Vec2i((int)width, (int)height);
 
 	beginQueryImp(defaultPassName);
 	sg_begin_default_pass(action, (int)width, (int)height);
@@ -832,6 +838,11 @@ void beginFrame()
 void endFrame()
 {
 	endQueryFrame();
+}
+
+sf::Vec2i getPassResolution()
+{
+	return renderPassResolution;
 }
 
 sf::Slice<const PassTime> getPassTimes()

@@ -153,6 +153,8 @@ void endPass();
 void beginFrame();
 void endFrame();
 
+sf::Vec2i getPassResolution();
+
 sf::Slice<const PassTime> getPassTimes();
 
 extern sg_buffer g_hackSharedQuadIndexBuffer;

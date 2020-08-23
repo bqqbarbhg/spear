@@ -25,7 +25,7 @@ void Pointer::formatDebugString(sf::StringBuf &str) const
 	}
 
 	str.format("(%2.2fs) %s %s - (%.2f, %.2f) [drag:%+.2f]", time, buttonStr, actionStr,
-		current.pos.x, current.pos.y, dragAmount);
+		current.pos.x, current.pos.y, dragFactor);
 }
 
 static Pointer::Button sappToPointerButton(sapp_mousebutton button)
@@ -105,7 +105,7 @@ void initPointer(InputState &state, Pointer &pointer, const PointerPosition &pos
 	pointer.id = ++state.nextPointerId;
 	pointer.time = 0.0f;
 	pointer.canTap = true;
-	pointer.dragStart = pointer.current = pointer.start = pos;
+	pointer.dragStart = pointer.prev = pointer.current = pointer.start = pos;
 	pointer.action = action;
 }
 
@@ -119,8 +119,8 @@ void movePointer(InputState &state, Pointer &pointer, const PointerPosition &pos
 
 	if (pointer.button != Pointer::MouseHover) {
 		float dist = sf::length(prev - next);
-		pointer.dragAmount = sf::min(pointer.dragAmount + sf::min(pointer.time*80.0f + 0.005f, 20.0f) * dist, 1.0f);
-		if (pointer.dragAmount >= 0.5f && sf::length(start - next) > 0.05f) {
+		pointer.dragFactor = sf::min(pointer.dragFactor + sf::min(pointer.time*80.0f + 1.0f, 100.0f) * dist, 1.0f);
+		if (pointer.dragFactor >= 0.5f && sf::length(start - next) > 0.05f) {
 			pointer.canTap = false;
 		}
 	}
@@ -140,6 +140,8 @@ void InputState::update(const InputUpdateArgs &args)
 	for (uint32_t i = 0; i < pointers.size; i++) {
 		Pointer &p = pointers[i];
 		p.time += args.dt;
+
+		p.prev = p.current;
 
 		if (p.button == Pointer::MouseHover) {
 			if (args.mouseBlocked || p.action != Pointer::Down) {
@@ -233,6 +235,9 @@ void InputState::update(const InputUpdateArgs &args)
 			}
 
 			if (simulatedTouchId) {
+				if (Pointer *p = findTouch(*this, simulatedTouchId)) {
+					p->action = Pointer::Up;
+				}
 				simulatedTouchId = 0;
 			}
 		} else if (e.type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {

@@ -237,6 +237,7 @@ struct FrameArgs
 	float dt = 100.0f;
 	sf::Slice<const sapp_event> events;
 	sf::Vec2i resolution;
+	sf::Vec2 guiResolution;
 	bool editorOpen = false;
 
 	RenderArgs mainRenderArgs;

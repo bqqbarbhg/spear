@@ -69,13 +69,16 @@ struct Canvas
 	void pushTransform(const sf::Mat23 &transform);
 	void popTransform();
 
+	void pushCrop(const sf::Vec2 &min, const sf::Vec2 &max);
+	void popCrop();
+
     void prepareForRendering();
 
 	void render(const CanvasRenderOpts &opts);
 
 	bool isLoaded() const;
 
-	alignas(void*) char impData[128];
+	alignas(void*) char impData[256];
 
 	// -- Static API
 
