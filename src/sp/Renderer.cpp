@@ -882,3 +882,10 @@ sg_buffer g_hackSharedQuadIndexBuffer;
 
 }
 
+// Enable Optimus on dedicated graphics
+#if SF_CC_MSC
+#include <Windows.h>
+extern "C" {
+    __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+}
+#endif
