@@ -61,6 +61,7 @@ struct GuiPointer
 		Cancel,
 	};
 
+	uint64_t id = 0;
 	Button button;
 	Action action = NoAction;
 	sf::Vec2 position;
@@ -73,6 +74,8 @@ struct GuiPointer
 	sf::Box<Widget> trackWidget;
 	sf::Symbol dropType;
 	sf::Box<void> dropData;
+	sf::Vec2 dropOffset;
+	sf::Vec2 dropSize;
 };
 
 struct GuiLayout

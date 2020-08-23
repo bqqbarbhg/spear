@@ -828,7 +828,7 @@ struct ParticleSystemImp final : ParticleSystem
 			if (!renderArgs.frustum.intersects(effect.gpuBounds)) continue;
 
 			if (frame - effect.uploadFrameIndex >= MaxParticleCacheFrames) {
-				if (numParticles > MaxParticlesPerFrame) return;
+				if (numParticles >= frameParticlesLeft) return;
 
 				frameParticlesLeft -= numParticles;
 				effect.uploadByteOffset = (uint32_t)sg_append_buffer(vertexBuffers[(uint32_t)frame % MaxParticleCacheFrames].buffer, effect.gpuParticles.data, (int)effect.gpuParticles.byteSize());

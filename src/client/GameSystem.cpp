@@ -33,6 +33,8 @@
 
 namespace cl {
 
+static const sf::Symbol guiCardSym { "GuiCard" };
+
 static const constexpr float TapCancelDistance = 0.03f;
 static const constexpr float TapCancelDistanceSq = TapCancelDistance * TapCancelDistance;
 
@@ -195,6 +197,13 @@ struct GameSystemImp final : GameSystem
 		return v;
 	}
 
+	struct DragPointer
+	{
+		gui::GuiPointer guiPointer;
+		float time = 0.0f;
+		bool active = true;
+	};
+
 	sf::Array<Character> characters;
 	sf::Array<uint32_t> freeCharacterIds;
 
@@ -223,6 +232,8 @@ struct GameSystemImp final : GameSystem
 	sf::Array<gui::Widget*> guiWorkArray;
 	gui::GuiBuilder guiBuilder;
 	sf::Box<gui::Widget> guiRoot;
+
+	sf::Array<DragPointer> dragPointers;
 
 	bool showDebugMenu = false;
 	bool showDebugPointers = false;
@@ -325,7 +336,9 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
-		sf::Array<gui::GuiPointer> drops;
+		for (DragPointer &dragPointer : dragPointers) {
+			dragPointer.active = false;
+		}
 
 		for (Pointer &p : input.pointers) {
 			PointerState &ps = pointerStates[p.id];
@@ -335,6 +348,7 @@ struct GameSystemImp final : GameSystem
 			if (ps.hitBackground) continue;
 
 			gui::GuiPointer gp;
+			gp.id = p.id;
 			gp.position = p.current.pos * frameArgs.guiResolution;
 			gp.delta = (p.current.pos - p.prev.pos) * frameArgs.guiResolution;
 			gp.button = (gui::GuiPointer::Button)p.button;
@@ -377,7 +391,20 @@ struct GameSystemImp final : GameSystem
 			}
 
 			if (gp.dropType) {
-				gui::GuiPointer &gp2 = drops.push();
+				DragPointer *dragPointer = nullptr;
+				for (DragPointer &d : dragPointers) {
+					if (d.guiPointer.id == gp.id) {
+						dragPointer = &d;
+						break;
+					}
+				}
+				if (!dragPointer) {
+					dragPointer = &dragPointers.push();
+				}
+
+				dragPointer->active = true;
+				gui::GuiPointer &gp2 = dragPointer->guiPointer;
+				gp2.id = gp.id;
 				gp2.position = gp.position;
 				gp2.delta = gp.delta;
 				gp2.dragFactor = gp.dragFactor;
@@ -393,11 +420,19 @@ struct GameSystemImp final : GameSystem
 				}
 				gp2.dropType = std::move(gp.dropType);
 				gp2.dropData = std::move(gp.dropData);
+				gp2.dropOffset = gp.dropOffset;
+				gp2.dropSize = gp.dropSize;
 			}
 		}
 
-		for (gui::GuiPointer &gp : drops) {
-			guiRoot->onPointer(gp);
+		for (uint32_t i = 0; i < dragPointers.size; i++) {
+			DragPointer &dragPointer = dragPointers[i];
+			if (dragPointer.active) {
+				dragPointer.time += frameArgs.dt;
+				guiRoot->onPointer(dragPointer.guiPointer);
+			} else {
+				dragPointers.removeSwap(i--);
+			}
 		}
 
 		if (sf::abs(scrollAmount) > 0.0f) {
@@ -703,7 +738,7 @@ struct GameSystemImp final : GameSystem
 				t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
 				systems.billboard->addBillboard(sprite, t, color, 1.0f);
 
-			} else if (selectedCharacterId != 0) {
+			} else if (selectedCharacterId != 0 && false) {
 
 				sf::Vec2i targetTile = target.tileInt;
 				if (sv::ReachableTile *moveTile = moveSet.distanceToTile.findValue(targetTile)) {
@@ -753,7 +788,7 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
-		if (selectedCharacterId != 0) {
+		if (selectedCharacterId != 0 && false) {
 			uint32_t chrId = svToCharacter.findOne(selectedCharacterId, ~0u);
 			if (chrId != ~0u) {
 				Character &chr = characters[chrId];
@@ -1034,10 +1069,38 @@ struct GameSystemImp final : GameSystem
 
 		{
 			gui::GuiPaint paint;
-			paint.canvas = guiArgs.canvas;
+			paint.canvas = &canvas;
 			paint.resources = &guiResources;
 			paint.crop.max = guiArgs.resolution;
 			guiRoot->paint(paint);
+		}
+
+		for (DragPointer &dragPointer : dragPointers) {
+			float t = sf::clamp(dragPointer.time * 7.0f, 0.0f, 1.0f);
+			t = t * t * (3.0f - 2.0 * t);
+
+			float dragHeight = 150.0f;
+			sf::Vec2 dragOffset = dragPointer.guiPointer.position + sf::Vec2(-20.0f, -dragHeight - 10.0f);
+			sf::Vec2 dragSize = sf::Vec2(GuiCard::canvasXByY * dragHeight, dragHeight);
+
+			sf::Vec2 offset = sf::lerp(dragPointer.guiPointer.dropOffset, dragOffset, t);
+			sf::Vec2 size = sf::lerp(dragPointer.guiPointer.dropSize, dragSize, t);
+
+			if (dragPointer.guiPointer.dropType == guiCardSym) {
+				GuiCard *guiCard = dragPointer.guiPointer.dropData.cast<GuiCard>();
+
+				sf::Mat23 mat;
+				mat.m00 = size.x * (1.0f/500.0f);
+				mat.m11 = size.y * (1.0f/800.0f);
+				mat.m02 = offset.x;
+				mat.m12 = offset.y;
+
+				mat = mat * sf::mat2D::rotate(t*-0.1f);
+
+				canvas.pushTransform(mat);
+				renderCard(canvas, *guiCard);
+				canvas.popTransform();
+			}
 		}
 
 #if 0

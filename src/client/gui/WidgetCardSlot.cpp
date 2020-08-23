@@ -11,17 +11,18 @@ void WidgetCardSlot::layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Ve
 	float scale = sf::min(size.x * GuiCard::canvasYByX, size.y);
 	layoutSize = sf::Vec2(scale * GuiCard::canvasXByY, scale);
 
+	prevDragTimer = dragTimer;
 	if (dragTimer >= 0.0f) {
 		if (card != draggedCard) {
 			dragTimer = 0.0f;
 		}
-		dragTimer -= layout.dt;
+		dragTimer -= layout.dt * 3.0f;
 	}
 }
 
 void WidgetCardSlot::paint(GuiPaint &paint)
 {
-	if (card && dragTimer <= 0.0f) {
+	if (card) {
 		sf::Mat23 t;
 		t.m00 = layoutSize.x * (1.0f/500.0f);
 		t.m11 = layoutSize.y * (1.0f/800.0f);
@@ -29,6 +30,12 @@ void WidgetCardSlot::paint(GuiPaint &paint)
 		t.m12 = layoutOffset.y;
 		paint.canvas->pushTransform(t);
 		renderCard(*paint.canvas, *card);
+
+		if (prevDragTimer > 0.0f) {
+			sf::Vec4 col = sf::Vec4(0.0f, 0.0f, 0.0f, prevDragTimer * 0.6f);
+			paint.canvas->draw(paint.resources->cardSilhouette, sf::Vec2(), sf::Vec2(500.0f, 800.0f), col);
+		}
+
 		paint.canvas->popTransform();
 	} else if ((uint32_t)slot < (uint32_t)GuiCardSlot::Count) {
 		sp::Sprite *sprite = paint.resources->slotPlaceholders[(uint32_t)slot];
@@ -43,7 +50,9 @@ bool WidgetCardSlot::onPointer(GuiPointer &pointer)
 		if (draggedCard && draggedCard == card) {
 			pointer.dropType = guiCardSym;
 			pointer.dropData = draggedCard;
-			dragTimer = 0.2f;
+			pointer.dropOffset = layoutOffset;
+			pointer.dropSize = layoutSize;
+			dragTimer = 1.0f;
 		}
 		return true;
 	}
@@ -52,16 +61,20 @@ bool WidgetCardSlot::onPointer(GuiPointer &pointer)
 		if (pointer.button == GuiPointer::MouseLeft && pointer.action == GuiPointer::Drag) {
 			pointer.trackWidget = sf::boxFromPointer(this);
 			draggedCard = card;
-			dragTimer = 0.2f;
+			dragTimer = 1.0f;
 			pointer.dropType = guiCardSym;
 			pointer.dropData = card;
+			pointer.dropOffset = layoutOffset;
+			pointer.dropSize = layoutSize;
 			return true;
 		} else if (pointer.button == GuiPointer::Touch && pointer.action == GuiPointer::LongPress) {
 			pointer.trackWidget = sf::boxFromPointer(this);
 			draggedCard = card;
-			dragTimer = 0.2f;
+			dragTimer = 1.0f;
 			pointer.dropType = guiCardSym;
 			pointer.dropData = card;
+			pointer.dropOffset = layoutOffset;
+			pointer.dropSize = layoutSize;
 			return true;
 		}
 	}

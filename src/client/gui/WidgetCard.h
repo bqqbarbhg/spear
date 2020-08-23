@@ -11,6 +11,7 @@ struct WidgetCard : WidgetBase<'c','a','r','d'>
 	sf::Box<GuiCard> draggedCard;
 
 	float dragTimer = 0.0f;
+	float prevDragTimer = 0.0f;
 
 	virtual void layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Vec2 &max) override;
 	virtual void paint(GuiPaint &paint) override;
