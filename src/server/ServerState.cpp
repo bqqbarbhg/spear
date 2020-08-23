@@ -1484,7 +1484,7 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 			pushEvent(*this, events, e);
 		}
 
-		if (prevSlot && prevCardId) {
+		if (prevSlot != ~0u && prevCardId) {
 			auto e = sf::box<SelectCardEvent>();
 			e->ownerId = ac->ownerId;
 			e->cardId = prevCardId;

@@ -11,7 +11,6 @@ void WidgetCardSlot::layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Ve
 	float scale = sf::min(size.x * GuiCard::canvasYByX, size.y);
 	layoutSize = sf::Vec2(scale * GuiCard::canvasXByY, scale);
 
-
 	if (dragTimer >= 0.0f) {
 		if (card != draggedCard) {
 			dragTimer = 0.0f;
@@ -41,9 +40,10 @@ bool WidgetCardSlot::onPointer(GuiPointer &pointer)
 {
 	pointer.blocked = true;
 	if (pointer.trackWidget == this) {
-		if (card) {
+		if (draggedCard && draggedCard == card) {
 			pointer.dropType = guiCardSym;
 			pointer.dropData = draggedCard;
+			dragTimer = 0.2f;
 		}
 		return true;
 	}
@@ -52,14 +52,14 @@ bool WidgetCardSlot::onPointer(GuiPointer &pointer)
 		if (pointer.button == GuiPointer::MouseLeft && pointer.action == GuiPointer::Drag) {
 			pointer.trackWidget = sf::boxFromPointer(this);
 			draggedCard = card;
-			dragTimer = 1.0f;
+			dragTimer = 0.2f;
 			pointer.dropType = guiCardSym;
 			pointer.dropData = card;
 			return true;
 		} else if (pointer.button == GuiPointer::Touch && pointer.action == GuiPointer::LongPress) {
 			pointer.trackWidget = sf::boxFromPointer(this);
 			draggedCard = card;
-			dragTimer = 1.0f;
+			dragTimer = 0.2f;
 			pointer.dropType = guiCardSym;
 			pointer.dropData = card;
 			return true;

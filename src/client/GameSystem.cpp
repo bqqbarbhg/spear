@@ -801,7 +801,7 @@ struct GameSystemImp final : GameSystem
 			if (chr && chrComp) {
 
 				{
-					float hotbarCardHeight = 100.0f;
+					float hotbarCardHeight = 140.0f;
 
 					auto ll = b.push<gui::WidgetLinearLayout>();
 					ll->direction = gui::DirX;

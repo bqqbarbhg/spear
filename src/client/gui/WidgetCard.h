@@ -8,7 +8,9 @@ namespace cl { namespace gui {
 struct WidgetCard : WidgetBase<'c','a','r','d'>
 {
 	sf::Box<GuiCard> card;
-	bool dragged = false;
+	sf::Box<GuiCard> draggedCard;
+
+	float dragTimer = 0.0f;
 
 	virtual void layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Vec2 &max) override;
 	virtual void paint(GuiPaint &paint) override;
