@@ -5,11 +5,22 @@
 
 namespace cl { namespace gui {
 
-struct WidgetSprite : Widget
+struct WidgetSprite : WidgetBase<'g','s','p','r'>
 {
 	sp::SpriteRef sprite;
 
-	virtual void paint(sp::Canvas &canvas, const sf::Vec2 &offset, const CropRect &crop);
+	virtual void paint(GuiPaint &paint) override;
+};
+
+struct WidgetToggleButton : WidgetBase<'g','t','g','l'>
+{
+	sp::SpriteRef inactiveSprite;
+	sp::SpriteRef activeSprite;
+
+	bool active = false;
+
+	virtual void paint(GuiPaint &paint) override;
+	virtual bool onPointer(GuiPointer &pointer) override;
 };
 
 

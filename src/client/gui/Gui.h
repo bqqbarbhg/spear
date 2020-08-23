@@ -51,13 +51,14 @@ struct GuiPointer
 		Down,
 		Up,
 		Tap,
-		DoubleTap,
 		LongPress,
 		Hold,
 		Drag,
 		Scroll,
 		DropHover,
 		DropCommit,
+		DropCancel,
+		Cancel,
 	};
 
 	Button button;
@@ -66,6 +67,7 @@ struct GuiPointer
 	sf::Vec2 delta;
 	float scrollDelta = 0.0f;
 	float dragFactor = 0.0f;
+	bool end = false;
 
 	bool blocked = false;
 	sf::Box<Widget> trackWidget;

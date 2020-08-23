@@ -10,7 +10,9 @@ namespace cl { namespace gui {
 struct GuiResources
 {
 	sp::SpriteRef slotPlaceholders[(uint32_t)GuiCardSlot::Count];
+	sp::SpriteRef inventorySlot;
 	sp::SpriteRef inventory;
+	sp::SpriteRef inventoryOpen;
 
 	GuiResources();
 };

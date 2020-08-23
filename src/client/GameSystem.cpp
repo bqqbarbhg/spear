@@ -24,8 +24,10 @@
 #include "client/gui/Gui.h"
 #include "client/gui/GlueWidgets.h"
 #include "client/gui/WidgetLinearLayout.h"
+#include "client/gui/WidgetGridLayout.h"
 #include "client/gui/WidgetScroll.h"
 #include "client/gui/WidgetCardSlot.h"
+#include "client/gui/WidgetCard.h"
 #include "client/gui/GuiBuilder.h"
 #include "client/gui/GuiResources.h"
 
@@ -146,6 +148,7 @@ struct GameSystemImp final : GameSystem
 		uint32_t svId;
 		uint32_t entityId;
 
+		sf::Array<uint32_t> cardIds;
 		SelectedCard selectedCards[sv::NumSelectedCards];
 	};
 
@@ -350,9 +353,14 @@ struct GameSystemImp final : GameSystem
 			} else if (p.action == Pointer::Up) {
 				if (p.canTap && p.time < 0.5f) {
 					gp.action = gui::GuiPointer::Tap;
+					gp.end = true;
 				} else {
 					gp.action = gui::GuiPointer::Up;
+					gp.end = true;
 				}
+			} else if (p.action == Pointer::Cancel) {
+				gp.action = gui::GuiPointer::Cancel;
+				gp.end = true;
 			}
 
 			if (ps.trackWidget) {
@@ -374,8 +382,12 @@ struct GameSystemImp final : GameSystem
 				gp2.delta = gp.delta;
 				gp2.dragFactor = gp.dragFactor;
 				gp2.button = gp.button;
-				if (p.action == gui::GuiPointer::Up) {
+				if (p.action == gui::GuiPointer::Up || p.action == gui::GuiPointer::Tap) {
 					gp2.action = gui::GuiPointer::DropCommit;
+					gp2.end = true;
+				} else if (p.action == gui::GuiPointer::Cancel) {
+					gp2.action = gui::GuiPointer::DropCancel;
+					gp2.end = true;
 				} else {
 					gp2.action = gui::GuiPointer::DropHover;
 				}
@@ -784,23 +796,20 @@ struct GameSystemImp final : GameSystem
 			gui::GuiBuilder &b = guiBuilder;
 			b.init(guiRoot);
 
-			auto sc = b.push<gui::WidgetScroll>();
-			sc->boxOffset.x = 300.0f;
-			sc->boxOffset.y = 300.0f;
-			sc->boxExtent.x = 300.0f;
-			sc->boxExtent.y = 100.0f;
-			sc->direction = gui::DirX;
+			Character *chr = findCharacter(selectedCharacterId);
+			sv::CharacterComponent *chrComp = chr ? chr->svPrefab->findComponent<sv::CharacterComponent>() : NULL;
+			if (chr && chrComp) {
 
-			auto ll = b.push<gui::WidgetLinearLayout>();
-			ll->direction = gui::DirX;
-			ll->boxExtent.y = 100.0f;
-			ll->marginBefore = 10.0f;
-			ll->marginAfter = 10.0f;
-			ll->padding = 10.0f;
+				{
+					float hotbarCardHeight = 100.0f;
 
-			if (Character *chr = findCharacter(selectedCharacterId)) {
-				sv::CharacterComponent *chrComp = chr->svPrefab->findComponent<sv::CharacterComponent>();
-				if (chrComp) {
+					auto ll = b.push<gui::WidgetLinearLayout>();
+					ll->direction = gui::DirX;
+					ll->boxExtent = sf::Vec2(gui::Inf, hotbarCardHeight);
+					ll->boxOffset.x = 20.0f;
+					ll->boxOffset.y = frameArgs.guiResolution.y - ll->boxExtent.y - 20.0f;
+					ll->padding = 10.0f;
+
 					uint32_t lastMeleeSlot = 1;
 					uint32_t lastSkillSlot = lastMeleeSlot + chrComp->skillSlots;
 					uint32_t lastSpellSlot = lastSkillSlot + chrComp->spellSlots;
@@ -820,7 +829,6 @@ struct GameSystemImp final : GameSystem
 
 						if (guiSlot != GuiCardSlot::Count) {
 							auto sl = b.push<gui::WidgetCardSlot>(slot);
-							sl->boxExtent = sf::Vec2(100.0f, 100.0f);
 							sl->slot = guiSlot;
 
 							uint32_t cardId = chr->selectedCards[slot].currentSvId;
@@ -839,14 +847,61 @@ struct GameSystemImp final : GameSystem
 								sl->droppedCard.reset();
 							}
 
-							b.pop();
+							b.pop(); // CardSlot
 						}
 					}
+
+					b.pop(); // LinearLayout
+				}
+
+				auto inventoryButton = b.push<gui::WidgetToggleButton>();
+				if (inventoryButton->created) {
+					inventoryButton->inactiveSprite = guiResources.inventory;
+					inventoryButton->activeSprite = guiResources.inventoryOpen;
+				}
+				inventoryButton->boxOffset.x = frameArgs.guiResolution.x - 140.0f;
+				inventoryButton->boxOffset.y = frameArgs.guiResolution.y - 140.0f;
+				inventoryButton->boxExtent.x = 120.0f;
+				inventoryButton->boxExtent.y = 120.0f;
+
+				b.pop(); // WidgetToggleButton
+
+				if (inventoryButton->active) {
+					const uint32_t numCols = 3;
+					float inventoryCardWidth = 150.0f;
+
+					auto sc = b.push<gui::WidgetScroll>();
+
+					auto gl = b.push<gui::WidgetGridLayout>();
+					gl->direction = gui::DirY;
+					gl->margin = 10.0f;
+					gl->padding = 10.0f;
+
+					sc->boxExtent.x = inventoryCardWidth*(float)numCols + gl->padding*(float)numCols + 2.0f*gl->margin;
+					sc->boxExtent.y = frameArgs.guiResolution.y - 160.0f - 20.0f;
+					sc->boxOffset.x = frameArgs.guiResolution.x - sc->boxExtent.x - 20.0f;
+					sc->boxOffset.y = 20.0f;
+					sc->direction = gui::DirY;
+
+					uint32_t numCards = sf::max(numCols * 3, chr->cardIds.size);
+					numCards += (numCols - numCards % numCols) % numCols;
+					for (uint32_t i = 0; i < numCards; i++) {
+						auto cd = b.push<gui::WidgetCard>(i);
+						cd->boxExtent = sf::Vec2(inventoryCardWidth, gui::Inf);
+						cd->card.reset();
+						if (i < chr->cardIds.size) {
+							if (Card *card = findCard(chr->cardIds[i])) {
+								cd->card = card->gui;
+							}
+						}
+
+						b.pop();
+					}
+
+					b.pop(); // LinearLayout
+					b.pop(); // Scroll
 				}
 			}
-
-			b.pop(); // LinearLayout
-			b.pop(); // Scroll
 
 			b.finish();
 		}
@@ -932,6 +987,18 @@ struct GameSystemImp final : GameSystem
 				Transform transform;
 				transform.position = sf::Vec3((float)e->position.x, 0.0f, (float)e->position.y);
 				systems.entities.updateTransform(systems, character.entityId, transform);
+			}
+
+		} else if (const auto *e = event.as<sv::GiveCardEvent>()) {
+
+			if (Character *chr = findCharacter(e->previousOwnerId)) {
+				if (uint32_t *ptr = sf::find(chr->cardIds, e->cardId)) {
+					chr->cardIds.removeOrderedPtr(ptr);
+				}
+			}
+
+			if (Character *chr = findCharacter(e->ownerId)) {
+				chr->cardIds.push(e->cardId);
 			}
 
 		} else if (const auto *e = event.as<sv::SelectCardEvent>()) {

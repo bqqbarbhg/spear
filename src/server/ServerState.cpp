@@ -1465,9 +1465,10 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 			pushEvent(*this, events, e);
 		}
 
+		uint32_t prevSlot = ~0u;
 		uint32_t *prevSelectedPtr = sf::find(sf::slice(chr->selectedCards), ac->cardId);
 		if (prevSelectedPtr) {
-			uint32_t prevSlot = (uint32_t)(prevSelectedPtr - chr->selectedCards);
+			prevSlot = (uint32_t)(prevSelectedPtr - chr->selectedCards);
 			auto e = sf::box<UnselectCardEvent>();
 			e->ownerId = ac->ownerId;
 			e->prevCardId = ac->cardId;
@@ -1475,11 +1476,22 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 			pushEvent(*this, events, e);
 		}
 
-		auto e = sf::box<SelectCardEvent>();
-		e->ownerId = ac->ownerId;
-		e->cardId = ac->cardId;
-		e->slot = ac->slot;
-		pushEvent(*this, events, e);
+		{
+			auto e = sf::box<SelectCardEvent>();
+			e->ownerId = ac->ownerId;
+			e->cardId = ac->cardId;
+			e->slot = ac->slot;
+			pushEvent(*this, events, e);
+		}
+
+		if (prevSlot && prevCardId) {
+			auto e = sf::box<SelectCardEvent>();
+			e->ownerId = ac->ownerId;
+			e->cardId = prevCardId;
+			e->slot = prevSlot;
+			pushEvent(*this, events, e);
+		}
+
 		return true;
 	} else {
 		return false;
