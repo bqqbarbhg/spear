@@ -14,6 +14,7 @@ struct GuiResources
 	sp::SpriteRef inventory;
 	sp::SpriteRef inventoryOpen;
 	sp::SpriteRef cardSilhouette;
+	sp::SpriteRef cardOutline;
 
 	GuiResources();
 };

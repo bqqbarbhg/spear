@@ -18,6 +18,13 @@ void WidgetCardSlot::layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Ve
 		}
 		dragTimer -= layout.dt * 3.0f;
 	}
+
+	if (dropHover) {
+		dropOutline = sf::min(dropOutline + layout.dt * 7.0f, 1.0f);
+	} else if (dropOutline > 0.0f) {
+		dropOutline = sf::max(dropOutline - layout.dt * 5.0f, 0.0f);
+	}
+	dropHover = false;
 }
 
 void WidgetCardSlot::paint(GuiPaint &paint)
@@ -32,7 +39,7 @@ void WidgetCardSlot::paint(GuiPaint &paint)
 		renderCard(*paint.canvas, *card);
 
 		if (prevDragTimer > 0.0f) {
-			sf::Vec4 col = sf::Vec4(0.0f, 0.0f, 0.0f, prevDragTimer * 0.6f);
+			sf::Vec4 col = sf::Vec4(0.0f, 0.0f, 0.0f, smoothstep(prevDragTimer) * 0.6f);
 			paint.canvas->draw(paint.resources->cardSilhouette, sf::Vec2(), sf::Vec2(500.0f, 800.0f), col);
 		}
 
@@ -41,6 +48,13 @@ void WidgetCardSlot::paint(GuiPaint &paint)
 		sp::Sprite *sprite = paint.resources->slotPlaceholders[(uint32_t)slot];
 		paint.canvas->draw(sprite, layoutOffset, layoutSize);
 	}
+
+	if (dropOutline > 0.0f) {
+		float a = smoothstep(dropOutline) * 0.8f;
+		sf::Vec4 col = sf::Vec4(0.6f, 0.6f, 1.0f, 1.0f) * a;
+		paint.canvas->draw(paint.resources->cardOutline, layoutOffset, layoutSize, col);
+	}
+
 }
 
 bool WidgetCardSlot::onPointer(GuiPointer &pointer)
@@ -58,7 +72,7 @@ bool WidgetCardSlot::onPointer(GuiPointer &pointer)
 	}
 
 	if (card) {
-		if (pointer.button == GuiPointer::MouseLeft && pointer.action == GuiPointer::Drag) {
+		if (pointer.button == GuiPointer::MouseLeft && (pointer.action == GuiPointer::Drag || pointer.action == GuiPointer::LongPress)) {
 			pointer.trackWidget = sf::boxFromPointer(this);
 			draggedCard = card;
 			dragTimer = 1.0f;
@@ -80,6 +94,10 @@ bool WidgetCardSlot::onPointer(GuiPointer &pointer)
 	}
 
 	if (pointer.action == GuiPointer::DropHover && pointer.dropType == guiCardSym) {
+		GuiCard *newCard = pointer.dropData.cast<GuiCard>();
+		if (newCard->slot == slot) {
+			dropHover = true;
+		}
 		return true;
 	} else if (pointer.action == GuiPointer::DropCommit && pointer.dropType == guiCardSym) {
 		sf::Box<GuiCard> newCard = pointer.dropData.cast<GuiCard>();

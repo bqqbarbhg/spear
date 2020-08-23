@@ -140,4 +140,13 @@ sf_inline void lerpExp(float &state, float target, float exponential, float line
 	state += sf::clamp(target - state, -speed, speed);
 }
 
+sf_inline float smoothstep(float t) {
+	return t * t * (3.0f - 2.0f * t);
+}
+
+sf_inline float smoothstep01(float t) {
+	t = sf::clamp(t, 0.0f, 1.0f);
+	return t * t * (3.0f - 2.0f * t);
+}
+
 } }
