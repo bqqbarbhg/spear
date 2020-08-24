@@ -206,6 +206,13 @@ struct GameSystemImp final : GameSystem
 		float time = 0.0f;
 	};
 
+	struct EventContext
+	{
+		float timer = 0.0f;
+		bool begin = true;
+		bool immediate = false;
+	};
+
 	sf::Array<Character> characters;
 	sf::Array<uint32_t> freeCharacterIds;
 
@@ -237,6 +244,16 @@ struct GameSystemImp final : GameSystem
 	sf::Array<DragPointer> dragPointers;
 
 	sf::Array<CardTrade> cardTrades;
+
+	bool didHoverTile = false;
+	sf::Vec2i hoveredTile;
+	sf::HashMap<sf::Vec2i, float> tileHoverAmount;
+	sf::HashMap<sf::Vec2i, float> tileTrailAmount;
+
+	EventContext queuedEventContext;
+	sf::Array<sf::Box<sv::Event>> queuedEvents;
+
+	sv::TurnInfo turnInfo;
 
 	bool showDebugMenu = false;
 	bool showDebugPointers = false;
@@ -295,7 +312,122 @@ struct GameSystemImp final : GameSystem
 		if (id == ~0u) return nullptr;
 		return &cards[id];
 	}
-    
+
+	bool applyEventImp(Systems &systems, const sv::Event &event, EventContext &ctx)
+	{
+		if (const auto *e = event.as<sv::AddCharacterEvent>()) {
+			Transform transform;
+			transform.position = sf::Vec3((float)e->character.tile.x, 0.0f, (float)e->character.tile.y);
+			uint32_t entityId = systems.entities.addEntity(systems, e->character.id, transform, e->character.prefabName);
+			uint32_t svId = e->character.id;
+
+			uint32_t characterId = characters.size;
+			if (freeCharacterIds.size > 0) {
+				characterId = freeCharacterIds.popValue();
+			} else {
+				characters.push();
+			}
+
+			Character &character = characters[characterId];
+			character.svPrefab = systems.entities.prefabs[systems.entities.entities[entityId].prefabId].svPrefab;
+			character.entityId = entityId;
+			character.svId = svId;
+			character.tile = e->character.tile;
+
+			entityToCharacter.insertDuplicate(entityId, characterId);
+			svToCharacter.insertDuplicate(svId, characterId);
+
+		} else if (const auto *e = event.as<sv::AddCardEvent>()) {
+
+			uint32_t svId = e->card.id;
+
+			uint32_t cardId = cards.size;
+			if (freeCardIds.size > 0) {
+				cardId = freeCardIds.popValue();
+			} else {
+				cards.push();
+			}
+
+			Card &card = cards[cardId];
+			card.svId = svId;
+			card.svPrefab = systems.entities.findPrefab(e->card.prefabName);
+			card.gui = sf::box<GuiCard>();
+			card.gui->init(*card.svPrefab, card.svId);
+
+			svToCard.insertDuplicate(svId, cardId);
+
+		} else if (const auto *e = event.as<sv::MoveEvent>()) {
+
+			uint32_t chrId = svToCharacter.findOne(e->characterId, ~0u);
+			if (chrId != ~0u) {
+				Character &character = characters[chrId];
+				character.tile = e->position;
+
+				if (ctx.immediate) {
+					Transform transform;
+					transform.position = sf::Vec3((float)e->position.x, 0.0f, (float)e->position.y);
+					systems.entities.updateTransform(systems, character.entityId, transform);
+				} else {
+					Entity &entity = systems.entities.entities[character.entityId];
+					sf::Vec3 goal = sf::Vec3((float)e->position.x, 0.0f, (float)e->position.y);
+					Transform transform;
+					transform.position = sf::lerp(entity.transform.position, goal, 0.1f);
+
+					bool end = false;
+					if (sf::length(transform.position - goal) < 0.1f) {
+						transform.position = goal;
+						end = true;
+					}
+
+					systems.entities.updateTransform(systems, character.entityId, transform);
+					return end;
+				}
+			}
+
+		} else if (const auto *e = event.as<sv::GiveCardEvent>()) {
+
+			if (e->previousOwnerId != e->ownerId && e->previousOwnerId && e->ownerId) {
+				CardTrade &trade = cardTrades.push();
+				trade.srcSvId = e->previousOwnerId;
+				trade.dstSvId = e->ownerId;
+				trade.cardSvId = e->cardId;
+			}
+
+			if (Character *chr = findCharacter(e->previousOwnerId)) {
+				if (uint32_t *ptr = sf::find(chr->cardIds, e->cardId)) {
+					chr->cardIds.removeOrderedPtr(ptr);
+				}
+			}
+
+			if (Character *chr = findCharacter(e->ownerId)) {
+				chr->cardIds.push(e->cardId);
+			}
+
+		} else if (const auto *e = event.as<sv::SelectCardEvent>()) {
+			uint32_t characterId = svToCharacter.findOne(e->ownerId, ~0u);
+			uint32_t cardId = svToCard.findOne(e->cardId, ~0u);
+
+			if (characterId != ~0u && cardId != ~0u) {
+				equipCardImp(systems, characterId, cardId, e->slot);
+			}
+		} else if (const auto *e = event.as<sv::UnselectCardEvent>()) {
+			if (Character *chr = findCharacter(e->ownerId)) {
+				SelectedCard &selected = chr->selectedCards[e->slot];
+				if (selected.currentSvId) {
+					if (Card *card = findCard(selected.currentSvId)) {
+						unequipCardImp(systems, *chr, *card);
+					}
+					selected.prevSvId = selected.currentSvId;
+					selected.currentSvId = 0;
+				}
+			}
+		} else if (const auto *e = event.as<sv::TurnUpdateEvent>()) {
+			turnInfo = e->turnInfo;
+		}
+
+		return true;
+	}
+
 	// -- API
 
 	GameSystemImp(const SystemsDesc &desc)
@@ -668,6 +800,18 @@ struct GameSystemImp final : GameSystem
 
 	void update(const sv::ServerState &svState, Systems &systems, const FrameArgs &frameArgs) override
 	{
+		while (queuedEvents.size > 0) {
+			if (!applyEventImp(systems, *queuedEvents[0], queuedEventContext)) {
+				queuedEventContext.begin = false;
+				queuedEventContext.timer += frameArgs.dt;
+				break;
+			} else {
+				queuedEvents.removeOrdered(0); // TODO( O(n^2) )
+				queuedEventContext.begin = true;
+				queuedEventContext.timer = 0.0f;
+			}
+		}
+
 		for (Pointer &pointer : input.pointers) {
 			PointerState *pointerState = pointerStates.find(pointer.id);
 			if (!pointerState) continue;
@@ -683,6 +827,8 @@ struct GameSystemImp final : GameSystem
 				pointerState->startSvId = svId;
 			}
 			pointerState->currentSvId = svId;
+
+			didHoverTile = false;
 
 			if (!pointerState->hitGui) {
 				bool didClick = false;
@@ -719,7 +865,63 @@ struct GameSystemImp final : GameSystem
 							systems.billboard->addBillboard(guiResources.characterSelect, t, color, 1.0f);
 						}
 					}
+				} else if (moveSet.distanceToTile.size() > 0) {
+
+					sf::Vec3 rayPos = intersectHorizontalPlane(0.0f, pointer.current.worldRay);
+					sf::Vec2 tileF = sf::Vec2(rayPos.x, rayPos.z);
+					sf::Vec2i tile = sf::Vec2i(sf::floor(tileF + sf::Vec2(0.5f)));
+
+					if (sv::ReachableTile *reach = moveSet.distanceToTile.findValue(tile)) {
+						if (didClick) {
+							auto action = sf::box<sv::MoveAction>();
+
+							action->charcterId = selectedCharacterId;
+							action->tile = tile;
+							action->waypoints.reserve(reach->distance);
+							action->waypoints.push(tile);
+
+							sf::Vec2i prev = reach->previous;
+							while (sv::ReachableTile *prevReach = moveSet.distanceToTile.findValue(prev)) {
+								action->waypoints.push(prev);
+								prev = prevReach->previous;
+							}
+
+							requestedActions.push(std::move(action));
+
+						} else if (didHover) {
+							hoveredTile = tile;
+							didHoverTile = true;
+
+							float &amount = tileHoverAmount[tile];
+							amount = sf::min(1.0f, amount + frameArgs.dt * 20.0f);
+
+							sf::Vec2i prev = reach->previous;
+							while (sv::ReachableTile *prevReach = moveSet.distanceToTile.findValue(prev)) {
+								float &amount = tileTrailAmount[prev];
+								amount = sf::min(1.0f, amount + frameArgs.dt * 3.0f);
+								prev = prevReach->previous;
+							}
+						}
+					}
 				}
+			}
+		}
+
+		for (uint32_t i = 0; i < tileHoverAmount.size(); i++) {
+			auto &pair = tileHoverAmount.data[i];
+			pair.val -= frameArgs.dt * 10.0f;
+			if (pair.val <= 0.0f) {
+				tileHoverAmount.remove(pair.key);
+				i--;
+			}
+		}
+
+		for (uint32_t i = 0; i < tileTrailAmount.size(); i++) {
+			auto &pair = tileTrailAmount.data[i];
+			pair.val -= frameArgs.dt * 2.0f;
+			if (pair.val <= 0.0f) {
+				tileTrailAmount.remove(pair.key);
+				i--;
 			}
 		}
 
@@ -744,7 +946,7 @@ struct GameSystemImp final : GameSystem
 						auto action = sf::box<sv::GiveCardAction>();
 						action->ownerId = chr->svId;
 						action->cardId = guiCard->svId;
-						requestedActions.push(action);
+						requestedActions.push(std::move(action));
 					}
 				}
 			}
@@ -857,48 +1059,71 @@ struct GameSystemImp final : GameSystem
 				systems.billboard->addBillboard(sprite, t, col);
 			}
 
-			sv::PathfindOpts opts;
-			opts.isBlockedFn = &sv::isBlockedByPropOrCharacter;
-			opts.maxDistance = 6;
-			sv::findReachableSet(moveSet, svState, opts, chr->tile);
+			if (turnInfo.movementLeft > 0 && turnInfo.characterId == chr->svId) {
+				sv::PathfindOpts opts;
+				opts.isBlockedFn = &sv::isBlockedByPropOrCharacter;
+				opts.maxDistance = turnInfo.movementLeft;
+				sv::findReachableSet(moveSet, svState, opts, chr->tile);
 
-			static const sf::Vec3 col0 = sp::srgbToLinearHex(0xfaf3dd);
-			static const sf::Vec3 col1 = sp::srgbToLinearHex(0xc8d5b9);
-			static const sf::Vec3 col2 = sp::srgbToLinearHex(0xbfdcae);
+				static const sf::Vec3 col0 = sp::srgbToLinearHex(0xfaf3dd);
+				static const sf::Vec3 col1 = sp::srgbToLinearHex(0xc8d5b9);
+				static const sf::Vec3 col2 = sp::srgbToLinearHex(0xbfdcae);
 
-			sf::Vec3 colors[] = {
-				sf::lerp(col0, col1, 1.0f/4.0f),
-				sf::lerp(col0, col1, 2.0f/4.0f),
-				sf::lerp(col0, col1, 3.0f/4.0f),
-				sf::lerp(col0, col1, 4.0f/4.0f),
-				sf::lerp(col1, col2, 1.0f/4.0f),
-				sf::lerp(col1, col2, 2.0f/4.0f),
-				sf::lerp(col1, col2, 3.0f/4.0f),
-				sf::lerp(col1, col2, 4.0f/4.0f),
-			};
+				sf::Vec3 colors[] = {
+					sf::lerp(col0, col1, 1.0f/4.0f),
+					sf::lerp(col0, col1, 2.0f/4.0f),
+					sf::lerp(col0, col1, 3.0f/4.0f),
+					sf::lerp(col0, col1, 4.0f/4.0f),
+					sf::lerp(col1, col2, 1.0f/4.0f),
+					sf::lerp(col1, col2, 2.0f/4.0f),
+					sf::lerp(col1, col2, 3.0f/4.0f),
+					sf::lerp(col1, col2, 4.0f/4.0f),
+				};
 
-			moveSelectTime += frameArgs.dt;
-			for (auto &pair : moveSet.distanceToTile) {
-				sf::Vec2i tile = pair.key;
+				sf::SmallArray<float, 64> wave;
+				for (uint32_t i = 0; i <= opts.maxDistance; i++) {
+					float t = moveSelectTime * 2.0f - (float)i * 0.9f;
+					wave.push(powf(sinf(t) * 0.5f + 0.5f, 3.0f));
+				}
 
-				float t = moveSelectTime - (float)pair.val.distance * 0.03f;
+				moveSelectTime += frameArgs.dt;
+				for (auto &pair : moveSet.distanceToTile) {
+					sf::Vec2i tile = pair.key;
 
-				float fade = gui::smoothEnd(sf::clamp(t * 8.0f, 0.0f, 1.0f));
-				sf::Vec4 color = sf::Vec4(colors[sf::min(pair.val.distance, (uint32_t)sf_arraysize(colors) - 1)], 1.0f);
-				color *= fade;
-				float scale = 1.0f - (1.0f - fade) * 0.25f;
-				
-				sf::Vec3 tilePos = sf::Vec3((float)pair.key.x, 0.0f, (float)pair.key.y);
-				sf::Vec3 prevPos = sf::Vec3((float)pair.val.previous.x, 0.0f, (float)pair.val.previous.y);
+					float t = moveSelectTime - (float)pair.val.distance * 0.03f;
 
-				sf::Mat34 mat;
-				mat.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f) * scale;
-				mat.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f) * scale;
-				mat.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
-				mat.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
-				systems.billboard->addBillboard(guiResources.characterMove, mat, color);
+					float w = wave[pair.val.distance];
+
+					float fade = gui::smoothEnd(sf::clamp(t * 8.0f, 0.0f, 1.0f));
+					sf::Vec4 color = sf::Vec4(colors[sf::min(pair.val.distance, (uint32_t)sf_arraysize(colors) - 1)], 1.0f);
+					color *= fade * (w * 0.5f + 0.5f);
+
+					float scale = 1.0f - (1.0f - fade) * 0.25f;
+
+					if (float *amount = tileTrailAmount.findValue(tile)) {
+						float t = gui::smoothStep(*amount);
+						color = sf::lerp(color, sf::Vec4(1.0f), gui::smoothStep(t * w * 0.5f));
+					}
+
+					if (float *amount = tileHoverAmount.findValue(tile)) {
+						float t = gui::smoothStep(*amount);
+						color = sf::lerp(color, sf::Vec4(1.0f), t);
+						scale *= sf::lerp(1.0f, 0.5f, t);
+					}
+
+					
+					sf::Vec3 tilePos = sf::Vec3((float)pair.key.x, 0.0f, (float)pair.key.y);
+					sf::Vec3 prevPos = sf::Vec3((float)pair.val.previous.x, 0.0f, (float)pair.val.previous.y);
+
+
+					sf::Mat34 mat;
+					mat.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f) * scale;
+					mat.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f) * scale;
+					mat.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
+					mat.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
+					systems.billboard->addBillboard(guiResources.characterMove, mat, color);
+				}
 			}
-
 		}
 
 		{
@@ -957,7 +1182,7 @@ struct GameSystemImp final : GameSystem
 								action->ownerId = chr->svId;
 								action->slot = slot;
 								action->cardId = sl->droppedCard->svId;
-								requestedActions.push(action);
+								requestedActions.push(std::move(action));
 								sl->droppedCard.reset();
 							}
 
@@ -1053,105 +1278,24 @@ struct GameSystemImp final : GameSystem
 	{
 	}
 
-	void applyEvent(Systems &systems, const sv::Event &event, bool immediate) override
+	void applyEventImmediate(Systems &systems, const sv::Event &event)
 	{
-		if (const auto *e = event.as<sv::AddCharacterEvent>()) {
-
-			Transform transform;
-			transform.position = sf::Vec3((float)e->character.tile.x, 0.0f, (float)e->character.tile.y);
-			uint32_t entityId = systems.entities.addEntity(systems, e->character.id, transform, e->character.prefabName);
-			uint32_t svId = e->character.id;
-
-			uint32_t characterId = characters.size;
-			if (freeCharacterIds.size > 0) {
-				characterId = freeCharacterIds.popValue();
-			} else {
-				characters.push();
-			}
-
-			Character &character = characters[characterId];
-			character.svPrefab = systems.entities.prefabs[systems.entities.entities[entityId].prefabId].svPrefab;
-			character.entityId = entityId;
-			character.svId = svId;
-			character.tile = e->character.tile;
-
-			entityToCharacter.insertDuplicate(entityId, characterId);
-			svToCharacter.insertDuplicate(svId, characterId);
-
-		} else if (const auto *e = event.as<sv::AddCardEvent>()) {
-
-			uint32_t svId = e->card.id;
-
-			uint32_t cardId = cards.size;
-			if (freeCardIds.size > 0) {
-				cardId = freeCardIds.popValue();
-			} else {
-				cards.push();
-			}
-
-			Card &card = cards[cardId];
-			card.svId = svId;
-			card.svPrefab = systems.entities.findPrefab(e->card.prefabName);
-			card.gui = sf::box<GuiCard>();
-			card.gui->init(*card.svPrefab, card.svId);
-
-			svToCard.insertDuplicate(svId, cardId);
-
-		} else if (const auto *e = event.as<sv::MoveEvent>()) {
-
-			uint32_t chrId = svToCharacter.findOne(e->characterId, ~0u);
-			if (chrId != ~0u) {
-				Character &character = characters[chrId];
-				character.tile = e->position;
-
-				Transform transform;
-				transform.position = sf::Vec3((float)e->position.x, 0.0f, (float)e->position.y);
-				systems.entities.updateTransform(systems, character.entityId, transform);
-			}
-
-		} else if (const auto *e = event.as<sv::GiveCardEvent>()) {
-
-			if (e->previousOwnerId != e->ownerId && e->previousOwnerId && e->ownerId) {
-				CardTrade &trade = cardTrades.push();
-				trade.srcSvId = e->previousOwnerId;
-				trade.dstSvId = e->ownerId;
-				trade.cardSvId = e->cardId;
-			}
-
-			if (Character *chr = findCharacter(e->previousOwnerId)) {
-				if (uint32_t *ptr = sf::find(chr->cardIds, e->cardId)) {
-					chr->cardIds.removeOrderedPtr(ptr);
-				}
-			}
-
-			if (Character *chr = findCharacter(e->ownerId)) {
-				chr->cardIds.push(e->cardId);
-			}
-
-		} else if (const auto *e = event.as<sv::SelectCardEvent>()) {
-			uint32_t characterId = svToCharacter.findOne(e->ownerId, ~0u);
-			uint32_t cardId = svToCard.findOne(e->cardId, ~0u);
-
-			if (characterId != ~0u && cardId != ~0u) {
-				equipCardImp(systems, characterId, cardId, e->slot);
-			}
-		} else if (const auto *e = event.as<sv::UnselectCardEvent>()) {
-			if (Character *chr = findCharacter(e->ownerId)) {
-				SelectedCard &selected = chr->selectedCards[e->slot];
-				if (selected.currentSvId) {
-					if (Card *card = findCard(selected.currentSvId)) {
-						unequipCardImp(systems, *chr, *card);
-					}
-					selected.prevSvId = selected.currentSvId;
-					selected.currentSvId = 0;
-				}
-			}
-		}
+		EventContext ctx;
+		ctx.immediate = ctx.begin = true;
+		applyEventImp(systems, event, ctx);
+	}
+    
+	void applyEventQueued(Systems &systems, const sf::Box<sv::Event> &event) override
+	{
+		queuedEvents.push(event);
 	}
 
 	void getRequestedActions(sf::Array<sf::Box<sv::Action>> &actions) override
 	{
-		actions.push(requestedActions);
+		actions.reserveGeometric(actions.size + requestedActions.size);
+		for (sf::Box<sv::Action> &box : requestedActions) {
+			actions.push(std::move(box));
+		}
 		requestedActions.clear();
 	}
 

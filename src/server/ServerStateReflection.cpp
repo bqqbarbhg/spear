@@ -68,6 +68,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, AddCharacterToSpawn, AddCharacterToSpawn),
 		sf_poly(Event, SelectCharacterToSpawn, SelectCharacterToSpawnEvent),
 		sf_poly(Event, Move, MoveEvent),
+		sf_poly(Event, TurnUpdate, TurnUpdateEvent),
 	};
 	sf_struct_poly(t, Event, type, { }, polys);
 }
@@ -462,6 +463,7 @@ template<> void initType<CharacterComponent>(Type *t)
 		sf_field(CharacterComponent, skillSlots),
 		sf_field(CharacterComponent, spellSlots),
 		sf_field(CharacterComponent, itemSlots),
+		sf_field(CharacterComponent, baseSpeed),
 	};
 	sf_struct_base(t, CharacterComponent, Component, fields);
 
@@ -1009,6 +1011,14 @@ template<> void initType<MoveEvent>(Type *t)
 	sf_struct_base(t, MoveEvent, Event, fields);
 }
 
+template<> void initType<TurnUpdateEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(TurnUpdateEvent, turnInfo),
+	};
+	sf_struct_base(t, TurnUpdateEvent, Event, fields);
+}
+
 template<> void initType<PreloadPrefabEdit>(Type *t)
 {
 	static Field fields[] = {
@@ -1542,6 +1552,16 @@ template<> void initType<Waypoint>(Type *t)
 		sf_field(Waypoint, position),
 	};
 	sf_struct(t, Waypoint, fields);
+}
+
+template<> void initType<TurnInfo>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(TurnInfo, startTurn),
+		sf_field(TurnInfo, characterId),
+		sf_field(TurnInfo, movementLeft),
+	};
+	sf_struct(t, TurnInfo, fields);
 }
 
 }

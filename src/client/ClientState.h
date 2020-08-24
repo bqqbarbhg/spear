@@ -15,7 +15,8 @@ struct ClientState
 
 	ClientState(const SystemsDesc &desc);
 
-	void applyEvent(const sv::Event &event, bool immediate);
+	void applyEventImmediate(const sv::Event &event);
+	void applyEventQueued(const sf::Box<sv::Event> &event);
 
 	void writePersist(ClientPersist &persist);
 

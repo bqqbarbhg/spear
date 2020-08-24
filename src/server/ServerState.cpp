@@ -441,6 +441,8 @@ void ServerState::applyEvent(const Event &event)
 			removeEntityFromAllTiles(e->characterId);
 			addCharacterToTiles(*this, *chr);
 		}
+	} else if (auto *e = event.as<TurnUpdateEvent>()) {
+		turnInfo = e->turnInfo;
 	}
 }
 
@@ -524,6 +526,12 @@ void ServerState::getAsEvents(EventCallbackFn *callback, void *user) const
 		StatusAddEvent e = { };
 		sf::memZero(e.turnsRoll);
 		e.status = status;
+		callback(user, e);
+	}
+
+	if (turnInfo.characterId) {
+		TurnUpdateEvent e = { };
+		e.turnInfo = turnInfo;
 		callback(user, e);
 	}
 }
@@ -838,6 +846,20 @@ void ServerState::startCharacterTurn(sf::Array<sf::Box<Event>> &events, uint32_t
 {
 	Character *chr = findCharacter(*this, characterId);
 	if (!chr) return;
+
+	Prefab *chrPrefab = loadPrefab(*this, events, chr->prefabName);
+	if (!chrPrefab) return;
+
+	CharacterComponent *chrComp = findComponent<CharacterComponent>(*this, *chrPrefab);
+	if (!chrComp) return;
+
+	{
+		auto e = sf::box<TurnUpdateEvent>();
+		e->turnInfo.characterId = characterId;
+		e->turnInfo.movementLeft = chrComp->baseSpeed;
+		e->turnInfo.startTurn = true;
+		pushEvent(*this, events, e);
+	}
 
 	for (uint32_t cardId : chr->cards) {
 		Card *card = findCard(*this, cardId);
@@ -1435,17 +1457,29 @@ void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit,
 bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action &action)
 {
 	if (const auto *ac = action.as<MoveAction>()) {
-		// TODO: Check turns etc
+		// TODO: Check waypoints
 
-		auto e = sf::box<MoveEvent>();
-		e->characterId = ac->charcterId;
-		e->position = ac->tile;
-		e->waypoints.reserve(ac->waypoints.size);
-		for (const sf::Vec2i &tile : ac->waypoints) {
-			Waypoint &waypoint = e->waypoints.push();
-			waypoint.position = tile;
+		if (turnInfo.characterId != ac->charcterId) return false;
+		if (ac->waypoints.size > turnInfo.movementLeft) return false;
+
+		{
+			auto e = sf::box<TurnUpdateEvent>();
+			e->turnInfo = turnInfo;
+			e->turnInfo.movementLeft -= ac->waypoints.size;
+			pushEvent(*this, events, e);
 		}
-		pushEvent(*this, events, e);
+
+		{
+			auto e = sf::box<MoveEvent>();
+			e->characterId = ac->charcterId;
+			e->position = ac->tile;
+			e->waypoints.reserve(ac->waypoints.size);
+			for (const sf::Vec2i &tile : ac->waypoints) {
+				Waypoint &waypoint = e->waypoints.push();
+				waypoint.position = tile;
+			}
+			pushEvent(*this, events, e);
+		}
 
 		return true;
 	} else if (const auto *ac = action.as<SelectCardAction>()) {
@@ -1618,6 +1652,7 @@ template<> void initType<ServerState>(Type *t)
 		sf_field(ServerState, lastAllocatedIdByType),
 		sf_field(ServerState, tileToEntity),
 		sf_field(ServerState, entityToTile),
+		sf_field(ServerState, turnInfo),
 	};
 	sf_struct(t, ServerState, fields);
 }

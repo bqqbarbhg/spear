@@ -35,12 +35,6 @@ void findReachableSet(ReachableSet &set, const ServerState &state, const Pathfin
 {
 	set.distanceToTile.clear();
 
-	{
-		ReachableTile &reachable = set.distanceToTile[tile];
-		reachable.distance = 0;
-		reachable.previous = tile;
-	}
-
 	sf::SmallArray<ReachableQueueItem, 256> queue;
 
 	if (opts.maxDistance > 0) {

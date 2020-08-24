@@ -403,7 +403,7 @@ void clientQuit(Client *c)
 static void handleLoadEvent(void *user, sv::Event &event)
 {
 	Client *c = (Client*)user;
-	c->clState->applyEvent(event, true);
+	c->clState->applyEventImmediate(event);
 }
 
 void handleMessage(Client *c, sv::Message &msg)
@@ -425,7 +425,7 @@ void handleMessage(Client *c, sv::Message &msg)
 			}
 
 			c->svState->applyEvent(*event);
-			c->clState->applyEvent(*event, false);
+			c->clState->applyEventQueued(event);
 		}
 
 	} else if (auto m = msg.as<sv::MessageQueryFilesResult>()) {

@@ -1489,7 +1489,7 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 	handleImguiDebugWindows(es);
 
 	for (sv::Event *event : es->editEvents) {
-		es->clState->applyEvent(*event, true);
+		es->clState->applyEventImmediate(*event);
 	}
 	es->editEvents.clear();
 

@@ -49,7 +49,7 @@ ClientState::ClientState(const SystemsDesc &desc)
 	systems.init(desc);
 }
 
-void ClientState::applyEvent(const sv::Event &event, bool immediate)
+static void applyEventImp(ClientState &cs, Systems &systems, const sv::Event &event, bool immediate)
 {
 	if (const auto *e = event.as<sv::LoadPrefabEvent>()) {
 		systems.entities.addPrefab(systems, e->prefab);
@@ -57,7 +57,7 @@ void ClientState::applyEvent(const sv::Event &event, bool immediate)
 		Transform transform = getPropTransform(e->prop.transform);
 		systems.entities.addEntity(systems, e->prop.id, transform, e->prop.prefabName);
 	} else if (const auto *e = event.as<sv::ReplaceLocalPropEvent>()) {
-		if (localClientId == e->clientId) {
+		if (cs.localClientId == e->clientId) {
 			removeEntities(systems, e->localId);
 		}
 		Transform transform = getPropTransform(e->prop.transform);
@@ -88,8 +88,18 @@ void ClientState::applyEvent(const sv::Event &event, bool immediate)
 			systems.entities.addPrefab(systems, e->prefab);
 		}
 	}
+}
 
-	systems.game->applyEvent(systems, event, immediate);
+void ClientState::applyEventImmediate(const sv::Event &event)
+{
+	applyEventImp(*this, systems, event, true);
+	systems.game->applyEventImmediate(systems, event);
+}
+
+void ClientState::applyEventQueued(const sf::Box<sv::Event> &event)
+{
+	applyEventImp(*this, systems, *event, false);
+	systems.game->applyEventQueued(systems, event);
 }
 
 void ClientState::writePersist(ClientPersist &persist)

@@ -207,13 +207,14 @@ struct CharacterComponent : ComponentBase<Component::Character>
 	sf::Symbol name;
 	sf::Symbol description sv_reflect(multiline);
 	sf::Symbol image sv_reflect(asset);
-	uint32_t maxHealth = 0;
+	uint32_t maxHealth = 20;
 	uint32_t baseArmor = 0;
 	uint32_t minWeightDice = 1;
 	uint32_t maxWeightDice = 100;
 	uint32_t skillSlots = 0;
 	uint32_t spellSlots = 0;
 	uint32_t itemSlots = 0;
+	uint32_t baseSpeed = 5;
 };
 
 struct AnimationInfo sv_reflect()
@@ -531,6 +532,7 @@ struct Event
 		AddCharacterToSpawn,
 		SelectCharacterToSpawn,
 		Move,
+		TurnUpdate,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -713,6 +715,19 @@ struct MoveEvent : EventBase<Event::Move>
 	sf::Vec2i position;
 	sf::Array<Waypoint> waypoints;
 };
+
+struct TurnInfo sv_reflect()
+{
+	bool startTurn = false;
+	uint32_t characterId = 0;
+	uint32_t movementLeft = 0;
+};
+
+struct TurnUpdateEvent : EventBase<Event::TurnUpdate>
+{
+	TurnInfo turnInfo;
+};
+
 
 enum class IdType {
 	Null,
@@ -925,6 +940,8 @@ struct ServerState
 
 	uint32_t lastAllocatedIdByType[NumServerIdTypes] = { };
 	uint32_t lastLocalAllocatedIdByType[NumServerIdTypes] = { };
+
+	TurnInfo turnInfo;
 
 	bool isIdValid(uint32_t id);
 
