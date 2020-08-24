@@ -34,6 +34,9 @@ struct BillboardSystemImp final : BillboardSystem
 		sf::Mat34 transform;
 		sf::Vec2 anchor;
 		uint32_t color;
+		sf::Vec2 cropMin;
+		sf::Vec2 cropMax;
+		bool cropOnlyUv;
 	};
 
 	struct BillboardOrder
@@ -84,6 +87,9 @@ struct BillboardSystemImp final : BillboardSystem
 		imp.transform = transform;
 		imp.color = packColor(color);
 		imp.anchor = sf::Vec2(0.5f);
+		imp.cropMin = sf::Vec2(0.0f);
+		imp.cropMax = sf::Vec2(1.0f);
+		imp.cropOnlyUv = false;
 
 		BillboardOrder &order = billboardOrder.pushUninit();
 		order.depth = depth;
@@ -99,6 +105,9 @@ struct BillboardSystemImp final : BillboardSystem
 		imp.transform = billboard.transform;
 		imp.color = packColor(billboard.color);
 		imp.anchor = billboard.anchor;
+		imp.cropMin = billboard.cropMin;
+		imp.cropMax = billboard.cropMax;
+		imp.cropOnlyUv = billboard.cropOnlyUv;
 
 		BillboardOrder &order = billboardOrder.pushUninit();
 		order.depth = billboard.depth;
@@ -122,17 +131,21 @@ struct BillboardSystemImp final : BillboardSystem
 			float rcpAtlasWidth = 1.0f / (float)sprite->atlas->width;
 			float rcpAtlasHeight = 1.0f / (float)sprite->atlas->height;
 
-			float uvMinX = (float)sprite->x * rcpAtlasWidth;
-			float uvMinY = (float)sprite->y * rcpAtlasHeight;
-			float uvMaxX = (float)(sprite->x + sprite->width) * rcpAtlasWidth;
-			float uvMaxY = (float)(sprite->y + sprite->height) * rcpAtlasHeight;
-
 			uint32_t color = billboard.color;
 
 			const sf::Mat34 &t = billboard.transform;
 
-			sf::Vec2 minVert = sprite->minVert - billboard.anchor;
-			sf::Vec2 maxVert = sprite->maxVert - billboard.anchor;
+			sf::Vec2 minVert = sf::max(sprite->minVert, billboard.cropMin);
+			sf::Vec2 maxVert = sf::min(sprite->maxVert, billboard.cropMax);
+			if (minVert.x >= maxVert.x || minVert.y >= maxVert.y) continue;
+
+			float uvMinX = minVert.x * sprite->vertUvScale.x + sprite->vertUvBias.x;
+			float uvMinY = minVert.y * sprite->vertUvScale.y + sprite->vertUvBias.y;
+			float uvMaxX = maxVert.x * sprite->vertUvScale.x + sprite->vertUvBias.x;
+			float uvMaxY = maxVert.y * sprite->vertUvScale.y + sprite->vertUvBias.y;
+
+			minVert -= billboard.anchor;
+			maxVert -= billboard.anchor;
 
 			float xx0 = minVert.x*t.m00 + t.m03;
 			float xx1 = maxVert.x*t.m00 + t.m03;

@@ -153,6 +153,15 @@ struct SpriteImp : Sprite
 
 	// Temporary, used during reassignment
 	uint32_t prevX = 0, prevY = 0;
+
+	void updateUvMad()
+	{
+		sf::Vec2 uvMin = sf::Vec2((float)x, (float)y) / sf::Vec2((float)atlas->width, (float)atlas->height);
+		sf::Vec2 uvMax = sf::Vec2((float)(x + width), (float)(y + height)) / sf::Vec2((float)atlas->width, (float)atlas->height);
+		sf::Vec2 span = maxVert - minVert;
+		vertUvScale = (uvMax - uvMin) / span;
+		vertUvBias = (maxVert*uvMin - minVert*uvMax) / span;
+	}
 };
 
 SpriteContext g_spriteContext;
@@ -322,6 +331,7 @@ static void finishLoad(SpriteContext &ctx, SpriteToCreate &create)
 	ctx.atlases.push(atlas);
 	atlas->frameCreated = ctx.frameIndex;
 
+	create.sprite->updateUvMad();
 	create.sprite->assetFinishLoading();
 }
 
@@ -630,6 +640,7 @@ static void reassignAtlases(SpriteContext &ctx)
 			rect.height = sprite->paddedHeight;
 
 			sprite->atlas = resultAtlas;
+			sprite->updateUvMad();
 			resultAtlas->sprites.push(sprite);
 		}
 

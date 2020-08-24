@@ -17,6 +17,7 @@ struct GuiResources
 	sp::SpriteRef cardOutline;
 
 	sp::SpriteRef characterSelect;
+	sp::SpriteRef characterMove;
 
 	GuiResources();
 };

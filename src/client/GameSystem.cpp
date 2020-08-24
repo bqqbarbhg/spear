@@ -15,6 +15,7 @@
 #include "client/GuiCard.h"
 
 #include "sp/Renderer.h"
+#include "sp/Srgb.h"
 
 #include "ext/sokol/sokol_app.h"
 #include "ext/imgui/imgui.h"
@@ -136,6 +137,8 @@ struct Camera
 struct GameSystemImp final : GameSystem
 {
 	uint32_t selectedCharacterId = 0;
+	float selectedCharacterTime = 0.0f;
+	float moveSelectTime = 0.0f;
 
 	struct SelectedCard
 	{
@@ -163,21 +166,6 @@ struct GameSystemImp final : GameSystem
 		sf::Box<GuiCard> gui;
 
 		sf::Array<uint32_t> entityIds;
-	};
-
-	struct TapTarget
-	{
-		enum Action
-		{
-			Hover,
-			Start,
-			Finish,
-		};
-
-		Action action = Action::Start;
-		uint32_t svId = 0;
-		sf::Vec2 tile;
-		sf::Vec2i tileInt;
 	};
 
 	struct PointerState
@@ -230,7 +218,6 @@ struct GameSystemImp final : GameSystem
 	sf::UintMap svToCard;
 
 	InputState input;
-	sf::HashMap<uint64_t, TapTarget> tapTargets;
 
 	sf::Array<sf::Box<sv::Action>> requestedActions;
 
@@ -681,52 +668,6 @@ struct GameSystemImp final : GameSystem
 
 	void update(const sv::ServerState &svState, Systems &systems, const FrameArgs &frameArgs) override
 	{
-		for (uint32_t i = 0; i < tapTargets.size(); i++) {
-			TapTarget &target = tapTargets.data[i].val;
-			if (target.action == TapTarget::Finish || target.action == TapTarget::Hover) {
-				tapTargets.remove(tapTargets.data[i].key);
-				i--;
-			}
-		}
-
-		for (Pointer &pointer : input.pointers) {
-			if (pointer.action == Pointer::Down
-				&& (pointer.button == Pointer::MouseHover || pointer.button == Pointer::MouseLeft || pointer.button == Pointer::Touch)) {
-
-				sf::Vec3 tilePos = intersectHorizontalPlane(0.0f, pointer.start.worldRay);
-
-				TapTarget target;
-				uint32_t entityId = systems.tapArea->getClosestTapAreaEntity(systems.area, pointer.start.worldRay);
-
-				target.tile.x = tilePos.x;
-				target.tile.y = tilePos.z;
-				target.tileInt = sf::Vec2i(sf::floor(target.tile + sf::Vec2(0.5f)));
-
-				if (pointer.button == Pointer::MouseHover) {
-					target.action = TapTarget::Hover;
-				} else {
-					target.action = TapTarget::Start;
-				}
-
-				if (entityId != ~0u) {
-					Entity &entity = systems.entities.entities[entityId];
-					target.svId = entity.svId;
-				}
-
-				tapTargets.insert(pointer.id, target);
-			}
-
-			if (pointer.action == Pointer::Up || pointer.action == Pointer::Cancel || !pointer.canTap) {
-				if (pointer.action == Pointer::Up && pointer.canTap) {
-					if (TapTarget *target = tapTargets.findValue(pointer.id)) {
-						target->action = TapTarget::Finish;
-					}
-				} else {
-					tapTargets.remove(pointer.id);
-				}
-			}
-		}
-
 		for (Pointer &pointer : input.pointers) {
 			PointerState *pointerState = pointerStates.find(pointer.id);
 			if (!pointerState) continue;
@@ -742,6 +683,44 @@ struct GameSystemImp final : GameSystem
 				pointerState->startSvId = svId;
 			}
 			pointerState->currentSvId = svId;
+
+			if (!pointerState->hitGui) {
+				bool didClick = false;
+				bool didHover = false;
+
+				if (pointer.button == Pointer::Touch && pointer.action == Pointer::Up && pointer.time < 0.3f && pointer.canTap) didClick = true;
+				if (pointer.button == Pointer::MouseLeft && pointer.action == Pointer::Down && pointer.canTap) didClick = true;
+				if (pointer.button == Pointer::MouseHover && pointer.action == Pointer::Down) didHover = true;
+
+				if (Character *chr = findCharacter(pointerState->startSvId)) {
+
+					if (didClick) {
+						if (chr->svId != selectedCharacterId) {
+							selectedCharacterId = chr->svId;
+							selectedCharacterTime = 0.0f;
+							moveSelectTime = 0.0f;
+						} else {
+						}
+					} else if (didHover) {
+						bool showHover = false;
+
+						if (chr->svId != selectedCharacterId) {
+							showHover = true;
+						}
+
+						if (showHover) {
+							sf::Vec3 tilePos = sf::Vec3((float)chr->tile.x, 0.0f, (float)chr->tile.y);
+							sf::Vec4 color = sf::Vec4(0.8f, 0.8f, 0.8f, 1.0f) * 0.3f;
+							sf::Mat34 t;
+							t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f);
+							t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f);
+							t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
+							t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
+							systems.billboard->addBillboard(guiResources.characterSelect, t, color, 1.0f);
+						}
+					}
+				}
+			}
 		}
 
 		for (DragPointer &dragPointer : dragPointers) {
@@ -771,10 +750,7 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
-		if (frameArgs.editorOpen) {
-			tapTargets.clear();
-		}
-
+#if 0
 		bool hasNonHover = false;
 		for (auto &pair : tapTargets) {
 			if (pair.val.action != TapTarget::Hover) {
@@ -860,44 +836,69 @@ struct GameSystemImp final : GameSystem
 
 			}
 		}
+#endif
 
-		if (selectedCharacterId != 0 && false) {
-			uint32_t chrId = svToCharacter.findOne(selectedCharacterId, ~0u);
-			if (chrId != ~0u) {
-				Character &chr = characters[chrId];
-				sf::Vec3 tilePos = sf::Vec3((float)chr.tile.x, 0.0f, (float)chr.tile.y);
+		if (Character *chr = findCharacter(selectedCharacterId)) {
+			sf::Vec3 tilePos = sf::Vec3((float)chr->tile.x, 0.0f, (float)chr->tile.y);
+			float t = selectedCharacterTime;
+			selectedCharacterTime += frameArgs.dt;
 
-				if (false)
-				{
-					sp::SpriteRef sprite { "Assets/Billboards/Character_Select.png" };
-					sf::Mat34 t;
-					t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f);
-					t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f);
-					t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
-					t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
-					systems.billboard->addBillboard(sprite, t);
-				}
-
-				sv::PathfindOpts opts;
-				opts.isBlockedFn = &sv::isBlockedByPropOrCharacter;
-				opts.maxDistance = 5;
-				sv::findReachableSet(moveSet, svState, opts, chr.tile);
-
-				for (auto &pair : moveSet.distanceToTile) {
-					sp::SpriteRef sprite { "Assets/Billboards/Character_Move.png" };
-
-					sf::Vec3 tilePos = sf::Vec3((float)pair.key.x, 0.0f, (float)pair.key.y);
-					sf::Vec3 prevPos = sf::Vec3((float)pair.val.previous.x, 0.0f, (float)pair.val.previous.y);
-
-					sf::Mat34 t;
-					t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f);
-					t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f);
-					t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
-					t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
-					systems.billboard->addBillboard(sprite, t);
-				}
-
+			{
+				float fade = gui::smoothEnd(sf::min(t*7.0f, 1.0f));
+				float scale = 1.0f + (1.0f - fade) * 0.4f;
+				float alpha = fade;
+				sf::Vec4 col = sf::Vec4(0.8f, 0.5f, 0.3f, 1.0f) * alpha;
+				sp::Sprite *sprite = guiResources.characterSelect;
+				sf::Mat34 t;
+				t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f) * scale;
+				t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f) * scale;
+				t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
+				t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
+				systems.billboard->addBillboard(sprite, t, col);
 			}
+
+			sv::PathfindOpts opts;
+			opts.isBlockedFn = &sv::isBlockedByPropOrCharacter;
+			opts.maxDistance = 6;
+			sv::findReachableSet(moveSet, svState, opts, chr->tile);
+
+			static const sf::Vec3 col0 = sp::srgbToLinearHex(0xfaf3dd);
+			static const sf::Vec3 col1 = sp::srgbToLinearHex(0xc8d5b9);
+			static const sf::Vec3 col2 = sp::srgbToLinearHex(0xbfdcae);
+
+			sf::Vec3 colors[] = {
+				sf::lerp(col0, col1, 1.0f/4.0f),
+				sf::lerp(col0, col1, 2.0f/4.0f),
+				sf::lerp(col0, col1, 3.0f/4.0f),
+				sf::lerp(col0, col1, 4.0f/4.0f),
+				sf::lerp(col1, col2, 1.0f/4.0f),
+				sf::lerp(col1, col2, 2.0f/4.0f),
+				sf::lerp(col1, col2, 3.0f/4.0f),
+				sf::lerp(col1, col2, 4.0f/4.0f),
+			};
+
+			moveSelectTime += frameArgs.dt;
+			for (auto &pair : moveSet.distanceToTile) {
+				sf::Vec2i tile = pair.key;
+
+				float t = moveSelectTime - (float)pair.val.distance * 0.03f;
+
+				float fade = gui::smoothEnd(sf::clamp(t * 8.0f, 0.0f, 1.0f));
+				sf::Vec4 color = sf::Vec4(colors[sf::min(pair.val.distance, (uint32_t)sf_arraysize(colors) - 1)], 1.0f);
+				color *= fade;
+				float scale = 1.0f - (1.0f - fade) * 0.25f;
+				
+				sf::Vec3 tilePos = sf::Vec3((float)pair.key.x, 0.0f, (float)pair.key.y);
+				sf::Vec3 prevPos = sf::Vec3((float)pair.val.previous.x, 0.0f, (float)pair.val.previous.y);
+
+				sf::Mat34 mat;
+				mat.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f) * scale;
+				mat.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f) * scale;
+				mat.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
+				mat.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
+				systems.billboard->addBillboard(guiResources.characterMove, mat, color);
+			}
+
 		}
 
 		{

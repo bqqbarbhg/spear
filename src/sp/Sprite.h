@@ -52,6 +52,9 @@ struct Sprite : Asset
 	// Cropped quad vertices
 	sf::Vec2 minVert, maxVert;
 
+	// UV multiply/add from vertex
+	sf::Vec2 vertUvScale, vertUvBias;
+
 	// -- Static API
 
 	// Lifecycle
