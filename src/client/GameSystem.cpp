@@ -947,6 +947,10 @@ struct GameSystemImp final : GameSystem
 				if (inventoryButton->created) {
 					inventoryButton->inactiveSprite = guiResources.inventory;
 					inventoryButton->activeSprite = guiResources.inventoryOpen;
+				} else {
+					if (input.keyDown[SAPP_KEYCODE_E] && !input.prevKeyDown[SAPP_KEYCODE_E]) {
+						inventoryButton->active = !inventoryButton->active;
+					}
 				}
 				inventoryButton->boxOffset.x = frameArgs.guiResolution.x - 140.0f;
 				inventoryButton->boxOffset.y = frameArgs.guiResolution.y - 140.0f;
