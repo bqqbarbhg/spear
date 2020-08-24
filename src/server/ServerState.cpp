@@ -1493,6 +1493,36 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 		}
 
 		return true;
+	} else if (const auto *ac = action.as<GiveCardAction>()) {
+		Character *chr = findCharacter(*this, ac->ownerId);
+		Card *card = findCard(*this, ac->cardId);
+		if (!chr || !card) return false;
+		if (card->ownerId == ac->ownerId) return false;
+
+		if (card->ownerId) {
+			if (Character *prevChr = findCharacter(*this, card->ownerId)) {
+				uint32_t prevSlot = ~0u;
+				uint32_t *prevSelectedPtr = sf::find(sf::slice(prevChr->selectedCards), ac->cardId);
+				if (prevSelectedPtr) {
+					prevSlot = (uint32_t)(prevSelectedPtr - prevChr->selectedCards);
+					auto e = sf::box<UnselectCardEvent>();
+					e->ownerId = card->ownerId;
+					e->prevCardId = ac->cardId;
+					e->slot = prevSlot;
+					pushEvent(*this, events, e);
+				}
+			}
+		}
+
+		{
+			auto e = sf::box<GiveCardEvent>();
+			e->ownerId = ac->ownerId;
+			e->cardId = ac->cardId;
+			e->previousOwnerId = card->ownerId;
+			pushEvent(*this, events, e);
+		}
+
+		return true;
 	} else {
 		return false;
 	}

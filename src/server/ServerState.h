@@ -817,6 +817,7 @@ struct Action
 		Error,
 		Move,
 		SelectCard,
+		GiveCard,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -850,6 +851,12 @@ struct SelectCardAction : ActionBase<Action::SelectCard>
 	uint32_t ownerId;
 	uint32_t cardId;
 	uint32_t slot;
+};
+
+struct GiveCardAction : ActionBase<Action::GiveCard>
+{
+	uint32_t ownerId;
+	uint32_t cardId;
 };
 
 static const constexpr uint32_t NumServerIdTypes = 100;

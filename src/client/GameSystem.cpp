@@ -185,7 +185,10 @@ struct GameSystemImp final : GameSystem
 		uint64_t id;
 		bool active = true;
 		bool hitGui = false;
+		bool hitGuiThisFrame = false;
 		bool hitBackground = false;
+		uint32_t startSvId = 0;
+		uint32_t currentSvId = 0;
 		sf::Box<gui::Widget> trackWidget;
 	};
 
@@ -344,6 +347,7 @@ struct GameSystemImp final : GameSystem
 			PointerState &ps = pointerStates[p.id];
 			ps.id = p.id;
 			ps.active = true;
+			ps.hitGuiThisFrame = false;
 
 			if (ps.hitBackground) continue;
 
@@ -356,7 +360,7 @@ struct GameSystemImp final : GameSystem
 			if (p.action == Pointer::Down) {
 				gp.action = gui::GuiPointer::Down;
 			} else if (p.action == Pointer::Hold) {
-				if (p.canTap && p.time > 0.5f) {
+				if (p.canTap && p.time > 0.4f) {
 					gp.action = gui::GuiPointer::LongPress;
 				} else if (p.dragFactor > 0.0f) {
 					gp.action = gui::GuiPointer::Drag;
@@ -387,6 +391,7 @@ struct GameSystemImp final : GameSystem
 				}
 				if (gp.trackWidget || ate || gp.blocked) {
 					ps.hitGui = true;
+					ps.hitGuiThisFrame = true;
 				}
 			}
 
@@ -694,6 +699,50 @@ struct GameSystemImp final : GameSystem
 					}
 				} else {
 					tapTargets.remove(pointer.id);
+				}
+			}
+		}
+
+		for (Pointer &pointer : input.pointers) {
+			PointerState *pointerState = pointerStates.find(pointer.id);
+			if (!pointerState) continue;
+
+			uint32_t svId = 0;
+			uint32_t entityId = systems.tapArea->getClosestTapAreaEntity(systems.area, pointer.current.worldRay);
+			if (entityId != ~0u) {
+				Entity &entity = systems.entities.entities[entityId];
+				svId = entity.svId;
+			}
+
+			if (pointer.action == Pointer::Down) {
+				pointerState->startSvId = svId;
+			}
+			pointerState->currentSvId = svId;
+		}
+
+		for (DragPointer &dragPointer : dragPointers) {
+			PointerState *pointerState = pointerStates.find(dragPointer.guiPointer.id);
+			if (!pointerState || pointerState->hitGuiThisFrame) continue;
+
+			if (dragPointer.guiPointer.dropType == guiCardSym) {
+				GuiCard *guiCard = dragPointer.guiPointer.dropData.cast<GuiCard>();
+				if (Character *chr = findCharacter(pointerState->currentSvId)) {
+					sf::Vec3 tilePos = sf::Vec3((float)chr->tile.x, 0.0f, (float)chr->tile.y);
+
+					sf::Vec4 color = sf::Vec4(0.8f, 0.8f, 1.0f, 1.0f) * 0.7f;
+					sf::Mat34 t;
+					t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f);
+					t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f);
+					t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
+					t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
+					systems.billboard->addBillboard(guiResources.characterSelect, t, color, 1.0f);
+
+					if (dragPointer.guiPointer.action == gui::GuiPointer::DropCommit) {
+						auto action = sf::box<sv::GiveCardAction>();
+						action->ownerId = chr->svId;
+						action->cardId = guiCard->svId;
+						requestedActions.push(action);
+					}
 				}
 			}
 		}

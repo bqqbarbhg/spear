@@ -92,6 +92,7 @@ template<> void initType<Action>(Type *t)
 	static PolymorphType polys[] = {
 		sf_poly(Action, Move, MoveAction),
 		sf_poly(Action, SelectCard, SelectCardAction),
+		sf_poly(Action, GiveCard, GiveCardAction),
 	};
 	sf_struct_poly(t, Action, type, { }, polys);
 }
@@ -1095,6 +1096,15 @@ template<> void initType<SelectCardAction>(Type *t)
 		sf_field(SelectCardAction, slot),
 	};
 	sf_struct_base(t, SelectCardAction, Action, fields);
+}
+
+template<> void initType<GiveCardAction>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(GiveCardAction, ownerId),
+		sf_field(GiveCardAction, cardId),
+	};
+	sf_struct_base(t, GiveCardAction, Action, fields);
 }
 
 template<> void initType<DiceRoll>(Type *t)
