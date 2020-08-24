@@ -36,7 +36,6 @@ struct BillboardSystemImp final : BillboardSystem
 		uint32_t color;
 		sf::Vec2 cropMin;
 		sf::Vec2 cropMax;
-		bool cropOnlyUv;
 	};
 
 	struct BillboardOrder
@@ -89,7 +88,6 @@ struct BillboardSystemImp final : BillboardSystem
 		imp.anchor = sf::Vec2(0.5f);
 		imp.cropMin = sf::Vec2(0.0f);
 		imp.cropMax = sf::Vec2(1.0f);
-		imp.cropOnlyUv = false;
 
 		BillboardOrder &order = billboardOrder.pushUninit();
 		order.depth = depth;
@@ -107,7 +105,6 @@ struct BillboardSystemImp final : BillboardSystem
 		imp.anchor = billboard.anchor;
 		imp.cropMin = billboard.cropMin;
 		imp.cropMax = billboard.cropMax;
-		imp.cropOnlyUv = billboard.cropOnlyUv;
 
 		BillboardOrder &order = billboardOrder.pushUninit();
 		order.depth = billboard.depth;
