@@ -81,6 +81,7 @@ struct GuiPointer
 struct GuiLayout
 {
 	float dt;
+	uint64_t frameIndex;
 	GuiResources *resources = nullptr;
 };
 
@@ -140,13 +141,17 @@ sf_inline void lerpExp(float &state, float target, float exponential, float line
 	state += sf::clamp(target - state, -speed, speed);
 }
 
-sf_inline float smoothstep(float t) {
+sf_inline float smoothStep(float t) {
 	return t * t * (3.0f - 2.0f * t);
 }
 
-sf_inline float smoothstep01(float t) {
-	t = sf::clamp(t, 0.0f, 1.0f);
-	return t * t * (3.0f - 2.0f * t);
+sf_inline float smoothBegin(float t) {
+	t *= 0.5f;
+	return (t * t * (3.0f - 2.0f * t)) * 2.0f;
 }
 
+sf_inline float smoothEnd(float t) {
+	t = t * 0.5f + 0.5f;
+	return (t * t * (3.0f - 2.0f * t)) * 2.0f - 1.0f;
+}
 } }

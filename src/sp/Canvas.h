@@ -69,6 +69,9 @@ struct Canvas
 	void pushTransform(const sf::Mat23 &transform);
 	void popTransform();
 
+	void pushTint(const sf::Vec4 &tint);
+	void popTint();
+
 	void pushCrop(const sf::Vec2 &min, const sf::Vec2 &max);
 	void popCrop();
 

@@ -887,7 +887,7 @@ struct GameSystemImp final : GameSystem
 				{
 					float hotbarCardHeight = 140.0f;
 
-					auto ll = b.push<gui::WidgetLinearLayout>();
+					auto ll = b.push<gui::WidgetLinearLayout>(chr->svId);
 					ll->direction = gui::DirX;
 					ll->boxExtent = sf::Vec2(gui::Inf, hotbarCardHeight);
 					ll->boxOffset.x = 20.0f;
@@ -913,7 +913,12 @@ struct GameSystemImp final : GameSystem
 
 						if (guiSlot != GuiCardSlot::Count) {
 							auto sl = b.push<gui::WidgetCardSlot>(slot);
+							if (sl->created) {
+								sl->startAnim = 1.0f + (float)slot * 0.2f;
+							}
+
 							sl->slot = guiSlot;
+							sl->slotIndex = slot;
 
 							uint32_t cardId = chr->selectedCards[slot].currentSvId;
 							if (Card *card = findCard(cardId)) {
@@ -938,7 +943,7 @@ struct GameSystemImp final : GameSystem
 					b.pop(); // LinearLayout
 				}
 
-				auto inventoryButton = b.push<gui::WidgetToggleButton>();
+				auto inventoryButton = b.push<gui::WidgetToggleButton>(chr->svId);
 				if (inventoryButton->created) {
 					inventoryButton->inactiveSprite = guiResources.inventory;
 					inventoryButton->activeSprite = guiResources.inventoryOpen;
@@ -955,6 +960,7 @@ struct GameSystemImp final : GameSystem
 					float inventoryCardWidth = 150.0f;
 
 					auto sc = b.push<gui::WidgetScroll>();
+					sc->scrollSpeed = 250.0f;
 
 					auto gl = b.push<gui::WidgetGridLayout>();
 					gl->direction = gui::DirY;
@@ -993,6 +999,7 @@ struct GameSystemImp final : GameSystem
 		{
 			gui::GuiLayout layout;
 			layout.dt = frameArgs.dt;
+			layout.frameIndex = frameArgs.frameIndex;
 			layout.resources = &guiResources;
 			guiRoot->layout(layout, frameArgs.guiResolution, frameArgs.guiResolution);
 			gui::Widget::finishLayout(guiWorkArray, guiRoot);

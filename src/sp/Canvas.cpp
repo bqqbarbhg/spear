@@ -99,9 +99,11 @@ struct CanvasImp
 	sf::Array<TextDrawImp> textDraws;
 	sf::Array<CanvasDrawImp> canvasDraws;
 	sf::Array<sf::Mat23> transformStack;
+	sf::Array<sf::Vec4> tintStack;
 	sf::Array<uint32_t> cropStack;
 	uint32_t nextDrawIndex = 0;
 	sf::Mat23 transform;
+	sf::Vec4 globalTint = sf::Vec4(1.0f);
 
 	uint32_t cropIndex = ~0u;
 
@@ -215,6 +217,7 @@ void Canvas::draw(const SpriteDraw &draw)
 	SpriteDrawImp &drawImp = imp->spriteDraws.pushUninit();
 	drawImp.draw = draw;
 	drawImp.draw.transform = imp->transform * draw.transform;
+	drawImp.draw.color *= imp->globalTint;
 	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
 	drawImp.cropIndex = imp->cropIndex;
 }
@@ -235,6 +238,7 @@ void Canvas::drawText(const TextDraw &draw)
 	TextDrawImp &drawImp = imp->textDraws.pushUninit();
 	drawImp.draw = draw;
 	drawImp.draw.transform = imp->transform * draw.transform;
+	drawImp.draw.color *= imp->globalTint;
 	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
 	drawImp.cropIndex = imp->cropIndex;
 
@@ -255,6 +259,7 @@ void Canvas::drawCanvas(const CanvasDraw &draw)
 	CanvasDrawImp &drawImp = imp->canvasDraws.pushUninit();
 	drawImp.draw = draw;
 	drawImp.draw.transform = imp->transform * draw.transform;
+	drawImp.draw.color *= imp->globalTint;
 	drawImp.sortKey = makeSortKey(draw.depth, ++imp->nextDrawIndex);
 	drawImp.cropIndex = imp->cropIndex;
 }
@@ -293,6 +298,20 @@ void Canvas::popTransform()
 {
 	CanvasImp *imp = (CanvasImp*)impData;
 	imp->transform = imp->transformStack.popValue();
+}
+
+
+void Canvas::pushTint(const sf::Vec4 &tint)
+{
+	CanvasImp *imp = (CanvasImp*)impData;
+	imp->tintStack.push(imp->globalTint);
+	imp->globalTint = tint;
+}
+
+void Canvas::popTint()
+{
+	CanvasImp *imp = (CanvasImp*)impData;
+	imp->globalTint = imp->tintStack.popValue();
 }
 
 void Canvas::pushCrop(const sf::Vec2 &min, const sf::Vec2 &max)

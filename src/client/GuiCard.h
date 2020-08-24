@@ -43,6 +43,9 @@ struct GuiCard
 
 	uint32_t svId;
 
+	uint32_t prevSlotIndex = ~0u;
+	uint64_t prevSlotFrame = 0;
+
 	sp::SpriteRef background;
 	sp::SpriteRef frame;
 	sp::SpriteRef image;

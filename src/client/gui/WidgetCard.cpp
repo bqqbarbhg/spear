@@ -33,7 +33,7 @@ void WidgetCard::paint(GuiPaint &paint)
 		renderCard(*paint.canvas, *card);
 
 		if (prevDragTimer > 0.0f) {
-			sf::Vec4 col = sf::Vec4(0.0f, 0.0f, 0.0f, smoothstep(prevDragTimer) * 0.6f);
+			sf::Vec4 col = sf::Vec4(0.0f, 0.0f, 0.0f, smoothStep(prevDragTimer) * 0.6f);
 			paint.canvas->draw(paint.resources->cardSilhouette, sf::Vec2(), sf::Vec2(500.0f, 800.0f), col);
 		}
 

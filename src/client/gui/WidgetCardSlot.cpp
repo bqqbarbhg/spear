@@ -11,6 +11,41 @@ void WidgetCardSlot::layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Ve
 	float scale = sf::min(size.x * GuiCard::canvasYByX, size.y);
 	layoutSize = sf::Vec2(scale * GuiCard::canvasXByY, scale);
 
+	if (cardSwitchTime > 0.0f) {
+		cardSwitchTime -= layout.dt * 5.0f;
+		if (cardSwitchTime <= 0.0f) {
+			prevCard.reset();
+			cardSwitchTime = 0.0f;
+		}
+	} else {
+		if (card != prevCard) {
+			if (prevCard) {
+				dropOutline = 0.0f;
+				cardSwitchTime = 1.0f;
+				if (card && card->prevSlotIndex != ~0u && card->prevSlotIndex != slotIndex && layout.frameIndex - card->prevSlotFrame < 5) {
+					cardSwitchDirection.x = slotIndex < card->prevSlotIndex ? +1.0f : -1.0f;
+					cardSwitchDirection.y = slotIndex < card->prevSlotIndex ? +0.2f : -0.3f;
+				} else {
+					cardSwitchDirection.x = 0.0f;
+					cardSwitchDirection.y = -1.0f;
+				}
+			}
+		}
+		prevCard = card;
+	}
+
+	if (card) {
+		card->prevSlotIndex = slotIndex;
+		card->prevSlotFrame = layout.frameIndex;
+	}
+
+	if (startAnim > 0.0f) {
+		startAnim -= layout.dt * 4.0f;
+		if (startAnim <= 0.0f) {
+			startAnim = 0.0f;
+		}
+	}
+
 	prevDragTimer = dragTimer;
 	if (dragTimer >= 0.0f) {
 		if (card != draggedCard) {
@@ -29,17 +64,44 @@ void WidgetCardSlot::layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Ve
 
 void WidgetCardSlot::paint(GuiPaint &paint)
 {
+	if (startAnim > 0.0f) {
+		float t = smoothBegin(sf::min(1.0f, startAnim));
+		paint.canvas->pushTransform(sf::mat2D::translateY(layoutSize.y*0.25f*t));
+		paint.canvas->pushTint(sf::Vec4(1.0f - t));
+	}
+
 	if (card) {
+		if (cardSwitchTime > 0.0f && prevCard) {
+			sf::Mat23 t;
+			t.m00 = layoutSize.x * (1.0f/500.0f);
+			t.m11 = layoutSize.y * (1.0f/800.0f);
+			t.m02 = layoutOffset.x;
+			t.m12 = layoutOffset.y;
+			paint.canvas->pushTransform(t);
+			renderCard(*paint.canvas, *prevCard);
+
+			sf::Vec4 col = sf::Vec4(0.0f, 0.0f, 0.0f, 0.6f);
+			paint.canvas->draw(paint.resources->cardSilhouette, sf::Vec2(), sf::Vec2(500.0f, 800.0f), col);
+
+			paint.canvas->popTransform();
+		}
+
+		sf::Vec2 dropOffset;
+		if (cardSwitchTime > 0.0f) {
+			float t = smoothBegin(cardSwitchTime) * layoutSize.y * 0.05f;
+			dropOffset = cardSwitchDirection * t;
+		}
+
 		sf::Mat23 t;
 		t.m00 = layoutSize.x * (1.0f/500.0f);
 		t.m11 = layoutSize.y * (1.0f/800.0f);
-		t.m02 = layoutOffset.x;
-		t.m12 = layoutOffset.y;
+		t.m02 = layoutOffset.x + dropOffset.x;
+		t.m12 = layoutOffset.y + dropOffset.y;
 		paint.canvas->pushTransform(t);
 		renderCard(*paint.canvas, *card);
 
 		if (prevDragTimer > 0.0f) {
-			sf::Vec4 col = sf::Vec4(0.0f, 0.0f, 0.0f, smoothstep(prevDragTimer) * 0.6f);
+			sf::Vec4 col = sf::Vec4(0.0f, 0.0f, 0.0f, smoothStep(prevDragTimer) * 0.6f);
 			paint.canvas->draw(paint.resources->cardSilhouette, sf::Vec2(), sf::Vec2(500.0f, 800.0f), col);
 		}
 
@@ -50,9 +112,14 @@ void WidgetCardSlot::paint(GuiPaint &paint)
 	}
 
 	if (dropOutline > 0.0f) {
-		float a = smoothstep(dropOutline) * 0.8f;
+		float a = smoothStep(dropOutline) * 0.8f;
 		sf::Vec4 col = sf::Vec4(0.6f, 0.6f, 1.0f, 1.0f) * a;
 		paint.canvas->draw(paint.resources->cardOutline, layoutOffset, layoutSize, col);
+	}
+
+	if (startAnim > 0.0f) {
+		paint.canvas->popTint();
+		paint.canvas->popTransform();
 	}
 
 }

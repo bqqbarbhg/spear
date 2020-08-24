@@ -11,10 +11,15 @@ struct WidgetCardSlot : WidgetBase<'s','l','o','t'>
 	sf::Box<GuiCard> card;
 	sf::Box<GuiCard> draggedCard;
 	sf::Box<GuiCard> droppedCard;
+	sf::Box<GuiCard> prevCard;
+	uint32_t slotIndex = ~0u;
 	float dragTimer = 0.0f;
 	float prevDragTimer = 0.0f;
 	float dropOutline = 0.0f;
+	float cardSwitchTime = 0.0f;
+	sf::Vec2 cardSwitchDirection;
 	bool dropHover = false;
+	float startAnim = 0.0f;
 
 	virtual void layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Vec2 &max) override;
 	virtual void paint(GuiPaint &paint) override;
