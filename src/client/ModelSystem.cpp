@@ -292,12 +292,12 @@ struct ModelSystemImp final : ModelSystem
 				light.writeShader(dst);
 			}
 
-			for (sp::Mesh &mesh : model.model->meshes) {
+			pipe.bind();
 
-				if (pipe.bind()) {
-					bindUniformVS(meshShader, tu);
-					bindUniformFS(meshShader, pu);
-				}
+			bindUniformVS(meshShader, tu);
+			bindUniformFS(meshShader, pu);
+
+			for (sp::Mesh &mesh : model.model->meshes) {
 
 				sg_image *images = model.material ? model.material->images : MeshMaterial::defaultImages;
 				bindImageFS(meshShader, bindings, TEX_albedoTexture, images[(uint32_t)MaterialTexture::Albedo]);
