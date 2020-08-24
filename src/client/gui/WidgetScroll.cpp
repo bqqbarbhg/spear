@@ -68,7 +68,9 @@ bool WidgetScroll::onPointer(GuiPointer &pointer)
 	if (pointer.button == GuiPointer::Touch && pointer.action == GuiPointer::Drag) {
 		if (!prevDragged) scrollTarget = scrollOffset;
 		scrollTarget -= pointer.delta.v[du] * pointer.dragFactor;
-		pointer.trackWidget = sf::boxFromPointer(this);
+        if (!pointer.canTap) {
+    		pointer.trackWidget = sf::boxFromPointer(this);
+        }
 		dragged = true;
 		return true;
 	}

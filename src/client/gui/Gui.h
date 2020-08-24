@@ -69,6 +69,7 @@ struct GuiPointer
 	float scrollDelta = 0.0f;
 	float dragFactor = 0.0f;
 	bool end = false;
+    bool canTap = false;
 
 	bool blocked = false;
 	sf::Box<Widget> trackWidget;

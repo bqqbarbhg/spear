@@ -356,6 +356,7 @@ struct GameSystemImp final : GameSystem
 			gp.position = p.current.pos * frameArgs.guiResolution;
 			gp.delta = (p.current.pos - p.prev.pos) * frameArgs.guiResolution;
 			gp.button = (gui::GuiPointer::Button)p.button;
+            gp.canTap = p.canTap;
 
 			if (p.action == Pointer::Down) {
 				gp.action = gui::GuiPointer::Down;
