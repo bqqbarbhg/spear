@@ -1168,7 +1168,9 @@ struct GameSystemImp final : GameSystem
 				tilt = sf::clamp(tilt * 0.2f, -1.0f, 1.0f);
 				tilt *= sf::abs(tilt);
 
-				mat = mat * sf::mat2D::translateY(800.0f) * sf::mat2D::rotate(t*-0.1f + tilt*0.2f) * sf::mat2D::translateY(-800.0f);
+				float defaultTilt = sf::lerp(t*-0.1f, 0.0f, gui::smoothStep(sf::min(sf::abs(tilt), 1.0f)));
+
+				mat = mat * sf::mat2D::translateY(800.0f) * sf::mat2D::rotate(defaultTilt + tilt*0.25f) * sf::mat2D::translateY(-800.0f);
 
 				canvas.pushTransform(mat);
 				renderCard(canvas, *guiCard);
