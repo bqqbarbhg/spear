@@ -203,6 +203,8 @@ struct GameSystemImp final : GameSystem
 	struct DragPointer
 	{
 		gui::GuiPointer guiPointer;
+		sf::Vec2 smoothPosition;
+		sf::Vec2 smoothVelocity;
 		float time = 0.0f;
 		bool active = true;
 	};
@@ -406,6 +408,11 @@ struct GameSystemImp final : GameSystem
 				}
 				if (!dragPointer) {
 					dragPointer = &dragPointers.push();
+					dragPointer->smoothPosition = gp.position;
+				} else {
+					sf::Vec2 delta = dragPointer->guiPointer.delta;
+					gui::lerpExp(dragPointer->smoothVelocity, delta, 10.0f, 5.0f, frameArgs.dt);
+					gui::lerpExp(dragPointer->smoothPosition, gp.position, 35.0f, 10.0f, frameArgs.dt);
 				}
 
 				dragPointer->active = true;
@@ -1138,10 +1145,10 @@ struct GameSystemImp final : GameSystem
 
 		for (DragPointer &dragPointer : dragPointers) {
 			float t = sf::clamp(dragPointer.time * 7.0f, 0.0f, 1.0f);
-			t = t * t * (3.0f - 2.0 * t);
+			t = gui::smoothStep(t);
 
 			float dragHeight = 150.0f;
-			sf::Vec2 dragOffset = dragPointer.guiPointer.position + sf::Vec2(-20.0f, -dragHeight - 10.0f);
+			sf::Vec2 dragOffset = dragPointer.smoothPosition + sf::Vec2(-20.0f, -dragHeight - 10.0f);
 			sf::Vec2 dragSize = sf::Vec2(GuiCard::canvasXByY * dragHeight, dragHeight);
 
 			sf::Vec2 offset = sf::lerp(dragPointer.guiPointer.dropOffset, dragOffset, t);
@@ -1156,7 +1163,12 @@ struct GameSystemImp final : GameSystem
 				mat.m02 = offset.x;
 				mat.m12 = offset.y;
 
-				mat = mat * sf::mat2D::rotate(t*-0.1f);
+				float tilt = sf::dot(sf::Vec2(1.0f, 0.2f), dragPointer.smoothVelocity);
+				tilt = sf::copysign(logf(1.0f + sf::abs(tilt)*3.0f), tilt);
+				tilt = sf::clamp(tilt * 0.2f, -1.0f, 1.0f);
+				tilt *= sf::abs(tilt);
+
+				mat = mat * sf::mat2D::translateY(800.0f) * sf::mat2D::rotate(t*-0.1f + tilt*0.2f) * sf::mat2D::translateY(-800.0f);
 
 				canvas.pushTransform(mat);
 				renderCard(canvas, *guiCard);
