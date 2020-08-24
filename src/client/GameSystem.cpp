@@ -207,6 +207,7 @@ struct GameSystemImp final : GameSystem
 		sf::Vec2 smoothVelocity;
 		float time = 0.0f;
 		bool active = true;
+		bool hitGuiThisFrame = false;
 	};
 
 	struct CardTrade
@@ -452,7 +453,12 @@ struct GameSystemImp final : GameSystem
 			DragPointer &dragPointer = dragPointers[i];
 			if (dragPointer.active) {
 				dragPointer.time += frameArgs.dt;
-				guiRoot->onPointer(dragPointer.guiPointer);
+				bool ate = guiRoot->onPointer(dragPointer.guiPointer);
+				if (dragPointer.guiPointer.trackWidget || ate || dragPointer.guiPointer.blocked) {
+					dragPointer.hitGuiThisFrame = true;
+				} else {
+					dragPointer.hitGuiThisFrame = false;
+				}
 			} else {
 				dragPointers.removeSwap(i--);
 			}
@@ -1219,7 +1225,7 @@ struct GameSystemImp final : GameSystem
 			sf::Vec2 offset = sf::lerp(dragPointer.guiPointer.dropOffset, dragOffset, t);
 			sf::Vec2 size = sf::lerp(dragPointer.guiPointer.dropSize, dragSize, t);
 
-			if (dragPointer.guiPointer.dropType == guiCardSym) {
+			if (dragPointer.guiPointer.dropType == guiCardSym && dragPointer.hitGuiThisFrame) {
 				GuiCard *guiCard = dragPointer.guiPointer.dropData.cast<GuiCard>();
 
 				sf::Mat23 mat;
