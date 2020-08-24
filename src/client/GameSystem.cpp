@@ -209,6 +209,14 @@ struct GameSystemImp final : GameSystem
 		bool active = true;
 	};
 
+	struct CardTrade
+	{
+		uint32_t srcSvId;
+		uint32_t dstSvId;
+		uint32_t cardSvId;
+		float time = 0.0f;
+	};
+
 	sf::Array<Character> characters;
 	sf::Array<uint32_t> freeCharacterIds;
 
@@ -239,6 +247,8 @@ struct GameSystemImp final : GameSystem
 	sf::Box<gui::Widget> guiRoot;
 
 	sf::Array<DragPointer> dragPointers;
+
+	sf::Array<CardTrade> cardTrades;
 
 	bool showDebugMenu = false;
 	bool showDebugPointers = false;
@@ -1094,6 +1104,13 @@ struct GameSystemImp final : GameSystem
 
 		} else if (const auto *e = event.as<sv::GiveCardEvent>()) {
 
+			if (e->previousOwnerId != e->ownerId && e->previousOwnerId && e->ownerId) {
+				CardTrade &trade = cardTrades.push();
+				trade.srcSvId = e->previousOwnerId;
+				trade.dstSvId = e->ownerId;
+				trade.cardSvId = e->cardId;
+			}
+
 			if (Character *chr = findCharacter(e->previousOwnerId)) {
 				if (uint32_t *ptr = sf::find(chr->cardIds, e->cardId)) {
 					chr->cardIds.removeOrderedPtr(ptr);
@@ -1134,6 +1151,54 @@ struct GameSystemImp final : GameSystem
 	void handleGui(Systems &systems, const GuiArgs &guiArgs) override
 	{
 		sp::Canvas &canvas = *guiArgs.canvas;
+		const FrameArgs &frameArgs = systems.frameArgs;
+
+		// In-world GUI
+		for (uint32_t i = 0; i < cardTrades.size; i++) {
+			CardTrade &trade = cardTrades[i];
+			float t = trade.time;
+			float moveOffset = 0.6f;
+			float moveDuration = 0.4f;
+			float fadeInDuration = 0.15f;
+			float fadeOutDuration = 0.3f;
+
+			float fade = gui::smoothEnd(sf::min(sf::min(t/fadeInDuration, (1.0f-t)/fadeOutDuration), 1.0f));
+
+			Character *srcChr = findCharacter(trade.srcSvId);
+			Character *dstChr = findCharacter(trade.dstSvId);
+			Card *card = findCard(trade.cardSvId);
+			if (srcChr && dstChr && card) {
+				sf::Vec3 srcPos = systems.entities.entities[srcChr->entityId].transform.position;
+				sf::Vec3 dstPos = systems.entities.entities[dstChr->entityId].transform.position;
+
+				float moveT = (t - moveOffset) / moveDuration;
+				sf::Vec3 pos = sf::lerp(srcPos, dstPos, gui::smoothStep(sf::clamp(moveT, 0.0f, 1.0f)));
+
+				pos.y += sf::lerp(0.25f, 0.25f + logf(1.0f + t * 0.2f), fade);
+
+				sf::Vec4 projected = frameArgs.mainRenderArgs.worldToClip * sf::Vec4(pos, 1.0f);
+				sf::Vec2 offset = sf::Vec2(projected.x / projected.w, projected.y / projected.w);
+				offset = (offset + sf::Vec2(1.0f, -1.0f)) * sf::Vec2(0.5f, -0.5f) * guiArgs.resolution;
+				float height = 1.5f / projected.w * guiArgs.resolution.y;
+				height = sf::clamp(height, 120.0f, 300.0f);
+
+				float scale = sf::lerp(0.5f, 1.0f, fade);
+				sf::Mat23 mat;
+				mat = sf::mat2D::translate(offset) * sf::mat2D::scale(height/800.0f*scale) * sf::mat2D::translate(-250.0f, -800.0f);
+				canvas.pushTint(sf::Vec4(fade));
+				canvas.pushTransform(mat);
+				renderCard(canvas, *card->gui);
+				canvas.popTransform();
+				canvas.popTint();
+
+			}
+
+			trade.time += frameArgs.dt * 0.75f;
+			if (trade.time >= 1.0f) {
+				cardTrades.removeOrdered(i);
+				i--;
+			}
+		}
 
 		{
 			gui::GuiPaint paint;

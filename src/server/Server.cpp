@@ -131,6 +131,7 @@ static Session *setupSession(Server *s, uint32_t id, uint32_t secret)
 		session.state->addCharacterToSelect(session.events, sf::Symbol("Prefabs/CharacterTemplates/Test/Goblin_Staff.json"), 5);
 
 		session.state->selectCharacterSpawn(session.events, sf::Symbol("Prefabs/CharacterTemplates/Test/Goblin_Staff.json"), 1);
+		// session.state->selectCharacterSpawn(session.events, sf::Symbol("Prefabs/CharacterTemplates/Test/Goblin_Staff.json"), 1);
 
 #if 0
 		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
