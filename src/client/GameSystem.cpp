@@ -1135,6 +1135,11 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
+		if (queuedEvents.size > 0) {
+			moveSet.distanceToTile.clear();
+			moveSelectTime = 0.0f;
+		}
+
 		if (Character *chr = findCharacter(selectedCharacterId)) {
 			sf::Vec3 tilePos = sf::Vec3((float)chr->tile.x, 0.0f, (float)chr->tile.y);
 			float t = selectedCharacterTime;
@@ -1154,7 +1159,7 @@ struct GameSystemImp final : GameSystem
 				systems.billboard->addBillboard(sprite, t, col);
 			}
 
-			if (turnInfo.movementLeft > 0 && turnInfo.characterId == chr->svId) {
+			if (turnInfo.movementLeft > 0 && turnInfo.characterId == chr->svId && moveSelectTime > 0.0f) {
 				sv::PathfindOpts opts;
 				opts.isBlockedFn = &sv::isBlockedByPropOrCharacter;
 				opts.maxDistance = turnInfo.movementLeft;
@@ -1182,7 +1187,6 @@ struct GameSystemImp final : GameSystem
 					wave.push(powf(sinf(t) * 0.5f + 0.5f, 3.0f));
 				}
 
-				moveSelectTime += frameArgs.dt;
 				for (auto &pair : moveSet.distanceToTile) {
 					sf::Vec2i tile = pair.key;
 
@@ -1222,6 +1226,8 @@ struct GameSystemImp final : GameSystem
 					systems.billboard->addBillboard(guiResources.characterMove, mat, color);
 				}
 			}
+
+			moveSelectTime += frameArgs.dt;
 		}
 
 		{
