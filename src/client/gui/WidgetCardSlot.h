@@ -19,7 +19,12 @@ struct WidgetCardSlot : WidgetBase<'s','l','o','t'>
 	float cardSwitchTime = 0.0f;
 	sf::Vec2 cardSwitchDirection;
 	bool dropHover = false;
+	bool wantSelect = false;
+	bool selected = false;
+	float pressTimer = 0.0f;
+	float selectTime = 0.0f;
 	float startAnim = 0.0f;
+	float pressAnim = 0.0f;
 
 	virtual void layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Vec2 &max) override;
 	virtual void paint(GuiPaint &paint) override;

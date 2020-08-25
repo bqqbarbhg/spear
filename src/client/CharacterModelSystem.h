@@ -31,6 +31,9 @@ struct CharacterModelSystem : EntitySystem
 	virtual void updateAttachedEntities(Systems &systems) = 0;
 	virtual void updateLoadQueue(AreaSystem *areaSystem) = 0;
 
+	virtual void addOneShotTag(const Entities &entities, uint32_t entityId, const sf::Symbol &tag) = 0;
+	virtual void queryFrameEvents(const Entities &entities, uint32_t entityId, sf::Array<sf::Symbol> &events) = 0;
+
 	virtual void renderMain(LightSystem *lightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
 };
 

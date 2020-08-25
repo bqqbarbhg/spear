@@ -49,7 +49,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, StatusRemove, StatusRemoveEvent),
 		sf_poly(Event, ResistDamage, ResistDamageEvent),
 		sf_poly(Event, CastSpell, CastSpellEvent),
-		sf_poly(Event, CastSpell, MeleeAttackEvent),
+		sf_poly(Event, MeleeAttack, MeleeAttackEvent),
 		sf_poly(Event, Damage, DamageEvent),
 		sf_poly(Event, LoadPrefab, LoadPrefabEvent),
 		sf_poly(Event, ReloadPrefab, ReloadPrefabEvent),
@@ -94,6 +94,8 @@ template<> void initType<Action>(Type *t)
 		sf_poly(Action, Move, MoveAction),
 		sf_poly(Action, SelectCard, SelectCardAction),
 		sf_poly(Action, GiveCard, GiveCardAction),
+		sf_poly(Action, EndTurn, EndTurnAction),
+		sf_poly(Action, UseCard, UseCardAction),
 	};
 	sf_struct_poly(t, Action, type, { }, polys);
 }
@@ -608,6 +610,10 @@ template<> void initType<ProjectileComponent>(Type *t)
 		ReflectionInfo &info = addTypeReflectionInfo(t, "prefabName");
 		info.prefab = true;
 	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "hitEffect");
+		info.prefab = true;
+	}
 }
 
 template<> void initType<CastOnTurnStartComponent>(Type *t)
@@ -1091,7 +1097,7 @@ template<> void initType<AddCharacterEdit>(Type *t)
 template<> void initType<MoveAction>(Type *t)
 {
 	static Field fields[] = {
-		sf_field(MoveAction, charcterId),
+		sf_field(MoveAction, characterId),
 		sf_field(MoveAction, tile),
 		sf_field(MoveAction, waypoints),
 	};
@@ -1115,6 +1121,24 @@ template<> void initType<GiveCardAction>(Type *t)
 		sf_field(GiveCardAction, cardId),
 	};
 	sf_struct_base(t, GiveCardAction, Action, fields);
+}
+
+template<> void initType<EndTurnAction>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(EndTurnAction, characterId),
+	};
+	sf_struct_base(t, EndTurnAction, Action, fields);
+}
+
+template<> void initType<UseCardAction>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(UseCardAction, characterId),
+		sf_field(UseCardAction, targetId),
+		sf_field(UseCardAction, cardId),
+	};
+	sf_struct_base(t, UseCardAction, Action, fields);
 }
 
 template<> void initType<DiceRoll>(Type *t)
@@ -1225,15 +1249,37 @@ template<> void initType<RandomVec3>(Type *t)
 	}
 }
 
+template<> void initType<AnimationEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(AnimationEvent, name),
+		sf_field(AnimationEvent, time),
+	};
+	sf_struct(t, AnimationEvent, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "name");
+		info.description = "Name of the event";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "time");
+		info.description = "Time into the animation when the event is triggered";
+	}
+}
+
 template<> void initType<AnimationInfo>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(AnimationInfo, tags),
 		sf_field(AnimationInfo, file),
+		sf_field(AnimationInfo, events),
 		sf_field(AnimationInfo, weight),
 		sf_field(AnimationInfo, loop),
 		sf_field(AnimationInfo, speed),
 		sf_field(AnimationInfo, speedVariation),
+		sf_field(AnimationInfo, fadeInDuration),
+		sf_field(AnimationInfo, fadeOutDuration),
+		sf_field(AnimationInfo, startTime),
 	};
 	sf_struct(t, AnimationInfo, fields);
 
@@ -1245,6 +1291,10 @@ template<> void initType<AnimationInfo>(Type *t)
 		ReflectionInfo &info = addTypeReflectionInfo(t, "file");
 		info.description = "Animation .fbx asset file";
 		info.asset = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "events");
+		info.description = "Events in the animation";
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "weight");
@@ -1261,6 +1311,18 @@ template<> void initType<AnimationInfo>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "speedVariation");
 		info.description = "Random playback speed variation added on top of speed";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "fadeInDuration");
+		info.description = "Time in seconds for the animation to fade in";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "fadeOutDuration");
+		info.description = "Time in seconds for the animation to fade out";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "startTime");
+		info.description = "Offset time to start into the animation";
 	}
 }
 
@@ -1473,6 +1535,7 @@ template<> void initType<SpellInfo>(Type *t)
 		sf_field(SpellInfo, targetId),
 		sf_field(SpellInfo, spellName),
 		sf_field(SpellInfo, cardName),
+		sf_field(SpellInfo, manualCast),
 	};
 	sf_struct(t, SpellInfo, fields);
 
@@ -1526,6 +1589,7 @@ template<> void initType<RollInfo>(Type *t)
 	static Field fields[] = {
 		sf_field(RollInfo, name),
 		sf_field(RollInfo, roll),
+		sf_field(RollInfo, results),
 		sf_field(RollInfo, total),
 	};
 	sf_struct(t, RollInfo, fields);

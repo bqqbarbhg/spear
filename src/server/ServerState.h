@@ -217,14 +217,24 @@ struct CharacterComponent : ComponentBase<Component::Character>
 	uint32_t baseSpeed = 5;
 };
 
+struct AnimationEvent sv_reflect()
+{
+	sf::Symbol name; //! Name of the event
+	float time = 0.0f; //! Time into the animation when the event is triggered
+};
+
 struct AnimationInfo sv_reflect()
 {
 	sf::Array<sf::Symbol> tags; //! Tags for when to play the animation
 	sf::Symbol file sv_reflect(asset); //! Animation .fbx asset file
+	sf::Array<AnimationEvent> events; //! Events in the animation
 	float weight = 1.0f; //! How often to play the animation (for equal tags)
 	bool loop = true; //! Should the animation blend the ending with the beginning
 	float speed = 1.0f; //! How fast to play the animation
 	float speedVariation = 0.0f; //! Random playback speed variation added on top of speed
+	float fadeInDuration = 0.3f; //! Time in seconds for the animation to fade in
+	float fadeOutDuration = 0.3f; //! Time in seconds for the animation to fade out
+	float startTime = 0.0f; //! Offset time to start into the animation
 };
 
 struct AttachBone sv_reflect()
@@ -304,8 +314,8 @@ struct CardMeleeComponent : ComponentBase<Component::CardMelee>
 struct ProjectileComponent : ComponentBase<Component::Projectile>
 {
 	sf::Symbol prefabName sv_reflect(prefab);
-	sf::Symbol hitEffect;
-	float flightSpeed = 0.0f;
+	sf::Symbol hitEffect sv_reflect(prefab);
+	float flightSpeed = 1.0f;
 };
 
 struct CastOnTurnStartComponent : ComponentBase<Component::CastOnTurnStart>
@@ -461,6 +471,7 @@ struct SpellInfo sv_reflect()
 	uint32_t targetId;
 	sf::Symbol spellName sv_reflect(prefab);
 	sf::Symbol cardName sv_reflect(prefab);
+	bool manualCast = false;
 };
 
 struct MeleeInfo sv_reflect()
@@ -486,7 +497,7 @@ struct RollInfo sv_reflect()
 {
 	sf::Symbol name;
 	DiceRoll roll;
-	sf::SmallArray<uint32_t, 2> results;
+	sf::SmallArray<uint32_t,2> results;
 	uint32_t total;
 };
 
@@ -596,7 +607,7 @@ struct CastSpellEvent : EventBase<Event::CastSpell>
 	RollInfo successRoll;
 };
 
-struct MeleeAttackEvent : EventBase<Event::CastSpell>
+struct MeleeAttackEvent : EventBase<Event::MeleeAttack>
 {
 	MeleeInfo meleeInfo;
 	DiceRoll hitRoll;
@@ -833,6 +844,8 @@ struct Action
 		Move,
 		SelectCard,
 		GiveCard,
+		EndTurn,
+		UseCard,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -856,7 +869,7 @@ struct ActionBase : Action
 
 struct MoveAction : ActionBase<Action::Move>
 {
-	uint32_t charcterId;
+	uint32_t characterId;
 	sf::Vec2i tile;
 	sf::Array<sf::Vec2i> waypoints;
 };
@@ -871,6 +884,18 @@ struct SelectCardAction : ActionBase<Action::SelectCard>
 struct GiveCardAction : ActionBase<Action::GiveCard>
 {
 	uint32_t ownerId;
+	uint32_t cardId;
+};
+
+struct EndTurnAction : ActionBase<Action::EndTurn>
+{
+	uint32_t characterId;
+};
+
+struct UseCardAction : ActionBase<Action::UseCard>
+{
+	uint32_t characterId;
+	uint32_t targetId;
 	uint32_t cardId;
 };
 
@@ -941,6 +966,7 @@ struct ServerState
 	uint32_t lastAllocatedIdByType[NumServerIdTypes] = { };
 	uint32_t lastLocalAllocatedIdByType[NumServerIdTypes] = { };
 
+	sf::Array<uint32_t> turnOrder;
 	TurnInfo turnInfo;
 
 	bool isIdValid(uint32_t id);
@@ -958,6 +984,9 @@ struct ServerState
 	void castSpell(sf::Array<sf::Box<Event>> &events, const SpellInfo &spellInfo);
 	void meleeAttack(sf::Array<sf::Box<Event>> &events, const MeleeInfo &meleeInfo);
 	void startCharacterTurn(sf::Array<sf::Box<Event>> &events, uint32_t characterId);
+
+	uint32_t getNextTurnCharacter() const;
+	void startNextCharacterTurn(sf::Array<sf::Box<Event>> &events);
 
 	void preloadPrefab(sf::Array<sf::Box<Event>> &events, const sf::Symbol &name);
 	void reloadPrefab(sf::Array<sf::Box<Event>> &events, const Prefab &prefab);

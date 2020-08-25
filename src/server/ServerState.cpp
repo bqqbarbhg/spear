@@ -596,6 +596,7 @@ static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, s
 			walkPrefabs(state, events, marks, c->prefabName);
 		} else if (auto *c = component->as<ProjectileComponent>()) {
 			walkPrefabs(state, events, marks, c->prefabName);
+			walkPrefabs(state, events, marks, c->hitEffect);
 		} else if (auto *c = component->as<CastOnReceiveDamageComponent>()) {
 			walkPrefabs(state, events, marks, c->spellName);
 		} else if (auto *c = component->as<CastOnDealDamageComponent>()) {
@@ -904,6 +905,27 @@ void ServerState::startCharacterTurn(sf::Array<sf::Box<Event>> &events, uint32_t
 	}
 }
 
+uint32_t ServerState::getNextTurnCharacter() const
+{
+	const uint32_t *pIndex = sf::find(turnOrder, turnInfo.characterId);
+	if (pIndex) {
+		uint32_t nextIndex = ((uint32_t)(pIndex - turnOrder.data) + 1) % turnOrder.size;
+		return turnOrder[nextIndex];
+	} else if (turnOrder.size > 0) {
+		return turnOrder[0];
+	} else {
+		return 0;
+	}
+}
+
+void ServerState::startNextCharacterTurn(sf::Array<sf::Box<Event>> &events)
+{
+	uint32_t id = getNextTurnCharacter();
+	if (id != 0) {
+		startCharacterTurn(events, id);
+	}
+}
+
 void ServerState::preloadPrefab(sf::Array<sf::Box<Event>> &events, const sf::Symbol &name)
 {
 	loadPrefab(*this, events, name);
@@ -1066,6 +1088,13 @@ uint32_t ServerState::addCharacter(sf::Array<sf::Box<Event>> &events, const Char
 		e->character.armor = chrComp->baseArmor;
 		e->character.id = id;
 		pushEvent(*this, events, e);
+	}
+
+	// TODO: Sort by playerness
+	turnOrder.push(id);
+
+	if (turnInfo.characterId == 0) {
+		startNextCharacterTurn(events);
 	}
 
 	return id;
@@ -1459,7 +1488,7 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 	if (const auto *ac = action.as<MoveAction>()) {
 		// TODO: Check waypoints
 
-		if (turnInfo.characterId != ac->charcterId) return false;
+		if (turnInfo.characterId != ac->characterId) return false;
 		if (ac->waypoints.size > turnInfo.movementLeft) return false;
 
 		{
@@ -1471,7 +1500,7 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 
 		{
 			auto e = sf::box<MoveEvent>();
-			e->characterId = ac->charcterId;
+			e->characterId = ac->characterId;
 			e->position = ac->tile;
 			e->waypoints.reserve(ac->waypoints.size);
 			for (const sf::Vec2i &tile : ac->waypoints) {
@@ -1488,6 +1517,7 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 		if (!chr || !card) return false;
 		if (card->ownerId != ac->ownerId) return false;
 		if (ac->slot >= NumSelectedCards) return false;
+		if (turnInfo.characterId != ac->ownerId) return false;
 		uint32_t prevCardId = chr->selectedCards[ac->slot];
 		if (prevCardId == ac->cardId) return false;
 
@@ -1526,12 +1556,17 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 			pushEvent(*this, events, e);
 		}
 
+		if (!prevSelectedPtr) {
+			startNextCharacterTurn(events);
+		}
+
 		return true;
 	} else if (const auto *ac = action.as<GiveCardAction>()) {
 		Character *chr = findCharacter(*this, ac->ownerId);
 		Card *card = findCard(*this, ac->cardId);
 		if (!chr || !card) return false;
 		if (card->ownerId == ac->ownerId) return false;
+		if (turnInfo.characterId != card->ownerId) return false;
 
 		if (card->ownerId) {
 			if (Character *prevChr = findCharacter(*this, card->ownerId)) {
@@ -1555,6 +1590,53 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 			e->previousOwnerId = card->ownerId;
 			pushEvent(*this, events, e);
 		}
+
+		startNextCharacterTurn(events);
+
+		return true;
+	} else if (const auto *ac = action.as<EndTurnAction>()) {
+		if (turnInfo.characterId != ac->characterId) return false;
+
+		startNextCharacterTurn(events);
+
+		return true;
+	} else if (const auto *ac = action.as<UseCardAction>()) {
+		uint32_t casterId = ac->characterId;
+		uint32_t targetId = ac->targetId;
+		uint32_t cardId = ac->cardId;
+		Character *casterChr = findCharacter(*this, casterId);
+		Character *targetChr = findCharacter(*this, targetId);
+		Card *card = findCard(*this, cardId);
+		if (!casterChr) return false;
+		if (!targetChr) return false;
+		if (!card) return false;
+		if (turnInfo.characterId != casterId) return false;
+		if (!sf::find(sf::slice(casterChr->selectedCards), cardId)) return false;
+		Prefab *cardPrefab = loadPrefab(*this, events, card->prefabName);
+		if (!cardPrefab) return false;
+		CardComponent *cardComp = findComponent<CardComponent>(*this, *cardPrefab);
+		if (!cardComp) return false;
+
+		for (Component *comp : cardPrefab->components) {
+			if (auto *c = comp->as<CardMeleeComponent>()) {
+				MeleeInfo info;
+				info.attackerId = casterId;
+				info.targetId = targetId;
+				info.cardName = card->prefabName;
+				meleeAttack(events, info);
+			} else if (auto *c = comp->as<CardCastComponent>()) {
+				SpellInfo info;
+				info.originalCasterId = casterId;
+				info.casterId = casterId;
+				info.targetId = targetId;
+				info.spellName = c->spellName;
+				info.cardName = card->prefabName;
+				info.manualCast = true;
+				castSpell(events, info);
+			}
+		}
+
+		startNextCharacterTurn(events);
 
 		return true;
 	} else {

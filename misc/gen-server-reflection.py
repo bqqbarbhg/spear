@@ -21,7 +21,7 @@ RE_EVENT = re.compile(r"struct (\w+) : EventBase<Event::(\w+)>")
 RE_EDIT = re.compile(r"struct (\w+) : EditBase<Edit::(\w+)>")
 RE_ACTION = re.compile(r"struct (\w+) : ActionBase<Action::(\w+)>")
 RE_REFLECT = re.compile(r"struct (\w+).*sv_reflect*")
-RE_FIELD = re.compile(r"([A-Za-z_][A-Za-z0-9<>:_*]*)\s+([A-Za-z0-9]+).*")
+RE_FIELD = re.compile(r"([A-Za-z_][A-Za-z0-9<>:_,*]*)\s+([A-Za-z0-9]+).*")
 RE_DESCRIPTION = re.compile(r".*//!\s*(.*)")
 
 def parse_reflect_flags(line):

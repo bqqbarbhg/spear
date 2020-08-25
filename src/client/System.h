@@ -220,6 +220,7 @@ struct BlobShadowSystem;
 struct GameSystem;
 struct TapAreaSystem;
 struct BillboardSystem;
+struct EffectSystem;
 
 struct RenderArgs
 {
@@ -260,6 +261,7 @@ struct Systems
 	sf::Box<GameSystem> game;
 	sf::Box<TapAreaSystem> tapArea;
 	sf::Box<BillboardSystem> billboard;
+	sf::Box<EffectSystem> effect;
 	FrameArgs frameArgs;
 
 	void init(const SystemsDesc &desc);

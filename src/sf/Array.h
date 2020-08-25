@@ -354,7 +354,7 @@ static T *find(Array<T> &arr, const U &t)
 template <typename T, typename U>
 static const T *find(const Array<T> &arr, const U &t)
 {
-	for (T &other : arr) {
+	for (const T &other : arr) {
 		if (t == other) {
 			return &other;
 		}

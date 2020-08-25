@@ -10,6 +10,7 @@
 #include "client/GameSystem.h"
 #include "client/TapAreaSystem.h"
 #include "client/BillboardSystem.h"
+#include "client/EffectSystem.h"
 
 #include "sf/Reflection.h"
 
@@ -36,6 +37,7 @@ void Systems::init(const SystemsDesc &desc)
 	game = GameSystem::create(desc);
 	tapArea = TapAreaSystem::create();
 	billboard = BillboardSystem::create();
+	effect = EffectSystem::create();
 }
 
 void Systems::updateVisibility(VisibleAreas &areas, uint32_t areaFlags, const sf::Frustum &frustum)

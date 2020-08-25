@@ -10,6 +10,7 @@
 #include "client/GameSystem.h"
 #include "client/TapAreaSystem.h"
 #include "client/BillboardSystem.h"
+#include "client/EffectSystem.h"
 
 #include "sf/Frustum.h"
 
@@ -167,6 +168,8 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 	systems.characterModel->updateAnimations(systems.activeAreas, frameArgs.dt);
 	systems.characterModel->updateBoneListeners(systems.boneUpdates, systems.activeAreas);
 	systems.characterModel->updateAttachedEntities(systems);
+
+	systems.effect->update(systems.entities, frameArgs);
 
 	systems.blobShadow->updatePositions(systems.area, systems.boneUpdates, frameArgs);
 

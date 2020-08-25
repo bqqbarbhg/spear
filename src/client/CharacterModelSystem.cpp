@@ -15,6 +15,8 @@
 
 #include "game/DebugDraw.h"
 
+#include "ext/imgui/imgui.h"
+
 namespace cl {
 
 struct CharacterModelSystemImp final : CharacterModelSystem
@@ -24,10 +26,13 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		sp::AnimationRef animation;
 		sf::Array<uint32_t> boneMapping;
 		sf::Array<sf::Symbol> tags;
+		sf::Array<sv::AnimationEvent> events;
 		float weight;
 		float speed;
 		float speedVariation;
-		float fadeOutTime = 0.4f;
+		float fadeInTime;
+		float fadeOutTime;
+		float startTime;
 		bool loop = true;
 	};
 
@@ -88,6 +93,9 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		sf::Array<ActiveAnimation> activeAnimations;
 
 		sf::HashMap<sf::Symbol, int32_t> tags;
+		sf::Array<sf::Symbol> oneShotTags;
+
+		sf::Array<sf::Symbol> frameEvents;
 
 		double lastUpdateTime = 0.0;
 
@@ -183,6 +191,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 	void updateAttachmentTransformImp(Systems &systems, Attachment &attach, Model &model)
 	{
+		if (attach.boneIndex == ~0u) return;
+
 		sf::Mat34 childToWorld = model.boneToWorld[attach.boneIndex] * sf::mat::scale(100.0f) * attach.childToBone;
 		float scale = cbrtf(sf::abs(sf::determinant(childToWorld)));
 
@@ -221,8 +231,11 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			anim.boneMapping.resizeUninit(anim.animation->bones.size);
 			anim.animation->generateBoneMapping(model.model, anim.boneMapping);
 
+			float maxFadeIn = anim.animation->duration * 0.9f;
 			float maxFadeOut = anim.animation->duration * 0.75f;
+			anim.fadeInTime = sf::min(anim.fadeInTime, maxFadeIn);
 			anim.fadeOutTime = sf::min(anim.fadeOutTime, maxFadeOut);
+			anim.startTime = sf::min(anim.startTime, anim.animation->duration);
 		}
 
 		for (auto &pair : model.attachBones) {
@@ -321,18 +334,20 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 				float timeLeft = topAnim.animation->duration - top.time;
 
 				if (timeLeft > 0.0f) {
-					float fadeOut = timeLeft / speed;
+					float fadeTime = sf::min(timeLeft / speed * 0.95f, topAnim.fadeOutTime, nextAnim.fadeInTime);
+
 					ActiveAnimation &next = model.activeAnimations.push();
 					// top invalidated!
 
 					next.animIndex = bestAnim;
-					next.alphaVelocity = 1.0f / fadeOut * 1.05f;
+					next.alphaVelocity = 1.0f / fadeTime;
 					next.alpha = 0.0f;
 					next.speed = speed;
 
 					if (nextAnim.loop) {
-						next.time = -fadeOut;
+						next.time = -fadeTime;
 					}
+					next.time += nextAnim.startTime;
 
 					// Early return: Skip fallback
 					return;
@@ -367,6 +382,9 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 	CharacterModelSystemImp(const SystemsDesc &desc)
 	{
 		tagWeights[sf::Symbol("Idle")] = 10.0;
+		tagWeights[sf::Symbol("Melee")] = 100.0;
+		tagWeights[sf::Symbol("Stagger")] = 100.0;
+		tagWeights[sf::Symbol("Cast")] = 100.0;
 		animCtx.rng = sf::Random(desc.seed[0], 756789);
 
 		uint8_t permutation[SP_NUM_PERMUTATIONS] = { };
@@ -419,10 +437,14 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			Animation &anim = model.animations.push();
 			anim.animation.load(info.file);
 			anim.tags = info.tags;
+			anim.events = info.events;
 			anim.weight = info.weight;
 			anim.speed = info.speed;
 			anim.speedVariation = info.speedVariation;
 			anim.loop = info.loop;
+			anim.fadeInTime = info.fadeInDuration;
+			anim.fadeOutTime = info.fadeOutDuration;
+			anim.startTime = info.startTime;
 		}
 
 		model.attachBones.reserve(c.attachBones.size);
@@ -610,10 +632,16 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			float dt = (float)(ctx.updateTime - model.lastUpdateTime);
 			model.lastUpdateTime = ctx.updateTime;
 
+			model.frameEvents.clear();
+
 			ctx.boneTransforms.clear();
 			ctx.boneTransforms.resize(model.model->bones.size);
 
 			bool needStateUpdate = false;
+
+			if (model.oneShotTags.size > 0) {
+				needStateUpdate = true;
+			}
 
 			if (model.activeAnimations.size == 0) {
 				needStateUpdate = true;
@@ -627,7 +655,16 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			}
 
 			if (needStateUpdate) {
+				for (const sf::Symbol &tag : model.oneShotTags) {
+					model.addTag(tag);
+				}
+
 				updateAnimationStateImp(ctx, model, dt);
+
+				for (const sf::Symbol &tag : model.oneShotTags) {
+					model.removeTag(tag);
+				}
+				model.oneShotTags.clear();
 			}
 
 			for (uint32_t i = 0; i < model.activeAnimations.size; i++) {
@@ -660,12 +697,30 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 					anim.animation->evaluate(t, anim.boneMapping, ctx.boneTransforms, a);
 				}
 
+				float prevTime = active.time;
 				active.time += dt * active.speed;
+
+				for (sv::AnimationEvent &ev : anim.events) {
+					if (prevTime <= ev.time && active.time > ev.time) {
+						model.frameEvents.push(ev.name);
+					}
+				}
+
 				if (active.alpha < 1.0f) {
 					active.alpha += dt * active.alphaVelocity;
 					if (active.alpha >= 1.0f) {
 						active.alpha = 1.0f;
 						if (i > 0) {
+							for (uint32_t remI = 0; remI < i; remI++) {
+								ActiveAnimation &rem = model.activeAnimations[remI];
+								Animation &remAnim = model.animations[rem.animIndex];
+								for (sv::AnimationEvent &ev : remAnim.events) {
+									if (rem.time <= ev.time) {
+										model.frameEvents.push(ev.name);
+									}
+								}
+							}
+
 							model.activeAnimations.removeOrdered(0, i);
 							i = 0;
 						}
@@ -719,6 +774,32 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			models[loadQueue.back()].loadQueueIndex = i;
 			model.loadQueueIndex = ~0u;
 			loadQueue.removeSwap(i--);
+		}
+	}
+
+	void addOneShotTag(const Entities &entities, uint32_t entityId, const sf::Symbol &tag) override
+	{
+		const Entity &entity = entities.entities[entityId];
+		for (const cl::EntityComponent &ec : entity.components) {
+			if (ec.system == this && ec.subsystemIndex == 0) {
+				uint32_t modelId = ec.userId;
+				Model &model = models[modelId];
+				model.oneShotTags.push(tag);
+			}
+		}
+	}
+
+	void queryFrameEvents(const Entities &entities, uint32_t entityId, sf::Array<sf::Symbol> &events)
+	{
+		const Entity &entity = entities.entities[entityId];
+		for (const cl::EntityComponent &ec : entity.components) {
+			if (ec.system == this && ec.subsystemIndex == 0) {
+				uint32_t modelId = ec.userId;
+				Model &model = models[modelId];
+				if (model.lastUpdateTime == animCtx.updateTime) {
+					events.push(model.frameEvents);
+				}
+			}
 		}
 	}
 

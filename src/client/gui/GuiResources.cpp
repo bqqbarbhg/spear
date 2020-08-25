@@ -11,11 +11,15 @@ GuiResources::GuiResources()
 	cardOutline.load("Assets/Gui/Card/Card_Outline.png");
 	characterSelect.load("Assets/Billboards/Character_Select.png");
 	characterMove.load("Assets/Billboards/Character_Move.png");
+	characterActive.load("Assets/Billboards/Character_Active.png");
 
 	slotPlaceholders[(uint32_t)GuiCardSlot::Melee].load("Assets/Gui/Card/Slot_Melee.png");
 	slotPlaceholders[(uint32_t)GuiCardSlot::Skill].load("Assets/Gui/Card/Slot_Skill.png");
 	slotPlaceholders[(uint32_t)GuiCardSlot::Spell].load("Assets/Gui/Card/Slot_Spell.png");
 	slotPlaceholders[(uint32_t)GuiCardSlot::Item].load("Assets/Gui/Card/Slot_Item.png");
+
+	buttonSprite.load("Assets/Gui/Misc/Button_Base.png");
+	buttonFont.load("Assets/Gui/Font/Alegreya-Regular.ttf");
 }
 
 } }

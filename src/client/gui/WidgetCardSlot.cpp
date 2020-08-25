@@ -54,12 +54,27 @@ void WidgetCardSlot::layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Ve
 		dragTimer -= layout.dt * 3.0f;
 	}
 
+	if (selected) {
+		selectTime = sf::min(selectTime + layout.dt * 7.0f, 1.0f);
+	} else if (selectTime > 0.0f) {
+		selectTime = sf::max(selectTime - layout.dt * 7.0f, 0.0f);
+	}
+
 	if (dropHover) {
 		dropOutline = sf::min(dropOutline + layout.dt * 7.0f, 1.0f);
 	} else if (dropOutline > 0.0f) {
 		dropOutline = sf::max(dropOutline - layout.dt * 5.0f, 0.0f);
 	}
 	dropHover = false;
+
+	if (pressTimer > 0.0f) {
+		pressAnim = sf::min(pressAnim + layout.dt * 7.0f, 1.0f);
+		pressTimer -= layout.dt;
+	} else if (pressAnim > 0.0f) {
+		pressAnim = sf::max(pressAnim - layout.dt * 5.0f, 0.0f);
+	}
+
+	wantSelect = false;
 }
 
 void WidgetCardSlot::paint(GuiPaint &paint)
@@ -68,6 +83,13 @@ void WidgetCardSlot::paint(GuiPaint &paint)
 		float t = smoothBegin(sf::min(1.0f, startAnim));
 		paint.canvas->pushTransform(sf::mat2D::translateY(layoutSize.y*0.25f*t));
 		paint.canvas->pushTint(sf::Vec4(1.0f - t));
+	}
+
+	if (selectTime > 0.0f || pressAnim > 0.0f) {
+		float t = smoothStep(sf::min(1.0f, selectTime));
+		float u = smoothStep(sf::min(1.0f, pressAnim));
+		float offset = -0.15f * t + 0.05f * u;
+		paint.canvas->pushTransform(sf::mat2D::translateY(layoutSize.y*offset));
 	}
 
 	if (card) {
@@ -117,6 +139,10 @@ void WidgetCardSlot::paint(GuiPaint &paint)
 		paint.canvas->draw(paint.resources->cardOutline, layoutOffset, layoutSize, col);
 	}
 
+	if (selectTime > 0.0f || pressAnim > 0.0f) {
+		paint.canvas->popTransform();
+	}
+
 	if (startAnim > 0.0f) {
 		paint.canvas->popTint();
 		paint.canvas->popTransform();
@@ -139,7 +165,10 @@ bool WidgetCardSlot::onPointer(GuiPointer &pointer)
 	}
 
 	if (card) {
-		if (pointer.button == GuiPointer::MouseLeft && (pointer.action == GuiPointer::Drag || pointer.action == GuiPointer::LongPress)) {
+		if ((pointer.button == GuiPointer::MouseLeft || pointer.button == GuiPointer::Touch) && pointer.action == GuiPointer::Tap) {
+			wantSelect = true;
+			return true;
+		} else if (pointer.button == GuiPointer::MouseLeft && (pointer.action == GuiPointer::Drag || pointer.action == GuiPointer::LongPress)) {
 			pointer.trackWidget = sf::boxFromPointer(this);
 			draggedCard = card;
 			dragTimer = 1.0f;
@@ -157,6 +186,12 @@ bool WidgetCardSlot::onPointer(GuiPointer &pointer)
 			pointer.dropOffset = layoutOffset;
 			pointer.dropSize = layoutSize;
 			return true;
+		} else if ((pointer.button == GuiPointer::MouseLeft || pointer.button == GuiPointer::Touch) && (pointer.action == GuiPointer::Down || pointer.action == GuiPointer::Hold)) {
+			if (pressTimer < 0.0f) {
+				pressTimer = 0.1f;
+			} else {
+				pressTimer = sf::max(pressTimer, 0.01f);
+			}
 		}
 	}
 

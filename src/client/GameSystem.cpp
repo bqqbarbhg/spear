@@ -6,6 +6,7 @@
 #include "client/BillboardSystem.h"
 #include "client/AreaSystem.h"
 #include "client/TapAreaSystem.h"
+#include "client/EffectSystem.h"
 
 #include "game/DebugDraw.h"
 
@@ -35,6 +36,10 @@
 namespace cl {
 
 static const sf::Symbol guiCardSym { "GuiCard" };
+static const sf::Symbol symMelee { "Melee" };
+static const sf::Symbol symStagger { "Stagger" };
+static const sf::Symbol symCast { "Cast" };
+static const sf::Symbol symHit { "Hit" };
 
 static const constexpr float TapCancelDistance = 0.03f;
 static const constexpr float TapCancelDistanceSq = TapCancelDistance * TapCancelDistance;
@@ -213,6 +218,15 @@ struct GameSystemImp final : GameSystem
 		bool immediate = false;
 	};
 
+	struct Projectile
+	{
+		uint32_t entityId;
+		sf::Symbol hitEffect;
+
+		uint32_t targetSvId;
+		float flightSpeed = 1.0f;
+	};
+
 	sf::Array<Character> characters;
 	sf::Array<uint32_t> freeCharacterIds;
 
@@ -253,11 +267,19 @@ struct GameSystemImp final : GameSystem
 	EventContext queuedEventContext;
 	sf::Array<sf::Box<sv::Event>> queuedEvents;
 
+	sf::Array<Projectile> projectiles;
+
 	sv::TurnInfo turnInfo;
+
+	uint32_t selectedCardSlot = ~0u;
+	float selectedCardTime = 0.0f;
 
 	bool showDebugMenu = false;
 	bool showDebugPointers = false;
 	bool simulateTouch = false;
+
+	bool castAnimDone = false;
+	bool castDone = false;
 
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
 	{
@@ -423,6 +445,75 @@ struct GameSystemImp final : GameSystem
 			}
 		} else if (const auto *e = event.as<sv::TurnUpdateEvent>()) {
 			turnInfo = e->turnInfo;
+		} else if (const auto *e = event.as<sv::MeleeAttackEvent>()) {
+			if (Character *chr = findCharacter(e->meleeInfo.attackerId)) {
+				if (ctx.begin) {
+					systems.characterModel->addOneShotTag(systems.entities, chr->entityId, symMelee);
+				}
+
+				sf::SmallArray<sf::Symbol, 16> events;
+				systems.characterModel->queryFrameEvents(systems.entities, chr->entityId, events);
+				if (sf::find(events, symHit)) return true;
+			}
+
+			// Failsafe
+			if (ctx.timer < 2.0f) return false;
+		} else if (const auto *e = event.as<sv::DamageEvent>()) {
+			if (Character *chr = findCharacter(e->damageInfo.targetId)) {
+				if (ctx.begin) {
+					systems.characterModel->addOneShotTag(systems.entities, chr->entityId, symStagger);
+				}
+			}
+		} else if (const auto *e = event.as<sv::CastSpellEvent>()) {
+			Character *chr = findCharacter(e->spellInfo.casterId);
+			if (!chr) return true;
+
+			if (ctx.begin) {
+				castDone = false;
+				if (e->spellInfo.manualCast) {
+					systems.characterModel->addOneShotTag(systems.entities, chr->entityId, symCast);
+					castAnimDone = false;
+				} else {
+					castAnimDone = true;
+				}
+			}
+
+			if (!castAnimDone) {
+				sf::SmallArray<sf::Symbol, 16> events;
+				systems.characterModel->queryFrameEvents(systems.entities, chr->entityId, events);
+				if (sf::find(events, symCast)) castAnimDone = true;
+
+				// Failsafe
+				if (ctx.timer >= 2.0f) castAnimDone = true;
+			}
+
+			if (!castAnimDone) return false;
+
+			if (!castDone) {
+				castDone = true;
+				if (sv::Prefab *spellPrefab = systems.entities.findPrefab(e->spellInfo.spellName)) {
+					for (sv::Component *comp : spellPrefab->components) {
+
+						if (auto *c = comp->as<sv::ProjectileComponent>()) {
+							Projectile &projectile = projectiles.push();
+
+							Transform transform;
+							transform.position = sf::Vec3((float)chr->tile.x, 1.0f, (float)chr->tile.y);
+
+							projectile.entityId = systems.entities.addEntity(systems, 0, transform, c->prefabName);
+							projectile.hitEffect = c->hitEffect;
+							projectile.targetSvId = e->spellInfo.targetId;
+
+							projectile.flightSpeed = c->flightSpeed;
+						}
+					}
+				}
+			}
+
+			// Failsafe 2
+			if (ctx.timer >= 5.0f) return true;
+
+			if (projectiles.size > 0) return false;
 		}
 
 		return true;
@@ -812,6 +903,83 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
+		for (uint32_t i = 0; i < 9; i++) {
+			if (input.keyDown[SAPP_KEYCODE_1 + i] && !input.prevKeyDown[SAPP_KEYCODE_1 + i]) {
+				if (selectedCardSlot != i) {
+					selectedCardSlot = i;
+				} else {
+					selectedCardSlot = ~0u;
+				}
+			}
+		}
+
+		// Update projectiles
+		for (uint32_t i = 0; i < projectiles.size; i++) {
+			Projectile &projectile = projectiles[i];
+			Entity &entity = systems.entities.entities[projectile.entityId];
+
+			sf::Vec3 targetPos = entity.transform.position;
+
+			uint32_t targetEntityId = systems.entities.svToEntity.findOne(projectile.targetSvId, ~0u);
+			if (targetEntityId != ~0u) {
+				Entity &targetEntity = systems.entities.entities[targetEntityId];
+				targetPos = targetEntity.transform.position + sf::Vec3(0.0f, 0.5f, 0.0f);
+			}
+
+			sf::Vec3 delta = targetPos - entity.transform.position;
+			float deltaLen = sf::length(delta);
+
+			float speed = projectile.flightSpeed * frameArgs.dt;
+			if (deltaLen <= speed) {
+				if (projectile.hitEffect) {
+					systems.effect->spawnOneShotEffect(systems, projectile.hitEffect, targetPos);
+				}
+
+				entity.transform.position = targetPos;
+				systems.entities.removeEntityQueued(projectile.entityId);
+				projectiles.removeSwap(i--);
+			} else {
+				Transform transform = entity.transform;
+				transform.position += delta * (speed / deltaLen);
+				systems.entities.updateTransform(systems, projectile.entityId, transform);
+			}
+		}
+
+		// Verify selected card
+		if (selectedCardSlot != ~0u) {
+			bool valid = false;
+			if (Character *chr = findCharacter(selectedCharacterId)) {
+				if (chr->selectedCards[selectedCardSlot].currentSvId) {
+					valid = true;
+				}
+			}
+
+			if (dragPointers.size > 0) {
+				valid = false;
+			}
+
+			if (!valid) {
+				selectedCardSlot = ~0u;
+			}
+		}
+
+		if (selectedCardSlot != ~0u) {
+			selectedCardTime = sf::min(1.0f, selectedCardTime + frameArgs.dt * 4.0f);
+		} else {
+			selectedCardTime = sf::max(0.0f, selectedCardTime - frameArgs.dt * 4.0f);
+		}
+
+		if (Character *chr = findCharacter(turnInfo.characterId)) {
+			sf::Vec3 tilePos = sf::Vec3((float)chr->tile.x, 0.0f, (float)chr->tile.y);
+			sf::Vec4 color = sf::Vec4(0.8f, 0.8f, 0.8f, 1.0f) * 0.3f;
+			sf::Mat34 t;
+			t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f);
+			t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f);
+			t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
+			t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
+			systems.billboard->addBillboard(guiResources.characterActive, t, color, 1.0f);
+		}
+
 		for (Pointer &pointer : input.pointers) {
 			PointerState *pointerState = pointerStates.find(pointer.id);
 			if (!pointerState) continue;
@@ -841,16 +1009,31 @@ struct GameSystemImp final : GameSystem
 				if (Character *chr = findCharacter(pointerState->startSvId)) {
 
 					if (didClick) {
-						if (chr->svId != selectedCharacterId) {
-							selectedCharacterId = chr->svId;
-							selectedCharacterTime = 0.0f;
-							moveSelectTime = 0.0f;
+
+						if (selectedCardSlot != ~0u) {
+							if (Character *caster = findCharacter(selectedCharacterId)) {
+								auto action = sf::box<sv::UseCardAction>();
+
+								action->characterId = selectedCharacterId;
+								action->targetId = chr->svId;
+								action->cardId = caster->selectedCards[selectedCardSlot].currentSvId;
+
+								requestedActions.push(std::move(action));
+							}
+							selectedCardSlot = ~0u;
 						} else {
+							if (chr->svId != selectedCharacterId) {
+								selectedCardSlot = ~0u;
+								selectedCharacterId = chr->svId;
+								selectedCharacterTime = 0.0f;
+								moveSelectTime = 0.0f;
+							}
 						}
+
 					} else if (didHover) {
 						bool showHover = false;
 
-						if (chr->svId != selectedCharacterId) {
+						if (chr->svId != selectedCharacterId || selectedCardSlot != ~0u) {
 							showHover = true;
 						}
 
@@ -865,7 +1048,7 @@ struct GameSystemImp final : GameSystem
 							systems.billboard->addBillboard(guiResources.characterSelect, t, color, 1.0f);
 						}
 					}
-				} else if (moveSet.distanceToTile.size() > 0) {
+				} else if (moveSet.distanceToTile.size() > 0 && selectedCardSlot == ~0u) {
 
 					sf::Vec3 rayPos = intersectHorizontalPlane(0.0f, pointer.current.worldRay);
 					sf::Vec2 tileF = sf::Vec2(rayPos.x, rayPos.z);
@@ -875,7 +1058,7 @@ struct GameSystemImp final : GameSystem
 						if (didClick) {
 							auto action = sf::box<sv::MoveAction>();
 
-							action->charcterId = selectedCharacterId;
+							action->characterId = selectedCharacterId;
 							action->tile = tile;
 							action->waypoints.reserve(reach->distance);
 							action->waypoints.push(tile);
@@ -952,94 +1135,6 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
-#if 0
-		bool hasNonHover = false;
-		for (auto &pair : tapTargets) {
-			if (pair.val.action != TapTarget::Hover) {
-				hasNonHover = true;
-			}
-		}
-
-		for (auto &pair : tapTargets) {
-			TapTarget &target = pair.val;
-
-			if (hasNonHover && target.action == TapTarget::Hover) continue;
-
-			uint32_t chrId = svToCharacter.findOne(target.svId, ~0u);
-			if (chrId != ~0u) {
-				Character &chr = characters[chrId];
-				sf::Vec3 tilePos = sf::Vec3((float)chr.tile.x, 0.0f, (float)chr.tile.y);
-
-				sf::Vec4 color;
-				if (target.action == TapTarget::Hover) {
-					color = sf::Vec4(0.2f, 0.2f, 0.2f, 1.0f) * 0.5f;
-				} else {
-					color = sf::Vec4(0.5f, 0.2f, 0.2f, 1.0f) * 0.5f;
-				}
-
-				if (target.action == TapTarget::Finish) {
-					selectedCharacterId = chr.svId;
-				}
-
-				sp::SpriteRef sprite { "Assets/Billboards/Character_Select.png" };
-				sf::Mat34 t;
-				t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f);
-				t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f);
-				t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
-				t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
-				systems.billboard->addBillboard(sprite, t, color, 1.0f);
-
-			} else if (selectedCharacterId != 0 && false) {
-
-				sf::Vec2i targetTile = target.tileInt;
-				if (sv::ReachableTile *moveTile = moveSet.distanceToTile.findValue(targetTile)) {
-					moveWaypoints.clear();
-
-					do {
-						moveWaypoints.push(targetTile);
-
-						sf::Vec3 tilePos = sf::Vec3((float)targetTile.x, 0.0f, (float)targetTile.y);
-						sf::Vec3 prevPos = sf::Vec3((float)moveTile->previous.x, 0.0f, (float)moveTile->previous.y);
-
-						sp::SpriteRef sprite { "Assets/Billboards/Character_Path.png" };
-
-						Billboard bb;
-
-						sf::Vec4 color;
-						if (target.action == TapTarget::Hover) {
-							bb.color = sf::Vec4(0.2f, 0.2f, 0.2f, 1.0f) * 0.5f;
-						} else {
-							bb.color = sf::Vec4(0.5f, 0.2f, 0.2f, 1.0f) * 0.5f;
-						}
-
-						bb.sprite = sprite;
-						bb.transform.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
-						bb.transform.cols[1] = sf::normalizeOrZero(tilePos - prevPos);
-						bb.transform.cols[0] = sf::cross(bb.transform.cols[2], bb.transform.cols[1]);
-						bb.transform.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
-						bb.depth = 2.0f;
-						bb.anchor.y = 1.0f;
-
-						systems.billboard->addBillboard(bb);
-
-						targetTile = moveTile->previous;
-						moveTile = moveSet.distanceToTile.findValue(targetTile);
-					} while (moveTile);
-
-					if (target.action == TapTarget::Finish) {
-						auto action = sf::box<sv::MoveAction>();
-						action->charcterId = selectedCharacterId;
-						action->tile = target.tileInt;
-						action->waypoints = moveWaypoints;
-						requestedActions.push(action);
-					}
-
-				}
-
-			}
-		}
-#endif
-
 		if (Character *chr = findCharacter(selectedCharacterId)) {
 			sf::Vec3 tilePos = sf::Vec3((float)chr->tile.x, 0.0f, (float)chr->tile.y);
 			float t = selectedCharacterTime;
@@ -1068,8 +1163,7 @@ struct GameSystemImp final : GameSystem
 				static const sf::Vec3 col0 = sp::srgbToLinearHex(0xfaf3dd);
 				static const sf::Vec3 col1 = sp::srgbToLinearHex(0xc8d5b9);
 				static const sf::Vec3 col2 = sp::srgbToLinearHex(0xbfdcae);
-
-				sf::Vec3 colors[] = {
+				static const sf::Vec3 colors[] = {
 					sf::lerp(col0, col1, 1.0f/4.0f),
 					sf::lerp(col0, col1, 2.0f/4.0f),
 					sf::lerp(col0, col1, 3.0f/4.0f),
@@ -1079,6 +1173,8 @@ struct GameSystemImp final : GameSystem
 					sf::lerp(col1, col2, 3.0f/4.0f),
 					sf::lerp(col1, col2, 4.0f/4.0f),
 				};
+
+				sf::Vec4 inactiveColor = sf::Vec4(0.5f, 0.5f, 0.5f, 1.0f) * 0.3f;
 
 				sf::SmallArray<float, 64> wave;
 				for (uint32_t i = 0; i <= opts.maxDistance; i++) {
@@ -1097,6 +1193,8 @@ struct GameSystemImp final : GameSystem
 					float fade = gui::smoothEnd(sf::clamp(t * 8.0f, 0.0f, 1.0f));
 					sf::Vec4 color = sf::Vec4(colors[sf::min(pair.val.distance, (uint32_t)sf_arraysize(colors) - 1)], 1.0f);
 					color *= fade * (w * 0.5f + 0.5f);
+
+					color = sf::lerp(color, inactiveColor, gui::smoothStep(selectedCardTime));
 
 					float scale = 1.0f - (1.0f - fade) * 0.25f;
 
@@ -1134,20 +1232,45 @@ struct GameSystemImp final : GameSystem
 			sv::CharacterComponent *chrComp = chr ? chr->svPrefab->findComponent<sv::CharacterComponent>() : NULL;
 			if (chr && chrComp) {
 
+				if (turnInfo.characterId == selectedCharacterId) {
+					auto bt = b.push<gui::WidgetButton>();
+					if (bt->created) {
+						bt->text = sf::Symbol("End Turn");
+						bt->font = guiResources.buttonFont;
+						bt->sprite = guiResources.buttonSprite;
+						bt->fontHeight = 40.0f;
+					}
+					bt->boxOffset = sf::Vec2(10.0f, 10.0f);
+					bt->boxExtent = sf::Vec2(140.0f, 60.0f);
+
+					if (bt->pressed) {
+						auto action = sf::box<sv::EndTurnAction>();
+						action->characterId = chr->svId;
+						requestedActions.push(std::move(action));
+					}
+
+					b.pop();
+				}
+
 				{
 					float hotbarCardHeight = 140.0f;
 
+					auto blk = b.push<gui::WidgetBlockPointer>(chr->svId);
 					auto ll = b.push<gui::WidgetLinearLayout>(chr->svId);
-					ll->direction = gui::DirX;
+
 					ll->boxExtent = sf::Vec2(gui::Inf, hotbarCardHeight);
-					ll->boxOffset.x = 20.0f;
-					ll->boxOffset.y = frameArgs.guiResolution.y - ll->boxExtent.y - 20.0f;
+					ll->direction = gui::DirX;
 					ll->padding = 10.0f;
+
+					blk->boxOffset.x = 20.0f;
+					blk->boxOffset.y = frameArgs.guiResolution.y - ll->boxExtent.y - 20.0f;
 
 					uint32_t lastMeleeSlot = 1;
 					uint32_t lastSkillSlot = lastMeleeSlot + chrComp->skillSlots;
 					uint32_t lastSpellSlot = lastSkillSlot + chrComp->spellSlots;
 					uint32_t lastItemSlot = lastSpellSlot + chrComp->itemSlots;
+
+					sf::SmallArray<gui::WidgetCardSlot*, 16> slots;
 
 					for (uint32_t slot = 0; slot < sv::NumSelectedCards; slot++) {
 						GuiCardSlot guiSlot = GuiCardSlot::Count;
@@ -1161,14 +1284,25 @@ struct GameSystemImp final : GameSystem
 							guiSlot = GuiCardSlot::Item;
 						}
 
+
 						if (guiSlot != GuiCardSlot::Count) {
 							auto sl = b.push<gui::WidgetCardSlot>(slot);
+							slots.push(sl);
+
 							if (sl->created) {
 								sl->startAnim = 1.0f + (float)slot * 0.2f;
 							}
 
 							sl->slot = guiSlot;
 							sl->slotIndex = slot;
+
+							if (sl->wantSelect) {
+								if (selectedCardSlot != slot) {
+									selectedCardSlot = slot;
+								} else {
+									selectedCardSlot = ~0u;
+								}
+							}
 
 							uint32_t cardId = chr->selectedCards[slot].currentSvId;
 							if (Card *card = findCard(cardId)) {
@@ -1190,7 +1324,12 @@ struct GameSystemImp final : GameSystem
 						}
 					}
 
+					for (uint32_t i = 0; i < slots.size; i++) {
+						slots[i]->selected = i == selectedCardSlot;
+					}
+
 					b.pop(); // LinearLayout
+					b.pop(); // BlockPointer
 				}
 
 				auto inventoryButton = b.push<gui::WidgetToggleButton>(chr->svId);
@@ -1393,60 +1532,6 @@ struct GameSystemImp final : GameSystem
 				canvas.popTransform();
 			}
 		}
-
-#if 0
-
-		canvas.pushCrop(sf::Vec2(0.0f, guiArgs.resolution.y - 60.0f), sf::Vec2(1000.0f, guiArgs.resolution.y));
-		canvas.pushCrop(sf::Vec2(150.0f, 0.0f), sf::Vec2(300.0f, 10000.0f));
-
-		if (Character *chr = findCharacter(selectedCharacterId)) {
-			sv::CharacterComponent *chrComp = chr->svPrefab->findComponent<sv::CharacterComponent>();
-			if (chrComp) {
-				float cardHeight = 100.0f;
-				float cardWidth = cardHeight * GuiCard::canvasXByY;
-				float cardPad = 10.0f;
-				float cardMargin = 20.0f;
-
-				float x = cardMargin;
-				float y = guiArgs.resolution.y - cardMargin - cardHeight;
-
-				canvas.draw(guiCardRes.inventory, sf::Vec2(guiArgs.resolution.x - cardMargin - cardWidth, y), sf::Vec2(cardWidth, cardHeight));
-
-				uint32_t lastMeleeSlot = 1;
-				uint32_t lastSkillSlot = lastMeleeSlot + chrComp->skillSlots;
-				uint32_t lastSpellSlot = lastSkillSlot + chrComp->spellSlots;
-				uint32_t lastItemSlot = lastSpellSlot + chrComp->itemSlots;
-
-				for (uint32_t slot = 0; slot < sv::NumSelectedCards; slot++) {
-					GuiCardSlot guiSlot = GuiCardSlot::Count;
-					if (slot < lastMeleeSlot) {
-						guiSlot = GuiCardSlot::Melee;
-					} else if (slot < lastSkillSlot) {
-						guiSlot = GuiCardSlot::Skill;
-					} else if (slot < lastSpellSlot) {
-						guiSlot = GuiCardSlot::Spell;
-					} else if (slot < lastItemSlot) {
-						guiSlot = GuiCardSlot::Item;
-					}
-
-					SelectedCard &selected = chr->selectedCards[slot];
-					if (Card *card = findCard(selected.currentSvId)) {
-						canvas.pushTransform(sf::mat2D::translate(x, y) * sf::mat2D::scale(cardHeight / GuiCard::canvasHeight));
-						cl::renderCard(canvas, card->gui);
-						canvas.popTransform();
-					} else if (guiSlot != GuiCardSlot::Count) {
-						canvas.draw(guiCardRes.slotPlaceholders[(uint32_t)guiSlot], sf::Vec2(x, y), sf::Vec2(cardWidth, cardHeight));
-					}
-
-					x += cardWidth + cardPad;
-				}
-			}
-		}
-
-		canvas.popCrop();
-		canvas.popCrop();
-
-#endif
 	}
 
 };
