@@ -17,10 +17,10 @@ namespace sv {
 
 struct DiceRoll sv_reflect()
 {
-	uint32_t num;
-	uint32_t die;
-	uint32_t bias;
-	uint32_t check;
+	uint32_t num = 0;
+	uint32_t die = 0;
+	uint32_t bias = 0;
+	uint32_t check = 0;
 };
 
 struct Component
@@ -44,6 +44,7 @@ struct Component
 		CardAttach,
 		CardStatus,
 		CardMelee,
+		DamageOnTurnStart,
 		CastOnTurnStart,
 		CastOnReceiveDamage,
 		CastOnDealDamage,
@@ -151,6 +152,13 @@ struct RandomVec3 sv_reflect()
 	sf::Vec3 rotation; //! Rotation (X/Y/Z degrees) applied to the final values
 };
 
+struct GravityPoint sv_reflect()
+{
+	sf::Vec3 position; //! Position of the gravity in the local space
+	float radius = 0.5f; //! Distance where the force is at maximum
+	float strength = 1.0f; //! Strength of the gravitational pull (negative to push away)
+};
+
 struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 {
 	sf::Symbol texture sv_reflect(asset); //! Texture used for the effect
@@ -177,6 +185,8 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 
 	sf::Vec3 emitVelocityAttractorOffset; //! Position to apply extra velocity towards/away from
 	float emitVelocityAttractorStrength; //! Extra velocity towards (< 0) or away (> 1) from attractor offset
+
+	sf::Array<GravityPoint> gravityPoints; //! Gravity points to attract/repel particles
 
 	float drag = 0.0f; //! Air resistance slowing particles from moving
 	sf::Vec3 gravity; //! Linear force applied to all particles
@@ -216,6 +226,7 @@ struct CharacterComponent : ComponentBase<Component::Character>
 	uint32_t spellSlots = 0;
 	uint32_t itemSlots = 0;
 	uint32_t baseSpeed = 5;
+	sf::Vec3 centerOffset = sf::Vec3(0.0f, 0.5f, 0.0f);
 };
 
 struct AnimationEvent sv_reflect()
@@ -319,6 +330,11 @@ struct ProjectileComponent : ComponentBase<Component::Projectile>
 	float flightSpeed = 1.0f;
 };
 
+struct DamageOnTurnStartComponent : ComponentBase<Component::DamageOnTurnStart>
+{
+	DiceRoll damageRoll;
+};
+
 struct CastOnTurnStartComponent : ComponentBase<Component::CastOnTurnStart>
 {
 	sf::Symbol spellName sv_reflect(prefab);
@@ -373,7 +389,9 @@ struct StatusComponent : ComponentBase<Component::Status>
 	DiceRoll turnsRoll;
 	sf::Symbol startEffect sv_reflect(prefab);
 	sf::Symbol activeEffect sv_reflect(prefab);
+	sf::Symbol tickEffect sv_reflect(prefab);
 	sf::Symbol endEffect sv_reflect(prefab);
+	bool stacks = false;
 };
 
 struct StarterCard sv_reflect()
@@ -487,7 +505,8 @@ struct DamageInfo sv_reflect()
 	bool melee = false;
 	bool physical = false;
 	bool magic = false;
-	sf::Symbol spellName sv_reflect(prefab);
+	bool passive = false;
+	sf::Symbol cardName sv_reflect(prefab);
 	uint32_t originalCasterId;
 	uint32_t causeId;
 	uint32_t targetId;
@@ -521,6 +540,7 @@ struct Event
 		AllocateId,
 		CardCooldownTick,
 		StatusAdd,
+		StatusExtend,
 		StatusTick,
 		StatusRemove,
 		ResistDamage,
@@ -580,6 +600,12 @@ struct StatusAddEvent : EventBase<Event::StatusAdd>
 {
 	RollInfo turnsRoll;
 	Status status;
+};
+
+struct StatusExtendEvent : EventBase<Event::StatusExtend>
+{
+	uint32_t statusId;
+	RollInfo turnsRoll;
 };
 
 struct StatusTickEvent : EventBase<Event::StatusTick>

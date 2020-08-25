@@ -24,6 +24,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, CardStatus, CardStatusComponent),
 		sf_poly(Component, CardMelee, CardMeleeComponent),
 		sf_poly(Component, Projectile, ProjectileComponent),
+		sf_poly(Component, DamageOnTurnStart, DamageOnTurnStartComponent),
 		sf_poly(Component, CastOnTurnStart, CastOnTurnStartComponent),
 		sf_poly(Component, CastOnReceiveDamage, CastOnReceiveDamageComponent),
 		sf_poly(Component, CastOnDealDamage, CastOnDealDamageComponent),
@@ -45,6 +46,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, AllocateId, AllocateIdEvent),
 		sf_poly(Event, CardCooldownTick, CardCooldownTickEvent),
 		sf_poly(Event, StatusAdd, StatusAddEvent),
+		sf_poly(Event, StatusExtend, StatusExtendEvent),
 		sf_poly(Event, StatusTick, StatusTickEvent),
 		sf_poly(Event, StatusRemove, StatusRemoveEvent),
 		sf_poly(Event, ResistDamage, ResistDamageEvent),
@@ -285,6 +287,7 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		sf_field(ParticleSystemComponent, emitVelocity),
 		sf_field(ParticleSystemComponent, emitVelocityAttractorOffset),
 		sf_field(ParticleSystemComponent, emitVelocityAttractorStrength),
+		sf_field(ParticleSystemComponent, gravityPoints),
 		sf_field(ParticleSystemComponent, drag),
 		sf_field(ParticleSystemComponent, gravity),
 		sf_field(ParticleSystemComponent, size),
@@ -384,6 +387,10 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		info.description = "Extra velocity towards (< 0) or away (> 1) from attractor offset";
 	}
 	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "gravityPoints");
+		info.description = "Gravity points to attract/repel particles";
+	}
+	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "drag");
 		info.description = "Air resistance slowing particles from moving";
 	}
@@ -471,6 +478,7 @@ template<> void initType<CharacterComponent>(Type *t)
 		sf_field(CharacterComponent, spellSlots),
 		sf_field(CharacterComponent, itemSlots),
 		sf_field(CharacterComponent, baseSpeed),
+		sf_field(CharacterComponent, centerOffset),
 	};
 	sf_struct_base(t, CharacterComponent, Component, fields);
 
@@ -621,6 +629,14 @@ template<> void initType<ProjectileComponent>(Type *t)
 	}
 }
 
+template<> void initType<DamageOnTurnStartComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(DamageOnTurnStartComponent, damageRoll),
+	};
+	sf_struct_base(t, DamageOnTurnStartComponent, Component, fields);
+}
+
 template<> void initType<CastOnTurnStartComponent>(Type *t)
 {
 	static Field fields[] = {
@@ -729,7 +745,9 @@ template<> void initType<StatusComponent>(Type *t)
 		sf_field(StatusComponent, turnsRoll),
 		sf_field(StatusComponent, startEffect),
 		sf_field(StatusComponent, activeEffect),
+		sf_field(StatusComponent, tickEffect),
 		sf_field(StatusComponent, endEffect),
+		sf_field(StatusComponent, stacks),
 	};
 	sf_struct_base(t, StatusComponent, Component, fields);
 
@@ -739,6 +757,10 @@ template<> void initType<StatusComponent>(Type *t)
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "activeEffect");
+		info.prefab = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "tickEffect");
 		info.prefab = true;
 	}
 	{
@@ -810,6 +832,15 @@ template<> void initType<StatusAddEvent>(Type *t)
 		sf_field(StatusAddEvent, status),
 	};
 	sf_struct_base(t, StatusAddEvent, Event, fields);
+}
+
+template<> void initType<StatusExtendEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(StatusExtendEvent, statusId),
+		sf_field(StatusExtendEvent, turnsRoll),
+	};
+	sf_struct_base(t, StatusExtendEvent, Event, fields);
 }
 
 template<> void initType<StatusTickEvent>(Type *t)
@@ -1254,6 +1285,29 @@ template<> void initType<RandomVec3>(Type *t)
 	}
 }
 
+template<> void initType<GravityPoint>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(GravityPoint, position),
+		sf_field(GravityPoint, radius),
+		sf_field(GravityPoint, strength),
+	};
+	sf_struct(t, GravityPoint, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "position");
+		info.description = "Position of the gravity in the local space";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "radius");
+		info.description = "Distance where the force is at maximum";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "strength");
+		info.description = "Strength of the gravitational pull (negative to push away)";
+	}
+}
+
 template<> void initType<AnimationEvent>(Type *t)
 {
 	static Field fields[] = {
@@ -1575,7 +1629,8 @@ template<> void initType<DamageInfo>(Type *t)
 		sf_field(DamageInfo, melee),
 		sf_field(DamageInfo, physical),
 		sf_field(DamageInfo, magic),
-		sf_field(DamageInfo, spellName),
+		sf_field(DamageInfo, passive),
+		sf_field(DamageInfo, cardName),
 		sf_field(DamageInfo, originalCasterId),
 		sf_field(DamageInfo, causeId),
 		sf_field(DamageInfo, targetId),
@@ -1584,7 +1639,7 @@ template<> void initType<DamageInfo>(Type *t)
 	sf_struct(t, DamageInfo, fields);
 
 	{
-		ReflectionInfo &info = addTypeReflectionInfo(t, "spellName");
+		ReflectionInfo &info = addTypeReflectionInfo(t, "cardName");
 		info.prefab = true;
 	}
 }

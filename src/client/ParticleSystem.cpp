@@ -121,7 +121,6 @@ struct RandomVec3Imp
 		if (flags & Box) {
 			p += (rng.nextVec3() - sf::Vec3(0.5f)) * boxExtent;
 		}
-
 		if (flags & Sphere) {
 			float u = rng.nextFloat();
 			float v = rng.nextFloat();
@@ -534,6 +533,19 @@ struct ParticleSystemImp final : ParticleSystem
 
 		sf::Float4 rcpDt4 = 1.0f / dt;
 
+		sf::SmallArray<sv::GravityPoint, 16> localGravityPoints;
+		for (const sv::GravityPoint &p : comp.gravityPoints) {
+			sv::GravityPoint &lp = localGravityPoints.push();
+
+			sf::Float4 simdPos = effect.emitterToWorld[3] + (effect.prevEmitterToWorld[3] - effect.emitterToWorld[3]);
+			simdPos += effect.emitterToWorld[0] * p.position.x;
+			simdPos += effect.emitterToWorld[1] * p.position.y;
+			simdPos += effect.emitterToWorld[2] * p.position.z;
+			lp.position = simdPos.asVec3();
+			lp.radius = sf::max(p.radius, 0.05f);
+			lp.strength = -p.strength;
+		}
+
 		for (Particle4 &p : effect.particles) {
 
 			sf::Float4 life = p.life;
@@ -562,6 +574,17 @@ struct ParticleSystemImp final : ParticleSystem
 			ax -= vx * drag4;
 			ay -= vy * drag4;
 			az -= vz * drag4;
+
+			for (const sv::GravityPoint &p : localGravityPoints) {
+				sf::Float4 dx = px - p.position.x;
+				sf::Float4 dy = py - p.position.y;
+				sf::Float4 dz = pz - p.position.z;
+				sf::Float4 lenSq = (dx*dx + dy*dy + dz*dz) + p.radius;
+				sf::Float4 weight = lenSq.rsqrt() / lenSq * p.strength;
+				ax += dx * weight;
+				ay += dy * weight;
+				az += dz * weight;
+			}
 
 			vx += ax * dt4;
 			vy += ay * dt4;

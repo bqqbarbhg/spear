@@ -158,6 +158,8 @@ struct GameSystemImp final : GameSystem
 		uint32_t svId;
 		uint32_t entityId;
 
+		sf::Vec3 centerOffset;
+
 		sf::Array<uint32_t> cardIds;
 		SelectedCard selectedCards[sv::NumSelectedCards];
 	};
@@ -171,6 +173,18 @@ struct GameSystemImp final : GameSystem
 		sf::Box<GuiCard> gui;
 
 		sf::Array<uint32_t> entityIds;
+	};
+
+	struct Status
+	{
+		sf::Box<sv::Prefab> svPrefab;
+		uint32_t svId;
+
+		sf::Symbol tickEffect;
+		sf::Symbol endEffect;
+
+		uint32_t characterSvId = 0;
+		uint32_t effectId = ~0u;
 	};
 
 	struct PointerState
@@ -233,10 +247,15 @@ struct GameSystemImp final : GameSystem
 	sf::Array<Card> cards;
 	sf::Array<uint32_t> freeCardIds;
 
+	sf::Array<Status> statuses;
+	sf::Array<uint32_t> freeStatusIds;
+
 	sf::UintMap svToCharacter;
 	sf::UintMap entityToCharacter;
 
 	sf::UintMap svToCard;
+
+	sf::UintMap svToStatus;
 
 	InputState input;
 
@@ -335,6 +354,14 @@ struct GameSystemImp final : GameSystem
 		return &cards[id];
 	}
 
+	Status *findStatus(uint32_t svId)
+	{
+		if (!svId) return nullptr;
+		uint32_t id = svToStatus.findOne(svId, ~0u);
+		if (id == ~0u) return nullptr;
+		return &statuses[id];
+	}
+
 	bool applyEventImp(Systems &systems, const sv::Event &event, EventContext &ctx)
 	{
 		if (const auto *e = event.as<sv::AddCharacterEvent>()) {
@@ -355,6 +382,12 @@ struct GameSystemImp final : GameSystem
 			character.entityId = entityId;
 			character.svId = svId;
 			character.tile = e->character.tile;
+
+			if (character.svPrefab) {
+				if (auto *c = character.svPrefab->findComponent<sv::CharacterComponent>()) {
+					character.centerOffset = c->centerOffset;
+				}
+			}
 
 			entityToCharacter.insertDuplicate(entityId, characterId);
 			svToCharacter.insertDuplicate(svId, characterId);
@@ -378,6 +411,74 @@ struct GameSystemImp final : GameSystem
 
 			svToCard.insertDuplicate(svId, cardId);
 
+		} else if (const auto *e = event.as<sv::StatusAddEvent>()) {
+
+			uint32_t svId = e->status.id;
+
+			uint32_t statusId = statuses.size;
+			if (freeStatusIds.size > 0) {
+				statusId = freeStatusIds.popValue();
+			} else {
+				statuses.push();
+			}
+
+			Status &status = statuses[statusId];
+			status.svId = svId;
+			status.svPrefab = systems.entities.findPrefab(e->status.prefabName);
+			status.characterSvId = e->status.characterId;
+
+			svToStatus.insertDuplicate(svId, statusId);
+
+			if (!ctx.immediate && status.svPrefab) {
+				if (Character *chr = findCharacter(e->status.characterId)) {
+					Entity &entity = systems.entities.entities[chr->entityId];
+					if (auto c = status.svPrefab->findComponent<sv::StatusComponent>()) {
+						sf::Vec3 pos = entity.transform.transformPoint(chr->centerOffset);
+						systems.effect->spawnOneShotEffect(systems, c->startEffect, pos);
+
+						status.tickEffect = c->tickEffect;
+						status.endEffect = c->endEffect;
+
+						if (c->activeEffect) {
+							status.effectId = systems.effect->spawnAttachedEffect(systems, c->activeEffect, chr->entityId, chr->centerOffset);
+						}
+					}
+				}
+			}
+
+		} else if (const auto *e = event.as<sv::StatusRemoveEvent>()) {
+
+			if (Status *status = findStatus(e->statusId)) {
+				if (status->effectId != ~0u) {
+					systems.effect->removeAttachedEffect(status->effectId);
+				}
+
+				if (status->endEffect) {
+					if (Character *chr = findCharacter(status->characterSvId)) {
+						Entity &entity = systems.entities.entities[chr->entityId];
+						sf::Vec3 pos = entity.transform.transformPoint(chr->centerOffset);
+						systems.effect->spawnOneShotEffect(systems, status->endEffect, pos);
+					}
+				}
+
+				freeStatusIds.push((uint32_t)(status - statuses.data));
+				sf::reset(*status);
+			}
+
+			svToStatus.removeOne(e->statusId, ~0u);
+
+		} else if (const auto *e = event.as<sv::StatusTickEvent>()) {
+			if (Status *status = findStatus(e->statusId)) {
+
+				if (status->tickEffect) {
+					if (Character *chr = findCharacter(status->characterSvId)) {
+						Entity &entity = systems.entities.entities[chr->entityId];
+						sf::Vec3 pos = entity.transform.transformPoint(chr->centerOffset);
+						systems.effect->spawnOneShotEffect(systems, status->tickEffect, pos);
+					}
+				}
+
+			}
 		} else if (const auto *e = event.as<sv::MoveEvent>()) {
 
 			uint32_t chrId = svToCharacter.findOne(e->characterId, ~0u);
@@ -408,7 +509,7 @@ struct GameSystemImp final : GameSystem
 
 		} else if (const auto *e = event.as<sv::GiveCardEvent>()) {
 
-			if (e->previousOwnerId != e->ownerId && e->previousOwnerId && e->ownerId) {
+			if (e->previousOwnerId != e->ownerId && e->previousOwnerId && e->ownerId && !ctx.immediate) {
 				CardTrade &trade = cardTrades.push();
 				trade.srcSvId = e->previousOwnerId;
 				trade.dstSvId = e->ownerId;
@@ -444,8 +545,15 @@ struct GameSystemImp final : GameSystem
 				}
 			}
 		} else if (const auto *e = event.as<sv::TurnUpdateEvent>()) {
+
+			if (e->turnInfo.startTurn && !ctx.immediate) {
+				if (ctx.timer < 0.5f) return false;
+			}
+
 			turnInfo = e->turnInfo;
 		} else if (const auto *e = event.as<sv::MeleeAttackEvent>()) {
+			if (ctx.immediate) return true;
+
 			if (Character *chr = findCharacter(e->meleeInfo.attackerId)) {
 				if (ctx.begin) {
 					systems.characterModel->addOneShotTag(systems.entities, chr->entityId, symMelee);
@@ -459,14 +567,21 @@ struct GameSystemImp final : GameSystem
 			// Failsafe
 			if (ctx.timer < 2.0f) return false;
 		} else if (const auto *e = event.as<sv::DamageEvent>()) {
+			if (ctx.immediate) return true;
+
 			if (Character *chr = findCharacter(e->damageInfo.targetId)) {
 				if (ctx.begin) {
 					systems.characterModel->addOneShotTag(systems.entities, chr->entityId, symStagger);
 				}
 			}
+
+			if (ctx.timer < 0.5f) return false;
 		} else if (const auto *e = event.as<sv::CastSpellEvent>()) {
+			if (ctx.immediate) return true;
+
 			Character *chr = findCharacter(e->spellInfo.casterId);
 			if (!chr) return true;
+			Entity &casterEntity = systems.entities.entities[chr->entityId];
 
 			if (ctx.begin) {
 				castDone = false;
@@ -498,7 +613,7 @@ struct GameSystemImp final : GameSystem
 							Projectile &projectile = projectiles.push();
 
 							Transform transform;
-							transform.position = sf::Vec3((float)chr->tile.x, 1.0f, (float)chr->tile.y);
+							transform.position = casterEntity.transform.transformPoint(chr->centerOffset);
 
 							projectile.entityId = systems.entities.addEntity(systems, 0, transform, c->prefabName);
 							projectile.hitEffect = c->hitEffect;
@@ -920,10 +1035,15 @@ struct GameSystemImp final : GameSystem
 
 			sf::Vec3 targetPos = entity.transform.position;
 
-			uint32_t targetEntityId = systems.entities.svToEntity.findOne(projectile.targetSvId, ~0u);
-			if (targetEntityId != ~0u) {
-				Entity &targetEntity = systems.entities.entities[targetEntityId];
-				targetPos = targetEntity.transform.position + sf::Vec3(0.0f, 0.5f, 0.0f);
+			if (Character *targetChr = findCharacter(projectile.targetSvId)) {
+				Entity &targetEntity = systems.entities.entities[targetChr->entityId];
+				targetPos = targetEntity.transform.transformPoint(targetChr->centerOffset);
+			} else {
+				uint32_t targetEntityId = systems.entities.svToEntity.findOne(projectile.targetSvId, ~0u);
+				if (targetEntityId != ~0u) {
+					Entity &targetEntity = systems.entities.entities[targetEntityId];
+					targetPos = targetEntity.transform.position;
+				}
 			}
 
 			sf::Vec3 delta = targetPos - entity.transform.position;
@@ -1427,7 +1547,8 @@ struct GameSystemImp final : GameSystem
 	{
 		EventContext ctx;
 		ctx.immediate = ctx.begin = true;
-		applyEventImp(systems, event, ctx);
+		bool finished = applyEventImp(systems, event, ctx);
+		sf_assert(finished);
 	}
     
 	void applyEventQueued(Systems &systems, const sf::Box<sv::Event> &event) override

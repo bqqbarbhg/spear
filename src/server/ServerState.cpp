@@ -119,6 +119,7 @@ sf_inline void pushEvent(ServerState &state, sf::Array<sf::Box<Event>> &events, 
 static uint32_t rollDie(uint32_t max)
 {
 	// TODO: Proper random
+	if (max == 0) return 0;
 	return rand() % (max - 1) + 1;
 }
 
@@ -313,6 +314,12 @@ void ServerState::applyEvent(const Event &event)
 		sv_check(*this, res.inserted);
 		if (Character *chr = findCharacter(*this, e->status.characterId)) {
 			chr->statuses.push(e->status.id);
+		}
+	} else if (auto *e = event.as<StatusExtendEvent>()) {
+		if (Status *status = findStatus(*this, e->statusId)) {
+			if (e->turnsRoll.total > status->turnsLeft) {
+				status->turnsLeft = e->turnsRoll.total;
+			}
 		}
 	} else if (auto *e = event.as<StatusTickEvent>()) {
 		if (Status *status = findStatus(*this, e->statusId)) {
@@ -524,7 +531,6 @@ void ServerState::getAsEvents(EventCallbackFn *callback, void *user) const
 
 	for (const Status &status : statuses) {
 		StatusAddEvent e = { };
-		sf::memZero(e.turnsRoll);
 		e.status = status;
 		callback(user, e);
 	}
@@ -610,6 +616,7 @@ static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, s
 		} else if (auto *c = component->as<StatusComponent>()) {
 			walkPrefabs(state, events, marks, c->startEffect);
 			walkPrefabs(state, events, marks, c->activeEffect);
+			walkPrefabs(state, events, marks, c->tickEffect);
 			walkPrefabs(state, events, marks, c->endEffect);
 		} else if (auto *c = component->as<CharacterTemplateComponent>()) {
 			walkPrefabs(state, events, marks, c->characterPrefab);
@@ -639,11 +646,33 @@ void ServerState::putStatus(sf::Array<sf::Box<Event>> &events, const StatusInfo 
 	StatusComponent *statusComp = findComponent<StatusComponent>(*this, *statusPrefab);
 	if (!statusComp) return;
 
+	Character *chr = findCharacter(*this, statusInfo.targetId);
+	if (!chr) return;
+
+	RollInfo turnsRoll = rollDice(statusComp->turnsRoll, "turns");
+
+	if (statusComp->stacks) {
+		for (uint32_t statusId : chr->statuses) {
+			Status *other = findStatus(*this, statusId);
+			if (!other) continue;
+			if (other->prefabName != statusInfo.statusName) continue;
+
+			{
+				auto e = sf::box<StatusExtendEvent>();
+				e->statusId = statusId;
+				e->turnsRoll = turnsRoll;
+				pushEvent(*this, events, e);
+			}
+
+			return;
+		}
+	}
+
 	uint32_t id = allocateId(events, IdType::Status, false);
 
 	{
 		auto e = sf::box<StatusAddEvent>();
-		e->turnsRoll = rollDice(statusComp->turnsRoll, "turns");
+		e->turnsRoll = turnsRoll;
 		e->status.id = id;
 		e->status.prefabName = statusInfo.statusName;
 		e->status.cardName = statusInfo.cardName;
@@ -793,7 +822,7 @@ void ServerState::castSpell(sf::Array<sf::Box<Event>> &events, const SpellInfo &
 			RollInfo damageRoll = rollDice(c->damageRoll, "damage");
 			DamageInfo damage = { };
 			damage.magic = true;
-			damage.spellName = spellInfo.spellName;
+			damage.cardName = spellInfo.cardName;
 			damage.originalCasterId = spellInfo.originalCasterId;
 			damage.causeId = spellInfo.casterId;
 			damage.targetId = spellInfo.targetId;
@@ -836,6 +865,7 @@ void ServerState::meleeAttack(sf::Array<sf::Box<Event>> &events, const MeleeInfo
 	DamageInfo damage = { };
 	damage.melee = true;
 	damage.physical = true;
+	damage.cardName = card->prefabName;
 	damage.originalCasterId = meleeInfo.attackerId;
 	damage.causeId = meleeInfo.attackerId;
 	damage.targetId = meleeInfo.targetId;
@@ -879,6 +909,12 @@ void ServerState::startCharacterTurn(sf::Array<sf::Box<Event>> &events, uint32_t
 		Status *status = statuses.find(id);
 		if (!status) continue;
 
+		if (status->turnsLeft > 0) {
+			auto e = sf::box<StatusTickEvent>();
+			e->statusId = status->id;
+			pushEvent(*this, events, std::move(e));
+		}
+
 		if (Prefab *statusPrefab = loadPrefab(*this, events, status->prefabName)) {
 			for (Component *component : statusPrefab->components) {
 				if (auto *c = component->as<CastOnTurnStartComponent>()) {
@@ -889,15 +925,20 @@ void ServerState::startCharacterTurn(sf::Array<sf::Box<Event>> &events, uint32_t
 					spell.cardName = status->cardName;
 					spell.spellName = c->spellName;
 					castSpell(events, spell);
+				} else if (auto *c = component->as<DamageOnTurnStartComponent>()) {
+					DamageInfo damage = { };
+					damage.magic = true;
+					damage.cardName = status->cardName;
+					damage.originalCasterId = status->originalCasterId;
+					damage.causeId = status->casterId;
+					damage.targetId = characterId;
+					damage.damageRoll = c->damageRoll;
+					doDamage(events, damage);
 				}
 			}
 		}
 
-		if (status->turnsLeft > 0) {
-			auto e = sf::box<StatusTickEvent>();
-			e->statusId = status->id;
-			pushEvent(*this, events, std::move(e));
-		} else {
+		if (status->turnsLeft == 0) {
 			auto e = sf::box<StatusRemoveEvent>();
 			e->statusId = status->id;
 			pushEvent(*this, events, std::move(e));
@@ -1494,6 +1535,7 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 		{
 			auto e = sf::box<TurnUpdateEvent>();
 			e->turnInfo = turnInfo;
+			e->turnInfo.startTurn = false;
 			e->turnInfo.movementLeft -= ac->waypoints.size;
 			pushEvent(*this, events, e);
 		}

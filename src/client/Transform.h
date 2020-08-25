@@ -15,6 +15,8 @@ struct Transform
 	sf::Mat34 asMatrix() const {
 		return sf::mat::world(position, rotation, scale);
 	}
+
+	sf::Vec3 transformPoint(const sf::Vec3 &point) const;
 };
 
 }
