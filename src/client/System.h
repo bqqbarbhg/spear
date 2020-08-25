@@ -73,10 +73,17 @@ struct EntityComponent
 	uint8_t componentIndex;
 };
 
+struct ComponentData
+{
+	const sv::Component *component;
+	sf::Box<void> data;
+};
+
 struct Prefab
 {
 	sf::Box<sv::Prefab> svPrefab;
 	sf::Array<uint32_t> entityIds;
+	sf::Array<ComponentData> componentData;
 };
 
 struct Entity

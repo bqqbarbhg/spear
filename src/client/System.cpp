@@ -78,6 +78,10 @@ void Entities::addPrefabComponents(Systems &systems, uint32_t prefabId)
 	for (const sf::Box<sv::Component> &comp : prefab.svPrefab->components) {
 		if (const auto *c = comp->as<sv::ParticleSystemComponent>()) {
 			systems.particle->reserveEffectType(systems, comp.cast<sv::ParticleSystemComponent>());
+		} else if (const auto *c = comp->as<sv::DynamicModelComponent>()) {
+			ComponentData &data = prefab.componentData.push();
+			data.component = c;
+			data.data = systems.model->preloadModel(*c);
 		}
 	}
 }

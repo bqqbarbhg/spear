@@ -41,6 +41,13 @@ struct ModelSystemImp final : ModelSystem
 		Count,
 	};
 
+	struct ModelData
+	{
+		sp::ModelRef model;
+		sp::ModelRef shadowModel;
+		MeshMaterialRef material;
+	};
+
 	struct Model
 	{
 		uint32_t areaId = ~0u;
@@ -183,6 +190,15 @@ struct ModelSystemImp final : ModelSystem
 			d.layout.attrs[2].format = SG_VERTEXFORMAT_SHORT4N;
 			d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2;
 		}
+	}
+
+	sf::Box<void> preloadModel(const sv::DynamicModelComponent &c) override
+	{
+		auto data = sf::box<ModelData>();
+		data->model.load(c.model);
+		if (c.shadowModel) data->shadowModel.load(c.shadowModel);
+		if (c.material) data->material.load(c.material);
+		return data;
 	}
 
 	void addModel(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::DynamicModelComponent &c, const Transform &transform) override

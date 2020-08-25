@@ -12,6 +12,8 @@ struct ModelSystem : EntitySystem
 {
 	static sf::Box<ModelSystem> create();
 
+	virtual sf::Box<void> preloadModel(const sv::DynamicModelComponent &c) = 0;
+
 	virtual void addModel(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::DynamicModelComponent &c, const Transform &transform) = 0;
 	virtual void updateLoadQueue(AreaSystem *areaSystem) = 0;
 
