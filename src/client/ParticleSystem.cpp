@@ -206,6 +206,7 @@ struct ParticleSystemImp final : ParticleSystem
 
 		bool stopEmit = false;
 		bool firstEmit = true;
+		bool instantDelete = false;
 		float spawnTimer = 0.0f;
 		float emitOnTimer = -1.0f;
 
@@ -722,6 +723,8 @@ struct ParticleSystemImp final : ParticleSystem
 
 		effect.emitOnTimer = c->emitterOnTime;
 
+		effect.instantDelete = c->instantDelete;
+
 		sf::Mat34 entityToWorld = transform.asMatrix();
 		if (type.svComponent->localSpace) {
 			sf::Mat34().writeColMajor44((float*)effect.emitterToWorld);
@@ -761,7 +764,7 @@ struct ParticleSystemImp final : ParticleSystem
 
 		effect.stopEmit = true;
 
-		return effect.gpuParticles.size == 0 || frameArgs.gameTime - effect.lastUpdateTime > 2.0;
+		return effect.gpuParticles.size == 0 || frameArgs.gameTime - effect.lastUpdateTime > 2.0 || effect.instantDelete;
 	}
 
 	void remove(Systems &systems, uint32_t entityId, const EntityComponent &ec) override

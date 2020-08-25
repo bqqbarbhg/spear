@@ -280,6 +280,7 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 		sf_field(ParticleSystemComponent, burstAmountVariance),
 		sf_field(ParticleSystemComponent, emitterOnTime),
 		sf_field(ParticleSystemComponent, localSpace),
+		sf_field(ParticleSystemComponent, instantDelete),
 		sf_field(ParticleSystemComponent, emitPosition),
 		sf_field(ParticleSystemComponent, emitVelocity),
 		sf_field(ParticleSystemComponent, emitVelocityAttractorOffset),
@@ -361,6 +362,10 @@ template<> void initType<ParticleSystemComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "localSpace");
 		info.description = "Simualte particles in entity-local space";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "instantDelete");
+		info.description = "Delete particles immediately when the entity is removed";
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "emitPosition");

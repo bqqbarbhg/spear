@@ -170,6 +170,7 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 	uint32_t burstAmountVariance = 0; //! Additional random particle amount to spawn in the beginning
 	float emitterOnTime = -1.0f; //! How long to emit particles (negative for infinite, zero for no emit)
 	bool localSpace = false; //! Simualte particles in entity-local space
+	bool instantDelete = false; //! Delete particles immediately when the entity is removed
 
 	RandomVec3 emitPosition; //! Random position for new particles
 	RandomVec3 emitVelocity; //! Random velocity for new particles
