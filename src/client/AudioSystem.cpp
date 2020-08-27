@@ -12,6 +12,8 @@
 
 #include "sf/ext/mx/mx_platform.h"
 
+#include "sf/Mutex.h"
+
 namespace cl {
 
 const uint32_t MaxSoundInstances = 128;
@@ -28,16 +30,21 @@ struct SoundInstance
 
 struct AudioThread
 {
+	static const uint32_t ShutdownSamples = 128;
+
 	SoundInstance *incoming = nullptr;
 	SoundInstance *outgoing = nullptr;
 
 	sf::Array<SoundInstance*> instances;
+	sf::Array<float> shutdownBuffer;
 
-	uint32_t chunkSize = 512;
+	sf::Mutex mutex;
+	uint32_t prevSampleRate = 0;
 
 	AudioThread()
 	{
 		instances.reserve(MaxSoundInstances);
+		shutdownBuffer.reserve(ShutdownSamples * 2);
 	}
 
 	void pushInstance(SoundInstance **list, SoundInstance *instance) {
@@ -56,7 +63,7 @@ struct AudioThread
 		return (SoundInstance*)mxa_exchange_ptr(list, nullptr);
 	}
 
-	void update(float *dstBuf, uint32_t numSamples, uint32_t sampleRate)
+	void renderAudio(float *dstBuf, uint32_t numSamples, uint32_t sampleRate)
 	{
 		// Add new sounds
 		{
@@ -92,12 +99,59 @@ struct AudioThread
 			pushInstance(&outgoing, nextOut);
 		}
 	}
+
+	void pullAudio(float *dstBuf, uint32_t numSamples, uint32_t sampleRate)
+	{
+		sf::MutexGuard mg(mutex);
+		prevSampleRate = sampleRate;
+
+		if (shutdownBuffer.size > 0) {
+			uint32_t numShutdown = sf::min(shutdownBuffer.size / 2, numSamples);
+
+			memcpy(dstBuf, shutdownBuffer.data, numShutdown * 2 * sizeof(float));
+			shutdownBuffer.removeOrdered(0, numShutdown * 2);
+
+			numSamples -= numShutdown;
+			dstBuf += numShutdown * 2;
+		}
+
+		if (numSamples > 0) {
+			renderAudio(dstBuf, numSamples, sampleRate);
+		}
+	}
+
+	void shutdown()
+	{
+		sf::MutexGuard mg(mutex);
+		if (prevSampleRate == 0) return;
+
+		shutdownBuffer.clear();
+		shutdownBuffer.resize(ShutdownSamples * 2);
+		renderAudio(shutdownBuffer.data, ShutdownSamples, prevSampleRate);
+
+		float v = 1.0f, dv = -1.0f / (float)ShutdownSamples;
+		float *dst = shutdownBuffer.data;
+		for (uint32_t i = 0; i < ShutdownSamples; i++) {
+			dst[0] *= v;
+			dst[1] *= v;
+			v += dv;
+			dst += 2;
+		}
+
+		instances.clear();
+	}
+
+	bool isFinished()
+	{
+		sf::MutexGuard mg(mutex);
+		return shutdownBuffer.size == 0 && instances.size == 0;
+	}
 };
+
+AudioThread g_audioThread;
 
 struct AudioSystemImp final : AudioSystem
 {
-	AudioThread thread;
-
 	struct PendingOneShot
 	{
 		sp::SoundRef sound;
@@ -136,7 +190,7 @@ struct AudioSystemImp final : AudioSystem
 		inst->source = ref->getSource();
 		inst->info = info;
 
-		thread.pushInstance(&thread.incoming, inst);
+		g_audioThread.pushInstance(&g_audioThread.incoming, inst);
 	}
 
 	// API
@@ -150,6 +204,11 @@ struct AudioSystemImp final : AudioSystem
 			soundInstances[i].next = &soundInstances[i + 1];
 		}
 		nextFreeInstance = &soundInstances[0];
+	}
+
+	~AudioSystemImp()
+	{
+		g_audioThread.shutdown();
 	}
 
 	void playOneShot(const sp::SoundRef &sound, const AudioInfo &info) override
@@ -185,7 +244,7 @@ struct AudioSystemImp final : AudioSystem
 	{
 		// Recycle sound instances
 		{
-			SoundInstance *inst = thread.popInstances(&thread.outgoing);
+			SoundInstance *inst = g_audioThread.popInstances(&g_audioThread.outgoing);
 			while (inst) {
 				SoundInstance *next = inst->next;
 
@@ -206,14 +265,20 @@ struct AudioSystemImp final : AudioSystem
 		}
 	}
 
-	void audioThreadStereo(float *dstBuf, uint32_t numSamples, uint32_t sampleRate) override
-	{
-		thread.update(dstBuf, numSamples, sampleRate);
-	}
 
 };
 
 sf::Box<AudioSystem> AudioSystem::create(const SystemsDesc &desc) { return sf::box<AudioSystemImp>(desc); }
+
+void pullAudioStereo(float *dstBuf, uint32_t numSamples, uint32_t sampleRate)
+{
+	g_audioThread.pullAudio(dstBuf, numSamples, sampleRate);
+}
+
+bool isAudioFinished()
+{
+	return g_audioThread.isFinished();
+}
 
 }
 

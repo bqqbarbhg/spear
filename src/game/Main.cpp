@@ -257,6 +257,12 @@ void spEvent(const sapp_event *e)
 		g_mousePos.y = e->mouse_y;
 	} else if (e->type == SAPP_EVENTTYPE_RESIZED) {
 		updateLayout();
+	} else if (e->type == SAPP_EVENTTYPE_QUIT_REQUESTED) {
+
+
+		for (MainClient &client : clients) {
+			clientQuit(client.client);
+		}
 	}
 }
 

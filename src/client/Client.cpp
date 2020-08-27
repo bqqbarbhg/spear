@@ -34,6 +34,7 @@
 #include "ext/imgui/imgui.h"
 
 #include "sf/Random.h"
+#include "sf/Thread.h"
 #include "sp/Json.h"
 
 #if SF_OS_EMSCRIPTEN
@@ -331,7 +332,16 @@ static sf::Box<cl::ClientState> makeClientState(Client *c, const cl::ClientPersi
 	cl::SystemsDesc desc;
 	sf::getSecureRandom(desc.seed, sizeof(desc.seed));
 	desc.persist = persist;
-	return sf::box<cl::ClientState>(desc);
+	sf::Box<cl::ClientState> clState = sf::box<cl::ClientState>(desc);
+
+	// TEMP HACK
+	{
+		sp::SoundRef sound{"Assets/Audio/Music/Test_Theme.ogg"};
+		AudioInfo info;
+		clState->systems.audio->playOneShot(sound, info);
+	}
+
+	return clState;
 }
 
 Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::String websocketUrl)
@@ -389,16 +399,50 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::Str
 	return c;
 }
 
-void clientFree(Client *c)
+static void clientCleanupImp(Client *c)
 {
 	if (c->editor) {
 		editorFree(c->editor);
 		c->editor = nullptr;
 	}
+
+	c->clState.reset();
+
+	#if !SF_OS_EMSCRIPTEN
+	for (uint32_t i = 0; i < 100; i++) {
+		if (cl::isAudioFinished()) break;
+		sf::Thread::sleepMs(10);
+	}
+	if (!cl::isAudioFinished()) {
+		sf::debugPrintLine("WARNING: Failed to close audio in time!");
+	}
+	sf::Thread::sleepMs(100);
+	#endif
+}
+
+void clientFree(Client *c)
+{
+	clientCleanupImp(c);
 }
 
 void clientQuit(Client *c)
 {
+	#if SF_OS_EMSCRIPTEN
+	{
+		cl::ClientPersist persist;
+		c->clState->writePersist(persist);
+
+		sf::SmallArray<char, 4096> json;
+		jso_stream s;
+		sp::jsoInitArray(&s, json);
+		sp::writeJson(s, persist);
+		jso_close(&s);
+
+		clientEmscWritePersist(json.data, json.size);
+	}
+	#endif
+
+	clientCleanupImp(c);
 }
 
 static void handleLoadEvent(void *user, sv::Event &event)
@@ -449,6 +493,8 @@ void handleMessage(Client *c, sv::Message &msg)
 
 void clientEvent(Client *c, const sapp_event *e)
 {
+	if (!c->clState) return;
+
 	if (c->editor) {
 		editorPeekSokolEvent(c->editor, e);
 	}
@@ -465,6 +511,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	if (bqws_is_closed(c->ws)) {
 		return true;
 	}
+	if (!c->clState) return true;
 
 	// TODO: Don't always create editor
 	for (const sapp_event &event : input.events) {
@@ -497,21 +544,6 @@ bool clientUpdate(Client *c, const ClientInput &input)
 					}
 				}
 			}
-		} else if (event.type == SAPP_EVENTTYPE_QUIT_REQUESTED) {
-			#if SF_OS_EMSCRIPTEN
-			{
-				cl::ClientPersist persist;
-				c->clState->writePersist(persist);
-
-				sf::SmallArray<char, 4096> json;
-				jso_stream s;
-				sp::jsoInitArray(&s, json);
-				sp::writeJson(s, persist);
-				jso_close(&s);
-
-				clientEmscWritePersist(json.data, json.size);
-			}
-			#endif
 		}
 	}
 
@@ -675,7 +707,7 @@ void clientAudio(Client *c, float *dstBuffer, uint32_t numSamples, uint32_t samp
 {
 	memset(dstBuffer, 0, numSamples * 2 * sizeof(float));
 
-	c->clState->updateAudio(dstBuffer, numSamples, sampleRate);
+	cl::pullAudioStereo(dstBuffer, numSamples, sampleRate);
 
 }
 

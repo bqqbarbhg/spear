@@ -18,6 +18,8 @@ struct Thread
 {
 	static Thread *start(const ThreadDesc &desc);
 	static void join(Thread *thread);
+
+	static void sleepMs(uint32_t ms);
 };
 
 void setDebugThreadName(sf::String name);

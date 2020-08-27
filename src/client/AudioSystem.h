@@ -27,7 +27,9 @@ struct AudioSystem : EntitySystem
 
 	virtual void update() = 0;
 
-	virtual void audioThreadStereo(float *dstBuf, uint32_t numSamples, uint32_t sampleRate) = 0;
 };
+
+void pullAudioStereo(float *dstBuf, uint32_t numSamples, uint32_t sampleRate);
+bool isAudioFinished();
 
 }

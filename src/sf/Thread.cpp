@@ -9,6 +9,8 @@
 
 	#if SF_OS_EMSCRIPTEN
 		#include <emscripten/threading.h>
+    #else
+        #include <time.h>
 	#endif
 
 #endif
@@ -108,6 +110,11 @@ void Thread::join(Thread *thread)
     delete imp;
 }
 
+void Thread::sleepMs(uint32_t ms)
+{
+    Sleep(ms);
+}
+
 #elif SF_USE_PTHREADS
 
 void setDebugThreadName(sf::String name)
@@ -158,6 +165,18 @@ void Thread::join(Thread *thread)
     delete imp;
 }
 
+void Thread::sleepMs(uint32_t ms)
+{
+#if SF_OS_EMSCRIPTEN
+    emscripten_sleep(ms);
+#else
+    struct timespec ts;
+    ts.tv_sec = ms / 1000;
+    ts.tv_nsec = (ms % 1000) * 1000000;
+    while (nanosleep(&ts, &ts)) { }
+#endif
+}
+
 #else
 
 void setDebugThreadName(sf::String name)
@@ -170,6 +189,10 @@ Thread *Thread::start(const ThreadDesc &desc)
 }
 
 void Thread::join(Thread *thread)
+{
+}
+
+void Thread::sleepMs(uint32_t ms)
 {
 }
 

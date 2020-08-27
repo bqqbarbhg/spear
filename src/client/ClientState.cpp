@@ -180,11 +180,6 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 	systems.area->optimize();
 }
 
-void ClientState::updateAudio(float *dstBuf, uint32_t numSamples, uint32_t sampleRate)
-{
-	systems.audio->audioThreadStereo(dstBuf, numSamples, sampleRate);
-}
-
 void ClientState::renderShadows()
 {
 	systems.light->renderShadowMaps(systems, systems.visibleAreas, systems.frameArgs.frameIndex);
