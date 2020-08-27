@@ -15,50 +15,32 @@ struct SoundImp : Sound
 	virtual void assetStartLoading() final;
 	virtual void assetUnload() final;
 
-	void *data = nullptr;
+	sf::Box<void> data;
 	size_t size = 0;
 
-	~SoundImp()
-	{
-		if (data) {
-			sf::impBoxDecRef(data);
-			data = nullptr;
-		}
-	}
+	sf::Box<AudioSource> sharedSource;
 };
 
 struct VorbisSource : AudioSource
 {
-	void *dataRef = nullptr;
+	sf::Box<void> dataRef;
 	stb_vorbis *vorbis = nullptr;
-	char tempMemory[200u * 1000u];
+	sf::Array<char> tempMemory;
 
-	VorbisSource(void *data, size_t size)
+	VorbisSource(const sf::Box<void> &data, size_t size, uint32_t tempMemorySize, uint32_t sampleRate, uint32_t numChannels)
+		: dataRef(data)
 	{
-		if (!data || !size) return;
+		this->sampleRate = sampleRate;
+		this->numChannels = numChannels;
 
-		sf::impBoxIncRef(data);
-
-		// Fixed 200kB buffer per stream
+		tempMemory.resizeUninit(tempMemorySize);
 
 		stb_vorbis_alloc alloc;
-		alloc.alloc_buffer = tempMemory;
-		alloc.alloc_buffer_length_in_bytes = (int)sizeof(tempMemory);
+		alloc.alloc_buffer = tempMemory.data;
+		alloc.alloc_buffer_length_in_bytes = (int)tempMemory.size;
 
 		int error = 0;
-		vorbis = stb_vorbis_open_memory((const unsigned char*)data, (int)size, &error, &alloc);
-
-		stb_vorbis_info info = stb_vorbis_get_info(vorbis);
-		sampleRate = info.sample_rate;
-		numChannels = sf::clamp(info.channels, 1, 2);
-	}
-
-	~VorbisSource()
-	{
-		if (dataRef) {
-			sf::impBoxDecRef(dataRef);
-			dataRef = nullptr;
-		}
+		vorbis = stb_vorbis_open_memory((const unsigned char*)data.ptr, (int)size, &error, &alloc);
 	}
 
 	virtual void seek(uint32_t sample) override
@@ -72,76 +54,61 @@ struct VorbisSource : AudioSource
 	}
 };
 
-#if 0
-struct WavPlayer : Sound::Player
+struct Pcm16Source : AudioSource
 {
-	void *dataRef = nullptr;
-	uint32_t dataSamples = 0;
-	uint32_t cursor = 0;
+	sf::Box<void> dataRef;
+	uint32_t numSamples;
 
-	WavPlayer(void *data, uint32_t numChannels, uint32_t numSamples, uint32_t sampleRate)
+	Pcm16Source(const sf::Box<void> &data, uint32_t sampleRate, uint32_t numChannels, uint32_t numSamples)
+		: dataRef(data), numSamples(numSamples)
 	{
 		this->sampleRate = sampleRate;
-		if (!data) return;
-		sf::impBoxIncRef(data);
+		this->numChannels = numChannels;
 	}
 
-	~WavPlayer()
+	virtual void seek(uint32_t sample) override
 	{
-		if (dataRef) {
-			sf::impBoxDecRef(dataRef);
-			dataRef = nullptr;
+	}
+
+	virtual uint32_t advance(uint32_t sample, float *dst, uint32_t num) override
+	{
+		uint32_t numToRead = (uint32_t)sf::clamp((int32_t)numSamples - (int32_t)sample, 0, (int32_t)num);
+
+		const int16_t *ptr = (const int16_t*)dataRef.ptr + (sample * numChannels);
+		uint32_t numUnits = numToRead * numChannels;
+#if SF_FLOAT4_SCALAR
+		float scale = 1.0f/32768.0f;
+		for (uint32_t i = 0; i < numUnits; i += 8) {
+			dst[0] = (float)ptr[0] * scale;
+			dst[1] = (float)ptr[1] * scale;
+			dst[2] = (float)ptr[2] * scale;
+			dst[3] = (float)ptr[3] * scale;
+			dst[4] = (float)ptr[4] * scale;
+			dst[5] = (float)ptr[5] * scale;
+			dst[6] = (float)ptr[6] * scale;
+			dst[7] = (float)ptr[7] * scale;
+			dst += 8;
+			ptr += 8;
 		}
-	}
-
-	virtual uint32_t decodeMono(float *chan, uint32_t numSamples, bool loop) override
-	{
-		const int16_t *samples = (const int16_t*)dataRef;
-
+#else
 		sf::ScalarFloat4 scale = 1.0f/32768.0f;
-
-		uint32_t numSafe = sf::min(dataSamples - cursor, numSamples) & 0x7;
-		uint32_t num = 0;
-		const int16_t *safeSamples = samples + cursor;
-		float *safeChan = chan;
-		while (num < numSafe) {
+		for (uint32_t i = 0; i < numUnits; i += 8) {
 			sf::Float4 a, b;
-			sf::Float4::load8xi16(a, b, safeSamples);
+			sf::Float4::load8xi16(a, b, ptr);
+
 			a *= scale;
 			b *= scale;
-			a.storeu(safeChan + 0);
-			a.storeu(safeChan + 4);
+			a.storeu(dst + 0);
+			b.storeu(dst + 4);
 
-			safeChan += 8;
-			safeSamples += 8;
+			ptr += 8;
+			dst += 8;
 		}
-		cursor += numSafe;
+#endif
 
-		while (num < numSamples) {
-			if (cursor >= dataSamples) {
-				if (loop) {
-					cursor = 0;
-				} else {
-					break;
-				}
-			}
-
-			chan[num++] = (float)samples[cursor++];
-		}
-
-		if (num < numSamples) {
-			memset(chan + num, 0, (numSamples - num) * sizeof(float));
-		}
-
-		return num;
-	}
-
-	virtual uint32_t decodeStereo(float *left, float *right, uint32_t numSamples, bool loop) override
-	{
-		// TODO
+		return numToRead;
 	}
 };
-#endif
 
 AssetType Sound::SelfType = { "Sound", sizeof(SoundImp), sizeof(Sound::PropType),
 	[](Asset *a) { new ((SoundImp*)a) SoundImp(); }
@@ -153,32 +120,58 @@ static void loadImp(void *user, const ContentFile &file)
 
 	if (file.size == 0) {
 		imp->assetFailLoading();
+		return;
 	}
 
-	imp->data = sf::impBoxAllocate(file.size, &sf::destructRangeImp<char>);
-	imp->size = file.size;
-	memcpy(imp->data, file.data, file.size);
+	spsound_util su;
+	spsound_util_init(&su, file.data, file.size);
+	spsound_header header = spsound_decode_header(&su);
+	if (!spfile_util_failed(&su.file)) {
+		imp->data.reset();
+		imp->data.ptr = sf::impBoxAllocate(header.s_audio.uncompressed_size + 16, &sf::destructRangeImp<char>);
+		imp->size = header.s_audio.uncompressed_size;
+		spsound_decode_audio_to(&su, imp->data);
+	}
+
+	if (spfile_util_failed(&su.file)) {
+		imp->assetFailLoading();
+		spfile_util_free(&su.file);
+		imp->data.reset();
+		return;
+	}
+
+	imp->info = header.info;
+	if (header.info.format == SPSOUND_FORMAT_PCM16) {
+		imp->sharedSource = sf::box<Pcm16Source>(imp->data,
+			header.info.sample_rate, header.info.num_channels, header.info.length_in_samples);
+	}
 
 	imp->assetFinishLoading();
 }
 
 void SoundImp::assetStartLoading()
 {
-	ContentFile::loadAsync(name, &loadImp, this);
+	sf::SmallStringBuf<256> assetName;
+	assetName.append(name, ".spsnd");
+
+	ContentFile::loadAsync(assetName, &loadImp, this);
 }
 
 void SoundImp::assetUnload()
 {
-	if (data) {
-		sf::impBoxDecRef(data);
-		data = nullptr;
-	}
+	data.reset();
+	sharedSource.reset();
 }
 
 sf::Box<AudioSource> Sound::getSource() const
 {
 	SoundImp *imp = (SoundImp*)this;
-	return sf::box<VorbisSource>(imp->data, imp->size);
+	if (imp->info.format == SPSOUND_FORMAT_VORBIS) {
+		return sf::box<VorbisSource>(imp->data, imp->size, imp->info.temp_memory_required,
+			imp->info.sample_rate, imp->info.num_channels);
+	} else {
+		return imp->sharedSource;
+	}
 }
 
 }

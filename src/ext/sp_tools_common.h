@@ -126,9 +126,10 @@ size_t sp_compress_buffer(sp_compression_type type, void *dst, size_t dst_size, 
 size_t sp_decompress_buffer(sp_compression_type type, void *dst, size_t dst_size, const void *src, size_t src_size);
 
 typedef enum spfile_header_magic {
-	SPFILE_HEADER_SPTEX  = 0x78747073, // 'sptx'
-	SPFILE_HEADER_SPMDL  = 0x646d7073, // 'spmd'
-	SPFILE_HEADER_SPANIM = 0x6e617073, // 'span'
+	SPFILE_HEADER_SPTEX   = 0x78747073, // 'sptx'
+	SPFILE_HEADER_SPMDL   = 0x646d7073, // 'spmd'
+	SPFILE_HEADER_SPANIM  = 0x6e617073, // 'span'
+	SPFILE_HEADER_SPSOUND = 0x646e7373, // 'ssnd'
 
 	SPFILE_HEADER_FORCE_U32 = 0x7fffffff,
 } spfile_header_magic;
@@ -146,6 +147,7 @@ typedef enum spfile_section_magic {
 	SPFILE_SECTION_INDEX     = 0x78646e69, // 'indx'
 	SPFILE_SECTION_MIP       = 0x2070696d, // 'mip '
 	SPFILE_SECTION_ANIMATION = 0x6d696e61, // 'anim'
+	SPFILE_SECTION_AUDIO     = 0x6f696461, // 'adio'
 
 	SPFILE_SECTION_FORCE_U32 = 0x7fffffff,
 } spfile_section_magic;
@@ -330,6 +332,29 @@ typedef struct sptex_header {
 	spfile_section s_mips[16];
 } sptex_header;
 
+typedef enum {
+	SPSOUND_FORMAT_NONE = 0,
+	SPSOUND_FORMAT_PCM16 = 1,
+	SPSOUND_FORMAT_VORBIS = 2,
+
+	SPSOUND_FORMAT_FORCE_U32 = 0x7fffffff,
+} spsound_format;
+
+typedef struct spsound_info {
+	spsound_format format;
+	float length_in_seconds;
+	uint32_t length_in_samples;
+	uint32_t sample_rate;
+	uint32_t num_channels;
+	uint32_t temp_memory_required;
+} spsound_info;
+
+typedef struct spsound_header {
+	spfile_header header;
+	spsound_info info;
+	spfile_section s_audio;
+} spsound_header;
+
 typedef struct spfile_util {
 	const void *data;
 	size_t size;
@@ -399,6 +424,18 @@ bool sptex_decode_mip_to(sptex_util *su, uint32_t index, char *buffer);
 
 sptex_header sptex_decode_header(sptex_util *su);
 char *sptex_decode_mip(sptex_util *su, uint32_t index);
+
+typedef struct spsound_util {
+	spfile_util file;
+} spsound_util;
+
+bool spsound_util_init(spsound_util *su, const void *data, size_t size);
+
+bool spsound_decode_audio_to(spsound_util *su, void *buffer);
+
+spsound_header spsound_decode_header(spsound_util *su);
+void *spsound_decode_audio(spsound_util *su);
+
 
 #ifdef __cplusplus
 }

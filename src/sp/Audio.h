@@ -6,10 +6,14 @@ namespace sp {
 
 struct AudioSource
 {
+	static const constexpr uint32_t AdvancePaddingInFloats = 8;
+
 	uint32_t sampleRate;
 	uint32_t numChannels;
 
 	virtual void seek(uint32_t sample) = 0;
+
+	// Allowed to read past `dst` by AdvancePaddingInFloats floats!
 	virtual uint32_t advance(uint32_t sample, float *dst, uint32_t num) = 0;
 };
 

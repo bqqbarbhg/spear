@@ -187,7 +187,7 @@ struct AudioSystemImp final : AudioSystem
 		{
 			SoundInstance *inst = thread.popInstances(&thread.outgoing);
 			while (inst) {
-				SoundInstance *next = inst;
+				SoundInstance *next = inst->next;
 
 				sf::reset(*inst);
 				inst->next = nextFreeInstance;

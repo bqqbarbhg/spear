@@ -91,6 +91,14 @@ struct Float4
 		db = wasm_v32x4_shuffle(a.imp, b.imp, 2, 6, 3, 7); // ZZWW
 	}
 
+	static sf_forceinline void transpose22(Float4 &a, Float4 &b)
+	{
+		v128_t t0 = wasm_v32x4_shuffle(a.imp, b.imp, 0, 1, 4, 5);
+		v128_t t1 = wasm_v32x4_shuffle(a.imp, b.imp, 6, 7, 2, 3);
+		a.imp = t0;
+		b.imp = t1;
+	}
+
 	static sf_forceinline void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
 	{
 		v128_t t0 = wasm_v32x4_shuffle(a.imp, b.imp, 0, 4, 1, 5); // XXYY
@@ -191,7 +199,7 @@ struct Float4
 		db = _mm_unpackhi_ps(a.imp, b.imp); // ZZWW
 	}
 
-	static sf_forceinline void transpose2(Float4 &a, Float4 &b)
+	static sf_forceinline void transpose22(Float4 &a, Float4 &b)
 	{
 		__m128 t0 = a.imp;
 		__m128 t1 = b.imp;
@@ -213,7 +221,7 @@ struct Float4
 
 	static sf_forceinline void load8xi16(Float4 &a, Float4 &b, const int16_t *src)
 	{
-		__m128i s16 = _mm_load_si128((const __m128i*)src);
+		__m128i s16 = _mm_loadu_si128((const __m128i*)src);
 		__m128i lo32 = _mm_cvtepi16_epi32(s16);
 		__m128i hi32 = _mm_cvtepi16_epi32(_mm_srli_si128(s16, 8));
 		a = _mm_cvtepi32_ps(lo32);
@@ -315,6 +323,14 @@ struct Float4
 		db.imp = ab.val[1];
 	}
 
+	static sf_forceinline void transpose22(Float4 &a, Float4 &b)
+	{
+		float32x4_t t0 = vcombine_f32(vget_low_f32(a), vget_low_f32(b)));
+		float32x4_t t1 = vcombine_f32(vget_high_f32(a), vget_high_f32(b)));
+		a = t0;
+		b = t1;
+	}
+
 	static sf_forceinline void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
 	{
 		float32x4x2_t ab = vtrnq_f32(a.imp, b.imp);
@@ -409,6 +425,13 @@ struct Float4
 		db.a = a.c; db.b = b.c; db.c = a.d; db.d = b.d;
 	}
 
+	static sf_forceinline void transpose22(Float4 &a, Float4 &b)
+	{
+		float t;
+		t = a.c; a.c = b.a; b.a = t;
+		t = a.d; a.d = b.b; b.b = t;
+	}
+
 	static sf_forceinline void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
 	{
 		float t;
@@ -426,10 +449,10 @@ struct Float4
 		a.b = (float)src[1];
 		a.c = (float)src[2];
 		a.d = (float)src[3];
-		b.a = (float)src[0];
-		b.b = (float)src[1];
-		b.c = (float)src[2];
-		b.d = (float)src[3];
+		b.a = (float)src[4];
+		b.b = (float)src[5];
+		b.c = (float)src[6];
+		b.d = (float)src[7];
 	}
 };
 

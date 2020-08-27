@@ -360,7 +360,7 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::Str
 
 	// TEMP HACK
 	{
-		sp::SoundRef sound{"Assets/Audio/Music/Test_Theme.ogg"};
+		sp::SoundRef sound{"Assets/Audio/Music/Test_Theme.wav"};
 		AudioInfo info;
 		c->clState->systems.audio->playOneShot(sound, info);
 	}

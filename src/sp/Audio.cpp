@@ -12,8 +12,8 @@ void AudioSampler::advanceMixStereo(float *dstBuf, uint32_t numDst, AudioSource 
 	uint32_t srcRate = source->sampleRate;
 	double dstRate = (double)opts.sampleRate / opts.pitch;
 
-	const constexpr uint32_t NumWorkData = 4096*2;
-	float workBuf[NumWorkData + 16];
+	const constexpr uint32_t NumWorkData = 512;
+	float workBuf[NumWorkData + AudioSource::AdvancePaddingInFloats];
 	memcpy(workBuf, carryBuf, carryNumSamples * srcChannels * sizeof(float));
 
 	uint32_t workFirstSample = carryFirstSample;
@@ -111,7 +111,7 @@ void AudioSampler::advanceMixStereo(float *dstBuf, uint32_t numDst, AudioSource 
 
 				sf::Float4 src0 = sf::Float4::loadu(workBuf + i0*2); // LA0 RA0 LA1 RA1 <-T- (LA0 RA0 LB0 RB0)
 				sf::Float4 src1 = sf::Float4::loadu(workBuf + i1*2); // LB0 RB0 LB1 RB1 <-T- (LA1 RA1 LB1 RB1)
-				sf::Float4::transpose2(src0, src1); 
+				sf::Float4::transpose22(src0, src1); 
 
 				sf::Float4 delta(d0, d0, d1, d1);
 				sf::Float4 src = src0 + (src1 - src0) * delta;

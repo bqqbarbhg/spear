@@ -1098,21 +1098,22 @@ struct FontTask : Task
 	}
 };
 
-struct VorbisTask : Task
+struct SoundTask : Task
 {
-	VorbisTask()
+	SoundTask()
 	{
-		name = "VorbisTask";
+		name = "SoundTask";
+		tools.push("sp-sound");
 	}
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
 	{
-		if (sf::endsWith(path, ".ogg")) {
+		if (sf::endsWith(path, ".ogg") || sf::endsWith(path, ".wav")) {
 			ti.inputs[s_src] = path;
 		} else {
 			return false;
 		}
-		ti.outputs[s_dst] = ti.inputs[s_src];
+		ti.outputs[s_dst] = symf("%s.spsnd", path.data);
 		ti.assets.insert(path);
 		return true;
 	}
@@ -1126,10 +1127,19 @@ struct VorbisTask : Task
 		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
 		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
 
+		args.push("--level");
+		args.push().format("%d", p.level);
+
+		args.push("--input");
+		args.push(srcFile);
+
+		args.push("--output");
+		args.push(tempFile);
+
 		JobQueue jq;
 		jq.mkdirsToFile(tempFile);
 		jq.mkdirsToFile(dstFile);
-		jq.copy(srcFile, tempFile);
+		jq.exec("sp-sound", std::move(args));
 		jq.move(tempFile, dstFile);
 		p.addJobs(JobPriority::Normal, ti, jq);
 	}
@@ -1235,8 +1245,9 @@ void initializeProcessing(const ProcessingDesc &desc)
 	p.tasks.push(sf::box<TileModelTask>());
 	p.tasks.push(sf::box<ObjectModelTask>());
 
+	p.tasks.push(sf::box<SoundTask>());
+
 	p.tasks.push(sf::box<FontTask>());
-	p.tasks.push(sf::box<VorbisTask>());
 
 	p.dataMonitor.begin(p.dataRoot);
 
