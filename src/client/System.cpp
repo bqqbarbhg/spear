@@ -11,6 +11,7 @@
 #include "client/TapAreaSystem.h"
 #include "client/BillboardSystem.h"
 #include "client/EffectSystem.h"
+#include "client/AudioSystem.h"
 
 #include "sf/Reflection.h"
 
@@ -38,6 +39,7 @@ void Systems::init(const SystemsDesc &desc)
 	tapArea = TapAreaSystem::create();
 	billboard = BillboardSystem::create();
 	effect = EffectSystem::create();
+	audio = AudioSystem::create(desc);
 }
 
 void Systems::updateVisibility(VisibleAreas &areas, uint32_t areaFlags, const sf::Frustum &frustum)

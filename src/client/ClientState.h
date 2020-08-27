@@ -26,6 +26,8 @@ struct ClientState
 	void updateCamera(FrameArgs &frameArgs);
 	void update(const sv::ServerState *svState, const FrameArgs &frameArgs);
 
+	void updateAudio(float *dstBuf, uint32_t numSamples, uint32_t sampleRate);
+
 	void renderShadows();
 
 	void renderMain(const RenderArgs &renderArgs);

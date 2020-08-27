@@ -374,8 +374,6 @@ void spFrame(float dt)
 	sg_commit();
 }
 
-static sf::Array<float> mixChannels[2];
-
 void spAudio(float* buffer, int numFrames, int numChannels)
 {
 	sf_assert(numFrames % 4 == 0);
@@ -387,27 +385,7 @@ void spAudio(float* buffer, int numFrames, int numChannels)
 		return;
 	}
 
-	mixChannels[0].resizeUninit(numFrames);
-	mixChannels[1].resizeUninit(numFrames);
-
-	cl::clientAudio(clients[0].client, mixChannels[0].data, mixChannels[1].data, numFrames, sampleRate);
-
-	float *dst = buffer, *srcL = mixChannels[0].data, *srcR = mixChannels[1].data;
-	for (uint32_t i = 0; i < (uint32_t)numFrames / 4; i++) {
-		sf::Float4 l = sf::Float4::loadu(srcL);
-		sf::Float4 r = sf::Float4::loadu(srcR);
-		sf::Float4 d0, d1;
-
-		sf::Float4::interleave2(d0, d1, l, r);
-
-		d0.storeu(dst + 0);
-		d1.storeu(dst + 4);
-
-		srcL += 4;
-		srcR += 4;
-		dst += 8;
-	}
-
+	cl::clientAudio(clients[0].client, buffer, numFrames, sampleRate);
 }
 
 #endif

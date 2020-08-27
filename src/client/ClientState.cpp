@@ -11,6 +11,7 @@
 #include "client/TapAreaSystem.h"
 #include "client/BillboardSystem.h"
 #include "client/EffectSystem.h"
+#include "client/AudioSystem.h"
 
 #include "sf/Frustum.h"
 
@@ -170,6 +171,7 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 	systems.characterModel->updateAttachedEntities(systems);
 
 	systems.effect->update(systems.entities, frameArgs);
+	systems.audio->update();
 
 	systems.blobShadow->updatePositions(systems.area, systems.boneUpdates, frameArgs);
 
@@ -178,6 +180,10 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 	systems.area->optimize();
 }
 
+void ClientState::updateAudio(float *dstBuf, uint32_t numSamples, uint32_t sampleRate)
+{
+	systems.audio->audioThreadStereo(dstBuf, numSamples, sampleRate);
+}
 
 void ClientState::renderShadows()
 {

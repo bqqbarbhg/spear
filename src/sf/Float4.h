@@ -102,6 +102,15 @@ struct Float4
 		c.imp = wasm_v32x4_shuffle(t1, t3, 0, 1, 4, 5);
 		d.imp = wasm_v32x4_shuffle(t1, t3, 2, 3, 6, 7);
 	}
+
+	static sf_forceinline void load8xi16(Float4 &a, Float4 &b, const int16_t *src)
+	{
+		v128_t s16 = wasm_v128_load(src);
+		v128_t lo32 = wasm_i32x4_widen_low_i16x8(src);
+		v128_t hi32 = wasm_i32x4_widen_high_i16x8(src);
+		a = wasm_f32x4_convert_i32x4(lo32);
+		b = wasm_f32x4_convert_i32x4(hi32);
+	}
 };
 
 using ScalarFloat4 = Float4;
@@ -182,6 +191,14 @@ struct Float4
 		db = _mm_unpackhi_ps(a.imp, b.imp); // ZZWW
 	}
 
+	static sf_forceinline void transpose2(Float4 &a, Float4 &b)
+	{
+		__m128 t0 = a.imp;
+		__m128 t1 = b.imp;
+		a.imp = _mm_movelh_ps(t0, t1);
+		b.imp = _mm_movehl_ps(t1, t0);
+	}
+
 	static sf_forceinline void transpose4(Float4 &a, Float4 &b, Float4 &c, Float4 &d)
 	{
 		__m128 t0 = _mm_unpacklo_ps(a.imp, b.imp); // XXYY
@@ -192,6 +209,15 @@ struct Float4
 		b.imp = _mm_movehl_ps(t2, t0);
 		c.imp = _mm_movelh_ps(t1, t3);
 		d.imp = _mm_movehl_ps(t3, t1);
+	}
+
+	static sf_forceinline void load8xi16(Float4 &a, Float4 &b, const int16_t *src)
+	{
+		__m128i s16 = _mm_load_si128((const __m128i*)src);
+		__m128i lo32 = _mm_cvtepi16_epi32(s16);
+		__m128i hi32 = _mm_cvtepi16_epi32(_mm_srli_si128(s16, 8));
+		a = _mm_cvtepi32_ps(lo32);
+		b = _mm_cvtepi32_ps(hi32);
 	}
 };
 
@@ -302,6 +328,15 @@ struct Float4
 	// NEON optimizations
 	sf_forceinline Float4 operator*(float rhs) const { return vmulq_n_f32(imp, rhs); }
 	sf_forceinline Float4 &operator*=(float rhs) { imp = vmulq_n_f32(imp, rhs); return *this; }
+
+	static sf_forceinline void load8xi16(Float4 &a, Float4 &b, const int16_t *src)
+	{
+		int16x8_t s16 = vld1q_s16(src);
+		__m128i lo32 = vmovl_s16(s16);
+		__m128i hi32 = vmovl_s16(vextq_s16(s16, s16, 4));
+		a = vcvt_s32_f32(lo32);
+		b = vcvt_s32_f32(hi32);
+	}
 };
 
 using ScalarFloat4 = float;
@@ -383,6 +418,18 @@ struct Float4
 		t = b.c; b.c = c.b; c.b = t;
 		t = b.d; b.d = d.b; d.b = t;
 		t = c.d; c.d = d.c; d.c = t;
+	}
+
+	static sf_forceinline void load8xi16(Float4 &a, Float4 &b, const int16_t *src)
+	{
+		a.a = (float)src[0];
+		a.b = (float)src[1];
+		a.c = (float)src[2];
+		a.d = (float)src[3];
+		b.a = (float)src[0];
+		b.b = (float)src[1];
+		b.c = (float)src[2];
+		b.d = (float)src[3];
 	}
 };
 

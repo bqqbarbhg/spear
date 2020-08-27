@@ -57,6 +57,7 @@ struct Component
 		Status,
 		CharacterTemplate,
 		TileArea,
+		Sound,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -412,6 +413,20 @@ struct TileAreaComponent : ComponentBase<Component::TileArea>
 {
 	sf::Vec2i minCorner sv_reflect(fixed(16)); //! Top-left corner of the tile area (in meters/tiles)
 	sf::Vec2i maxCorner sv_reflect(fixed(16)); //! Bottom-right corner of the tile area (in meters/tiles)
+};
+
+struct SoundInfo
+{
+	sf::Symbol assetName sv_reflect(asset);
+};
+
+struct SoundComponent : ComponentBase<Component::Sound>
+{
+	sf::Array<SoundInfo> sounds;
+	float volume = 1.0f;
+	float volumeVariance = 0.0f;
+	float pitch = 1.0f;
+	float pitchVariance = 0.0f;
 };
 
 struct Prefab sv_reflect()

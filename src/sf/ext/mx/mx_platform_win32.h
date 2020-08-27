@@ -61,15 +61,19 @@
 
 #define mxa_load_ptr(src) (*(void *const volatile*)(src))
 #define mxa_cas_ptr(dst, cmp, val) (_InterlockedCompareExchangePointer((void*volatile*)(dst), (void*)(val), (void*)(cmp)) == (void*)(cmp))
+#define mxa_exchange_ptr(dst, val) (_InterlockedExchangePointer((void*volatile*)(dst), (void*)(val)))
 
 #define mxa_load_ptr_acq(src) mxa_load_ptr(src)
 #define mxa_cas_ptr_acq(dst, cmp, val) mxa_cas_ptr(dst, cmp, val)
+#define mxa_exchange_ptr_acq(dst, val) mxa_exchange_ptr(dst, val)
 
 #define mxa_load_ptr_rel(src) mxa_load_ptr(src)
 #define mxa_cas_ptr_rel(dst, cmp, val) mxa_cas_ptr(dst, cmp, val)
+#define mxa_exchange_ptr_rel(dst, val) mxa_exchange_ptr(dst, val)
 
 #define mxa_load_ptr_nf(src) mxa_load_ptr(src)
 #define mxa_cas_ptr_nf(dst, cmp, val) mxa_cas_ptr(dst, cmp, val)
+#define mxa_exchange_ptr_nf(dst, val) mxa_exchange_ptr(dst, val)
 
 #elif defined(_M_ARM) || defined(_M_ARM64)
 

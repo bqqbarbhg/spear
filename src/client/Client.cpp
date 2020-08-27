@@ -25,6 +25,7 @@
 #include "client/TileMaterial.h"
 #include "client/MeshMaterial.h"
 #include "client/GameSystem.h"
+#include "client/AudioSystem.h"
 
 #include "game/DebugDraw.h"
 #include "game/shader/Line.h"
@@ -357,6 +358,13 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::Str
 
 	c->clState = makeClientState(c, persist);
 
+	// TEMP HACK
+	{
+		sp::SoundRef sound{"Assets/Audio/Music/Test_Theme.ogg"};
+		AudioInfo info;
+		c->clState->systems.audio->playOneShot(sound, info);
+	}
+
 	{
         sf::SmallStringBuf<128> url;
 
@@ -670,10 +678,12 @@ void clientRenderGui(Client *c)
 	c->canvas.render(opts);
 }
 
-void clientAudio(Client *c, float *left, float *right, uint32_t numSamples, uint32_t sampleRate)
+void clientAudio(Client *c, float *dstBuffer, uint32_t numSamples, uint32_t sampleRate)
 {
-	memset(left, 0, numSamples * sizeof(float));
-	memset(right, 0, numSamples * sizeof(float));
+	memset(dstBuffer, 0, numSamples * 2 * sizeof(float));
+
+	c->clState->updateAudio(dstBuffer, numSamples, sampleRate);
+
 }
 
 }

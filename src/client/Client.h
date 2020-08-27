@@ -28,6 +28,6 @@ void clientEvent(Client *c, const sapp_event *e);
 bool clientUpdate(Client *c, const ClientInput &input);
 sg_image clientRender(Client *c);
 void clientRenderGui(Client *c);
-void clientAudio(Client *c, float *left, float *right, uint32_t numSamples, uint32_t sampleRate);
+void clientAudio(Client *c, float *dstBuffer, uint32_t numSamples, uint32_t sampleRate);
 
 }
