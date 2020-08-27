@@ -358,13 +358,6 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::Str
 
 	c->clState = makeClientState(c, persist);
 
-	// TEMP HACK
-	{
-		sp::SoundRef sound{"Assets/Audio/Music/Test_Theme.wav"};
-		AudioInfo info;
-		c->clState->systems.audio->playOneShot(sound, info);
-	}
-
 	{
         sf::SmallStringBuf<128> url;
 
