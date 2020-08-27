@@ -36,6 +36,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, Status, StatusComponent),
 		sf_poly(Component, CharacterTemplate, CharacterTemplateComponent),
 		sf_poly(Component, TileArea, TileAreaComponent),
+		sf_poly(Component, Sound, SoundComponent),
 	};
 	sf_struct_poly(t, Component, type, { }, polys);
 }
@@ -809,6 +810,19 @@ template<> void initType<TileAreaComponent>(Type *t)
 	}
 }
 
+template<> void initType<SoundComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(SoundComponent, sounds),
+		sf_field(SoundComponent, volume),
+		sf_field(SoundComponent, volumeVariance),
+		sf_field(SoundComponent, pitch),
+		sf_field(SoundComponent, pitchVariance),
+		sf_field(SoundComponent, loop),
+	};
+	sf_struct_base(t, SoundComponent, Component, fields);
+}
+
 template<> void initType<AllocateIdEvent>(Type *t)
 {
 	static Field fields[] = {
@@ -1450,6 +1464,19 @@ template<> void initType<StarterCard>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "prefabName");
 		info.prefab = true;
+	}
+}
+
+template<> void initType<SoundInfo>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(SoundInfo, assetName),
+	};
+	sf_struct(t, SoundInfo, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "assetName");
+		info.asset = true;
 	}
 }
 

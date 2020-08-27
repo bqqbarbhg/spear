@@ -25,7 +25,6 @@ struct SoundInstance
 	AudioInfo info;
 	sp::AudioSampler sampler;
 	uint32_t trackedSoundId = ~0u;
-	bool loop = false;
 };
 
 struct AudioThread
@@ -82,7 +81,7 @@ struct AudioThread
 
 			sp::AudioMixOpts opts;
 			opts.sampleRate = sampleRate;
-			opts.loop = inst->loop;
+			opts.loop = inst->info.loop;
 			opts.pitch = inst->info.pitch;
 
 			inst->sampler.advanceMixStereo(dstBuf, numSamples, inst->source, opts);
@@ -164,6 +163,11 @@ struct AudioSystemImp final : AudioSystem
 		SoundInstance *instance;
 	};
 
+	struct SoundComponentData
+	{
+		sf::Array<sp::SoundRef> refs;
+	};
+
 	sf::Array<SoundInstance> soundInstances;
 	SoundInstance *nextFreeInstance = nullptr;
 
@@ -211,6 +215,16 @@ struct AudioSystemImp final : AudioSystem
 		g_audioThread.shutdown();
 	}
 
+	sf::Box<void> preloadSound(const sv::SoundComponent &c) override
+	{
+		auto data = sf::box<SoundComponentData>();
+		data->refs.reserve(c.sounds.size);
+		for (const sv::SoundInfo &info : c.sounds) {
+			data->refs.push().load(info.assetName);
+		}
+		return data;
+	}
+
 	void playOneShot(const sp::SoundRef &sound, const AudioInfo &info) override
 	{
 		if (sound.isLoading()) {
@@ -229,6 +243,7 @@ struct AudioSystemImp final : AudioSystem
 		info.position = transform.position;
 		info.volume = c.volume + c.volumeVariance * rng.nextFloat();
 		info.pitch = c.pitch + c.pitchVariance * rng.nextFloat();
+		info.loop = c.loop;
 		playOneShot(sound, info);
 	}
 

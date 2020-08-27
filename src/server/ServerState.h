@@ -415,7 +415,7 @@ struct TileAreaComponent : ComponentBase<Component::TileArea>
 	sf::Vec2i maxCorner sv_reflect(fixed(16)); //! Bottom-right corner of the tile area (in meters/tiles)
 };
 
-struct SoundInfo
+struct SoundInfo sv_reflect()
 {
 	sf::Symbol assetName sv_reflect(asset);
 };
@@ -427,6 +427,7 @@ struct SoundComponent : ComponentBase<Component::Sound>
 	float volumeVariance = 0.0f;
 	float pitch = 1.0f;
 	float pitchVariance = 0.0f;
+	bool loop = false;
 };
 
 struct Prefab sv_reflect()

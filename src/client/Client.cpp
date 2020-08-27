@@ -334,13 +334,6 @@ static sf::Box<cl::ClientState> makeClientState(Client *c, const cl::ClientPersi
 	desc.persist = persist;
 	sf::Box<cl::ClientState> clState = sf::box<cl::ClientState>(desc);
 
-	// TEMP HACK
-	{
-		sp::SoundRef sound{"Assets/Audio/Music/Test_Theme.ogg"};
-		AudioInfo info;
-		clState->systems.audio->playOneShot(sound, info);
-	}
-
 	return clState;
 }
 

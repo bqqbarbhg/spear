@@ -84,6 +84,10 @@ void Entities::addPrefabComponents(Systems &systems, uint32_t prefabId)
 			ComponentData &data = prefab.componentData.push();
 			data.component = c;
 			data.data = systems.model->preloadModel(*c);
+		} else if (const auto *c = comp->as<sv::SoundComponent>()) {
+			ComponentData &data = prefab.componentData.push();
+			data.component = c;
+			data.data = systems.audio->preloadSound(*c);
 		}
 	}
 }
@@ -236,6 +240,8 @@ void Entities::addComponents(Systems &systems, uint32_t entityId, const Transfor
 			systems.blobShadow->addBlobShadow(systems, entityId, compIx, *c, transform);
 		} else if (const auto *c = comp->as<sv::TapAreaComponent>()) {
 			systems.tapArea->addTapArea(systems, entityId, compIx, *c, transform);
+		} else if (const auto *c = comp->as<sv::SoundComponent>()) {
+			systems.audio->addSound(systems, entityId, compIx, *c, transform);
 		}
 
 		compIx++;
