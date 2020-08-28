@@ -651,7 +651,7 @@ void ServerState::putStatus(sf::Array<sf::Box<Event>> &events, const StatusInfo 
 
 	RollInfo turnsRoll = rollDice(statusComp->turnsRoll, "turns");
 
-	if (statusComp->stacks) {
+	if (!statusComp->stacks) {
 		for (uint32_t statusId : chr->statuses) {
 			Status *other = findStatus(*this, statusId);
 			if (!other) continue;
