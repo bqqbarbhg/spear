@@ -1,7 +1,7 @@
 #if defined(SP_DEDICATED_SERVER)
 
 #include "sf/Base.h"
-#include "ServerMain.h"
+#include "server/Server.h"
 #include "ext/sokol/sokol_time.h"
 #include "bq_websocket_platform.h"
 
@@ -10,7 +10,7 @@
 #include <thread>
 #include <chrono>
 
-ServerMain *server;
+sv::Server *server;
 
 int main(int argc, char **argv)
 {
@@ -18,8 +18,9 @@ int main(int argc, char **argv)
 
 	bqws_pt_init(NULL);
 
-    int port = 4004;
-	server = serverInit(port);
+	sv::ServerOpts opts;
+	opts.port = 4004;
+	server = sv::serverInit(opts);
 	if (!server) {
 		char desc[4096];
 		bqws_pt_error err;
@@ -34,7 +35,7 @@ int main(int argc, char **argv)
 	}
 
 	for (;;) {
-		serverUpdate(server);
+		sv::serverUpdate(server);
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 
