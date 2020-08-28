@@ -407,7 +407,9 @@
     #define _SOKOL_UNUSED(x) (void)(x)
 #endif
 
-#if (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
+#if defined(SOKOL_DUMMY_BACKEND)
+    // No threads needed for SOKOL_DUMMY_BACKEND
+#elif (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
     #include <pthread.h>
 #elif defined(_WIN32)
     #ifndef WIN32_LEAN_AND_MEAN
@@ -422,7 +424,9 @@
     #pragma comment (lib, "ole32.lib")
 #endif
 
-#if defined(__APPLE__)
+#if defined(SOKOL_DUMMY_BACKEND)
+    // No audio API needed for SOKOL_DUMMY_BACKEND
+#elif defined(__APPLE__)
     #include <AudioToolbox/AudioToolbox.h>
 #elif (defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     #define ALSA_PCM_NEW_HW_PARAMS_API
@@ -483,7 +487,11 @@
 #endif
 
 /*=== MUTEX WRAPPER DECLARATIONS =============================================*/
-#if (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
+#if defined(SOKOL_DUMMY_BACKEND)
+
+typedef struct { int dummy_mutex; } _saudio_mutex_t;
+
+#elif (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
 
 typedef struct {
     pthread_mutex_t mutex;
@@ -496,7 +504,7 @@ typedef struct {
 } _saudio_mutex_t;
 
 #else
-typedef struct { } _saudio_mutex_t;
+typedef struct { int dummy_mutex; } _saudio_mutex_t;
 #endif
 
 /*=== COREAUDIO BACKEND DECLARATIONS =========================================*/
@@ -656,7 +664,12 @@ _SOKOL_PRIVATE void _saudio_stream_callback(float* buffer, int num_frames, int n
 }
 
 /*=== MUTEX IMPLEMENTATION ===================================================*/
-#if (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
+#if defined(SOKOL_DUMMY_BACKEND)
+_SOKOL_PRIVATE void _saudio_mutex_init(_saudio_mutex_t* m) { (void)m; }
+_SOKOL_PRIVATE void _saudio_mutex_destroy(_saudio_mutex_t* m) { (void)m; }
+_SOKOL_PRIVATE void _saudio_mutex_lock(_saudio_mutex_t* m) { (void)m; }
+_SOKOL_PRIVATE void _saudio_mutex_unlock(_saudio_mutex_t* m) { (void)m; }
+#elif (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
 _SOKOL_PRIVATE void _saudio_mutex_init(_saudio_mutex_t* m) {
     pthread_mutexattr_t attr;
     pthread_mutexattr_init(&attr);
