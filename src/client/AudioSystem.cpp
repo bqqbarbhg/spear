@@ -165,6 +165,7 @@ struct AudioThread
 			dst += 2;
 		}
 
+		limiter.reset();
 		instances.clear();
 		outgoing = nullptr;
 	}

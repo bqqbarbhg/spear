@@ -159,6 +159,16 @@ void AudioSampler::advanceMixStereoImp(float *dstBuf, uint32_t numDst, AudioSour
 	memcpy(carryBuf, workBuf, workNumSamples*srcChannels*sizeof(float));
 }
 
+void AudioLimiter::reset()
+{
+	buffer.clear();
+	prevWindowVolume = 1.0f;
+	prevTargetVolume = 1.0f;
+	bufferEmpty = true;
+	overflowOffset = 0;
+	numOverflowSamples = 0;
+}
+
 float *AudioLimiter::getStereoBuffer(uint32_t &requiredSamples, uint32_t numSamples, uint32_t sampleRate)
 {
 	uint32_t overflowLeft = numOverflowSamples - overflowOffset;

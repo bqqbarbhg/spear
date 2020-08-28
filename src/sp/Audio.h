@@ -62,6 +62,8 @@ struct AudioLimiter
 	uint32_t overflowOffset = 0;
 	uint32_t numOverflowSamples = 0;
 
+	void reset();
+
 	float *getStereoBuffer(uint32_t &requiredSamples, uint32_t numSamples, uint32_t sampleRate);
 	void limitStereo(float *dstSamples, uint32_t numSamples, uint32_t sampleRate);
 };
