@@ -1,3 +1,8 @@
+#include "sf/Base.h"
+
+#define sp_malloc(size) sf_malloc(size)
+#define sp_free(size) sf_free(size)
+
 #include "sp_tools_common.h"
 #include "ext/zstd.h"
 #include <assert.h>
@@ -309,7 +314,7 @@ void *spfile_decode_section(spfile_util *su, const spfile_section *s)
 	if (s->compression_type == SP_COMPRESSION_NONE) {
 		return (char*)su->data + s->offset;
 	} else {
-		void *data = malloc(s->uncompressed_size + 16);
+		void *data = sp_malloc(s->uncompressed_size + 16);
 		spfile_check_ret(data, NULL);
 
 		*(void**)data = su->page_to_free;
@@ -352,7 +357,7 @@ void spfile_util_free(spfile_util *su)
 	void *to_free = su->page_to_free;
 	while (to_free) {
 		void *next = *(void**)to_free;
-		free(to_free);
+		sp_free(to_free);
 		to_free = next;
 	}
 	memset(su, 0, sizeof(spfile_util));
