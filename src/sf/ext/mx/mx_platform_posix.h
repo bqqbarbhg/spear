@@ -59,19 +59,19 @@ static mx_forceinline int mxa_cas32_nf(void *dst, uint32_t cmp, uint32_t val) { 
 
 #define mxa_load_ptr(src) (void*)__c11_atomic_load((_Atomic(void*) *)(src), __ATOMIC_SEQ_CST)
 static mx_forceinline int mxa_cas_ptr(void *dst, const void *cmp, const void *val) { return __c11_atomic_compare_exchange_strong((_Atomic(void*) *)dst, (void**)&cmp, (void*)val, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
-#define mxa_exchange_ptr(src, dst) (void*)__c11_atomic_exchange((_Atomic(void*) *)(src), (const void*)(dst), __ATOMIC_SEQ_CST)
+#define mxa_exchange_ptr(src, dst) (void*)__c11_atomic_exchange((_Atomic(void*) *)(src), (void*)(dst), __ATOMIC_SEQ_CST)
 
 #define mxa_load_ptr_acq(src) (void*)__c11_atomic_load((_Atomic(void*) *)(src), __ATOMIC_ACQUIRE)
 static mx_forceinline int mxa_cas_ptr_acq(void *dst, const void *cmp, const void *val) { return __c11_atomic_compare_exchange_strong((_Atomic(void*) *)dst, (void**)&cmp, (void*)val, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
-#define mxa_exchange_ptr_acq(src, dst) (void*)__c11_atomic_exchange((_Atomic(void*) *)(src), (const void*)(dst), __ATOMIC_ACQUIRE)
+#define mxa_exchange_ptr_acq(src, dst) (void*)__c11_atomic_exchange((_Atomic(void*) *)(src), (void*)(dst), __ATOMIC_ACQUIRE)
 
 #define mxa_load_ptr_rel(src) (void*)__c11_atomic_load((_Atomic(void*) *)(src), __ATOMIC_RELEASE)
 static mx_forceinline int mxa_cas_ptr_rel(void *dst, const void *cmp, const void *val) { return __c11_atomic_compare_exchange_strong((_Atomic(void*) *)dst, (void**)&cmp, (void*)val, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
-#define mxa_exchange_ptr_rel(src, dst) (void*)__c11_atomic_exchange((_Atomic(void*) *)(src), (const void*)(dst), __ATOMIC_RELEASE)
+#define mxa_exchange_ptr_rel(src, dst) (void*)__c11_atomic_exchange((_Atomic(void*) *)(src), (void*)(dst), __ATOMIC_RELEASE)
 
 #define mxa_load_ptr_nf(src) (void*)__c11_atomic_load((_Atomic(void*) *)(src), __ATOMIC_RELAXED)
 static mx_forceinline int mxa_cas_ptr_nf(void *dst, const void *cmp, const void *val) { return __c11_atomic_compare_exchange_strong((_Atomic(void*) *)dst, (void**)&cmp, (void*)val, __ATOMIC_RELAXED, __ATOMIC_RELAXED); }
-#define mxa_exchange_ptr_nf(src, dst) (void*)__c11_atomic_exchange((_Atomic(void*) *)(src), (const void*)(dst), __ATOMIC_RELAXED)
+#define mxa_exchange_ptr_nf(src, dst) (void*)__c11_atomic_exchange((_Atomic(void*) *)(src), (void*)(dst), __ATOMIC_RELAXED)
 
 // -- Misc intrinsics
 
