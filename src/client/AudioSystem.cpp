@@ -225,12 +225,13 @@ struct AudioSystemImp final : AudioSystem
 		sf::Vec3 pos = info.position - viewToWorld.cols[3];
 		float x = sf::dot(pos, viewToWorld.cols[0]);
 		float dist = sf::length(pos);
-		float cosTheta = x / (dist + 0.5f);
+		float cosTheta = x / (dist + 1.0f);
 		float sinHalfTheta = sf::sqrt(sf::max(0.0f, 1.0f - cosTheta) * 0.5f);
 		float cosHalfTheta = sf::sqrt(sf::max(0.0f, 1.0f - sinHalfTheta*sinHalfTheta));
 
-		opts.volume[0] = sinHalfTheta * info.volume;
-		opts.volume[1] = cosHalfTheta * info.volume;
+		float volume = 1.0f / (1.0f + dist * 0.1f);
+		opts.volume[0] = sinHalfTheta * info.volume * volume;
+		opts.volume[1] = cosHalfTheta * info.volume * volume;
 
 		return opts;
 	}
