@@ -396,20 +396,25 @@
 #endif
 
 #ifndef _SOKOL_PRIVATE
-    #if defined(__GNUC__)
+    #if defined(__GNUC__) || defined(__clang__)
         #define _SOKOL_PRIVATE __attribute__((unused)) static
     #else
         #define _SOKOL_PRIVATE static
     #endif
 #endif
 
-#if defined(SOKOL_DUMMY_BACKEND)
-    // No threads needed for SOKOL_DUMMY_BACKEND
-#elif (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
+#ifndef _SOKOL_UNUSED
+    #define _SOKOL_UNUSED(x) (void)(x)
+#endif
+
+#if (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
     #include <pthread.h>
 #elif defined(_WIN32)
     #ifndef WIN32_LEAN_AND_MEAN
     #define WIN32_LEAN_AND_MEAN
+    #endif
+    #ifndef NOMINMAX
+    #define NOMINMAX
     #endif
     #include <windows.h>
     #include <synchapi.h>
@@ -417,9 +422,7 @@
     #pragma comment (lib, "ole32.lib")
 #endif
 
-#if defined(SOKOL_DUMMY_BACKEND)
-    // No audio API needed for SOKOL_DUMMY_BACKEND
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
     #include <AudioToolbox/AudioToolbox.h>
 #elif (defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     #define ALSA_PCM_NEW_HW_PARAMS_API
@@ -456,6 +459,10 @@
     #endif
 #elif defined(__EMSCRIPTEN__)
     #include <emscripten/emscripten.h>
+    #if defined(__EMSCRIPTEN_PTHREADS__)
+        #include <emscripten/threading.h>
+        #include <pthread.h>
+    #endif
 #endif
 
 #ifdef _MSC_VER
@@ -476,9 +483,7 @@
 #endif
 
 /*=== MUTEX WRAPPER DECLARATIONS =============================================*/
-#if defined(SOKOL_DUMMY_BACKEND)
-typedef struct { int dummy_mutex; } _saudio_mutex_t;
-#elif (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
+#if (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
 
 typedef struct {
     pthread_mutex_t mutex;
@@ -494,13 +499,8 @@ typedef struct {
 typedef struct { } _saudio_mutex_t;
 #endif
 
-/*=== DUMMY BACKEND DECLARATIONS =========================================*/
-#if defined(SOKOL_DUMMY_BACKEND)
-typedef struct {
-    bool thread_stop;
-} _saudio_backend_t;
 /*=== COREAUDIO BACKEND DECLARATIONS =========================================*/
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
 
 typedef struct {
     AudioQueueRef ca_audio_queue;
@@ -576,9 +576,25 @@ typedef struct {
 /*=== WEBAUDIO BACKEND DECLARATIONS ==========================================*/
 #elif defined(__EMSCRIPTEN__)
 
+#if defined(__EMSCRIPTEN_PTHREADS__)
+
+typedef struct {
+    uint8_t* buffer;
+    uint8_t* worklet_memory;
+    pthread_t thread;
+    bool thread_stop;
+} _saudio_backend_t;
+
+typedef struct {
+    int32_t atomic_quanta_queued;
+    int32_t num_quanta;
+} _saudio_worklet_t;
+
+#else
 typedef struct {
     uint8_t* buffer;
 } _saudio_backend_t;
+#endif
 
 /*=== DUMMY BACKEND DECLARATIONS =============================================*/
 #else
@@ -588,10 +604,10 @@ typedef struct { } _saudio_backend_t;
 
 /* a ringbuffer structure */
 typedef struct {
-    int head;  /* next slot to write to */
-    int tail;  /* next slot to read from */
-    int num;   /* number of slots in queue */
-    int queue[SAUDIO_RING_MAX_SLOTS];
+    uint32_t head;  /* next slot to write to */
+    uint32_t tail;  /* next slot to read from */
+    uint32_t num;   /* number of slots in queue */
+    uint32_t queue[SAUDIO_RING_MAX_SLOTS];
 } _saudio_ring_t;
 
 /* a packet FIFO structure */
@@ -640,12 +656,7 @@ _SOKOL_PRIVATE void _saudio_stream_callback(float* buffer, int num_frames, int n
 }
 
 /*=== MUTEX IMPLEMENTATION ===================================================*/
-#if defined(SOKOL_DUMMY_BACKEND)
-_SOKOL_PRIVATE void _saudio_mutex_init(_saudio_mutex_t* m) { (void)m; }
-_SOKOL_PRIVATE void _saudio_mutex_destroy(_saudio_mutex_t* m) { (void)m; }
-_SOKOL_PRIVATE void _saudio_mutex_lock(_saudio_mutex_t* m) { (void)m; }
-_SOKOL_PRIVATE void _saudio_mutex_unlock(_saudio_mutex_t* m) { (void)m; }
-#elif (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
+#if (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
 _SOKOL_PRIVATE void _saudio_mutex_init(_saudio_mutex_t* m) {
     pthread_mutexattr_t attr;
     pthread_mutexattr_init(&attr);
@@ -688,11 +699,11 @@ _SOKOL_PRIVATE void _saudio_mutex_unlock(_saudio_mutex_t* m) { (void)m; }
 #endif
 
 /*=== RING-BUFFER QUEUE IMPLEMENTATION =======================================*/
-_SOKOL_PRIVATE uint16_t _saudio_ring_idx(_saudio_ring_t* ring, int i) {
+_SOKOL_PRIVATE uint16_t _saudio_ring_idx(_saudio_ring_t* ring, uint32_t i) {
     return (uint16_t) (i % ring->num);
 }
 
-_SOKOL_PRIVATE void _saudio_ring_init(_saudio_ring_t* ring, int num_slots) {
+_SOKOL_PRIVATE void _saudio_ring_init(_saudio_ring_t* ring, uint32_t num_slots) {
     SOKOL_ASSERT((num_slots + 1) <= SAUDIO_RING_MAX_SLOTS);
     ring->head = 0;
     ring->tail = 0;
@@ -709,26 +720,26 @@ _SOKOL_PRIVATE bool _saudio_ring_empty(_saudio_ring_t* ring) {
 }
 
 _SOKOL_PRIVATE int _saudio_ring_count(_saudio_ring_t* ring) {
-    int count;
+    uint32_t count;
     if (ring->head >= ring->tail) {
         count = ring->head - ring->tail;
     }
     else {
         count = (ring->head + ring->num) - ring->tail;
     }
-    SOKOL_ASSERT((count >= 0) && (count < ring->num));
+    SOKOL_ASSERT(count < ring->num);
     return count;
 }
 
-_SOKOL_PRIVATE void _saudio_ring_enqueue(_saudio_ring_t* ring, int val) {
+_SOKOL_PRIVATE void _saudio_ring_enqueue(_saudio_ring_t* ring, uint32_t val) {
     SOKOL_ASSERT(!_saudio_ring_full(ring));
     ring->queue[ring->head] = val;
     ring->head = _saudio_ring_idx(ring, ring->head + 1);
 }
 
-_SOKOL_PRIVATE int _saudio_ring_dequeue(_saudio_ring_t* ring) {
+_SOKOL_PRIVATE uint32_t _saudio_ring_dequeue(_saudio_ring_t* ring) {
     SOKOL_ASSERT(!_saudio_ring_empty(ring));
-    int val = ring->queue[ring->tail];
+    uint32_t val = ring->queue[ring->tail];
     ring->tail = _saudio_ring_idx(ring, ring->tail + 1);
     return val;
 }
@@ -863,7 +874,10 @@ _SOKOL_PRIVATE int _saudio_fifo_read(_saudio_fifo_t* fifo, uint8_t* ptr, int num
 
 /*=== DUMMY BACKEND IMPLEMENTATION ===========================================*/
 #if defined(SOKOL_DUMMY_BACKEND)
-_SOKOL_PRIVATE bool _saudio_backend_init(void) { return false; };
+_SOKOL_PRIVATE bool _saudio_backend_init(void) {
+    _saudio.bytes_per_frame = _saudio.num_channels * sizeof(float);
+    return true;
+};
 _SOKOL_PRIVATE void _saudio_backend_shutdown(void) { };
 
 /*=== COREAUDIO BACKEND IMPLEMENTATION =======================================*/
@@ -871,6 +885,7 @@ _SOKOL_PRIVATE void _saudio_backend_shutdown(void) { };
 
 /* NOTE: the buffer data callback is called on a separate thread! */
 _SOKOL_PRIVATE void _sapp_ca_callback(void* user_data, AudioQueueRef queue, AudioQueueBufferRef buffer) {
+    _SOKOL_UNUSED(user_data);
     if (_saudio_has_callback()) {
         const int num_frames = buffer->mAudioDataByteSize / _saudio.bytes_per_frame;
         const int num_channels = _saudio.num_channels;
@@ -936,6 +951,7 @@ _SOKOL_PRIVATE void _saudio_backend_shutdown(void) {
 
 /* the streaming callback runs in a separate thread */
 _SOKOL_PRIVATE void* _saudio_alsa_cb(void* param) {
+    _SOKOL_UNUSED(param);
     while (!_saudio.backend.thread_stop) {
         /* snd_pcm_writei() will be blocking until it needs data */
         int write_res = snd_pcm_writei(_saudio.backend.device, _saudio.backend.buffer, _saudio.backend.buffer_frames);
@@ -1076,7 +1092,7 @@ _SOKOL_PRIVATE DWORD WINAPI _saudio_wasapi_thread_fn(LPVOID param) {
         if (FAILED(IAudioClient_GetCurrentPadding(_saudio.backend.audio_client, &padding))) {
             continue;
         }
-        SOKOL_ASSERT(_saudio.backend.thread.dst_buffer_frames >= (int)padding);
+        SOKOL_ASSERT(_saudio.backend.thread.dst_buffer_frames >= padding);
         UINT32 num_frames = _saudio.backend.thread.dst_buffer_frames - padding;
         if (num_frames > 0) {
             _saudio_wasapi_submit_buffer(num_frames);
@@ -1247,45 +1263,31 @@ EMSCRIPTEN_KEEPALIVE int _saudio_emsc_pull(int num_frames) {
 } /* extern "C" */
 #endif
 
-/* setup the WebAudio context and attach a ScriptProcessorNode */
-EM_JS(int, saudio_js_init, (int sample_rate, int num_channels, int buffer_size), {
+/* setup the WebAudio context */
+EM_JS(int, saudio_js_init_common, (int sample_rate), {
+    Module._saudio_shutdown_worker = false;
     Module._saudio_context = null;
     Module._saudio_node = null;
+    Module._saudio_worklet = null;
     if (typeof AudioContext !== 'undefined') {
         Module._saudio_context = new AudioContext({
             sampleRate: sample_rate,
             latencyHint: 'interactive',
         });
-        console.log('sokol_audio.h: created AudioContext');
     }
     else if (typeof webkitAudioContext !== 'undefined') {
         Module._saudio_context = new webkitAudioContext({
             sampleRate: sample_rate,
             latencyHint: 'interactive',
         });
-        console.log('sokol_audio.h: created webkitAudioContext');
     }
     else {
         Module._saudio_context = null;
         console.log('sokol_audio.h: no WebAudio support');
     }
+
     if (Module._saudio_context) {
         console.log('sokol_audio.h: sample rate ', Module._saudio_context.sampleRate);
-        Module._saudio_node = Module._saudio_context.createScriptProcessor(buffer_size, 0, num_channels);
-        Module._saudio_node.onaudioprocess = function pump_audio(event) {
-            var num_frames = event.outputBuffer.length;
-            var ptr = __saudio_emsc_pull(num_frames);
-            if (ptr) {
-                var num_channels = event.outputBuffer.numberOfChannels;
-                for (var chn = 0; chn < num_channels; chn++) {
-                    var chan = event.outputBuffer.getChannelData(chn);
-                    for (var i = 0; i < num_frames; i++) {
-                        chan[i] = HEAPF32[(ptr>>2) + ((num_channels*i)+chn)]
-                    }
-                }
-            }
-        };
-        Module._saudio_node.connect(Module._saudio_context.destination);
 
         // in some browsers, WebAudio needs to be activated on a user action
         var resume_webaudio = function() {
@@ -1298,10 +1300,49 @@ EM_JS(int, saudio_js_init, (int sample_rate, int num_channels, int buffer_size),
         document.addEventListener('click', resume_webaudio, {once:true});
         document.addEventListener('touchstart', resume_webaudio, {once:true});
         document.addEventListener('keydown', resume_webaudio, {once:true});
+
         return 1;
     }
     else {
         return 0;
+    }
+});
+
+/* setup and attach a ScriptProcessorNode */
+EM_JS(int, saudio_js_init_script_processor, (int num_channels, int buffer_size), {
+    Module._saudio_node = Module._saudio_context.createScriptProcessor(buffer_size, 0, num_channels);
+    Module._saudio_node.onaudioprocess = function pump_audio(event) {
+        var num_frames = event.outputBuffer.length;
+        var ptr = __saudio_emsc_pull(num_frames);
+        if (ptr) {
+            var num_channels = event.outputBuffer.numberOfChannels;
+            for (var chn = 0; chn < num_channels; chn++) {
+                var chan = event.outputBuffer.getChannelData(chn);
+                for (var i = 0; i < num_frames; i++) {
+                    chan[i] = HEAPF32[(ptr>>2) + ((num_channels*i)+chn)]
+                }
+            }
+        }
+    };
+    Module._saudio_node.connect(Module._saudio_context.destination);
+    console.log('sokol_audio.h: Using ScriptProcessorNode');
+    return 1;
+});
+
+/* shutdown the WebAudioContext and ScriptProcessorNode */
+EM_JS(void, saudio_js_shutdown, (void), {
+    Module._saudio_shutdown_worker = true;
+    if (Module._saudio_context !== null) {
+        if (Module._saudio_worklet) {
+            Module._saudio_worklet.disconnect();
+        }
+        if (Module._saudio_node) {
+            Module._saudio_node.disconnect();
+        }
+        Module._saudio_context.close();
+        Module._saudio_context = null;
+        Module._saudio_node = null;
+        Module._saudio_worklet = null;
     }
 });
 
@@ -1316,7 +1357,7 @@ EM_JS(int, saudio_js_sample_rate, (void), {
 });
 
 /* get the actual buffer size in number of frames */
-EM_JS(int, saudio_js_buffer_frames, (void), {
+EM_JS(int, saudio_js_buffer_frames_script_processor, (void), {
     if (Module._saudio_node) {
         return Module._saudio_node.bufferSize;
     }
@@ -1325,11 +1366,11 @@ EM_JS(int, saudio_js_buffer_frames, (void), {
     }
 });
 
-_SOKOL_PRIVATE bool _saudio_backend_init(void) {
-    if (saudio_js_init(_saudio.sample_rate, _saudio.num_channels, _saudio.buffer_frames)) {
+_SOKOL_PRIVATE bool _saudio_backend_init_script_processor(void) {
+    if (saudio_js_init_script_processor(_saudio.num_channels, _saudio.buffer_frames)) {
         _saudio.bytes_per_frame = sizeof(float) * _saudio.num_channels;
         _saudio.sample_rate = saudio_js_sample_rate();
-        _saudio.buffer_frames = saudio_js_buffer_frames();
+        _saudio.buffer_frames = saudio_js_buffer_frames_script_processor();
         const int buf_size = _saudio.buffer_frames * _saudio.bytes_per_frame;
         _saudio.backend.buffer = (uint8_t*) SOKOL_MALLOC(buf_size);
         return true;
@@ -1339,10 +1380,234 @@ _SOKOL_PRIVATE bool _saudio_backend_init(void) {
     }
 }
 
+#if defined(__EMSCRIPTEN_PTHREADS__)
+
+/* setup and attach an audio worklet */
+EM_JS(int, saudio_js_init_worklet, (int num_channels, void *worklet_memory, int worklet_slots), {
+    /* pre-check that audio worklets are actually supported */
+    if (!window.SharedArrayBuffer || !Module._saudio_context.audioWorklet || !Module._saudio_context.audioWorklet.addModule) {
+        return 0;
+    }
+
+    var worklet_source = `
+    class SokolAudioWorklet extends AudioWorkletProcessor {
+        constructor() {
+            super();
+            this.ready = false;
+            this.slot = 0;
+            /* the thread initializing sokol_audio will send the worklet a setup message */
+            this.port.onmessage = (e) => {
+                var buffer = e.data.buffer;
+                var offset = e.data.offset;
+                this.num_slots = e.data.num_slots;
+                this.worklet_t = new Int32Array(buffer, offset, 2);
+                this.num_quanta = this.worklet_t[1];
+                /* pre-create the views to the memory to save on GC pressure */
+                this.slots = Array(this.num_slots);
+                for (var i = 0; i < this.num_slots; i++) {
+                    this.slots[i] = new Float32Array(buffer, offset + 8 + i*4*128, 128);
+                }
+                this.ready = true;
+            };
+        }
+
+        process(inputs, outputs, parameters) {
+            var output = outputs[0];
+            /* only write data if ready, outputs are cleared to zero by default */
+            if (this.ready) {
+                /* check if the render thread has written any quanta */
+                var quanta_queued = Atomics.load(this.worklet_t, 0);
+                if (quanta_queued > 0) {
+                    var slot = this.slot;
+                    for (var i = 0; i < output.length; i++) {
+                        output[i].set(this.slots[slot]);
+                        slot = (slot + 1) % this.num_slots;
+                    }
+                    this.slot = slot;
+
+                    /* mark the quantum dequeued and wake up the render thread if there's exactly enough space */
+                    var prev_queued = Atomics.sub(this.worklet_t, 0, 1);
+                    if (prev_queued - 1 == this.num_quanta / 2) {
+                        Atomics.notify(this.worklet_t, 0);
+                    }
+                }
+            }
+            return true;
+        }
+    }
+
+    registerProcessor("sokol-audio-worklet", SokolAudioWorklet)
+    `;
+
+    /* create a Blob-url of inlined JavaScript as the worklet */
+    var blob = new Blob([worklet_source], { type: "text/javascript" });
+    var url = URL.createObjectURL(blob);
+
+    Module._saudio_context.audioWorklet.addModule(url).then(function(e) {
+        /* we might have shut down before this async callback */
+        if (Module._saudio_shutdown_worker) return;
+
+        Module._saudio_worklet = new AudioWorkletNode(Module._saudio_context, "sokol-audio-worklet", {
+            numberOfInputs: 0,
+            numberOfOutputs: 1,
+            outputChannelCount: [num_channels],
+        });
+
+        /* pass the SharedMemoryBuffer to the worklet */
+        var buffer = Module.buffer || Module.wasmMemory.buffer;
+        Module._saudio_worklet.port.postMessage({
+            buffer: buffer,
+            offset: worklet_memory,
+            num_slots: worklet_slots,
+        });
+
+        Module._saudio_worklet.connect(Module._saudio_context.destination);
+        console.log('sokol_audio.h: Using audio worklet');
+    });
+
+    return 1;
+});
+
+EM_JS(int, saudio_js_cancel_worklet, (), {
+    Module._saudio_shutdown_worker = true;
+    if (Module._saudio_worklet) {
+        Module._saudio_worklet.disconnect();
+        Module._saudio_worklet = null;
+    }
+});
+
+#include <stdio.h>
+
+_SOKOL_PRIVATE void *_saudio_emsc_worklet_cb(void *arg) {
+	emscripten_set_thread_name(pthread_self(), "Sokol Audio");
+    /* get the worklet context and quantum slots from the memory pointer */
+    _saudio_worklet_t *worklet = (_saudio_worklet_t*)arg;
+    float *worklet_slots = (float*)((uint8_t*)arg + sizeof(_saudio_worklet_t));
+    const int num_quanta = worklet->num_quanta;
+    const int half_quanta = num_quanta / 2;
+    const int32_t num_slots = (int32_t)(num_quanta * _saudio.num_channels);
+    int32_t slot = 0;
+
+    while (!_saudio.backend.thread_stop) {
+        int32_t queued = (int32_t)emscripten_atomic_load_u32((uint32_t*)&worklet->atomic_quanta_queued);
+
+        /* if we have queued more than half of the buffer wait until we get more space */
+        if (queued > half_quanta) {
+            emscripten_futex_wait(&worklet->atomic_quanta_queued, queued, 10.0);
+            continue;
+        }
+
+        _saudio_emsc_pull(half_quanta * 128);
+
+        for (int quantum = 0; quantum < half_quanta; quantum++) {
+            /* de-interleave the channels into quanta for the worklet */
+            const int num_channels = _saudio.num_channels;
+            for (int channel = 0; channel < num_channels; channel++) {
+                float *dst = worklet_slots + slot * 128;
+                const float *src = (const float*)_saudio.backend.buffer + quantum * 128 * num_channels + channel;
+                for (int i = 0; i < 128; i++) {
+                    *dst = *src;
+                    dst += 1;
+                    src += num_channels;
+                }
+                slot = (slot + 1) % num_slots;
+            }
+
+            /* publish the quantum to the worker, fixing the atomic count if the worker got ahead */
+            int32_t prev_queued = (int32_t)emscripten_atomic_add_u32((uint32_t*)&worklet->atomic_quanta_queued, 1);
+            if (prev_queued < 0) {
+                emscripten_atomic_store_u32((uint32_t*)&worklet->atomic_quanta_queued, 1);
+            }
+        }
+    }
+
+    /* free the worklet memory */
+    SOKOL_FREE(arg);
+
+    return NULL;
+}
+
+_SOKOL_PRIVATE bool _saudio_backend_init_worklet(void) {
+    /* worklet quanta are fixed at 128 so we need the buffer size to be a multiple of that */
+    int worklet_quanta = _saudio.buffer_frames / 128 * 2;
+    if (worklet_quanta < 8) worklet_quanta = 8;
+    /* we need quantum slots for each channel in a quantum */
+    int worklet_slots = worklet_quanta * _saudio.num_channels;
+    int worklet_slot_bytes = worklet_slots * 128 * sizeof(float);
+    /* use half of the quanta for render thread writing */
+    const int buffer_frames = worklet_quanta / 2 * 128;
+    const int bytes_per_frame = sizeof(float) * _saudio.num_channels;
+    const int buf_size = buffer_frames * bytes_per_frame;
+    /* combined allocation of worklet state, worklet quanta, render buffers */
+    void *worklet_memory = SOKOL_MALLOC(sizeof(_saudio_worklet_t) + worklet_slot_bytes + buf_size);
+    _saudio_worklet_t *worklet = (_saudio_worklet_t*)worklet_memory;
+    uint8_t *buffer = (uint8_t*)worklet_memory + sizeof(_saudio_worklet_t) + worklet_slot_bytes;
+
+    if (saudio_js_init_worklet(_saudio.num_channels, worklet_memory, worklet_slots)) {
+        _saudio.sample_rate = saudio_js_sample_rate();
+        _saudio.bytes_per_frame = bytes_per_frame;
+        _saudio.buffer_frames = buffer_frames;
+        _saudio.backend.buffer = buffer;
+
+        worklet->atomic_quanta_queued = 0;
+        worklet->num_quanta = worklet_quanta;
+
+        /* launch the audio render thread */
+        if (0 != pthread_create(&_saudio.backend.thread, 0, _saudio_emsc_worklet_cb, worklet_memory)) {
+            saudio_js_cancel_worklet();
+            SOKOL_FREE(worklet_memory);
+            return false;
+        }
+
+        _saudio.backend.worklet_memory = worklet_memory;
+
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+#endif
+
+_SOKOL_PRIVATE bool _saudio_backend_init(void) {
+
+    /* setup common WebAudio context */
+    if (0 == saudio_js_init_common(_saudio.sample_rate)) {
+        return false;
+    }
+
+    /* try to use worklets if available */
+#if defined(__EMSCRIPTEN_PTHREADS__)
+    if (_saudio_backend_init_worklet()) {
+        return true;
+    }
+#endif
+
+    /* fall back to ScriptProcessorNode */
+    if (_saudio_backend_init_script_processor()) {
+        return true;
+    }
+
+    return false;
+}
+
 _SOKOL_PRIVATE void _saudio_backend_shutdown(void) {
-    /* on HTML5, there's always a 'hard exit' without warning,
-        so nothing useful to do here
-    */
+    saudio_js_shutdown();
+
+#if defined(__EMSCRIPTEN_PTHREADS__)
+    _saudio.backend.thread_stop = true;
+    if (_saudio.backend.worklet_memory) {
+        /* the background thread is responsible for freeing the worklet memory */
+        _saudio.backend.worklet_memory = 0;
+        _saudio.backend.buffer = 0;
+    }
+#endif
+
+    if (_saudio.backend.buffer) {
+        SOKOL_FREE(_saudio.backend.buffer);
+        _saudio.backend.buffer = 0;
+    }
 }
 
 /*=== ANDROID BACKEND IMPLEMENTATION ======================================*/
@@ -1479,14 +1744,14 @@ _SOKOL_PRIVATE bool _saudio_backend_init(void) {
 
     for (int i = 0; i < SAUDIO_NUM_BUFFERS; ++i) {
         const int buffer_size_bytes = sizeof(int16_t) * _saudio.num_channels * _saudio.buffer_frames;
-        _saudio.backend.output_buffers[i] = SOKOL_MALLOC(buffer_size_bytes);
+        _saudio.backend.output_buffers[i] = (int16_t*) SOKOL_MALLOC(buffer_size_bytes);
         SOKOL_ASSERT(_saudio.backend.output_buffers[i]);
         memset(_saudio.backend.output_buffers[i], 0x0, buffer_size_bytes);
     }
 
     {
         const int buffer_size_bytes = _saudio.bytes_per_frame * _saudio.buffer_frames;
-        _saudio.backend.src_buffer = SOKOL_MALLOC(buffer_size_bytes);
+        _saudio.backend.src_buffer = (float*) SOKOL_MALLOC(buffer_size_bytes);
         SOKOL_ASSERT(_saudio.backend.src_buffer);
         memset(_saudio.backend.src_buffer, 0x0, buffer_size_bytes);
     }

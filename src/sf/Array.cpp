@@ -11,7 +11,7 @@ struct ArrayType final : Type
 		elementType = elemType;
 	}
 
-	virtual void getName(sf::StringBuf &buf)
+	virtual void getName(sf::StringBuf &buf) override
 	{
 		buf.append("sf::Array<");
 		elementType->getName(buf);
@@ -66,7 +66,7 @@ struct SmallArrayType final : Type
 		elementType = elemType;
 	}
 
-	virtual void getName(sf::StringBuf &buf)
+	virtual void getName(sf::StringBuf &buf) override
 	{
 		buf.append("sf::SmallArray<");
 		elementType->getName(buf);

@@ -114,14 +114,14 @@ struct TypeStruct final : Type {
 struct TypePolymorphicStructBase : Type {
 	TypePolymorphicStructBase(const char *name, const TypeInfo &info, ::sf::Slice<const PolymorphType> types, size_t tagOffset, const char *tagName, uint32_t userFlags);
 
-	virtual sf::CString getPolymorphTagName();
+	virtual sf::CString getPolymorphTagName() override;
 
-	virtual void getPolymorphTypeNames(sf::Array<sf::StringBuf> &names);
+	virtual void getPolymorphTypeNames(sf::Array<sf::StringBuf> &names) override;
 
-	virtual const PolymorphType *getPolymorphTypeByValue(uint32_t value);
-	virtual const PolymorphType *getPolymorphTypeByName(sf::String name);
+	virtual const PolymorphType *getPolymorphTypeByValue(uint32_t value) override;
+	virtual const PolymorphType *getPolymorphTypeByName(sf::String name) override;
 
-	virtual PolymorphInstance instGetPolymorph(void *inst);
+	virtual PolymorphInstance instGetPolymorph(void *inst) override;
 
 	struct Data;
 	Data *data;
@@ -150,7 +150,7 @@ struct TypeEnum final : Type {
 	TypeEnum(const char *name, const TypeInfo &info, sf::Slice<const EnumValue> values, uint32_t userFlags=0);
 
 	virtual VoidSlice instGetArray(void *inst, sf::Array<char> *scratch) override;
-	virtual void instSetString(void *inst, sf::String str);
+	virtual void instSetString(void *inst, sf::String str) override;
 
 };
 

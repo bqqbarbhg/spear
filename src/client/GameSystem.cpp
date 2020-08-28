@@ -758,10 +758,10 @@ struct GameSystemImp final : GameSystem
 				gp2.delta = gp.delta;
 				gp2.dragFactor = gp.dragFactor;
 				gp2.button = gp.button;
-				if (p.action == gui::GuiPointer::Up || p.action == gui::GuiPointer::Tap) {
+				if (gp.action == gui::GuiPointer::Up || gp.action == gui::GuiPointer::Tap) {
 					gp2.action = gui::GuiPointer::DropCommit;
 					gp2.end = true;
-				} else if (p.action == gui::GuiPointer::Cancel) {
+				} else if (gp.action == gui::GuiPointer::Cancel) {
 					gp2.action = gui::GuiPointer::DropCancel;
 					gp2.end = true;
 				} else {
@@ -1543,7 +1543,7 @@ struct GameSystemImp final : GameSystem
 	{
 	}
 
-	void applyEventImmediate(Systems &systems, const sv::Event &event)
+	void applyEventImmediate(Systems &systems, const sv::Event &event) override
 	{
 		EventContext ctx;
 		ctx.immediate = ctx.begin = true;

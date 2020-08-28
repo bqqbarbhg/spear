@@ -18,7 +18,7 @@ struct KeyValType final : Type
 		fields = data->fields;
 	}
 
-	virtual void getName(sf::StringBuf &buf)
+	virtual void getName(sf::StringBuf &buf) override
 	{
 		buf.append("sf::KeyVal<");
 		data->fields[0].type->getName(buf);
@@ -54,7 +54,7 @@ struct HashMapType final : Type
 		elementType = kvType;
 	}
 
-	virtual void getName(sf::StringBuf &buf)
+	virtual void getName(sf::StringBuf &buf) override
 	{
 		buf.append("sf::HashMap<");
 		elementType->fields[0].type->getName(buf);

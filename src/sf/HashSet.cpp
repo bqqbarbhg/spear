@@ -14,7 +14,7 @@ struct HashSetType final : Type
 		elementType = kvType;
 	}
 
-	virtual void getName(sf::StringBuf &buf)
+	virtual void getName(sf::StringBuf &buf) override
 	{
 		buf.append("sf::HashSet<");
 		elementType->getName(buf);

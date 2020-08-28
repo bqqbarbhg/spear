@@ -44,6 +44,7 @@ void spConfig(sp::MainConfig &config)
 	config.sgDesc.pass_pool_size = 10*1024;
 
 	config.saudioDesc.num_channels = 2;
+	config.saudioDesc.buffer_frames = 1024;
 }
 
 sp::FontRef font;

@@ -1361,6 +1361,7 @@ void ServerState::removeIds(sf::Slice<const uint32_t> ids)
 		case IdType::Character: characters.remove(id); break;
 		case IdType::Card: cards.remove(id); break;
 		case IdType::Status: statuses.remove(id); break;
+		default: serverErrorFmt(*this, "Bad ID type: %u", getIdType(id)); break;
 		}
 	}
 }

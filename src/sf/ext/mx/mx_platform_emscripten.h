@@ -25,7 +25,7 @@
 #define mxa_add32(dst, val) emscripten_atomic_add_u32((dst), (val))
 #define mxa_sub32(dst, val) emscripten_atomic_sub_u32((dst), (val))
 #define mxa_cas32(dst, cmp, val) (emscripten_atomic_cas_u32((dst), (cmp), (val)) == (cmp))
-#define mxa_exchange32(dst, cmp, val) (emscripten_atomic_cas_u32((dst), (cmp), (val)) == (cmp))
+#define mxa_exchange32(dst, val) emscripten_atomic_exchange_u32((dst), (val))
 
 #define mxa_load32_acq(src) mxa_load32(src)
 #define mxa_or32_acq(dst, val) mxa_or32(dst, val)
@@ -35,7 +35,7 @@
 #define mxa_add32_acq(dst, val) mxa_add32(dst, val)
 #define mxa_sub32_acq(dst, val) mxa_sub32(dst, val)
 #define mxa_cas32_acq(dst, cmp, val) mxa_cas32(dst, cmp, val)
-#define mxa_exchange32_acq(dst, cmp, val) mxa_exchange32(1
+#define mxa_exchange32_acq(dst, val) mxa_exchange32(dst, val)
 
 #define mxa_load32_rel(src) mxa_load32(src)
 #define mxa_or32_rel(dst, val) mxa_or32(dst, val)
@@ -45,6 +45,7 @@
 #define mxa_add32_rel(dst, val) mxa_add32(dst, val)
 #define mxa_sub32_rel(dst, val) mxa_sub32(dst, val)
 #define mxa_cas32_rel(dst, cmp, val) mxa_cas32(dst, cmp, val)
+#define mxa_exchange32_rel(dst, val) mxa_exchange32(dst, val)
 
 #define mxa_load32_nf(src) mxa_load32(src)
 #define mxa_or32_nf(dst, val) mxa_or32(dst, val)
@@ -54,21 +55,25 @@
 #define mxa_add32_nf(dst, val) mxa_add32(dst, val)
 #define mxa_sub32_nf(dst, val) mxa_sub32(dst, val)
 #define mxa_cas32_nf(dst, cmp, val) mxa_cas32(dst, cmp, val)
+#define mxa_exchange32_nf(dst, val) mxa_exchange32(dst, val)
 
 // -- mxa_*_ptr
 
 #define mxa_load_ptr(src) (void*)mxa_load32(src)
 #define mxa_cas_ptr(dst, cmp, val) mxa_cas32(dst, (uint32_t)(cmp), (uint32_t)(val))
-#define mxa_exchange_ptr(src, dst) (void*)__c11_atomic_exchange((_Atomic(void*) *)(src), (const void*)(dst), __ATOMIC_SEQ_CST)
+#define mxa_exchange_ptr(dst, val) mxa_exchange32((uint32_t*)(dst), (uint32_t)val)
 
 #define mxa_load_ptr_acq(src) mxa_load_ptr(src)
 #define mxa_cas_ptr_acq(dst, cmp, val) mxa_cas_ptr(dst, cmp, val)
+#define mxa_exchange_ptr_acq(dst, val) mxa_exchange_ptr(dst, val)
 
 #define mxa_load_ptr_rel(src) mxa_load_ptr(src)
 #define mxa_cas_ptr_rel(dst, cmp, val) mxa_cas_ptr(dst, cmp, val)
+#define mxa_exchange_ptr_rel(dst, val) mxa_exchange_ptr(dst, val)
 
 #define mxa_load_ptr_nf(src) mxa_load_ptr(src)
 #define mxa_cas_ptr_nf(dst, cmp, val) mxa_cas_ptr(dst, cmp, val)
+#define mxa_exchange_ptr_nf(dst, val) mxa_exchange_ptr(dst, val)
 
 // -- Misc intrinsics
 

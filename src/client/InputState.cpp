@@ -13,7 +13,7 @@ void Pointer::formatDebugString(sf::StringBuf &str) const
 	case MouseRight: buttonStr = "Right"; break;
 	case MouseMiddle: buttonStr = "Middle"; break;
 	case Touch: buttonStr = "Touch"; break;
-	default: buttonStr = "(???)"; break;
+	default: buttonStr = "(?)"; break;
 	}
 
 	switch (action) {
@@ -21,7 +21,7 @@ void Pointer::formatDebugString(sf::StringBuf &str) const
 	case Hold: actionStr = "Hold"; break;
 	case Up: actionStr = "Up"; break;
 	case Cancel: actionStr = "Cancel"; break;
-	default: actionStr = "(???)"; break;
+	default: actionStr = "(?)"; break;
 	}
 
 	str.format("(%2.2fs) %s %s - (%.2f, %.2f) [drag:%+.2f]", time, buttonStr, actionStr,

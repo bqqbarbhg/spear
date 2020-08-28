@@ -14,7 +14,7 @@ struct ImplicitHashMapType final : Type
 		elementType = kvType;
 	}
 
-	virtual void getName(sf::StringBuf &buf)
+	virtual void getName(sf::StringBuf &buf) override
 	{
 		buf.append("sf::ImplicitHashMap<");
 		elementType->getName(buf);

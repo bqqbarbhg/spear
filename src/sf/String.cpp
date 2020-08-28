@@ -34,7 +34,7 @@ struct StringBufType : Type
 		buf->resize(size);
 	}
 
-	virtual void instSetString(void *inst, sf::String str)
+	virtual void instSetString(void *inst, sf::String str) override
 	{
 		StringBuf *buf = (StringBuf*)inst;
 		*buf = str;

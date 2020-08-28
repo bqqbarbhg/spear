@@ -202,20 +202,20 @@ struct CPointerType final : Type
 		elementType = type;
 	}
 
-	virtual void init()
+	virtual void init() override
 	{
 		if (elementType->flags & PolymorphBase) {
 			flags |= Polymorph;
 		}
 	}
 
-	virtual void getName(sf::StringBuf &buf)
+	virtual void getName(sf::StringBuf &buf) override
 	{
 		elementType->getName(buf);
 		buf.append("*");
 	}
 
-	virtual PolymorphInstance instGetPolymorph(void *inst)
+	virtual PolymorphInstance instGetPolymorph(void *inst) override
 	{
 		void *ptr = *(void**)inst;
 		if (ptr) {
@@ -243,7 +243,7 @@ struct CArrayType final : Type
 		if (type->flags & IsPod) flags |= IsPod;
 	}
 
-	virtual void getName(sf::StringBuf &buf)
+	virtual void getName(sf::StringBuf &buf) override
 	{
 		elementType->getName(buf);
 		buf.format("[%zu]", arraySize);

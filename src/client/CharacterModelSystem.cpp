@@ -789,7 +789,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		}
 	}
 
-	void queryFrameEvents(const Entities &entities, uint32_t entityId, sf::Array<sf::Symbol> &events)
+	void queryFrameEvents(const Entities &entities, uint32_t entityId, sf::Array<sf::Symbol> &events) override
 	{
 		const Entity &entity = entities.entities[entityId];
 		for (const cl::EntityComponent &ec : entity.components) {

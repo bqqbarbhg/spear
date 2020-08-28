@@ -310,7 +310,7 @@ struct AudioSystemImp final : AudioSystem
 	{
 	}
 
-	void updateSpatialSounds(const sf::Mat34 &worldToView)
+	void updateSpatialSounds(const sf::Mat34 &worldToView) override
 	{
 		viewToWorld = sf::inverse(worldToView);
 

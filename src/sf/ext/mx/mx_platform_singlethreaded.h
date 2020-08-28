@@ -81,15 +81,24 @@ static mx_forceinline int mxa_cas_ptr_imp(void **dst, void *cmp, void *val) {
 	}
 }
 #define mxa_cas_ptr(ptr, cmp, val) mxa_cas_ptr_imp((void**)(ptr), (cmp), (val))
+static mx_forceinline void *mxa_exchange_ptr_imp(void **dst, void *value) {
+	void *tmp = *dst;
+	*dst = value;
+	return *tmp;
+}
+#define mxa_exchange_ptr(ptr, val) mxa_exchange_ptr_imp((void**)(ptr), (val))
 
 #define mxa_load_ptr_acq(src) mxa_load_ptr(src)
 #define mxa_cas_ptr_acq(dst, cmp, val) mxa_cas_ptr(dst, cmp, val)
+#define mxa_exchange_ptr_acq(ptr, val) mxa_exchange_ptr_imp((void**)(ptr), (val))
 
 #define mxa_load_ptr_rel(src) mxa_load_ptr(src)
 #define mxa_cas_ptr_rel(dst, cmp, val) mxa_cas_ptr(dst, cmp, val)
+#define mxa_exchange_ptr_rel(ptr, val) mxa_exchange_ptr_imp((void**)(ptr), (val))
 
 #define mxa_load_ptr_nf(src) mxa_load_ptr(src)
 #define mxa_cas_ptr_nf(dst, cmp, val) mxa_cas_ptr(dst, cmp, val)
+#define mxa_exchange_ptr_nf(ptr, val) mxa_exchange_ptr_imp((void**)(ptr), (val))
 
 // -- Misc intrinsics
 

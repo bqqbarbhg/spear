@@ -8,6 +8,7 @@
     #include <pthread.h>
 
 	#if SF_OS_EMSCRIPTEN
+		#include <emscripten.h>
 		#include <emscripten/threading.h>
     #else
         #include <time.h>

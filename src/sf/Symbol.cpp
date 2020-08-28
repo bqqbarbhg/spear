@@ -22,7 +22,7 @@ struct SymbolType : Type
 		return { (void*)sym->data, sym->size() };
 	}
 
-	virtual void instSetString(void *inst, sf::String str)
+	virtual void instSetString(void *inst, sf::String str) override
 	{
 		Symbol *sym = (Symbol*)inst;
 		*sym = Symbol(str);

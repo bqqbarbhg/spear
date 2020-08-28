@@ -60,7 +60,7 @@ struct BlobShadowSystemImp final : BlobShadowSystem
 		shadowVertexBuffer.initDynamicVertex("BlobShadow vertexBuffer", sizeof(ShadowVertex) * 4 * MaxBlobShadowsPerFrame);
 	}
 
-	void addBlobShadow(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::BlobShadowComponent &c, const Transform &transform)
+	void addBlobShadow(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::BlobShadowComponent &c, const Transform &transform) override
 	{
 		uint32_t blobId = blobShadows.size;
 		if (freeBlobShadowIds.size > 0) {

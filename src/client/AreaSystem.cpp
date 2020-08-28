@@ -416,7 +416,7 @@ struct AreaSystemImp final : AreaSystem
 
 	// API
 
-	uint32_t addBoxArea(AreaGroup group, uint32_t userId, const sf::Bounds3 &unclampedBounds, uint32_t areaFlags)
+	uint32_t addBoxArea(AreaGroup group, uint32_t userId, const sf::Bounds3 &unclampedBounds, uint32_t areaFlags) override
 	{
 		uint32_t areaId = areaImps.size;
 		if (freeAreaIds.size > 0) {
@@ -449,13 +449,13 @@ struct AreaSystemImp final : AreaSystem
 		return areaId;
 	}
 
-	uint32_t addBoxArea(AreaGroup group, uint32_t userId, const sf::Bounds3 &bounds, const sf::Mat34 &transform, uint32_t areaFlags)
+	uint32_t addBoxArea(AreaGroup group, uint32_t userId, const sf::Bounds3 &bounds, const sf::Mat34 &transform, uint32_t areaFlags) override
 	{
 		// TODO: OBB support?
 		return addBoxArea(group, userId, sf::transformBounds(transform, bounds), areaFlags);
 	}
 
-	void updateBoxArea(uint32_t areaId, const sf::Bounds3 &unclampedBounds)
+	void updateBoxArea(uint32_t areaId, const sf::Bounds3 &unclampedBounds) override
 	{
 		AreaImp &areaImp = areaImps[areaId];
 		areaImp.checkShape(AreaShape::Box);
@@ -488,13 +488,13 @@ struct AreaSystemImp final : AreaSystem
 		addToOptimizationQueue(spatial);
 	}
 
-	void updateBoxArea(uint32_t areaId, const sf::Bounds3 &bounds, const sf::Mat34 &transform)
+	void updateBoxArea(uint32_t areaId, const sf::Bounds3 &bounds, const sf::Mat34 &transform) override
 	{
 		// TODO: OBB support?
 		updateBoxArea(areaId, sf::transformBounds(transform, bounds));
 	}
 
-	void removeBoxArea(uint32_t areaId)
+	void removeBoxArea(uint32_t areaId) override
 	{
 		AreaImp &areaImp = areaImps[areaId];
 		areaImp.checkShape(AreaShape::Box);
@@ -549,7 +549,7 @@ struct AreaSystemImp final : AreaSystem
 		return addSphereArea(group, userId, sf::transformSphere(transform, sphere), areaFlags);
 	}
 
-	void updateSphereArea(uint32_t areaId, const sf::Sphere &sphere)
+	void updateSphereArea(uint32_t areaId, const sf::Sphere &sphere) override
 	{
 		AreaImp &areaImp = areaImps[areaId];
 		areaImp.checkShape(AreaShape::Sphere);
@@ -583,13 +583,13 @@ struct AreaSystemImp final : AreaSystem
 		addToOptimizationQueue(spatial);
 	}
 
-	void updateSphereArea(uint32_t areaId, const sf::Sphere &sphere, const sf::Mat34 &transform)
+	void updateSphereArea(uint32_t areaId, const sf::Sphere &sphere, const sf::Mat34 &transform) override
 	{
 		// TODO: OBB support?
 		updateSphereArea(areaId, sf::transformSphere(transform, sphere));
 	}
 
-	void removeSphereArea(uint32_t areaId)
+	void removeSphereArea(uint32_t areaId) override
 	{
 		AreaImp &areaImp = areaImps[areaId];
 		areaImp.checkShape(AreaShape::Sphere);
@@ -605,7 +605,7 @@ struct AreaSystemImp final : AreaSystem
 		freeAreaIds.push(areaId);
 	}
 
-	void optimize()
+	void optimize() override
 	{
 		static const uint32_t updatesPerLevel[] = { 4, 2 };
 		for (uint32_t invLevel = 0; invLevel < SpatialMaxDepth - SpatialMinOptimizeDepth; invLevel++) {
