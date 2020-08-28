@@ -8896,9 +8896,8 @@ static inline mi_segment_t* mi_checked_ptr_segment(const void* p, const char* ms
 #endif
 
   mi_segment_t* const segment = _mi_ptr_segment(p);
-  if (mi_unlikely(segment == NULL)) return NULL;  // checks also for (p==NULL)
-
 #if (MI_DEBUG>0)
+  if (mi_unlikely(segment == NULL)) return NULL;  // checks also for (p==NULL)
   if (mi_unlikely(!mi_is_in_heap_region(p))) {
     _mi_warning_message("%s: pointer might not point to a valid heap region: %p\n"
       "(this may still be a valid very large allocation (over 64MiB))\n", msg, p);
