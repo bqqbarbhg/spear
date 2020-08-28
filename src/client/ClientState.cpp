@@ -141,6 +141,7 @@ void ClientState::updateCamera(FrameArgs &frameArgs)
 {
 	systems.frameArgs = frameArgs;
 	systems.game->updateCamera(frameArgs);
+	systems.audio->updateSpatialSounds(frameArgs.mainRenderArgs.worldToView);
 }
 
 void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameArgs)

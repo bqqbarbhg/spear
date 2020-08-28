@@ -4,7 +4,39 @@
 
 namespace sp {
 
-void AudioSampler::advanceMixStereo(float *dstBuf, uint32_t numDst, AudioSource *source, const AudioMixOpts &opts)
+void AudioSampler::advanceMixStereo(float *dst, uint32_t numDst, AudioSource *source, const AudioMixOpts &opts)
+{
+	float samplesPerT = (float)opts.sampleRate * opts.volumeFadeDuration;
+
+	uint32_t numDone = 0;
+	while (numDone < numDst) {
+		if (volumeT >= 0.9999f) {
+
+			volumeT = 0.0f;
+			if (started) {
+				volumeSrc[0] = volumeDst[0];
+				volumeSrc[1] = volumeDst[1];
+			} else {
+				volumeSrc[0] = opts.volumeNext[0];
+				volumeSrc[1] = opts.volumeNext[1];
+				started = true;
+			}
+			volumeDst[0] = opts.volumeNext[0];
+			volumeDst[1] = opts.volumeNext[1];
+		}
+
+		float tLeft = 1.0f - volumeT;
+
+		uint32_t numLeft = numDst - numDone;
+		uint32_t samplesToDo = sf::min(numLeft, ((uint32_t)(samplesPerT * tLeft) + 1) & ~1u);
+		volumeT += (float)samplesToDo / samplesPerT;
+
+		advanceMixStereoImp(dst + numDone * 2, samplesToDo, source, opts);
+		numDone += samplesToDo;
+	}
+}
+
+void AudioSampler::advanceMixStereoImp(float *dstBuf, uint32_t numDst, AudioSource *source, const AudioMixOpts &opts)
 {
 	sf_assert(numDst % 2 == 0);
 
@@ -22,20 +54,12 @@ void AudioSampler::advanceMixStereo(float *dstBuf, uint32_t numDst, AudioSource 
 	float srcToDst = (float)(dstRate / (double)srcRate);
 	float dstToSrc = (float)((double)srcRate / dstRate);
 
-	sf::Float4 volA = sf::Float4(prevVolume[0], prevVolume[1], prevVolume[0], prevVolume[1]);
-	sf::Float4 volB = sf::Float4(opts.volume[0], opts.volume[1], opts.volume[0], opts.volume[1]);
-	sf::Float4 volMin = volA.min(volB);
-	sf::Float4 volMax = volA.max(volB);
+	sf::Float4 volA = sf::Float4(volumeSrc[0], volumeSrc[1], volumeSrc[0], volumeSrc[1]);
+	sf::Float4 volB = sf::Float4(volumeDst[0], volumeDst[1], volumeDst[0], volumeDst[1]);
+	sf::Float4 volSpan = volB - volA;
 
-	float volL = prevVolume[0];
-	float volR = prevVolume[1];
-	float dVolLdS = (opts.volume[0] - volL) * (opts.volumeFadeSpeed/(float)dstRate);
-	float dVolRdS = (opts.volume[1] - volR) * (opts.volumeFadeSpeed/(float)dstRate);
-	prevVolume[0] = sf::clamp(volL + dVolLdS * (float)numDst, volMin.getX(), volMax.getX());
-	prevVolume[1] = sf::clamp(volR + dVolRdS * (float)numDst, volMin.getY(), volMax.getY());
-
-	sf::Float4 vol = sf::Float4(volL, volR, volL + dVolLdS, volR + dVolRdS);
-	sf::Float4 dVolD2S = sf::Float4(dVolLdS, dVolRdS, dVolLdS, dVolRdS) * 2.0f;
+	sf::Float4 vol = volA + volSpan * volumeT;
+	sf::Float4 dVolD2S = volSpan * (2.0f / opts.volumeFadeDuration / (float)opts.sampleRate);
 
 	float *dstPtr = dstBuf, *dstEnd = dstPtr + numDst * 2;
 	while (dstPtr != dstEnd) {
@@ -89,12 +113,10 @@ void AudioSampler::advanceMixStereo(float *dstBuf, uint32_t numDst, AudioSource 
 				sf::Float4 delta(d0, d0, d1, d1);
 				sf::Float4 src = src0 + (src1 - src0) * delta;
 				sf::Float4 dst = sf::Float4::loadu(dstPtr);
-				// dst += src * vol;
-				dst += src;
+				dst += src * vol;
 				dst.storeu(dstPtr);
 
 				vol += dVolD2S;
-				vol = vol.min(volMax).max(volMin);
 				dst.storeu(dstPtr);
 				dstPtr += 4;
 			}
@@ -120,7 +142,6 @@ void AudioSampler::advanceMixStereo(float *dstBuf, uint32_t numDst, AudioSource 
 				dst.storeu(dstPtr);
 
 				vol += dVolD2S;
-				vol = vol.min(volMax).max(volMin);
 				dstPtr += 4;
 			}
 		}
@@ -136,6 +157,130 @@ void AudioSampler::advanceMixStereo(float *dstBuf, uint32_t numDst, AudioSource 
 	carryFirstSample = workFirstSample;
 	carryNumSamples = workNumSamples;
 	memcpy(carryBuf, workBuf, workNumSamples*srcChannels*sizeof(float));
+}
+
+float *AudioLimiter::getStereoBuffer(uint32_t &requiredSamples, uint32_t numSamples, uint32_t sampleRate)
+{
+	uint32_t overflowLeft = numOverflowSamples - overflowOffset;
+	if (overflowLeft >= numSamples) {
+		requiredSamples = 0;
+		return nullptr;
+	}
+
+	uint32_t windowSamples = ((uint32_t)(windowLengthSec * sampleRate) + 7) & ~7;
+	uint32_t needWindows = (numSamples - overflowLeft + windowSamples - 1) / windowSamples;
+	if (bufferEmpty) needWindows += 1;
+	int32_t needSamples = (int32_t)(needWindows * windowSamples);
+	if (needSamples < 0) {
+		requiredSamples = 0;
+		return nullptr;
+	}
+
+	requiredSamples = needSamples;
+	return buffer.pushUninit(needSamples * 2);
+}
+
+void AudioLimiter::limitStereo(float *dstSamples, uint32_t numSamples, uint32_t sampleRate)
+{
+	float *dst = dstSamples;
+	uint32_t samplesLeft = numSamples;
+
+	uint32_t windowSamples = ((uint32_t)(windowLengthSec * sampleRate) + 7) & ~7;
+	uint32_t overflowLeft = numOverflowSamples - overflowOffset;
+	uint32_t needWindows = (numSamples - overflowLeft + windowSamples - 1) / windowSamples;
+	uint32_t processWindows = needWindows;
+	if (bufferEmpty) needWindows += 1;
+	sf_assert(buffer.size == (numOverflowSamples + (processWindows + 1) * windowSamples) * 2);
+	bufferEmpty = false;
+
+	if (overflowLeft > 0) {
+		uint32_t numToCopy = sf::min(overflowLeft, numSamples);
+		memcpy(dst, buffer.data + overflowOffset * 2, numToCopy * 2 * sizeof(float));
+		overflowOffset += numToCopy;
+		samplesLeft -= numToCopy;
+		dst += 2 * numToCopy;
+	}
+
+	if (samplesLeft == 0) return;
+
+	float rcpWindowSamples = 1.0f / (float)windowSamples;
+
+	float *alignedBuffer = buffer.data + numOverflowSamples * 2;
+	overflowOffset = 0;
+	numOverflowSamples = 0;
+
+	float windowVolume, targetVolume;
+	for (uint32_t i = 0; i < processWindows; i++) {
+		uint32_t windowBase = i * windowSamples;
+
+		// Find the maximum volume of the next window
+		{
+			sf::Float4 max0 = 0.0f, max1 = 0.0f;
+			float *ptr = alignedBuffer + (windowBase + windowSamples) * 2;
+			float *end = ptr + windowSamples * 2;
+			sf_assert(end - buffer.data <= buffer.size);
+			while (ptr != end) {
+				sf::Float4 v0 = sf::Float4::loadu(ptr);
+				sf::Float4 v1 = sf::Float4::loadu(ptr + 4);
+				max0 = max0.max(v0.abs());
+				max1 = max1.max(v1.abs());
+				ptr += 8;
+			}
+
+			float maxSample = max0.max(max1).reduceMax();
+			windowVolume = 1.0f / sf::max(maxSample, 1.0f);
+		}
+
+		// Linearly interpolate volume between
+		targetVolume = sf::min(prevWindowVolume, windowVolume, sf::lerp(prevTargetVolume, 1.0f, volumeRecoverPerWindow));
+		float delta = (targetVolume - prevTargetVolume) * rcpWindowSamples;
+		sf::Float4 volume = sf::Float4(prevTargetVolume, prevTargetVolume, prevTargetVolume + delta, prevTargetVolume + delta);
+		sf::ScalarAddFloat4 deltaVolume = delta * 2.0f;
+
+		if (samplesLeft >= windowSamples) {
+			sf::Float4 maxS = 0.0f;
+			float *ptr = alignedBuffer + windowBase * 2;
+			float *end = ptr + windowSamples * 2;
+			sf_assert(end - buffer.data <= buffer.size);
+			while (ptr != end) {
+				sf::Float4 v = sf::Float4::loadu(ptr);
+				v *= volume;
+				v.storeu(dst);
+				volume += deltaVolume;
+				ptr += 4;
+				dst += 4;
+			}
+			samplesLeft -= windowSamples;
+		} else if (samplesLeft > 0) {
+			numOverflowSamples = windowSamples - samplesLeft;
+
+			sf::Float4 maxS = 0.0f;
+			float *base = alignedBuffer + windowBase * 2;
+			float *ptr = base;
+			float *end = ptr + windowSamples * 2;
+			sf_assert(end - buffer.data <= buffer.size);
+			while (ptr != end) {
+				sf::Float4 v = sf::Float4::loadu(ptr);
+				v *= volume;
+				v.storeu(ptr);
+				volume += deltaVolume;
+				ptr += 4;
+			}
+
+			memcpy(dst, base, samplesLeft * 2 * sizeof(float));
+			dst += samplesLeft * 2;
+			samplesLeft = 0;
+		}
+
+		prevTargetVolume = targetVolume;
+		prevWindowVolume = windowVolume;
+	}
+
+	uint32_t copyUnits = (windowSamples + numOverflowSamples) * 2;
+	memmove(buffer.data, buffer.data + buffer.size - copyUnits, copyUnits * sizeof(float));
+	buffer.size = copyUnits;
+
+	sf_assert(dst == dstSamples + numSamples * 2);
 }
 
 }

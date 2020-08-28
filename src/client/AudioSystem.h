@@ -28,6 +28,8 @@ struct AudioSystem : EntitySystem
 
 	virtual void addSound(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::SoundComponent &c, const Transform &transform) = 0;
 
+	virtual void updateSpatialSounds(const sf::Mat34 &worldToView) = 0;
+
 	virtual void update() = 0;
 
 };

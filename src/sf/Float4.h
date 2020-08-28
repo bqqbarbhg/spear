@@ -4,7 +4,7 @@
 #include "sf/Vector.h"
 
 #ifndef SF_FLOAT4_FORCE_SCALAR
-#define SF_FLOAT4_FORCE_SCALAR 0
+#define SF_FLOAT4_FORCE_SCALAR 1
 #endif
 
 #if SF_ARCH_WASM && SF_WASM_USE_SIMD && !SF_FLOAT4_FORCE_SCALAR
@@ -74,6 +74,15 @@ struct Float4
 	}
 	sf_forceinline Float4 min(const Float4 &rhs) const { return wasm_f32x4_min(imp, rhs.imp); }
 	sf_forceinline Float4 max(const Float4 &rhs) const { return wasm_f32x4_max(imp, rhs.imp); }
+
+	sf_forceinline float reduceMin() const {
+		__m128 t0 = wasm_f32x4_min(imp, wasm_v32x4_shuffle(imp, imp, 2,3,0,1));
+		return wasm_f32x4_extract_lane(wasm_f32x4_min(t0, wasm_v32x4_shuffle(t0, t0, 1,0,3,2)));
+	}
+	sf_forceinline float reduceMax() const {
+		__m128 t0 = wasm_f32x4_max(imp, wasm_v32x4_shuffle(imp, imp, 2,3,0,1));
+		return wasm_f32x4_extract_lane(wasm_f32x4_max(t0, wasm_v32x4_shuffle(t0, t0, 1,0,3,2)));
+	}
 
 	sf_forceinline bool anyGreaterThanZero() const { return wasm_i32x4_any_true(wasm_f32x4_gt(imp, wasm_f32x4_const(0.0f,0.0f,0.0f,0.0f))); }
 	sf_forceinline bool allGreaterThanZero() const { return wasm_i32x4_all_true(wasm_f32x4_gt(imp, wasm_f32x4_const(0.0f,0.0f,0.0f,0.0f))); }
@@ -179,6 +188,16 @@ struct Float4
 	sf_forceinline Float4 round() const { return _mm_round_ps(imp, _MM_FROUND_TO_NEAREST_INT |_MM_FROUND_NO_EXC); }
 	sf_forceinline Float4 min(const Float4 &rhs) const { return _mm_min_ps(imp, rhs.imp); }
 	sf_forceinline Float4 max(const Float4 &rhs) const { return _mm_max_ps(imp, rhs.imp); }
+
+	sf_forceinline float reduceMin() const {
+		__m128 t0 = _mm_min_ps(imp, _mm_movehl_ps(imp, imp));
+		return _mm_cvtss_f32(_mm_min_ps(t0, _mm_shuffle_ps(t0, t0, _MM_SHUFFLE(3,2,1,1))));
+	}
+
+	sf_forceinline float reduceMax() const {
+		__m128 t0 = _mm_max_ps(imp, _mm_movehl_ps(imp, imp));
+		return _mm_cvtss_f32(_mm_max_ps(t0, _mm_shuffle_ps(t0, t0, _MM_SHUFFLE(3,2,1,1))));
+	}
 
 	sf_forceinline bool anyGreaterThanZero() const { return _mm_movemask_ps(_mm_cmpgt_ps(imp, _mm_setzero_ps())) != 0; }
 	sf_forceinline bool allGreaterThanZero() const { return _mm_movemask_ps(_mm_cmpgt_ps(imp, _mm_setzero_ps())) == 0xf; }
@@ -300,6 +319,9 @@ struct Float4
 	sf_forceinline Float4 min(const Float4 &rhs) const { return vminq_f32(imp, rhs.imp); }
 	sf_forceinline Float4 max(const Float4 &rhs) const { return vmaxq_f32(imp, rhs.imp); }
 
+	sf_forceinline float reduceMin() const { return vminvq_f32(imp); }
+	sf_forceinline float reduceMax() const { return vmaxvq_f32(imp); }
+
 	sf_forceinline bool anyGreaterThanZero() const {
 		uint64x2_t b = vreinterpretq_u64_u32(vcgtq_f32(imp, vdupq_n_f32(0.0f)));
 		return (vgetq_lane_u64(b, 0) | vgetq_lane_u64(b, 1)) != 0;
@@ -411,6 +433,9 @@ struct Float4
 
 	sf_forceinline Float4 min(const Float4 &rhs) const { return { a<rhs.a?a:rhs.a, b<rhs.b?b:rhs.b, c<rhs.c?c:rhs.c, d<rhs.d?d:rhs.d }; }
 	sf_forceinline Float4 max(const Float4 &rhs) const { return { a<rhs.a?rhs.a:a, b<rhs.b?rhs.b:b, c<rhs.c?rhs.c:c, d<rhs.d?rhs.d:d }; }
+
+	sf_forceinline float reduceMin() const { return sf::min(sf::min(a, b), sf::min(c, d)); }
+	sf_forceinline float reduceMax() const { return sf::max(sf::max(a, b), sf::max(c, d)); }
 
 	sf_forceinline bool anyGreaterThanZero() const { return a>0.0f || b>0.0f || c>0.0f || d>0.0f; }
 	sf_forceinline bool allGreaterThanZero() const { return a>0.0f && b>0.0f && c>0.0f && d>0.0f; }

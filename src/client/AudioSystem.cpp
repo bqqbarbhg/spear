@@ -18,13 +18,29 @@ namespace cl {
 
 const uint32_t MaxSoundInstances = 128;
 
+struct SoundOpts
+{
+	float volume[2];
+};
+
 struct SoundInstance
 {
 	SoundInstance *next = nullptr;
 	sf::Box<sp::AudioSource> source;
 	AudioInfo info;
 	sp::AudioSampler sampler;
+	uint32_t spatialSoundIndex = ~0u;
 	uint32_t trackedSoundId = ~0u;
+
+	SoundOpts optsBuf[4] = { };
+	uint32_t optsIndex = 0;
+
+	SoundOpts getOpts() const { return optsBuf[mxa_load32_acq(&optsIndex) & 3]; }
+	void setOpts(const SoundOpts &opts) {
+		uint32_t ix = mxa_load32_nf(&optsIndex);
+		optsBuf[(ix + 1) & 3] = opts;
+		mxa_inc32_rel(&optsIndex);
+	}
 };
 
 struct AudioThread
@@ -36,6 +52,8 @@ struct AudioThread
 
 	sf::Array<SoundInstance*> instances;
 	sf::Array<float> shutdownBuffer;
+
+	sp::AudioLimiter limiter;
 
 	sf::Mutex mutex;
 	uint32_t prevSampleRate = 0;
@@ -62,7 +80,7 @@ struct AudioThread
 		return (SoundInstance*)mxa_exchange_ptr(list, nullptr);
 	}
 
-	void renderAudio(float *dstBuf, uint32_t numSamples, uint32_t sampleRate)
+	void renderAudio(float *finalBuffer, uint32_t numFinalSamples, uint32_t sampleRate)
 	{
 		// Add new sounds
 		{
@@ -75,14 +93,22 @@ struct AudioThread
 
 		SoundInstance *nextOut = nullptr;
 
+		uint32_t numSamples;
+		float *dstBuf = limiter.getStereoBuffer(numSamples, numFinalSamples, sampleRate);
+		memset(dstBuf, 0, sizeof(float) * numSamples * 2);
+
 		// Play sounds
 		for (uint32_t i = 0; i < instances.size; i++) {
 			SoundInstance *inst = instances[i];
+
+			SoundOpts soundOpts = inst->getOpts();
 
 			sp::AudioMixOpts opts;
 			opts.sampleRate = sampleRate;
 			opts.loop = inst->info.loop;
 			opts.pitch = inst->info.pitch;
+			opts.volumeNext[0] = soundOpts.volume[0];
+			opts.volumeNext[1] = soundOpts.volume[1];
 
 			inst->sampler.advanceMixStereo(dstBuf, numSamples, inst->source, opts);
 
@@ -92,6 +118,8 @@ struct AudioThread
 				instances.removeSwap(i--);
 			}
 		}
+
+		limiter.limitStereo(finalBuffer, numFinalSamples, sampleRate);
 
 		// Update output
 		if (nextOut) {
@@ -138,6 +166,7 @@ struct AudioThread
 		}
 
 		instances.clear();
+		outgoing = nullptr;
 	}
 
 	bool isFinished()
@@ -171,9 +200,13 @@ struct AudioSystemImp final : AudioSystem
 	sf::Array<SoundInstance> soundInstances;
 	SoundInstance *nextFreeInstance = nullptr;
 
+	sf::Array<SoundInstance*> playingSpatialSounds;
+
 	sf::Array<PendingOneShot> pendingOneShots;
 
 	sf::Random rng;
+
+	sf::Mat34 viewToWorld;
 
 	SoundInstance *allocInstance()
 	{
@@ -185,6 +218,23 @@ struct AudioSystemImp final : AudioSystem
 		return inst;
 	}
 
+	SoundOpts evaluateSoundOpts(const AudioInfo &info)
+	{
+		SoundOpts opts;
+
+		sf::Vec3 pos = info.position - viewToWorld.cols[3];
+		float x = sf::dot(pos, viewToWorld.cols[0]);
+		float dist = sf::length(pos);
+		float cosTheta = x / (dist + 0.5f);
+		float sinHalfTheta = sf::sqrt(sf::max(0.0f, 1.0f - cosTheta) * 0.5f);
+		float cosHalfTheta = sf::sqrt(sf::max(0.0f, 1.0f - sinHalfTheta*sinHalfTheta));
+
+		opts.volume[0] = sinHalfTheta * info.volume;
+		opts.volume[1] = cosHalfTheta * info.volume;
+
+		return opts;
+	}
+
 	void playOneShotImp(const sp::SoundRef &ref, const AudioInfo &info)
 	{
 		if (!ref.isLoaded()) return;
@@ -193,6 +243,9 @@ struct AudioSystemImp final : AudioSystem
 
 		inst->source = ref->getSource();
 		inst->info = info;
+
+		inst->spatialSoundIndex = playingSpatialSounds.size;
+		playingSpatialSounds.push(inst);
 
 		g_audioThread.pushInstance(&g_audioThread.incoming, inst);
 	}
@@ -255,6 +308,15 @@ struct AudioSystemImp final : AudioSystem
 	{
 	}
 
+	void updateSpatialSounds(const sf::Mat34 &worldToView)
+	{
+		viewToWorld = sf::inverse(worldToView);
+
+		for (SoundInstance *inst : playingSpatialSounds) {
+			inst->setOpts(evaluateSoundOpts(inst->info));
+		}
+	}
+
 	void update() override
 	{
 		// Recycle sound instances
@@ -262,6 +324,10 @@ struct AudioSystemImp final : AudioSystem
 			SoundInstance *inst = g_audioThread.popInstances(&g_audioThread.outgoing);
 			while (inst) {
 				SoundInstance *next = inst->next;
+
+				uint32_t spatialIx = inst->spatialSoundIndex;
+				playingSpatialSounds.back()->spatialSoundIndex = spatialIx;
+				playingSpatialSounds.removeSwap(spatialIx);
 
 				sf::reset(*inst);
 				inst->next = nextFreeInstance;

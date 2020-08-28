@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sf/Base.h"
+#include "sf/Array.h"
 
 namespace sp {
 
@@ -21,8 +22,8 @@ struct AudioMixOpts
 {
 	bool loop = false;
 	uint32_t sampleRate = 44100;
-	float volume[2] = { 1.0f, 1.0f };
-	float volumeFadeSpeed = 100.0f;
+	float volumeNext[2] = { 1.0f, 1.0f };
+	float volumeFadeDuration = 1.0f / 30.0f;
 	float pitch = 1.0f;
 };
 
@@ -37,10 +38,32 @@ struct AudioSampler
 
 	uint32_t loopCount = 0;
 	bool ended = false;
+	bool started = false;
 
-	float prevVolume[2];
+	float volumeT = 1.0f;
+	float volumeSrc[2] = { };
+	float volumeDst[2] = { };
 
 	void advanceMixStereo(float *dst, uint32_t numDst, AudioSource *source, const AudioMixOpts &opts);
+
+	void advanceMixStereoImp(float *dst, uint32_t numDst, AudioSource *source, const AudioMixOpts &opts);
+};
+
+struct AudioLimiter
+{
+	sf::Array<float> buffer;
+	float windowLengthSec = 1.0f / 100.0f;
+	float volumeRecoverPerWindow = 0.01f;
+
+	float prevWindowVolume = 1.0f;
+	float prevTargetVolume = 1.0f;
+
+	bool bufferEmpty = true;
+	uint32_t overflowOffset = 0;
+	uint32_t numOverflowSamples = 0;
+
+	float *getStereoBuffer(uint32_t &requiredSamples, uint32_t numSamples, uint32_t sampleRate);
+	void limitStereo(float *dstSamples, uint32_t numSamples, uint32_t sampleRate);
 };
 
 }

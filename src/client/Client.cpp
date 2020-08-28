@@ -698,8 +698,6 @@ void clientRenderGui(Client *c)
 
 void clientAudio(Client *c, float *dstBuffer, uint32_t numSamples, uint32_t sampleRate)
 {
-	memset(dstBuffer, 0, numSamples * 2 * sizeof(float));
-
 	cl::pullAudioStereo(dstBuffer, numSamples, sampleRate);
 
 }
