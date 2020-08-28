@@ -7,6 +7,9 @@
 #include "sf/Semaphore.h"
 #include "sf/File.h"
 
+#include "sf/ext/mx/mx_platform.h"
+#include "sf/ext/mx/mx_sync.h"
+
 #include "ext/sokol/sokol_fetch.h"
 
 #if SF_OS_EMSCRIPTEN
@@ -285,6 +288,42 @@ ContentLoadHandle ContentFile::loadMainThread(const sf::String &name, Callback c
 	return loadImp(name, callback, user, true);
 }
 
+struct MainThreadCallbackImp
+{
+	MainThreadCallback *callback;
+	MainThreadCallbackImp *next;
+	sf::Semaphore semaphore;
+};
+
+static MainThreadCallbackImp *g_firstMainCb;
+static uint32_t g_mainThreadId;
+
+void ContentFile::runMainThreadCallbacks()
+{
+	MainThreadCallbackImp *cb = (MainThreadCallbackImp*)mxa_exchange_ptr(&g_firstMainCb, nullptr);
+	while (cb) {
+		MainThreadCallbackImp *next = cb->next;
+		cb->callback->run();
+		cb->semaphore.signal();
+		cb = next;
+	}
+}
+
+void ContentFile::mainThreadCallback(MainThreadCallback *cb)
+{
+	if (mx_get_thread_id() == g_mainThreadId) {
+		cb->run();
+	} else {
+		MainThreadCallbackImp imp = { cb };
+
+		do {
+			imp.next = (MainThreadCallbackImp*)mxa_load_ptr(&g_firstMainCb);
+		} while (!mxa_cas_ptr(&g_firstMainCb, imp.next, &imp));
+
+		imp.semaphore.wait();
+	}
+}
+
 void ContentFile::cancel(ContentLoadHandle handle)
 {
 	ContentFileContext &ctx = g_contentFileContext;
@@ -398,6 +437,8 @@ static void contentFileWorker(void *arg)
 void ContentFile::globalInit(bool useWorker)
 {
 	ContentFileContext &ctx = g_contentFileContext;
+
+	g_mainThreadId = mx_get_thread_id();
 
 	for (auto &buffer : ctx.fetchBuffers) {
 		buffer.resizeUninit(BufferSize);

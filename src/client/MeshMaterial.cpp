@@ -103,7 +103,9 @@ static void loadTextureImp(void *user, const sp::ContentFile &file, MaterialText
 			d.content.subimage[0][mipI].size = header.s_mips[mipDrop + mipI].uncompressed_size;
 		}
 
-        imp->images[(uint32_t)texture] = sg_make_image(&d);
+        sp::ContentFile::mainThreadCallbackFunc([&](){
+			imp->images[(uint32_t)texture] = sg_make_image(&d);
+        });
 
 		spfile_util_free(&su.file);
 	}
@@ -135,13 +137,13 @@ void MeshMaterialImp::assetStartLoading()
     uint32_t resolution = g_hack_hd ? 1024u : 512u;
 
     path.clear(); path.format("%s_albedo.%s.%u.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Albedo]), resolution);
-	sp::ContentFile::loadMainThread(path, &loadAlbedoImp, this);
+	sp::ContentFile::loadAsync(path, &loadAlbedoImp, this);
 
     path.clear(); path.format("%s_normal.%s.%u.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Normal]), resolution);
-	sp::ContentFile::loadMainThread(path, &loadNormalImp, this);
+	sp::ContentFile::loadAsync(path, &loadNormalImp, this);
 
     path.clear(); path.format("%s_mask.%s.%u.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Mask]), resolution);
-	sp::ContentFile::loadMainThread(path, &loadMaskImp, this);
+	sp::ContentFile::loadAsync(path, &loadMaskImp, this);
 }
 
 void MeshMaterialImp::assetUnload()

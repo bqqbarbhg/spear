@@ -59,7 +59,11 @@ static void loadTextureImp(void *user, const sp::ContentFile &file)
 		}
         
         if (!spfile_util_failed(&su.file)) {
-            imp->image = sg_make_image(&d);
+
+			sp::ContentFile::mainThreadCallbackFunc([&](){
+				imp->image = sg_make_image(&d);
+			});
+
             ok = true;
         }
 
@@ -79,7 +83,7 @@ void ParticleTextureImp::assetStartLoading()
 
 	if (name.size() > 0) {
 		path.clear(); path.format("%s.%s.sptex", name.data, sp::getPixelFormatSuffix(ParticleTexture::pixelFormat));
-		sp::ContentFile::loadMainThread(path, &loadTextureImp, this);
+		sp::ContentFile::loadAsync(path, &loadTextureImp, this);
 	} else {
 		assetFailLoading();
 	}

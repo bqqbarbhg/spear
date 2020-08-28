@@ -138,7 +138,9 @@ static void loadTextureImp(void *user, const sp::ContentFile &file, MaterialText
 		uint32_t offsetY = (imp->slot / ctx.numSlotsY) * atlas.textureExtent;
 
 		if (!spfile_util_failed(&su.file)) {
-			sg_bqq_update_subimage(atlas.texture.image, &d, (int)offsetX, (int)offsetY);
+			sp::ContentFile::mainThreadCallbackFunc([&](){
+				sg_bqq_update_subimage(atlas.texture.image, &d, (int)offsetX, (int)offsetY);
+			});
 		}
 
 		spfile_util_free(&su.file);
@@ -169,13 +171,13 @@ void TileMaterialImp::assetStartLoading()
     uvScale = rcpSize;
 
     path.clear(); path.format("%s_albedo.%s.%u.sptex", name.data, getPixelFormatSuffix(ctx.atlases[(uint32_t)MaterialTexture::Albedo].pixelFormat), ctx.atlases[(uint32_t)MaterialTexture::Albedo].textureExtent);
-	sp::ContentFile::loadMainThread(path, &loadAlbedoImp, this);
+	sp::ContentFile::loadAsync(path, &loadAlbedoImp, this);
 
     path.clear(); path.format("%s_normal.%s.%u.sptex", name.data, getPixelFormatSuffix(ctx.atlases[(uint32_t)MaterialTexture::Normal].pixelFormat), ctx.atlases[(uint32_t)MaterialTexture::Normal].textureExtent);
-	sp::ContentFile::loadMainThread(path, &loadNormalImp, this);
+	sp::ContentFile::loadAsync(path, &loadNormalImp, this);
 
     path.clear(); path.format("%s_mask.%s.%u.sptex", name.data, getPixelFormatSuffix(ctx.atlases[(uint32_t)MaterialTexture::Mask].pixelFormat), ctx.atlases[(uint32_t)MaterialTexture::Mask].textureExtent);
-	sp::ContentFile::loadMainThread(path, &loadMaskImp, this);
+	sp::ContentFile::loadAsync(path, &loadMaskImp, this);
 }
 
 void TileMaterialImp::assetUnload()

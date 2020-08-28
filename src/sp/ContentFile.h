@@ -22,6 +22,20 @@ struct ContentPackage
 
 typedef bool ContentCacheResolveFunc(const sf::CString &name, sf::StringBuf &url, sf::StringBuf &path, void *user);
 
+struct MainThreadCallback
+{
+	virtual void run() = 0;
+};
+
+template <typename Fn>
+struct MainThreadCallbackFn final : MainThreadCallback
+{
+	Fn fn;
+
+	sf_forceinline MainThreadCallbackFn(Fn fn) : fn(fn) { }
+	virtual void run() final override { fn(); }
+};
+
 struct ContentFile
 {
 	typedef void (*Callback)(void *user, const ContentFile &file);
@@ -50,6 +64,16 @@ struct ContentFile
 	// Returns a handle that can be passed to `cancel()`.
 	static ContentLoadHandle loadAsync(const sf::String &name, Callback callback, void *user);
 	static ContentLoadHandle loadMainThread(const sf::String &name, Callback callback, void *user);
+
+	static void runMainThreadCallbacks();
+
+	static void mainThreadCallback(MainThreadCallback *cb);
+
+	template <typename Fn>
+	sf_forceinline static void mainThreadCallbackFunc(Fn fn) {
+		MainThreadCallbackFn<Fn> cb { fn };
+		mainThreadCallback(&cb);
+	}
 
 	// Cancel an in-flight load
 	static void cancel(ContentLoadHandle handle);

@@ -120,6 +120,7 @@ void impEvent(const sapp_event *e)
 
 void impFrame()
 {
+	sp::ContentFile::runMainThreadCallbacks();
 	sp::ContentFile::globalUpdate();
 	sp::Asset::globalUpdate();
 	sp::Sprite::globalUpdate();
