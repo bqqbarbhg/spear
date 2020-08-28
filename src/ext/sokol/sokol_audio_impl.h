@@ -507,8 +507,13 @@ typedef struct {
 typedef struct { int dummy_mutex; } _saudio_mutex_t;
 #endif
 
+/*=== DUMMY BACKEND DECLARATIONS =============================================*/
+#if defined(SOKOL_DUMMY_BACKEND)
+typedef struct {
+    int dummy_backend;
+} _saudio_backend_t;
 /*=== COREAUDIO BACKEND DECLARATIONS =========================================*/
-#if defined(__APPLE__)
+#elif defined(__APPLE__)
 
 typedef struct {
     AudioQueueRef ca_audio_queue;
