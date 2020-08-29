@@ -140,6 +140,7 @@ struct Entities
 	void removeComponents(Systems &systems, uint32_t entityId);
 
 	void addComponent(uint32_t entityId, EntitySystem *system, uint32_t userId, uint8_t subsystemIndex, uint8_t componentIndex, uint32_t flags);
+	void removeComponent(uint32_t entityId, EntitySystem *system, uint32_t userId, uint8_t subsystemIndex);
 
 	void updateQueuedRemoves(Systems &systems, const FrameArgs &frameArgs);
 };

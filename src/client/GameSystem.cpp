@@ -140,6 +140,23 @@ struct Camera
 	}
 };
 
+static void faceTowardsPosition(Transform &transform, const sf::Vec3 &position, float dt, float speed)
+{
+	sf::Vec3 z = position - transform.position;
+	float zLen = sf::length(z);
+	if (zLen < 0.01f) return;
+	z /= zLen;
+	sf::Vec3 y = sf::Vec3(0.0f, 1.0f, 0.0f);
+	sf::Vec3 x = sf::cross(y, z);
+	sf::Quat target = sf::axesToQuat(x, y, z);
+	if (sf::dot(target, transform.rotation) < 0.0f) {
+		target = -target;
+	}
+
+	float alpha = exp2f(dt*-speed);
+	transform.rotation = sf::normalize(sf::lerp(target, transform.rotation, alpha));
+}
+
 struct GameSystemImp final : GameSystem
 {
 	uint32_t selectedCharacterId = 0;
@@ -369,6 +386,7 @@ struct GameSystemImp final : GameSystem
 
 	bool applyEventImp(Systems &systems, const sv::Event &event, EventContext &ctx)
 	{
+		float dt = systems.frameArgs.dt;
 		if (const auto *e = event.as<sv::AddCharacterEvent>()) {
 			Transform transform;
 			transform.position = sf::Vec3((float)e->character.tile.x, 0.0f, (float)e->character.tile.y);
@@ -490,7 +508,6 @@ struct GameSystemImp final : GameSystem
 			if (chrId != ~0u) {
 				Character &character = characters[chrId];
 				character.tile = e->position;
-				float dt = systems.frameArgs.dt;
 
 				if (ctx.immediate) {
 					Transform transform;
@@ -516,6 +533,8 @@ struct GameSystemImp final : GameSystem
 						sf::Vec3 target = sf::Vec3((float)wp.position.x, 0.0f, (float)wp.position.y);
 						sf::Vec3 delta = target - pos;
 						float len = sf::length(delta);
+
+						faceTowardsPosition(transform, target, dt, 10.0f);
 
 						moveVelocity += delta * (dt / sf::max(len, 0.1f)) * 45.0f;
 
@@ -607,6 +626,16 @@ struct GameSystemImp final : GameSystem
 					systems.characterModel->addOneShotTag(systems.entities, chr->entityId, symMelee);
 				}
 
+				uint32_t targetEntityId = systems.entities.svToEntity.findOne(e->meleeInfo.targetId, ~0u);
+				if (targetEntityId != ~0u) {
+					Entity &targetEntity = systems.entities.entities[targetEntityId];
+					Entity &entity = systems.entities.entities[chr->entityId];
+
+					Transform transform = entity.transform;
+					faceTowardsPosition(transform, targetEntity.transform.position, dt, 10.0f);
+					systems.entities.updateTransform(systems, chr->entityId, transform);
+				}
+
 				sf::SmallArray<sf::Symbol, 16> events;
 				systems.characterModel->queryFrameEvents(systems.entities, chr->entityId, events);
 				if (sf::find(events, symHit)) return true;
@@ -645,6 +674,17 @@ struct GameSystemImp final : GameSystem
 				sf::SmallArray<sf::Symbol, 16> events;
 				systems.characterModel->queryFrameEvents(systems.entities, chr->entityId, events);
 				if (sf::find(events, symCast)) castAnimDone = true;
+
+				uint32_t targetEntityId = systems.entities.svToEntity.findOne(e->spellInfo.targetId, ~0u);
+				if (targetEntityId != ~0u) {
+					Entity &targetEntity = systems.entities.entities[targetEntityId];
+					Entity &entity = systems.entities.entities[chr->entityId];
+
+					Transform transform = entity.transform;
+					faceTowardsPosition(transform, targetEntity.transform.position, dt, 10.0f);
+					systems.entities.updateTransform(systems, chr->entityId, transform);
+				}
+
 
 				// Failsafe
 				if (ctx.timer >= 2.0f) castAnimDone = true;

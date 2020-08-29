@@ -45,6 +45,10 @@ struct Quat
 		*this = (*this * rhs);
 		return *this;
 	}
+
+	Quat operator-() const {
+		return Quat(-x, -y, -z, -w);
+	}
 };
 
 sf_inline float dot(const Quat &a, const Quat &b) { return a.x*b.x + a.y*b.y + a.z*b.z + a.w*b.w; }

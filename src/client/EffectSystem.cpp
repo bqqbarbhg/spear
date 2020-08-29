@@ -15,6 +15,7 @@ struct EffectSystemImp final : EffectSystem
 		float lifeTime = 1.0f;
 		uint32_t entityId;
 		uint32_t endingIndex = ~0u;
+		uint32_t parentId = ~0u;
 		sf::Vec3 attachOffset;
 	};
 
@@ -72,6 +73,7 @@ struct EffectSystemImp final : EffectSystem
 		Effect &effect = effects[effectId];
 		effect.entityId = entityId;
 		effect.attachOffset = offset;
+		effect.parentId = parentId;
 
 		systems.entities.addComponent(entityId, this, effectId, 0, 0, 0);
 		systems.entities.addComponent(parentId, this, effectId, 1, 0, Entity::UpdateTransform);
@@ -112,6 +114,10 @@ struct EffectSystemImp final : EffectSystem
 			uint32_t effectId = ec.userId;
 			Effect &effect = effects[effectId];
 
+			if (effect.parentId != ~0u) {
+				systems.entities.removeComponent(effect.parentId, this, effectId, 1);
+			}
+
 			if (effect.endingIndex != ~0u) {
 				effects[endingEffects.back()].endingIndex = effect.endingIndex;
 				endingEffects.removeSwap(effect.endingIndex);
@@ -122,6 +128,8 @@ struct EffectSystemImp final : EffectSystem
 		} else if (ec.subsystemIndex == 1) {
 			uint32_t effectId = ec.userId;
 			Effect &effect = effects[effectId];
+
+			effect.parentId = ~0u;
 
 			if (effect.endingIndex == ~0u) {
 				effect.endingIndex = endingEffects.size;

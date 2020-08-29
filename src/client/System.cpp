@@ -251,9 +251,11 @@ void Entities::addComponents(Systems &systems, uint32_t entityId, const Transfor
 void Entities::removeComponents(Systems &systems, uint32_t entityId)
 {
 	Entity &entity = entities[entityId];
-	for (uint32_t i = entity.components.size; i > 0; --i) {
+	uint32_t numComponents = entity.components.size;
+	for (uint32_t i = numComponents; i > 0; --i) {
 		EntityComponent &ec = entity.components[i - 1];
 		ec.system->remove(systems, entityId, ec);
+		sf_assert(entity.components.size == numComponents);
 	}
 	entity.components.clear();
 }
@@ -269,6 +271,17 @@ void Entities::addComponent(uint32_t entityId, EntitySystem *system, uint32_t us
 	comp.flags = (uint16_t)flags;
 }
 
+void Entities::removeComponent(uint32_t entityId, EntitySystem *system, uint32_t userId, uint8_t subsystemIndex)
+{
+	Entity &entity = entities[entityId];
+	for (EntityComponent &ec : entity.components) {
+		if (ec.system == system && ec.userId == userId && ec.subsystemIndex == subsystemIndex) {
+			entity.components.removeSwapPtr(&ec);
+			break;
+		}
+	}
+}
+
 void Entities::updateQueuedRemoves(Systems &systems, const FrameArgs &frameArgs)
 {
 	for (uint32_t i = 0; i < removeQueue.size; i++) {
@@ -277,10 +290,13 @@ void Entities::updateQueuedRemoves(Systems &systems, const FrameArgs &frameArgs)
 
 		for (uint32_t i = 0; i < entity.components.size; i++) {
 			EntityComponent &ec = entity.components[i];
+			uint32_t prevSize = entity.components.size;
 			if ((ec.flags & Entity::PrepareForRemove) == 0 || ec.system->prepareForRemove(systems, entityId, ec, frameArgs)) {
 				ec.system->remove(systems, entityId, ec);
 				entity.components.removeSwap(i--);
+				prevSize--;
 			}
+			sf_assert(entity.components.size == prevSize);
 		}
 
 		if (entity.components.size == 0) {
