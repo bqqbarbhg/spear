@@ -84,7 +84,7 @@ static mx_forceinline int mxa_cas_ptr_imp(void **dst, void *cmp, void *val) {
 static mx_forceinline void *mxa_exchange_ptr_imp(void **dst, void *value) {
 	void *tmp = *dst;
 	*dst = value;
-	return *tmp;
+	return tmp;
 }
 #define mxa_exchange_ptr(ptr, val) mxa_exchange_ptr_imp((void**)(ptr), (val))
 
