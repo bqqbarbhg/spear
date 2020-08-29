@@ -361,9 +361,11 @@ sf::Vec2 drawRichText(sp::Canvas &canvas, const RichTextDesc &desc, sf::String t
 
 					RichTagString closingTag;
 					if (closing) {
-						closingTag = tagStack.popValue();
-						if (tag.size == 0) {
-							tag = closingTag;
+						if (tagStack.size > 0) {
+							closingTag = tagStack.popValue();
+							if (tag.size == 0) {
+								tag = closingTag;
+							}
 						}
 					} else {
 						if (tag.size > 0 && tag.data[tag.size - 1] == '/') {
