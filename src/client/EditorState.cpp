@@ -510,6 +510,7 @@ General:
 Moving props:
 - Left click: Select
 - Shift+left click: Add/remove from multiselect
+- G (hold) + left click: Select "unselectable" objects like characters
 - Drag (hold left click): Move objects
 - Right click while dragging: Rotate 90 degrees
 - Ctrl+drag: Clone objects

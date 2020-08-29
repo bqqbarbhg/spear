@@ -94,6 +94,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 		sf::HashMap<sf::Symbol, int32_t> tags;
 		sf::Array<sf::Symbol> oneShotTags;
+		bool needStateUpdate = false;
 
 		sf::Array<sf::Symbol> frameEvents;
 
@@ -385,6 +386,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		tagWeights[sf::Symbol("Melee")] = 100.0;
 		tagWeights[sf::Symbol("Stagger")] = 100.0;
 		tagWeights[sf::Symbol("Cast")] = 100.0;
+		tagWeights[sf::Symbol("Hit")] = 100.0;
+		tagWeights[sf::Symbol("Run")] = 100.0;
 		animCtx.rng = sf::Random(desc.seed[0], 756789);
 
 		uint8_t permutation[SP_NUM_PERMUTATIONS] = { };
@@ -637,7 +640,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			ctx.boneTransforms.clear();
 			ctx.boneTransforms.resize(model.model->bones.size);
 
-			bool needStateUpdate = false;
+			bool needStateUpdate = model.needStateUpdate;
+			model.needStateUpdate = false;
 
 			if (model.oneShotTags.size > 0) {
 				needStateUpdate = true;
@@ -785,6 +789,32 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 				uint32_t modelId = ec.userId;
 				Model &model = models[modelId];
 				model.oneShotTags.push(tag);
+			}
+		}
+	}
+
+	void addTag(const Entities &entities, uint32_t entityId, const sf::Symbol &tag) override
+	{
+		const Entity &entity = entities.entities[entityId];
+		for (const cl::EntityComponent &ec : entity.components) {
+			if (ec.system == this && ec.subsystemIndex == 0) {
+				uint32_t modelId = ec.userId;
+				Model &model = models[modelId];
+				model.addTag(tag);
+				model.needStateUpdate = true;
+			}
+		}
+	}
+
+	void removeTag(const Entities &entities, uint32_t entityId, const sf::Symbol &tag) override
+	{
+		const Entity &entity = entities.entities[entityId];
+		for (const cl::EntityComponent &ec : entity.components) {
+			if (ec.system == this && ec.subsystemIndex == 0) {
+				uint32_t modelId = ec.userId;
+				Model &model = models[modelId];
+				model.removeTag(tag);
+				model.needStateUpdate = true;
 			}
 		}
 	}

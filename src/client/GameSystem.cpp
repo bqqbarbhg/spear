@@ -40,6 +40,7 @@ static const sf::Symbol symMelee { "Melee" };
 static const sf::Symbol symStagger { "Stagger" };
 static const sf::Symbol symCast { "Cast" };
 static const sf::Symbol symHit { "Hit" };
+static const sf::Symbol symRun { "Run" };
 
 static const constexpr float TapCancelDistance = 0.03f;
 static const constexpr float TapCancelDistanceSq = TapCancelDistance * TapCancelDistance;
@@ -300,6 +301,10 @@ struct GameSystemImp final : GameSystem
 	bool castAnimDone = false;
 	bool castDone = false;
 
+	uint32_t moveWaypointIndex = ~0u;
+	sf::Vec3 moveVelocity;
+	float moveEndTime = 0.0f;
+
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
 	{
 		Character &chr = characters[characterId];
@@ -485,6 +490,7 @@ struct GameSystemImp final : GameSystem
 			if (chrId != ~0u) {
 				Character &character = characters[chrId];
 				character.tile = e->position;
+				float dt = systems.frameArgs.dt;
 
 				if (ctx.immediate) {
 					Transform transform;
@@ -492,17 +498,59 @@ struct GameSystemImp final : GameSystem
 					systems.entities.updateTransform(systems, character.entityId, transform);
 				} else {
 					Entity &entity = systems.entities.entities[character.entityId];
-					sf::Vec3 goal = sf::Vec3((float)e->position.x, 0.0f, (float)e->position.y);
-					Transform transform;
-					transform.position = sf::lerp(entity.transform.position, goal, 0.1f);
+					sf::Vec3 pos = entity.transform.position;
 
-					bool end = false;
-					if (sf::length(transform.position - goal) < 0.1f) {
-						transform.position = goal;
-						end = true;
+					if (ctx.begin) {
+						moveWaypointIndex = 0;
+						moveVelocity = sf::Vec3();
+						moveEndTime = 0.0f;
 					}
 
+					moveVelocity *= exp2f(dt*-13.0f);
+
+					Transform transform = entity.transform;
+
+					bool end = false;
+					if (moveWaypointIndex < e->waypoints.size) {
+						const sv::Waypoint &wp = e->waypoints[moveWaypointIndex];
+						sf::Vec3 target = sf::Vec3((float)wp.position.x, 0.0f, (float)wp.position.y);
+						sf::Vec3 delta = target - pos;
+						float len = sf::length(delta);
+
+						moveVelocity += delta * (dt / sf::max(len, 0.1f)) * 45.0f;
+
+						if (len < 0.5f) {
+							moveWaypointIndex++;
+						}
+					} else {
+						sf::Vec3 target = sf::Vec3((float)e->position.x, 0.0f, (float)e->position.y);
+						sf::Vec3 delta = target - pos;
+						float len = sf::length(delta);
+
+						if (moveEndTime == 0.0f) {
+							systems.characterModel->removeTag(systems.entities, character.entityId, symRun);
+						}
+
+						moveEndTime = sf::max(moveEndTime + dt * 4.0f, 1.0f);
+
+						moveVelocity += delta * (dt / sf::max(len, 0.5f)) * 10.0f;
+
+						transform.position += delta * sf::min(1.0f, dt / len * moveEndTime);
+
+						if (len < 0.01f) {
+							moveVelocity = sf::Vec3(0.0f);
+							transform.position = target;
+							end = true;
+						}
+					}
+
+					transform.position += moveVelocity * dt;
 					systems.entities.updateTransform(systems, character.entityId, transform);
+
+					if (ctx.begin) {
+						systems.characterModel->addTag(systems.entities, character.entityId, symRun);
+					}
+
 					return end;
 				}
 			}
@@ -1180,12 +1228,13 @@ struct GameSystemImp final : GameSystem
 
 							action->characterId = selectedCharacterId;
 							action->tile = tile;
-							action->waypoints.reserve(reach->distance);
-							action->waypoints.push(tile);
+							action->waypoints.resizeUninit(reach->distance);
+							uint32_t waypointIx = action->waypoints.size;
+							action->waypoints[--waypointIx] = tile;
 
 							sf::Vec2i prev = reach->previous;
 							while (sv::ReachableTile *prevReach = moveSet.distanceToTile.findValue(prev)) {
-								action->waypoints.push(prev);
+								action->waypoints[--waypointIx] = prev;
 								prev = prevReach->previous;
 							}
 
