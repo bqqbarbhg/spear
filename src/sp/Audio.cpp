@@ -29,9 +29,9 @@ void AudioSampler::advanceMixStereo(float *dst, uint32_t numDst, AudioSource *so
 
 		uint32_t numLeft = numDst - numDone;
 		uint32_t samplesToDo = sf::min(numLeft, ((uint32_t)(samplesPerT * tLeft) + 1) & ~1u);
-		volumeT += (float)samplesToDo / samplesPerT;
 
 		advanceMixStereoImp(dst + numDone * 2, samplesToDo, source, opts);
+		volumeT += (float)samplesToDo / samplesPerT;
 		numDone += samplesToDo;
 	}
 }
@@ -58,8 +58,9 @@ void AudioSampler::advanceMixStereoImp(float *dstBuf, uint32_t numDst, AudioSour
 	sf::Float4 volB = sf::Float4(volumeDst[0], volumeDst[1], volumeDst[0], volumeDst[1]);
 	sf::Float4 volSpan = volB - volA;
 
-	sf::Float4 vol = volA + volSpan * volumeT;
-	sf::Float4 dVolD2S = volSpan * (2.0f / opts.volumeFadeDuration / (float)opts.sampleRate);
+	float volumeStep = 1.0f / opts.volumeFadeDuration / (float)opts.sampleRate;
+	sf::Float4 vol = volA + volSpan * sf::Float4(volumeT, volumeT, volumeT + volumeStep, volumeT + volumeStep);
+	sf::Float4 dVolD2S = volSpan * (2.0f * volumeStep);
 
 	float *dstPtr = dstBuf, *dstEnd = dstPtr + numDst * 2;
 	while (dstPtr != dstEnd) {
