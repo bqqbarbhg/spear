@@ -58,6 +58,13 @@ EM_JS(int, clientEmscWritePersist, (const char *data, size_t size), {
 	sessionStorage.setItem("spear_persist", str);
 });
 
+EM_JS(void, clientEmscUpdateUrl, (int id, int secret), {
+	var urlParams = new URLSearchParams(window.location.search);
+	urlParams.set("id", id.toString());
+	urlParams.set("secret", secret.toString());
+	history.replaceState(null, "", "?" + urlParams.toString());
+});
+
 #endif
 
 struct DebugRenderHandles
@@ -450,6 +457,10 @@ void handleMessage(Client *c, sv::Message &msg)
 		c->svState = m->state;
 		c->svState->localClientId = m->clientId;
 		c->clState->localClientId = m->clientId;
+
+		#if SF_OS_EMSCRIPTEN
+			clientEmscUpdateUrl((int)m->sessionId, (int)m->sessionSecret);
+		#endif
 
 		m->state->getAsEvents(&handleLoadEvent, c);
 
