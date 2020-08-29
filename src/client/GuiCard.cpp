@@ -45,9 +45,7 @@ void GuiCard::init(const sv::Prefab &prefab, uint32_t svId)
 				dice.load(sf::Symbol("Assets/Gui/Card/Dice_4.png"));
 			}
 		}
-	}
-
-	if (cardComp->spell) {
+	} else {
 		frame.load(sf::Symbol("Assets/Gui/Card/Spell_Frame.png"));
 	}
 }

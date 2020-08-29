@@ -442,7 +442,7 @@ struct SoundComponent : ComponentBase<Component::Sound>
 
 struct RoomConnectionComponent : ComponentBase<Component::RoomConnection>
 {
-	sf::Symbol type;
+	sf::Symbol connectionType; //! Name of the connection that can be matched with this
 };
 
 struct Prefab sv_reflect()

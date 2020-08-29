@@ -844,9 +844,14 @@ template<> void initType<SoundComponent>(Type *t)
 template<> void initType<RoomConnectionComponent>(Type *t)
 {
 	static Field fields[] = {
-		sf_field(RoomConnectionComponent, type),
+		sf_field(RoomConnectionComponent, connectionType),
 	};
 	sf_struct_base(t, RoomConnectionComponent, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "connectionType");
+		info.description = "Name of the connection that can be matched with this";
+	}
 }
 
 template<> void initType<AllocateIdEvent>(Type *t)

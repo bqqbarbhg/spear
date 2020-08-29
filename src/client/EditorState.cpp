@@ -79,6 +79,7 @@ struct EntityIconResources
 	sp::SpriteRef effect { "Assets/Gui/Editor/EntityIcon/Effect.png" };
 	sp::SpriteRef sound { "Assets/Gui/Editor/EntityIcon/Sound.png" };
 	sp::SpriteRef character { "Assets/Gui/Editor/EntityIcon/Character.png" };
+	sp::SpriteRef exit { "Assets/Gui/Editor/EntityIcon/Exit.png" };
 	sp::FontRef nameFont { "Assets/Gui/Font/NotoSans-Regular.ttf" };
 };
 
@@ -1326,6 +1327,11 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 							pSprite = &es->entityIconResources.character;
 							iconLevel = 3;
 						}
+					} else if (auto *c = comp->as<sv::RoomConnectionComponent>()) {
+						if (iconLevel < 4) {
+							pSprite = &es->entityIconResources.exit;
+							iconLevel = 4;
+						}
 					}
 					if (!shouldAdd) break;
 				}
@@ -1479,7 +1485,7 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 		const ImGuiPayload *payload = ImGui::GetDragDropPayload();
 		if (payload && !strcmp(payload->DataType, "prefab")) {
 			sf::Symbol prefabName = sf::Symbol((const char*)payload->Data, payload->DataSize);
-			if (sf::beginsWith(prefabName, "Prefabs/Props/")) {
+			if (sf::beginsWith(prefabName, "Prefabs/Props/") || sf::beginsWith(prefabName, "Prefabs/Effects/")) {
 				if (es->svState->prefabs.find(prefabName)) {
 
 					if (es->mouseDown) {
