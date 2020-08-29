@@ -25,15 +25,25 @@ struct SoundOpts
 
 struct SoundInstance
 {
+	enum Flag
+	{
+		Stop = 0x1,
+	};
+
 	SoundInstance *next = nullptr;
 	sf::Box<sp::AudioSource> source;
 	AudioInfo info;
 	sp::AudioSampler sampler;
+	uint32_t atomicFlags = 0;
+
 	uint32_t spatialSoundIndex = ~0u;
 	uint32_t trackedSoundId = ~0u;
 
 	SoundOpts optsBuf[4] = { };
 	uint32_t optsIndex = 0;
+
+	void setFlag(uint32_t flags) { mxa_or32_nf(&atomicFlags, flags); }
+	uint32_t getFlags() const { return mxa_load32_nf(&atomicFlags); }
 
 	SoundOpts getOpts() const { return optsBuf[mxa_load32_acq(&optsIndex) & 3]; }
 	void setOpts(const SoundOpts &opts) {
@@ -101,6 +111,8 @@ struct AudioThread
 		for (uint32_t i = 0; i < instances.size; i++) {
 			SoundInstance *inst = instances[i];
 
+			uint32_t flags = inst->getFlags();
+
 			SoundOpts soundOpts = inst->getOpts();
 
 			sp::AudioMixOpts opts;
@@ -110,9 +122,22 @@ struct AudioThread
 			opts.volumeNext[0] = soundOpts.volume[0];
 			opts.volumeNext[1] = soundOpts.volume[1];
 
+			if (flags & SoundInstance::Stop) {
+				opts.volumeNext[0] = 0.0f;
+				opts.volumeNext[1] = 0.0f;
+			}
+
 			inst->sampler.advanceMixStereo(dstBuf, numSamples, inst->source, opts);
 
-			if (inst->sampler.ended) {
+			bool ended = inst->sampler.ended;
+
+			if (flags & SoundInstance::Stop) {
+				if (inst->sampler.volumeSrc[0] + inst->sampler.volumeSrc[1] <= 0.00001f) {
+					ended = true;
+				}
+			}
+
+			if (ended) {
 				inst->next = nextOut;
 				nextOut = inst;
 				instances.removeSwap(i--);
@@ -181,16 +206,11 @@ AudioThread g_audioThread;
 
 struct AudioSystemImp final : AudioSystem
 {
-	struct PendingOneShot
+	struct PendingSound
 	{
 		sp::SoundRef sound;
 		AudioInfo info;
-	};
-
-	struct TrackedSound
-	{
-		sp::SoundRef sound;
-		SoundInstance *instance;
+		uint32_t entitySoundId = ~0u;
 	};
 
 	struct SoundComponentData
@@ -198,12 +218,22 @@ struct AudioSystemImp final : AudioSystem
 		sf::Array<sp::SoundRef> refs;
 	};
 
+	struct EntitySound
+	{
+		sf::Vec3 offset;
+		SoundInstance *instance = nullptr;
+		uint32_t pendingSoundId = ~0u;
+	};
+
 	sf::Array<SoundInstance> soundInstances;
 	SoundInstance *nextFreeInstance = nullptr;
 
 	sf::Array<SoundInstance*> playingSpatialSounds;
 
-	sf::Array<PendingOneShot> pendingOneShots;
+	sf::Array<PendingSound> pendingSounds;
+
+	sf::Array<EntitySound> entitySounds;
+	sf::Array<uint32_t> freeEntitySoundIds;
 
 	sf::Random rng;
 
@@ -237,7 +267,7 @@ struct AudioSystemImp final : AudioSystem
 		return opts;
 	}
 
-	void playOneShotImp(const sp::SoundRef &ref, const AudioInfo &info)
+	void playLoadedSoundImp(const sp::SoundRef &ref, const AudioInfo &info, uint32_t entitySoundId)
 	{
 		if (!ref.isLoaded()) return;
 		SoundInstance *inst = allocInstance();
@@ -246,10 +276,26 @@ struct AudioSystemImp final : AudioSystem
 		inst->source = ref->getSource();
 		inst->info = info;
 
+		if (entitySoundId != ~0u) {
+			entitySounds[entitySoundId].instance = inst;
+		}
+
 		inst->spatialSoundIndex = playingSpatialSounds.size;
 		playingSpatialSounds.push(inst);
 
 		g_audioThread.pushInstance(&g_audioThread.incoming, inst);
+	}
+
+	void playSoundImp(const sp::SoundRef &sound, const AudioInfo &info, uint32_t entitySoundId)
+	{
+		if (sound.isLoading()) {
+			if (entitySoundId != ~0u) {
+				entitySounds[entitySoundId].pendingSoundId = pendingSounds.size;
+			}
+			pendingSounds.push({ sound, info, entitySoundId });
+		} else {
+			playLoadedSoundImp(sound, info, entitySoundId);
+		}
 	}
 
 	// API
@@ -282,11 +328,7 @@ struct AudioSystemImp final : AudioSystem
 
 	void playOneShot(const sp::SoundRef &sound, const AudioInfo &info) override
 	{
-		if (sound.isLoading()) {
-			pendingOneShots.push({ sound, info });
-		} else {
-			playOneShotImp(sound, info);
-		}
+		playSoundImp(sound, info, ~0u);
 	}
 
 	void addSound(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::SoundComponent &c, const Transform &transform) override
@@ -294,20 +336,67 @@ struct AudioSystemImp final : AudioSystem
 		if (c.sounds.size == 0) return;
 		sp::SoundRef sound { c.sounds[rng.nextU32() % c.sounds.size].assetName };
 
+		uint32_t entitySoundId = entitySounds.size;
+		if (freeEntitySoundIds.size > 0) {
+			entitySoundId = freeEntitySoundIds.popValue();
+		} else {
+			entitySounds.push();
+		}
+
+		EntitySound &entitySound = entitySounds[entitySoundId];
+		entitySound.offset = c.offset;
+
 		AudioInfo info;
-		info.position = transform.position;
+		info.position = transform.transformPoint(entitySound.offset);
 		info.volume = c.volume + c.volumeVariance * rng.nextFloat();
 		info.pitch = c.pitch + c.pitchVariance * rng.nextFloat();
 		info.loop = c.loop;
-		playOneShot(sound, info);
+		playSoundImp(sound, info, entitySoundId);
+
+		systems.entities.addComponent(entityId, this, entitySoundId, 0, componentIndex, Entity::UpdateTransform);
 	}
 
 	void updateTransform(Systems &systems, uint32_t entityId, const EntityComponent &ec, const TransformUpdate &update) override
 	{
+		uint32_t entitySoundId = ec.userId;
+		EntitySound &entitySound = entitySounds[entitySoundId];
+
+		sf::Vec3 pos = sf::transformPoint(update.entityToWorld, entitySound.offset);
+		if (entitySound.instance) {
+			entitySound.instance->info.position = pos;
+		}
+		if (entitySound.pendingSoundId != ~0u) {
+			pendingSounds[entitySound.pendingSoundId].info.position = pos;
+		}
 	}
 
 	void remove(Systems &systems, uint32_t entityId, const EntityComponent &ec) override
 	{
+		uint32_t entitySoundId = ec.userId;
+		EntitySound &entitySound = entitySounds[entitySoundId];
+
+		if (entitySound.instance) {
+			if (entitySound.instance->info.loop) {
+				entitySound.instance->setFlag(SoundInstance::Stop);
+			}
+		}
+
+		uint32_t pendingSoundId = entitySound.pendingSoundId;
+		if (pendingSoundId != ~0u) {
+			PendingSound &p = pendingSounds[pendingSoundId];
+			if (p.info.loop) {
+				uint32_t backEntitySoundId = pendingSounds.back().entitySoundId;
+				if (backEntitySoundId != ~0u) {
+					entitySounds[backEntitySoundId].pendingSoundId = pendingSoundId;
+				}
+				pendingSounds.removeSwap(pendingSoundId);
+			} else {
+				p.entitySoundId = ~0u;
+			}
+		}
+
+		freeEntitySoundIds.push(entitySoundId);
+		sf::reset(entitySound);
 	}
 
 	void updateSpatialSounds(const sf::Mat34 &worldToView) override
@@ -340,11 +429,17 @@ struct AudioSystemImp final : AudioSystem
 		}
 
 		// Update pending one shots
-		for (uint32_t i = 0; i < pendingOneShots.size; i++) {
-			PendingOneShot &p = pendingOneShots[i];
+		for (uint32_t i = 0; i < pendingSounds.size; i++) {
+			PendingSound &p = pendingSounds[i];
 			if (p.sound.isLoading()) continue;
-			playOneShotImp(p.sound, p.info);
-			pendingOneShots.removeSwap(i--);
+
+			playLoadedSoundImp(p.sound, p.info, p.entitySoundId);
+
+			uint32_t backEntitySoundId = pendingSounds.back().entitySoundId;
+			if (backEntitySoundId != ~0u) {
+				entitySounds[backEntitySoundId].pendingSoundId = i;
+			}
+			pendingSounds.removeSwap(i--);
 		}
 	}
 

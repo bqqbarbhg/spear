@@ -16,6 +16,7 @@ struct AudioInfo
 	float volume = 1.0f;
 	float pitch = 1.0f;
 	bool loop = false;
+	bool follow = true;
 };
 
 struct AudioSystem : EntitySystem

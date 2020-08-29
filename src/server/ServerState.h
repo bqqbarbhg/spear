@@ -428,6 +428,7 @@ struct SoundComponent : ComponentBase<Component::Sound>
 	float pitch = 1.0f;
 	float pitchVariance = 0.0f;
 	bool loop = false;
+	sf::Vec3 offset;
 };
 
 struct Prefab sv_reflect()
