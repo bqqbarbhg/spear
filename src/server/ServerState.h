@@ -59,6 +59,7 @@ struct Component
 		TileArea,
 		Effect,
 		Sound,
+		RoomConnection,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -437,6 +438,11 @@ struct SoundComponent : ComponentBase<Component::Sound>
 	float pitchVariance = 0.0f;
 	bool loop = false;
 	sf::Vec3 offset;
+};
+
+struct RoomConnectionComponent : ComponentBase<Component::RoomConnection>
+{
+	sf::Symbol type;
 };
 
 struct Prefab sv_reflect()

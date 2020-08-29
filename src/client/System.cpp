@@ -222,6 +222,10 @@ void Entities::removeEntityInstant(Systems &systems, uint32_t entityId)
 
 void Entities::removeEntityQueued(uint32_t entityId)
 {
+	Entity &entity = entities[entityId];
+	if (entity.deleteQueued) return;
+	entity.deleteQueued = true;
+
 	removeQueue.push(entityId);
 }
 

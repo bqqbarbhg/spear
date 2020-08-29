@@ -19,6 +19,11 @@
 
 #include "sf/File.h"
 #include "sp/Json.h"
+#include "sp/Canvas.h"
+#include "sp/Sprite.h"
+#include "sp/Font.h"
+
+#include "sf/Random.h"
 
 #include "server/FixedPoint.h"
 #include "server/ServerStateReflection.h"
@@ -56,6 +61,25 @@ struct EditorDir
 	sf::StringBuf name;
 	sf::StringBuf prefix;
 	sf::Array<EditorFile> files;
+};
+
+struct EntityIcon
+{
+	sp::SpriteRef sprite;
+	sf::Symbol prefabName;
+	sf::Vec2 targetPosition;
+	sf::Vec2 position;
+	uint32_t entityId = ~0u;
+	bool found = false;
+};
+
+struct EntityIconResources
+{
+	sp::SpriteRef unknown { "Assets/Gui/Editor/EntityIcon/Unknown.png" };
+	sp::SpriteRef effect { "Assets/Gui/Editor/EntityIcon/Effect.png" };
+	sp::SpriteRef sound { "Assets/Gui/Editor/EntityIcon/Sound.png" };
+	sp::SpriteRef character { "Assets/Gui/Editor/EntityIcon/Character.png" };
+	sp::FontRef nameFont { "Assets/Gui/Font/NotoSans-Regular.ttf" };
 };
 
 struct EditorState
@@ -119,6 +143,7 @@ struct EditorState
 
 	// Visualization
 	bool viewAreas = false;
+	bool viewIcons = true;
 	
 	// Folder navigation
 	EditorDir dirAssets;
@@ -129,6 +154,13 @@ struct EditorState
 	sf::StringBuf addInput;
 	bool addPrefab = false;
 	bool addFolder = false;
+
+	// Entity icon stack
+	EntityIconResources entityIconResources;
+	sf::Array<EntityIcon> entityIcons;
+	uint32_t hoveredEntityIcon = ~0u;
+	sf::Vec3 hoveredEntityPos;
+	sf::Random rng;
 
 	// Errors
 	uint32_t totalErrors = 0;
@@ -309,6 +341,7 @@ void editorAddQueryDir(EditorState *es, const sf::StringBuf &root, const sv::Que
 
 void editorPreRefresh(EditorState *es)
 {
+	es->entityIcons.clear();
 	es->clState.reset();
 }
 
@@ -348,7 +381,8 @@ void handleImguiMenu(EditorState *es)
 		}
 
 		if (ImGui::BeginMenu("View")) {
-			if (ImGui::MenuItem("Areas")) es->viewAreas = !es->viewAreas;
+			ImGui::MenuItem("Icons", "I", &es->viewIcons);
+			ImGui::MenuItem("Areas", NULL, &es->viewAreas);
 			ImGui::EndMenu();
 		}
 
@@ -510,12 +544,13 @@ General:
 Moving props:
 - Left click: Select
 - Shift+left click: Add/remove from multiselect
-- G (hold) + left click: Select "unselectable" objects like characters
 - Drag (hold left click): Move objects
 - Right click while dragging: Rotate 90 degrees
 - Ctrl+drag: Clone objects
 - Delete: Delete selected objects
 - 1/2/3: Switch between translate/rotate/scale tool (press again to disable)
+- I: Hide/show selection icons
+- F (hold)+drag: Move objects outside of grid
 
 Properties:
 - Right click to copy/paste/reset
@@ -1228,6 +1263,131 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 				es->gizmoIndex = (es->gizmoIndex != 2) ? 2 : 0;
 			} else if (event.key_code == SAPP_KEYCODE_3) {
 				es->gizmoIndex = (es->gizmoIndex != 3) ? 3 : 0;
+			} else if (event.key_code == SAPP_KEYCODE_I) {
+				es->viewIcons = !es->viewIcons;
+			}
+		}
+	}
+
+	for (EntityIcon &icon : es->entityIcons) {
+		icon.found = false;
+	}
+
+	if (es->viewIcons) {
+		float minDist = 0.1f;
+		float viewRadius = 2.0f;
+		for (Entity &entity : es->clState->systems.entities.entities) {
+			if (entity.prefabId == ~0u) continue;
+			if (entity.deleteQueued) continue;
+			uint32_t entityId = (uint32_t)(&entity - es->clState->systems.entities.entities.data);
+
+			sf::Vec3 pos = entity.transform.position;
+			sf::Vec4 projected = frameArgs.mainRenderArgs.worldToClip * sf::Vec4(pos, 1.0f);
+			if (projected.w <= 0.00001f) continue;
+
+			sf::Vec2 offset = sf::Vec2(projected.x / projected.w, projected.y / projected.w);
+			if (offset.x < -1.0f || offset.x > 1.0f || offset.y < -1.0f || offset.y > 1.0f) continue;
+
+			offset = (offset + sf::Vec2(1.0f, -1.0f)) * sf::Vec2(0.5f, -0.5f) * frameArgs.guiResolution;
+
+			bool found = false;
+			for (EntityIcon &icon : es->entityIcons) {
+				if (icon.entityId == entityId) {
+					icon.found = true;
+					icon.targetPosition = offset;
+					found = true;
+					break;
+				}
+			}
+
+			if (!found) {
+				bool shouldAdd = true;
+				sp::SpriteRef *pSprite = &es->entityIconResources.unknown;
+
+				Prefab &prefab = es->clState->systems.entities.prefabs[entity.prefabId];
+				uint32_t iconLevel = 0;
+				for (sv::Component *comp : prefab.svPrefab->components) {
+					if (auto *c = comp->as<sv::DynamicModelComponent>()) {
+						shouldAdd = false;
+					} else if (auto *c = comp->as<sv::TileModelComponent>()) {
+						shouldAdd = false;
+					} else if (auto *c = comp->as<sv::SoundComponent>()) {
+						if (iconLevel < 1) {
+							pSprite = &es->entityIconResources.sound;
+							iconLevel = 1;
+						}
+					} else if (auto *c = comp->as<sv::ParticleSystemComponent>()) {
+						if (iconLevel < 2) {
+							pSprite = &es->entityIconResources.effect;
+							iconLevel = 2;
+						}
+					} else if (auto *c = comp->as<sv::CharacterComponent>()) {
+						if (iconLevel < 3) {
+							pSprite = &es->entityIconResources.character;
+							iconLevel = 3;
+						}
+					}
+					if (!shouldAdd) break;
+				}
+
+				if (shouldAdd) {
+					EntityIcon &icon = es->entityIcons.push();
+					icon.found = true;
+					icon.position = icon.targetPosition = offset;
+					icon.entityId = entityId;
+					icon.sprite = *pSprite;
+					icon.prefabName	= prefab.svPrefab->name;
+				}
+			}
+		}
+	}
+
+	for (uint32_t i = 0; i < es->entityIcons.size; i++) {
+		EntityIcon &icon = es->entityIcons[i];
+		if (!icon.found) {
+			es->entityIcons.removeOrdered(i--);
+		}
+	}
+
+	float repelRadius = 30.0f;
+	float repelRadiusSq = repelRadius * repelRadius;
+	for (uint32_t iter = 0; iter < 5; iter++) {
+		for (uint32_t i = 0; i < es->entityIcons.size; i++) {
+			EntityIcon &a = es->entityIcons[i];
+			a.position = sf::lerp(a.position, a.targetPosition, 0.5f);
+
+			for (uint32_t j = i + 1; j < es->entityIcons.size; j++) {
+				EntityIcon &b = es->entityIcons[j];
+
+				sf::Vec2 delta = a.position - b.position;
+				float distSq = sf::lengthSq(delta);
+				if (distSq > repelRadiusSq) continue;
+
+				float dist = sf::sqrt(distSq);
+				if (distSq < 0.001f) {
+					float angle = es->rng.nextFloat() * sf::F_2PI;
+					delta = sf::Vec2(cosf(angle), sinf(angle));
+				} else {
+					delta /= dist;
+				}
+
+				float repel = (repelRadius - dist) * 0.5f;
+				a.position += delta * repel;
+				b.position -= delta * repel;
+			}
+		}
+	}
+
+	{
+		float pickDist = 25.0f;
+		float minDistSq = pickDist * pickDist;
+		sf::Vec2 guiMouse = input.mousePosition * frameArgs.guiResolution;
+		es->hoveredEntityIcon = ~0u;
+		for (EntityIcon &icon : es->entityIcons) {
+			float distSq = sf::lengthSq(icon.position - guiMouse);
+			if (distSq < minDistSq) {
+				es->hoveredEntityIcon = icon.entityId;
+				es->hoveredEntityPos = es->clState->systems.entities.entities[icon.entityId].transform.position;
 			}
 		}
 	}
@@ -1293,7 +1453,15 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 	}
 
 	sf::Array<cl::EntityHit> hits;
-	es->clState->editorPick(hits, mouseRay);
+
+	if (es->hoveredEntityIcon == ~0u) {
+		es->clState->editorPick(hits, mouseRay);
+	} else {
+		cl::EntityHit &hit = hits.push();
+		hit.entityId = es->hoveredEntityIcon;
+		hit.t = sf::dot(es->hoveredEntityPos - mouseRay.origin, mouseRay.direction) / sf::lengthSq(mouseRay.direction);
+		hit.approximate = false;
+	}
 
 	if (!ImGui::IsKeyDown(SAPP_KEYCODE_G)) {
 		for (uint32_t i = 0; i < hits.size; i++) {
@@ -1513,6 +1681,45 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 			}
 			debugDrawBox(bounds.bounds, color);
 		}
+	}
+}
+
+void editorHandleGui(EditorState *es, const GuiArgs &guiArgs)
+{
+	sf::Symbol hoveredName;
+	sf::Vec2 hoveredPos;
+
+	for (EntityIcon &icon : es->entityIcons) {
+		Entity &entity = es->clState->systems.entities.entities[icon.entityId];
+
+		sp::SpriteDraw draw;
+		draw.sprite = icon.sprite;
+		draw.transform = sf::mat2D::translate(icon.position) * sf::mat2D::scale(30.0f);
+		draw.anchor = sf::Vec2(0.5f);
+		if (icon.entityId == es->hoveredEntityIcon) {
+			draw.color = sf::Vec4(1.0f, 0.3f, 0.3f, 1.0f);
+			hoveredName = icon.prefabName;
+			hoveredPos = icon.position;
+		} else if (es->selectedSvIds.find(entity.svId)) {
+			draw.color = sf::Vec4(1.0f, 1.0f, 0.3f, 1.0f);
+		}
+		guiArgs.canvas->draw(draw);
+	}
+
+	if (hoveredName) {
+		sp::TextDraw draw;
+		draw.font = es->entityIconResources.nameFont;
+		draw.string = hoveredName;
+		draw.transform = sf::mat2D::translate(hoveredPos + sf::Vec2(20.0f, 5.0f));
+		draw.height = 20.0f;
+
+		draw.color = sf::Vec4(0.0f, 0.0f, 0.0f, 1.0f);
+		draw.weight = 0.2f;
+		guiArgs.canvas->drawText(draw);
+
+		draw.color = sf::Vec4(1.0f, 1.0f, 1.0f, 1.0f);
+		draw.weight = 0.48f;
+		guiArgs.canvas->drawText(draw);
 	}
 }
 

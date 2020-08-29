@@ -182,4 +182,11 @@ float intersectRayFastAabb(const FastRay &ray, const sf::Vec3 &aabbMin, const sf
 	return sf::max(t0, tMin);
 }
 
+sf::Vec3 closestPointOnRayToPoint(const sf::Ray &ray, const sf::Vec3 &point, float tMin, float tMax)
+{
+	float t = sf::dot(point - ray.origin, ray.direction) / sf::lengthSq(ray.direction);
+	t = sf::clamp(t, tMin, tMax);
+	return ray.origin + ray.direction*t;
+}
+
 }

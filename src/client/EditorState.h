@@ -37,6 +37,8 @@ void editorPostRefresh(EditorState *es, const sf::Box<cl::ClientState> &clState)
 
 void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput &input, const EditorInput &editorInput);
 
+void editorHandleGui(EditorState *es, const GuiArgs &guiArgs);
+
 EditorRequests &editorPendingRequests(EditorState *es);
 
 }

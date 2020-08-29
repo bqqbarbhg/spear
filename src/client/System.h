@@ -99,6 +99,7 @@ struct Entity
 	uint32_t prefabId = ~0u;
 	uint32_t indexInPrefab = 0;
 	sf::SmallArray<EntityComponent, 4> components;
+	bool deleteQueued = false;
 };
 
 struct GuiArgs

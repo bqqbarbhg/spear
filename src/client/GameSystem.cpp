@@ -1232,6 +1232,11 @@ struct GameSystemImp final : GameSystem
 				if (pointer.button == Pointer::MouseLeft && pointer.action == Pointer::Down && pointer.canTap) didClick = true;
 				if (pointer.button == Pointer::MouseHover && pointer.action == Pointer::Down) didHover = true;
 
+				if (frameArgs.editorOpen) {
+					didClick = false;
+					didHover = false;
+				}
+
 				if (Character *chr = findCharacter(pointerState->startSvId)) {
 
 					if (didClick) {
@@ -1386,7 +1391,7 @@ struct GameSystemImp final : GameSystem
 				systems.billboard->addBillboard(sprite, t, col);
 			}
 
-			if (turnInfo.movementLeft > 0 && turnInfo.characterId == chr->svId && moveSelectTime > 0.0f) {
+			if (turnInfo.movementLeft > 0 && turnInfo.characterId == chr->svId && moveSelectTime > 0.0f && !frameArgs.editorOpen) {
 				sv::PathfindOpts opts;
 				opts.isBlockedFn = &sv::isBlockedByPropOrCharacter;
 				opts.maxDistance = turnInfo.movementLeft;
@@ -1465,7 +1470,7 @@ struct GameSystemImp final : GameSystem
 			sv::CharacterComponent *chrComp = chr ? chr->svPrefab->findComponent<sv::CharacterComponent>() : NULL;
 			if (chr && chrComp) {
 
-				if (turnInfo.characterId == selectedCharacterId) {
+				if (turnInfo.characterId == selectedCharacterId && !frameArgs.editorOpen) {
 					auto bt = b.push<gui::WidgetButton>();
 					if (bt->created) {
 						bt->text = sf::Symbol("End Turn");

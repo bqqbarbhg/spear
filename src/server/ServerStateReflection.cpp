@@ -38,6 +38,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, TileArea, TileAreaComponent),
 		sf_poly(Component, Effect, EffectComponent),
 		sf_poly(Component, Sound, SoundComponent),
+		sf_poly(Component, RoomConnection, RoomConnectionComponent),
 	};
 	sf_struct_poly(t, Component, type, { }, polys);
 }
@@ -838,6 +839,14 @@ template<> void initType<SoundComponent>(Type *t)
 		sf_field(SoundComponent, offset),
 	};
 	sf_struct_base(t, SoundComponent, Component, fields);
+}
+
+template<> void initType<RoomConnectionComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(RoomConnectionComponent, type),
+	};
+	sf_struct_base(t, RoomConnectionComponent, Component, fields);
 }
 
 template<> void initType<AllocateIdEvent>(Type *t)

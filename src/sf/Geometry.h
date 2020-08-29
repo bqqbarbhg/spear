@@ -80,4 +80,6 @@ float intersectRayFast(const FastRay &ray, const Sphere &sphere, float tMin=0.0f
 float intersectRayFast(const FastRay &ray, const Bounds3 &bounds, float tMin=0.0f, float tMax=HUGE_VALF);
 float intersectRayFastAabb(const FastRay &ray, const sf::Vec3 &aabbMin, const sf::Vec3 &aabbMax, float tMin=0.0f, float tMax=HUGE_VALF);
 
+sf::Vec3 closestPointOnRayToPoint(const sf::Ray &ray, const sf::Vec3 &point, float tMin=0.0f, float tMax=HUGE_VALF);
+
 }

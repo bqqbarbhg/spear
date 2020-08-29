@@ -630,6 +630,10 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	guiArgs.dt = dt;
 	c->clState->handleGui(guiArgs);
 
+	if (c->editor) {
+		editorHandleGui(c->editor, guiArgs);
+	}
+
 	c->canvas.prepareForRendering();
 
 	return false;
