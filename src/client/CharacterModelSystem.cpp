@@ -375,7 +375,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		next.alphaVelocity = 0.0f;
 		next.alpha = 1.0f;
 		next.speed = speed;
-		next.time = 0.0f;
+		next.time = nextAnim.startTime;
 
 		if (nextAnim.loop || simulateCatchUp) {
 			float timeRange = nextDuration - nextAnim.fadeOutTime * 1.25f;
@@ -449,6 +449,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 		model.modelToEntity = sf::mat::scale(0.01f * c.scale);
 		model.modelToWorld = transform.asMatrix() * model.modelToEntity;
+
+		model.lastUpdateTime = animCtx.updateTime;
 
 		model.model.load(c.modelName);
 		for (auto &material : c.materials) {
