@@ -24,6 +24,31 @@ struct UintFind
 
 struct UintMap
 {
+	struct Iterator
+	{
+		const rhmap *map;
+		uint32_t hash;
+		uint32_t scan;
+		uint32_t value;
+
+		Iterator(const rhmap *beginFromMap);
+		Iterator() : hash(0), scan(0) { }
+
+		sf_forceinline bool operator==(const Iterator &rhs) const {
+			return hash + scan == rhs.hash + rhs.scan;
+		}
+		sf_forceinline bool operator!=(const Iterator &rhs) const {
+			return hash + scan != rhs.hash + rhs.scan;
+		}
+
+		Iterator &operator++();
+
+		sf_forceinline UintKeyVal operator*() {
+			sf_assert(scan > 0);
+			return { sf::hashReverse32(hash), value };
+		}
+	};
+
 	rhmap map;
 
 	UintMap();
@@ -32,6 +57,9 @@ struct UintMap
 	UintMap& operator=(const UintMap &rhs);
 	UintMap& operator=(UintMap &&rhs);
 	~UintMap();
+
+	Iterator begin() const { return Iterator(&map); }
+	Iterator end() const { return Iterator(); }
 
 	sf_forceinline uint32_t size() const { return map.size; }
 	sf_forceinline uint32_t capacity() const { return map.capacity; }

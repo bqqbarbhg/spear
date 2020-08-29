@@ -844,10 +844,22 @@ template<> void initType<SoundComponent>(Type *t)
 template<> void initType<RoomConnectionComponent>(Type *t)
 {
 	static Field fields[] = {
+		sf_field(RoomConnectionComponent, minCorner),
+		sf_field(RoomConnectionComponent, maxCorner),
 		sf_field(RoomConnectionComponent, connectionType),
 	};
 	sf_struct_base(t, RoomConnectionComponent, Component, fields);
 
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "minCorner");
+		info.description = "Top-left corner of the room connection (in meters/tiles)";
+		info.fixedBits = 16;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "maxCorner");
+		info.description = "Bottom-right corner of the room connection (in meters/tiles)";
+		info.fixedBits = 16;
+	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "connectionType");
 		info.description = "Name of the connection that can be matched with this";

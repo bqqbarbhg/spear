@@ -27,6 +27,7 @@
 
 #include "server/FixedPoint.h"
 #include "server/ServerStateReflection.h"
+#include "server/Pathfinding.h"
 
 #include "ext/sokol/sokol_time.h"
 
@@ -145,6 +146,7 @@ struct EditorState
 	// Visualization
 	bool viewAreas = false;
 	bool viewIcons = true;
+	bool viewRoomArea = false;
 	
 	// Folder navigation
 	EditorDir dirAssets;
@@ -162,6 +164,9 @@ struct EditorState
 	uint32_t hoveredEntityIcon = ~0u;
 	sf::Vec3 hoveredEntityPos;
 	sf::Random rng;
+
+	// Room configuration
+	sv::RoomTiles roomTiles;
 
 	// Errors
 	uint32_t totalErrors = 0;
@@ -384,6 +389,13 @@ void handleImguiMenu(EditorState *es)
 		if (ImGui::BeginMenu("View")) {
 			ImGui::MenuItem("Icons", "I", &es->viewIcons);
 			ImGui::MenuItem("Areas", NULL, &es->viewAreas);
+			if (ImGui::MenuItem("Room Area", NULL, &es->viewRoomArea)) {
+				if (es->viewRoomArea) {
+					sv::findRoomArea(es->roomTiles, *es->svState);
+				} else {
+					es->roomTiles.clear();
+				}
+			}
 			ImGui::EndMenu();
 		}
 
@@ -1631,9 +1643,30 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 					transform.position.y = 0.0f;
 					debugDrawBox(sf::Bounds3::minMax(sf::Vec3(min.x, 0.0f, min.y), sf::Vec3(max.x, 0.1f, max.y)),
 						transform.asMatrix());
+				} else if (const auto *c = comp->as<sv::RoomConnectionComponent>()) {
+					sf::Vec2 min = sf::Vec2(c->minCorner) * (1.0f / 65536.0f) - sf::Vec2(0.45f);
+					sf::Vec2 max = sf::Vec2(c->maxCorner) * (1.0f / 65536.0f) + sf::Vec2(0.45f);
+					Transform transform = entity.transform;
+					transform.position.y = 0.0f;
+					debugDrawBox(sf::Bounds3::minMax(sf::Vec3(min.x, 0.0f, min.y), sf::Vec3(max.x, 0.1f, max.y)),
+						transform.asMatrix(), sf::Vec3(0.0f, 1.0f, 1.0f));
 				}
 			}
 		}
+	}
+
+	for (const sf::Vec2i &tile : es->roomTiles.interior) {
+		sf::Vec2 min = sf::Vec2(tile) - sf::Vec2(0.48f);
+		sf::Vec2 max = sf::Vec2(tile) + sf::Vec2(0.48f);
+		sf::Vec3 color = sf::Vec3(0.9f, 0.9f, 0.5f);
+		debugDrawBox(sf::Bounds3::minMax(sf::Vec3(min.x, 0.0f, min.y), sf::Vec3(max.x, 0.1f, max.y)), color);
+	}
+
+	for (const sf::Vec2i &tile : es->roomTiles.border) {
+		sf::Vec2 min = sf::Vec2(tile) - sf::Vec2(0.48f);
+		sf::Vec2 max = sf::Vec2(tile) + sf::Vec2(0.48f);
+		sf::Vec3 color = sf::Vec3(0.9f, 0.5f, 0.4f);
+		debugDrawBox(sf::Bounds3::minMax(sf::Vec3(min.x, 0.0f, min.y), sf::Vec3(max.x, 0.1f, max.y)), color);
 	}
 
 	for (uint32_t svId : es->selectedSvIds) {

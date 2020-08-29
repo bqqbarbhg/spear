@@ -7,6 +7,22 @@
 
 namespace sf {
 
+UintMap::Iterator::Iterator(const rhmap *beginFromMap)
+	: map(beginFromMap)
+{
+	hash = scan = 0;
+	rhmap_next_inline(map, &hash, &scan, &value);
+}
+
+UintMap::Iterator &UintMap::Iterator::operator++()
+{
+	if (!rhmap_next_inline(map, &hash, &scan, &value)) {
+		hash = scan = 0;
+	}
+	return *this;
+}
+
+
 UintMap::UintMap()
 {
 	rhmap_init_inline(&map);

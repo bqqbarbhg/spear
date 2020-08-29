@@ -142,6 +142,12 @@ sf_inline RollInfo rollDice(const DiceRoll &roll, const char *name)
 	return rollDice(roll, sf::Symbol(name));
 }
 
+void RoomTiles::clear()
+{
+	interior.clear();
+	border.clear();
+}
+
 ServerState::ServerState()
 {
 	// TODO: Figure something proper out for this
@@ -278,6 +284,14 @@ static void addEntityToTiles(ServerState &state, uint32_t id, const sf::Symbol &
 			max.x = sv::fixedMul(c->maxCorner.x, scale);
 			max.y = sv::fixedMul(c->maxCorner.y, scale);
 			addObbToTiles(state, id, min, max, position, rotation);
+		} else if (const auto *c = component->as<RoomConnectionComponent>()) {
+			sf::Vec2i min, max;
+			min.x = sv::fixedMul(c->minCorner.x, scale);
+			min.y = sv::fixedMul(c->minCorner.y, scale);
+			max.x = sv::fixedMul(c->maxCorner.x, scale);
+			max.y = sv::fixedMul(c->maxCorner.y, scale);
+			uint32_t connectionId = makeId(IdType::RoomConnection, getIdIndex(id));
+			addObbToTiles(state, connectionId, min, max, position, rotation);
 		}
 	}
 }
@@ -1705,11 +1719,24 @@ void ServerState::removeEntityFromTile(uint32_t id, const sf::Vec2i &tile)
 
 void ServerState::removeEntityFromAllTiles(uint32_t id)
 {
-	uint32_t key;
-	sf::UintFind find = entityToTile.findAll(id);
-	while (find.next(key)) {
-		tileToEntity.removeExistingPair(key, id);
-		entityToTile.removeFound(find);
+	{
+		uint32_t key;
+		sf::UintFind find = entityToTile.findAll(id);
+		while (find.next(key)) {
+			tileToEntity.removeExistingPair(key, id);
+			entityToTile.removeFound(find);
+		}
+	}
+
+	// TODO: Do this only if necessary?
+	{
+		uint32_t connectionId = makeId(IdType::RoomConnection, getIdIndex(id));
+		uint32_t key;
+		sf::UintFind find = entityToTile.findAll(connectionId);
+		while (find.next(key)) {
+			tileToEntity.removeExistingPair(key, connectionId);
+			entityToTile.removeFound(find);
+		}
 	}
 }
 

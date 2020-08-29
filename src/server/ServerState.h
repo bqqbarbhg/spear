@@ -442,6 +442,8 @@ struct SoundComponent : ComponentBase<Component::Sound>
 
 struct RoomConnectionComponent : ComponentBase<Component::RoomConnection>
 {
+	sf::Vec2i minCorner sv_reflect(fixed(16)); //! Top-left corner of the room connection (in meters/tiles)
+	sf::Vec2i maxCorner sv_reflect(fixed(16)); //! Bottom-right corner of the room connection (in meters/tiles)
 	sf::Symbol connectionType; //! Name of the connection that can be matched with this
 };
 
@@ -804,6 +806,7 @@ enum class IdType {
 	Character,
 	Card,
 	Status,
+	RoomConnection,
 	ClientStart,
 };
 
@@ -1001,6 +1004,14 @@ sf_inline uint32_t packTile(const sf::Vec2i &tile) {
 sf_inline sf::Vec2i unpackTile(uint32_t packed) {
 	return sf::Vec2i((int32_t)(int16_t)(packed & 0xffff), (int32_t)packed >> 16u);
 }
+
+struct RoomTiles
+{
+	sf::HashSet<sf::Vec2i> interior;
+	sf::HashSet<sf::Vec2i> border;
+
+	void clear();
+};
 
 struct ServerState
 {

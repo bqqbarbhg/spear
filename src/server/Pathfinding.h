@@ -7,13 +7,14 @@
 namespace sv {
 
 struct ServerState;
+struct RoomTiles;
 
 typedef bool IsBlockedFn(void *user, const ServerState &state, const sf::Vec2i &tile);
 
 struct PathfindOpts
 {
-	IsBlockedFn *isBlockedFn;
-	void *isBlockedUser;
+	IsBlockedFn *isBlockedFn = nullptr;
+	void *isBlockedUser = nullptr;
 
 	uint32_t maxDistance;
 };
@@ -30,7 +31,10 @@ struct ReachableSet
 };
 
 bool isBlockedByPropOrCharacter(void *user, const ServerState &state, const sf::Vec2i &tile);
+bool isBlockedByPropOrRoomConnection(void *user, const ServerState &state, const sf::Vec2i &tile);
 
 void findReachableSet(ReachableSet &set, const ServerState &state, const PathfindOpts &opts, const sf::Vec2i &tile);
+
+void findRoomArea(RoomTiles &roomTiles, const ServerState &state, uint32_t maxRadius=64);
 
 }
