@@ -81,7 +81,9 @@ void Entities::addPrefabComponents(Systems &systems, uint32_t prefabId)
 		if (const auto *c = comp->as<sv::ParticleSystemComponent>()) {
 			systems.particle->reserveEffectType(systems, comp.cast<sv::ParticleSystemComponent>());
 		} else if (const auto *c = comp->as<sv::CharacterModelComponent>()) {
-			systems.characterModel->preloadCharacterModel(*c);
+			ComponentData &data = prefab.componentData.push();
+			data.component = c;
+			data.data = systems.characterModel->preloadCharacterModel(*c);
 		} else if (const auto *c = comp->as<sv::DynamicModelComponent>()) {
 			ComponentData &data = prefab.componentData.push();
 			data.component = c;
