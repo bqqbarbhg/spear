@@ -68,6 +68,13 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		uint32_t userId;
 	};
 
+	struct CharacterModelData
+	{
+		sp::ModelRef model;
+		sf::Array<sp::AnimationRef> animations;
+		sf::Array<MeshMaterialRef> materials;
+	};
+
 	struct Model
 	{
 		uint32_t areaId = ~0u;
@@ -410,6 +417,22 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4;
 			d.layout.attrs[5].format = SG_VERTEXFORMAT_UBYTE4N;
 		}
+	}
+
+	sf::Box<void> preloadCharacterModel(const sv::CharacterModelComponent &c) override
+	{
+		auto data = sf::box<CharacterModelData>();
+		data->model.load(c.modelName);
+		data->animations.reserve(c.animations.size);
+		for (const sv::AnimationInfo &info : c.animations) {
+			data->animations.push().load(info.file);
+		}
+		data->materials.reserve(c.materials.size);
+		for (auto &material : c.materials) {
+			if (!material.material) continue;
+			data->materials.push().load(material.material);
+		}
+		return data;
 	}
 
 	void addCharacterModel(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::CharacterModelComponent &c, const Transform &transform) override
