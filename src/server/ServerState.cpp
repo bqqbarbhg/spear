@@ -611,6 +611,8 @@ static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, s
 			walkPrefabs(state, events, marks, c->spellName);
 		} else if (auto *c = component->as<CardStatusComponent>()) {
 			walkPrefabs(state, events, marks, c->statusName);
+		} else if (auto *c = component->as<SpellComponent>()) {
+			walkPrefabs(state, events, marks, c->castEffect);
 		} else if (auto *c = component->as<SpellStatusComponent>()) {
 			walkPrefabs(state, events, marks, c->statusName);
 		} else if (auto *c = component->as<StatusComponent>()) {

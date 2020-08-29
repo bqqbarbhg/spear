@@ -36,6 +36,7 @@
 namespace cl {
 
 static const sf::Symbol guiCardSym { "GuiCard" };
+static const sf::Symbol symEffect { "Effect" };
 static const sf::Symbol symMelee { "Melee" };
 static const sf::Symbol symStagger { "Stagger" };
 static const sf::Symbol symCast { "Cast" };
@@ -452,12 +453,15 @@ struct GameSystemImp final : GameSystem
 
 			svToStatus.insertDuplicate(svId, statusId);
 
-			if (!ctx.immediate && status.svPrefab) {
+			if (status.svPrefab) {
 				if (Character *chr = findCharacter(e->status.characterId)) {
 					Entity &entity = systems.entities.entities[chr->entityId];
 					if (auto c = status.svPrefab->findComponent<sv::StatusComponent>()) {
 						sf::Vec3 pos = entity.transform.transformPoint(chr->centerOffset);
-						systems.effect->spawnOneShotEffect(systems, c->startEffect, pos);
+
+						if (!ctx.immediate) {
+							systems.effect->spawnOneShotEffect(systems, c->startEffect, pos);
+						}
 
 						status.tickEffect = c->tickEffect;
 						status.endEffect = c->endEffect;
@@ -665,6 +669,20 @@ struct GameSystemImp final : GameSystem
 				if (e->spellInfo.manualCast) {
 					systems.characterModel->addOneShotTag(systems.entities, chr->entityId, symCast);
 					castAnimDone = false;
+
+					if (sv::Prefab *spellPrefab = systems.entities.findPrefab(e->spellInfo.spellName)) {
+						if (auto *spellComp = spellPrefab->findComponent<sv::SpellComponent>()) {
+							if (spellComp->castEffect) {
+								uint32_t castEffectEntityId = systems.effect->spawnOneShotEffect(systems, spellComp->castEffect, sf::Vec3());
+								if (castEffectEntityId != ~0u) {
+									CharacterModelSystem::AttachDesc desc;
+									desc.boneName = symEffect;
+									systems.characterModel->addAttachedEntity(systems, chr->entityId, castEffectEntityId, desc);
+								}
+							}
+						}
+					}
+
 				} else {
 					castAnimDone = true;
 				}

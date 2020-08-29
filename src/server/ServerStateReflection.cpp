@@ -714,9 +714,15 @@ template<> void initType<CardCastComponent>(Type *t)
 template<> void initType<SpellComponent>(Type *t)
 {
 	static Field fields[] = {
+		sf_field(SpellComponent, castEffect),
 		sf_field(SpellComponent, successRoll),
 	};
 	sf_struct_base(t, SpellComponent, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "castEffect");
+		info.prefab = true;
+	}
 }
 
 template<> void initType<SpellDamageComponent>(Type *t)
@@ -819,6 +825,7 @@ template<> void initType<SoundComponent>(Type *t)
 		sf_field(SoundComponent, pitch),
 		sf_field(SoundComponent, pitchVariance),
 		sf_field(SoundComponent, loop),
+		sf_field(SoundComponent, offset),
 	};
 	sf_struct_base(t, SoundComponent, Component, fields);
 }

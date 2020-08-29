@@ -26,15 +26,15 @@ struct EffectSystemImp final : EffectSystem
 
 	// API
 
-	void spawnOneShotEffect(Systems &systems, const sf::Symbol &prefabName, const sf::Vec3 &position) override
+	uint32_t spawnOneShotEffect(Systems &systems, const sf::Symbol &prefabName, const sf::Vec3 &position) override
 	{
-		if (!prefabName) return;
+		if (!prefabName) return ~0u;
 
 		Transform transform;
 		transform.position = position;
 
 		uint32_t entityId = systems.entities.addEntity(systems, 0, transform, prefabName);
-		if (entityId == ~0u) return;
+		if (entityId == ~0u) return ~0u;
 
 		uint32_t effectId = effects.size;
 		if (freeEffectIds.size > 0) {
@@ -50,6 +50,8 @@ struct EffectSystemImp final : EffectSystem
 		endingEffects.push(effectId);
 
 		systems.entities.addComponent(entityId, this, effectId, 0, 0, 0);
+
+		return entityId;
 	}
 
 	uint32_t spawnAttachedEffect(Systems &systems, const sf::Symbol &prefabName, uint32_t parentId, const sf::Vec3 &offset) override

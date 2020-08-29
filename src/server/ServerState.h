@@ -372,6 +372,7 @@ struct CardCastComponent : ComponentBase<Component::CardCast>
 
 struct SpellComponent : ComponentBase<Component::Spell>
 {
+	sf::Symbol castEffect sv_reflect(prefab);
 	DiceRoll successRoll;
 };
 
