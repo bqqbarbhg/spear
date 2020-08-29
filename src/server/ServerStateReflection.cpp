@@ -36,6 +36,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, Status, StatusComponent),
 		sf_poly(Component, CharacterTemplate, CharacterTemplateComponent),
 		sf_poly(Component, TileArea, TileAreaComponent),
+		sf_poly(Component, Effect, EffectComponent),
 		sf_poly(Component, Sound, SoundComponent),
 	};
 	sf_struct_poly(t, Component, type, { }, polys);
@@ -814,6 +815,15 @@ template<> void initType<TileAreaComponent>(Type *t)
 		info.description = "Bottom-right corner of the tile area (in meters/tiles)";
 		info.fixedBits = 16;
 	}
+}
+
+template<> void initType<EffectComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(EffectComponent, lifeTime),
+		sf_field(EffectComponent, grounded),
+	};
+	sf_struct_base(t, EffectComponent, Component, fields);
 }
 
 template<> void initType<SoundComponent>(Type *t)

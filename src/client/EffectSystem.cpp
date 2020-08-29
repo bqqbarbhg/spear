@@ -17,6 +17,7 @@ struct EffectSystemImp final : EffectSystem
 		uint32_t endingIndex = ~0u;
 		uint32_t parentId = ~0u;
 		sf::Vec3 attachOffset;
+		bool grounded = false;
 	};
 
 	sf::Array<Effect> effects;
@@ -33,6 +34,18 @@ struct EffectSystemImp final : EffectSystem
 		Transform transform;
 		transform.position = position;
 
+		bool grounded = false;
+		float lifeTime = 1.0f;
+		if (sv::Prefab *prefab = systems.entities.findPrefab(prefabName)) {
+			if (auto c = prefab->findComponent<sv::EffectComponent>()) {
+				lifeTime = c->lifeTime;
+				if (c->grounded) {
+					grounded = true;
+					transform.position.y = 0.0f;
+				}
+			}
+		}
+
 		uint32_t entityId = systems.entities.addEntity(systems, 0, transform, prefabName);
 		if (entityId == ~0u) return ~0u;
 
@@ -45,6 +58,8 @@ struct EffectSystemImp final : EffectSystem
 
 		Effect &effect = effects[effectId];
 		effect.entityId = entityId;
+		effect.grounded = grounded;
+		effect.lifeTime = lifeTime;
 
 		effect.endingIndex = endingEffects.size;
 		endingEffects.push(effectId);
@@ -62,6 +77,18 @@ struct EffectSystemImp final : EffectSystem
 		Transform transform;
 		transform.position = parent.transform.transformPoint(offset);
 
+		bool grounded = false;
+		float lifeTime = 1.0f;
+		if (sv::Prefab *prefab = systems.entities.findPrefab(prefabName)) {
+			if (auto c = prefab->findComponent<sv::EffectComponent>()) {
+				lifeTime = c->lifeTime;
+				if (c->grounded) {
+					grounded = true;
+					transform.position.y = 0.0f;
+				}
+			}
+		}
+
 		uint32_t entityId = systems.entities.addEntity(systems, 0, transform, prefabName);
 		if (entityId == ~0u) return ~0u;
 
@@ -76,6 +103,8 @@ struct EffectSystemImp final : EffectSystem
 		effect.entityId = entityId;
 		effect.attachOffset = offset;
 		effect.parentId = parentId;
+		effect.lifeTime = lifeTime;
+		effect.grounded = grounded;
 
 		systems.entities.addComponent(entityId, this, effectId, 0, 0, 0);
 		systems.entities.addComponent(parentId, this, effectId, 1, 0, Entity::UpdateTransform);
@@ -102,6 +131,10 @@ struct EffectSystemImp final : EffectSystem
 
 			Transform transform;
 			transform.position = update.transform.transformPoint(effect.attachOffset);
+
+			if (effect.grounded) {
+				transform.position.y = 0.0f;
+			}
 
 			systems.entities.updateTransform(systems, effect.entityId, transform);
 

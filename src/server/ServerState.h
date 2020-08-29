@@ -57,6 +57,7 @@ struct Component
 		Status,
 		CharacterTemplate,
 		TileArea,
+		Effect,
 		Sound,
 
 		Type_Count,
@@ -419,6 +420,12 @@ struct TileAreaComponent : ComponentBase<Component::TileArea>
 struct SoundInfo sv_reflect()
 {
 	sf::Symbol assetName sv_reflect(asset);
+};
+
+struct EffectComponent : ComponentBase<Component::Effect>
+{
+	float lifeTime = 1.0f;
+	bool grounded = false;
 };
 
 struct SoundComponent : ComponentBase<Component::Sound>
