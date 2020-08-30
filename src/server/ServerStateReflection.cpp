@@ -117,7 +117,6 @@ template<> void initType<DynamicModelComponent>(Type *t)
 		sf_field(DynamicModelComponent, stretch),
 		sf_field(DynamicModelComponent, tintColor),
 		sf_field(DynamicModelComponent, castShadows),
-		sf_field(DynamicModelComponent, seeThrough),
 	};
 	sf_struct_base(t, DynamicModelComponent, Component, fields);
 
@@ -160,10 +159,6 @@ template<> void initType<DynamicModelComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "castShadows");
 		info.description = "Does the model cast shadows?";
-	}
-	{
-		ReflectionInfo &info = addTypeReflectionInfo(t, "seeThrough");
-		info.description = "Should the object have an outline behind walls";
 	}
 }
 
@@ -508,7 +503,6 @@ template<> void initType<CharacterModelComponent>(Type *t)
 		sf_field(CharacterModelComponent, scale),
 		sf_field(CharacterModelComponent, animations),
 		sf_field(CharacterModelComponent, attachBones),
-		sf_field(CharacterModelComponent, seeThrough),
 	};
 	sf_struct_base(t, CharacterModelComponent, Component, fields);
 
@@ -528,10 +522,6 @@ template<> void initType<CharacterModelComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "attachBones");
 		info.description = "Bone mapping for attaching objects";
-	}
-	{
-		ReflectionInfo &info = addTypeReflectionInfo(t, "seeThrough");
-		info.description = "Should the object have an outline behind walls";
 	}
 }
 

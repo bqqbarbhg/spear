@@ -92,7 +92,6 @@ struct DynamicModelComponent : ComponentBase<Component::DynamicModel>
 	sf::Vec3 stretch = sf::Vec3(1.0f); //! Non-uniform scaling in entity's local X/Y/Z directions
 	uint8_t tintColor[3] = { 255, 255, 255 } sv_reflect(color); //! Modifies the base color of the model's material
 	bool castShadows = true; //! Does the model cast shadows?
-	bool seeThrough = false; //! Should the object have an outline behind walls
 };
 
 struct TileModelComponent : ComponentBase<Component::TileModel>
@@ -273,7 +272,6 @@ struct CharacterModelComponent : ComponentBase<Component::CharacterModel>
 	float scale = 1.0f; //! Scale of the character
 	sf::Array<AnimationInfo> animations;
 	sf::Array<AttachBone> attachBones; //! Bone mapping for attaching objects
-	bool seeThrough = true; //! Should the object have an outline behind walls
 };
 
 struct TapAreaComponent : ComponentBase<Component::TapArea>

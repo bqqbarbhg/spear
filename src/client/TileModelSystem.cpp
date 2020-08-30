@@ -457,10 +457,6 @@ struct TileModelSystemImp final : TileModelSystem
 			d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT4;
 			d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2;
 			d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4N;
-			d.depth_stencil.stencil_enabled = true;
-			d.depth_stencil.stencil_front.pass_op = SG_STENCILOP_REPLACE;
-			d.depth_stencil.stencil_ref = 0xff;
-			d.depth_stencil.stencil_write_mask = 0x02;
 		}
 	}
 
