@@ -59,7 +59,8 @@ struct ContentFileContext
 
 	sf::Semaphore workerSemaphore;
 	sf::Thread *workerThread = nullptr;
-	bool joinThread = false;
+	uint32_t joinThread = 0;
+	uint32_t threadDone = 0;
 };
 
 ContentFileContext g_contentFileContext;
@@ -399,7 +400,8 @@ static void contentFileWorkerUpdate(void *arg)
 		setupInThread();
 	}
 
-	if (ctx.joinThread) {
+	if (mxa_load32_nf(&ctx.joinThread)) {
+		mxa_inc32_nf(&ctx.threadDone);
 		cleanupInThread();
 		emscripten_pause_main_loop();
 		return;
@@ -423,11 +425,12 @@ static void contentFileWorker(void *arg)
 
 	for (;;) {
 		ctx.workerSemaphore.wait();
-		if (ctx.joinThread) break;
+		if (mxa_load32_nf(&ctx.joinThread)) break;
 
 		contentUpdateImp(ctx);
 	}
 
+	mxa_inc32_nf(&ctx.threadDone);
 	cleanupInThread();
 
 #endif
@@ -468,8 +471,16 @@ void ContentFile::globalCleanup()
 	ContentFileContext &ctx = g_contentFileContext;
 
 	if (ctx.workerThread) {
-		ctx.joinThread = true;
-		ctx.workerSemaphore.signal();
+		mxa_inc32_nf(&ctx.joinThread);
+
+		while (!mxa_load32_nf(&ctx.threadDone)) {
+			runMainThreadCallbacks();
+			if (ctx.workerSemaphore.getCount() < 4) {
+				ctx.workerSemaphore.signal();
+			}
+			sf::Thread::sleepMs(1);
+		}
+
 		sf::Thread::join(ctx.workerThread);
 	} else {
 		cleanupInThread();
