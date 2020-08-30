@@ -8,6 +8,8 @@
 #include "ext/bq_websocket.h"
 #include "ext/bq_websocket_platform.h"
 
+#include "sp/Json.h"
+
 #include "sf/File.h"
 #include "sf/Sort.h"
 
@@ -46,6 +48,8 @@ struct Session
 
 	uint32_t nextClientId = 0;
 	sf::Array<Client> clients;
+
+	sf::Symbol editMapPath;
 };
 
 struct Server
@@ -55,6 +59,7 @@ struct Server
 	LocalServer *localServer;
 	sf::HashMap<uint32_t, sf::Box<Session>> sessions;
 	sf::Array<bqws_socket*> pendingClients;
+	sf::HashMap<sf::Symbol, uint32_t> editSessions;
 };
 
 Server *serverInit(const ServerOpts &opts)
@@ -108,9 +113,82 @@ static sf::Box<Message> readMessageConsume(bqws_msg *wsMsg)
 	return msg;
 }
 
-static Session *setupSession(Server *s, uint32_t id, uint32_t secret)
+static sf::Box<ServerState> loadState(const sf::Symbol &name)
 {
-	if (id == 0) {
+	jsi_args args = { };
+	args.dialect.allow_bare_keys = true;
+	args.dialect.allow_comments = true;
+	args.dialect.allow_control_in_string = true;
+	args.dialect.allow_missing_comma = true;
+	args.dialect.allow_trailing_comma = true;
+	jsi_value *value = jsi_parse_file(name.data, &args);
+	if (!value) {
+		sf::debugPrintLine("Failed to parse map %s:%u:%u: %s",
+			name.data, args.error.line, args.error.column, args.error.description);
+		return { };
+	}
+
+	sv::SavedMap map;
+	if (!sp::readJson(value, map)) {
+		jsi_free(value);
+		return { };
+	}
+
+	jsi_free(value);
+
+	return map.state;
+}
+
+static void loadSessionState(Session &session, const sf::Symbol &name)
+{
+	session.events.clear();
+	session.eventBase = 0;
+	for (Client &c : session.clients) {
+		c.lastSentEvent = 0;
+	}
+
+	sf::Box<ServerState> state = loadState(name);
+	if (!state) {
+		session.state = sf::box<sv::ServerState>();
+		return;
+	}
+
+	session.state = state;
+	state->loadCanonicalPrefabs(session.events);
+}
+
+static Session *setupSession(Server *s, uint32_t id, uint32_t secret, const sf::Symbol &editMap)
+{
+	if (editMap) {
+		auto res = s->editSessions.insert(editMap);
+		if (res.inserted) {
+			// TODO: Real random
+			do {
+				id = rand();
+			} while (id != 0 && s->sessions.find(id));
+
+			sf::Box<Session> &box = s->sessions[id];
+			box = sf::box<Session>();
+			Session &session = *box;
+			session.server = s;
+			session.id = id;
+			session.secret = rand();
+			session.editMapPath = editMap;
+
+			loadSessionState(session, editMap);
+
+			res.entry.val = id;
+		}
+
+		id = res.entry.val;
+
+		{
+			auto it = s->sessions.find(id);
+			if (it) return it->val;
+			return nullptr;
+		}
+
+	} else if (id == 0) {
 
 		// TODO: Real random
 		do {
@@ -124,7 +202,9 @@ static Session *setupSession(Server *s, uint32_t id, uint32_t secret)
 		session.id = id;
 		session.secret = rand();
 
-		session.state = sf::box<ServerState>();
+		loadSessionState(session, sf::Symbol("Maps/Castle/Autoload.json"));
+
+#if 0
 
 #if 0
 		session.state->addCharacterToSelect(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 5);
@@ -152,6 +232,8 @@ static Session *setupSession(Server *s, uint32_t id, uint32_t secret)
 		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Greborg.json"), 1);
 		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Urist.json"), 1);
 		session.state->selectCharacterSpawn(session.events, sf::Symbol("Game/Character_Templates/Targon.json"), 1);
+#endif
+
 #endif
 
 #if 0
@@ -203,6 +285,7 @@ static void joinSession(Session &session, bqws_socket *ws, sv::MessageJoin *m)
 		load.sessionId = session.id;
 		load.sessionSecret = session.secret;
 		load.clientId = client.clientId;
+		load.editPath = session.editMapPath;
 		sendMessage(client, load);
 	}
 }
@@ -230,7 +313,7 @@ static void updateSession(Session &session)
 		while (bqws_msg *wsMsg = bqws_recv(client.ws)) {
 			sf::Box<Message> msg = readMessageConsume(wsMsg);
 			if (auto m = msg->as<sv::MessageJoin>()) {
-				Session *maybeSession = setupSession(session.server, m->sessionId, m->sessionSecret);
+				Session *maybeSession = setupSession(session.server, m->sessionId, m->sessionSecret, m->editPath);
 				if (maybeSession) {
 					bqws_socket *ws = client.ws;
 					quitSession(session, client);
@@ -416,7 +499,7 @@ void serverUpdate(Server *s)
 		sf_assert(msg);
 
 		if (auto m = msg->as<sv::MessageJoin>()) {
-			Session *maybeSession = setupSession(s, m->sessionId, m->sessionSecret);
+			Session *maybeSession = setupSession(s, m->sessionId, m->sessionSecret, m->editPath);
 
 			if (maybeSession) {
 				joinSession(*maybeSession, ws, m);

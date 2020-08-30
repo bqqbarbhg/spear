@@ -119,6 +119,7 @@ template<> void initType<sv::MessageJoin>(Type *t)
 		sf_field(sv::MessageJoin, sessionSecret),
 		sf_field(sv::MessageJoin, playerId),
 		sf_field(sv::MessageJoin, name),
+		sf_field(sv::MessageJoin, editPath),
 	};
 	sf_struct_base(t, sv::MessageJoin, sv::Message, fields);
 }
@@ -130,6 +131,7 @@ template<> void initType<sv::MessageLoad>(Type *t)
 		sf_field(sv::MessageLoad, sessionId),
 		sf_field(sv::MessageLoad, sessionSecret),
 		sf_field(sv::MessageLoad, clientId),
+		sf_field(sv::MessageLoad, editPath),
 	};
 	sf_struct_base(t, sv::MessageLoad, sv::Message, fields);
 }

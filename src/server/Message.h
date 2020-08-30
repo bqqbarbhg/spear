@@ -59,9 +59,10 @@ struct MessageBase : Message
 
 struct MessageJoin : MessageBase<Message::Join>
 {
-	uint32_t sessionId, sessionSecret;
-	uint32_t playerId;
+	uint32_t sessionId = 0, sessionSecret = 0;
+	uint32_t playerId = 0;
 	sf::Symbol name;
+	sf::Symbol editPath;
 };
 
 struct MessageLoad : MessageBase<Message::Load>
@@ -69,6 +70,7 @@ struct MessageLoad : MessageBase<Message::Load>
 	uint32_t sessionId, sessionSecret;
 	sf::Box<ServerState> state;
 	uint32_t clientId;
+	sf::Symbol editPath;
 };
 
 struct MessageUpdate : MessageBase<Message::Update>

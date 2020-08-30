@@ -217,6 +217,7 @@ struct Client
 
 	// Game state
 	sf::Box<sv::ServerState> svState;
+	sf::Box<sv::ServerState> svStateClean;
 	sf::Box<cl::ClientState> clState;
 
 	// Render targets/passes
@@ -252,6 +253,7 @@ struct Client
 
 	// Editor
 	EditorState *editor = nullptr;
+	sf::Symbol editMapPath;
 
 	// Misc
 	uint32_t reloadCount = 0;
@@ -401,6 +403,7 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::Str
 
 static void clientCleanupImp(Client *c)
 {
+
 	if (c->editor) {
 		editorFree(c->editor);
 		c->editor = nullptr;
@@ -442,6 +445,10 @@ void clientQuit(Client *c)
 	}
 	#endif
 
+	if (c->editMapPath) {
+		editorSaveMap(c->svStateClean, c->editMapPath);
+	}
+
 	clientCleanupImp(c);
 }
 
@@ -461,12 +468,20 @@ void handleMessage(Client *c, sv::Message &msg)
 			editorPreRefresh(c->editor);
 		}
 
+		c->editMapPath = m->editPath;
+
 		c->clState.reset();
 		c->clState = makeClientState(c, persist);
 
 		c->svState = m->state;
 		c->svState->localClientId = m->clientId;
 		c->clState->localClientId = m->clientId;
+
+		if (c->editMapPath) {
+			c->svStateClean = sf::box<sv::ServerState>(*c->svState);
+		} else {
+			c->svStateClean.reset();
+		}
 
 		#if SF_OS_EMSCRIPTEN
 			clientEmscUpdateUrl((int)m->sessionId, (int)m->sessionSecret);
@@ -488,6 +503,9 @@ void handleMessage(Client *c, sv::Message &msg)
 			}
 
 			c->svState->applyEvent(*event);
+			if (c->svStateClean) {
+				c->svStateClean->applyEvent(*event);
+			}
 			c->clState->applyEventQueued(event);
 		}
 
@@ -639,6 +657,21 @@ bool clientUpdate(Client *c, const ClientInput &input)
 			sendMessage(*c, msg);
 		}
 		requests.edits.clear();
+
+		if (requests.saveMap) {
+			if (c->editMapPath) {
+				editorSaveMap(c->svStateClean, c->editMapPath);
+			}
+		}
+		requests.saveMap = false;
+
+		if (requests.joinMap) {
+			sv::MessageJoin join;
+			join.name = sf::Symbol("Client");
+			join.editPath = requests.joinMap;
+			sendMessage(*c, join);
+		}
+		requests.joinMap = sf::Symbol();
 	}
 
 	c->clState->update(c->svState, c->frameArgs);

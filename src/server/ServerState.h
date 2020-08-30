@@ -590,7 +590,9 @@ struct Event
 		RemoveProp,
 		ReplaceLocalProp,
 		AddCharacter,
+		RemoveCharacter,
 		AddCard,
+		RemoveCard,
 		MoveProp,
 		GiveCard,
 		SelectCard,
@@ -732,9 +734,19 @@ struct AddCharacterEvent : EventBase<Event::AddCharacter>
 	Character character;
 };
 
+struct RemoveCharacterEvent : EventBase<Event::RemoveCharacter>
+{
+	uint32_t characterId;
+};
+
 struct AddCardEvent : EventBase<Event::AddCard>
 {
 	Card card;
+};
+
+struct RemoveCardEvent : EventBase<Event::RemoveCard>
+{
+	uint32_t cardId;
 };
 
 struct MovePropEvent : EventBase<Event::MoveProp>
@@ -786,6 +798,7 @@ struct MoveEvent : EventBase<Event::Move>
 	uint32_t characterId;
 	sf::Vec2i position;
 	sf::Array<Waypoint> waypoints;
+	bool instant = false;
 };
 
 struct TurnInfo sv_reflect()
@@ -828,6 +841,8 @@ struct Edit
 		MoveProp,
 		RemoveProp,
 		AddCharacter,
+		RemoveCharacter,
+		MoveCharacter,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -892,6 +907,17 @@ struct RemovePropEdit : EditBase<Edit::RemoveProp>
 struct AddCharacterEdit : EditBase<Edit::AddCharacter>
 {
 	Character character;
+};
+
+struct RemoveCharacterEdit : EditBase<Edit::RemoveCharacter>
+{
+	uint32_t characterId;
+};
+
+struct MoveCharacterEdit : EditBase<Edit::MoveCharacter>
+{
+	uint32_t characterId;
+	sf::Vec2i position;
 };
 
 struct Action
@@ -1068,6 +1094,7 @@ struct ServerState
 	uint32_t replaceLocalProp(sf::Array<sf::Box<Event>> &events, const Prop &prop, uint32_t clientId, uint32_t localId);
 	uint32_t addCharacter(sf::Array<sf::Box<Event>> &events, const Character &chr, bool local=false);
 	uint32_t addCard(sf::Array<sf::Box<Event>> &events, const Card &card, bool local=false);
+	void removeCharacter(sf::Array<sf::Box<Event>> &events, uint32_t characterId);
 	void addCharacterToSelect(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, int32_t count);
 
 	void moveProp(sf::Array<sf::Box<Event>> &events, uint32_t propId, const PropTransform &transform);
@@ -1091,6 +1118,13 @@ struct ServerState
 	void removeEntityFromAllTiles(uint32_t id);
 	sf::UintFind getTileEntities(const sf::Vec2i &tile) const;
 	sf::UintFind getEntityPackedTiles(uint32_t id) const;
+
+	void loadCanonicalPrefabs(sf::Array<sf::Box<sv::Event>> &events);
+};
+
+struct SavedMap
+{
+	sf::Box<ServerState> state;
 };
 
 }

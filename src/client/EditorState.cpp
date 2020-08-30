@@ -71,6 +71,7 @@ struct EntityIcon
 	sf::Vec2 targetPosition;
 	sf::Vec2 position;
 	uint32_t entityId = ~0u;
+	uint32_t svId = 0;
 	bool found = false;
 };
 
@@ -82,6 +83,12 @@ struct EntityIconResources
 	sp::SpriteRef character { "Assets/Gui/Editor/EntityIcon/Character.png" };
 	sp::SpriteRef exit { "Assets/Gui/Editor/EntityIcon/Exit.png" };
 	sp::FontRef nameFont { "Assets/Gui/Font/NotoSans-Regular.ttf" };
+};
+
+struct DragCharacter
+{
+	sf::Vec2i startTile;
+	sf::Vec2i currentTile;
 };
 
 struct EditorState
@@ -132,6 +139,7 @@ struct EditorState
 	bool dragPrevSmooth = false;
 	bool dragSmoothRotate = false;
 	sf::Array<sv::Prop> dragProps;
+	sf::HashMap<uint32_t, DragCharacter> dragCharacters;
 	uint32_t gizmoIndex = 0;
 
 	// Imgui windows
@@ -158,7 +166,9 @@ struct EditorState
 	sf::StringBuf addPath;
 	sf::StringBuf addInput;
 	bool addPrefab = false;
-	bool addFolder = false;
+	bool addPrefabFolder = false;
+	bool addMap = false;
+	bool addMapFolder = false;
 
 	// Entity icon stack
 	EntityIconResources entityIconResources;
@@ -263,6 +273,24 @@ static void saveModifiedPrefabs(EditorState *es)
 	es->modifiedPrefabs.clear();
 }
 
+void editorSaveMap(const sf::Box<sv::ServerState> &state, const sf::Symbol name)
+{
+	#if SF_OS_WASM
+		return;
+	#endif
+
+	jso_stream s = { };
+	jso_init_file(&s, name.data);
+	s.pretty = true;
+
+	sv::SavedMap map;
+	map.state = state;
+
+	sp::writeJson(s, map);
+
+	jso_close(&s);
+}
+
 EditorState *editorCreate(const sf::Box<sv::ServerState> &svState, const sf::Box<cl::ClientState> &clState)
 {
 	EditorState *es = new EditorState();
@@ -345,6 +373,8 @@ void editorAddQueryDir(EditorState *es, const sf::StringBuf &root, const sv::Que
 		setupEditorDir(es->dirPrefabs, root, dir);
 	} else if (sf::beginsWith(root, es->dirAssets.prefix)) {
 		setupEditorDir(es->dirAssets, root, dir);
+	} else if (sf::beginsWith(root, es->dirMaps.prefix)) {
+		setupEditorDir(es->dirMaps, root, dir);
 	}
 }
 
@@ -464,7 +494,7 @@ void handleImguiPrefabDir(EditorState *es, EditorDir &dir)
 			if (ImGui::MenuItem("New Folder")) {
 				es->addPath = d.prefix;
 				es->addInput.clear();
-				es->addFolder = true;
+				es->addPrefabFolder = true;
 			}
 			ImGui::EndPopup();
 		}
@@ -501,7 +531,7 @@ void handleImguiPrefabDir(EditorState *es, EditorDir &dir)
 
 						es->selectedPrefab = prefabName;
 
-					} else if (es->addFolder) {
+					} else if (es->addPrefabFolder) {
 						EditorDir &newD = d.dirs.push();
 						newD.name = es->addInput;
 						newD.prefix.append(d.prefix, "/", es->addInput);
@@ -510,7 +540,7 @@ void handleImguiPrefabDir(EditorState *es, EditorDir &dir)
 
 					es->addPath.clear();
 					es->addPrefab = false;
-					es->addFolder = false;
+					es->addPrefabFolder = false;
 					es->addInput.clear();
 				}
 				ImGui::SetKeyboardFocusHere(-1);
@@ -549,6 +579,92 @@ void handleImguiPrefabDir(EditorState *es, EditorDir &dir)
 				ed->prefabName = prefabName;
 				edits.push(ed);
 			}
+		}
+	}
+}
+
+void handleImguiMapDir(EditorState *es, EditorDir &dir)
+{
+	if (!dir.expanded) {
+		dir.expanded = true;
+		es->requests.queryDirs.push(dir.prefix);
+		return;
+	}
+
+	for (EditorDir &d : dir.dirs) {
+		sf::SmallStringBuf<128> nameCopy;
+		nameCopy.append(d.name, "/");
+
+		if (es->addPath.size > 0 && sf::beginsWith(d.prefix, es->addPath)) {
+			ImGui::SetNextItemOpen(true);
+		}
+
+		bool open = ImGui::TreeNode(nameCopy.data);
+
+		if (ImGui::BeginPopupContextItem()) {
+			if (ImGui::MenuItem("New Map")) {
+				es->addPath = d.prefix;
+				es->addInput.clear();
+				es->addMap = true;
+			}
+			if (ImGui::MenuItem("New Folder")) {
+				es->addPath = d.prefix;
+				es->addInput.clear();
+				es->addMapFolder = true;
+			}
+			ImGui::EndPopup();
+		}
+
+		if (open) {
+			if (es->addPath.size > 0 && es->addPath == d.prefix) {
+				es->addInput.reserve(256);
+				if (ImGui::InputText("##Name", es->addInput.data, es->addInput.capacity, ImGuiInputTextFlags_EnterReturnsTrue)) {
+					es->addInput.resize(strlen(es->addInput.data));
+
+					if (es->addMap) {
+						sf::SmallStringBuf<128> fileName;
+						fileName.append(es->addInput);
+						if (!sf::endsWith(fileName, ".json")) {
+							fileName.append(".json");
+						}
+
+						d.files.push(EditorFile(d.prefix, fileName));
+
+						sf::Symbol mapName = d.files.back().path;
+
+						{
+							editorSaveMap(sf::box<sv::ServerState>(), mapName);
+						}
+
+						es->selectedPrefab = mapName;
+
+					} else if (es->addMapFolder) {
+						EditorDir &newD = d.dirs.push();
+						newD.name = es->addInput;
+						newD.prefix.append(d.prefix, "/", es->addInput);
+						sf::createDirectory(newD.prefix);
+					}
+
+					es->addPath.clear();
+					es->addMap = false;
+					es->addMapFolder = false;
+					es->addInput.clear();
+				}
+				ImGui::SetKeyboardFocusHere(-1);
+			}
+
+			handleImguiMapDir(es, d);
+			ImGui::TreePop();
+		}
+	}
+
+	for (const EditorFile &f : dir.files) {
+
+		sf::String buttonText = f.name;
+		sf::SmallStringBuf<128> localButtonText;
+
+		if (ImGui::Button(buttonText.data)) {
+			es->requests.joinMap = f.path;
 		}
 	}
 }
@@ -623,6 +739,25 @@ void handleImguiDirectoryBrowsers(EditorState *es)
 			}
 
 			handleImguiPrefabDir(es, es->dirPrefabs);
+		}
+		ImGui::End();
+	}
+
+	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
+	if (es->windowMaps) {
+		if (ImGui::Begin("Maps", &es->windowMaps)) {
+			if (ImGui::Button("Refresh")) {
+				es->dirMaps.expanded = false;
+				es->dirMaps.dirs.clear();
+				es->dirMaps.files.clear();
+			}
+
+			ImGui::SameLine();
+			if (ImGui::Button("Save")) {
+				es->requests.saveMap = true;
+			}
+
+			handleImguiMapDir(es, es->dirMaps);
 		}
 		ImGui::End();
 	}
@@ -1166,8 +1301,17 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 					es->svState->moveProp(es->editEvents, prop.id, transform);
 				}
 			}
+
+			for (auto &pair : es->dragCharacters) {
+				DragCharacter &dragChr = pair.val;
+				sv::PropTransform transform;
+				transform.position = sf::Vec2i(dragChr.startTile.x << 16, dragChr.startTile.y << 16);
+				applyDragTransform(es, transform, dragCos, dragSin, !es->dragSmooth);
+				dragChr.currentTile = sf::Vec2i(transform.position.x >> 16, transform.position.y >> 16);
+			}
 		}
 	} else {
+		es->dragCharacters.clear();
 
 		if (es->gizmoIndex > 0) {
 			sf::Vec3 selectionMidpoint;
@@ -1268,6 +1412,10 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 						auto ed = sf::box<sv::RemovePropEdit>();
 						ed->propId = prop->id;
 						edits.push(ed);
+					} else if (sv::Character *chr = es->svState->characters.find(svId)) {
+						auto ed = sf::box<sv::RemoveCharacterEdit>();
+						ed->characterId = chr->id;
+						edits.push(ed);
 					}
 				}
 				es->selectedSvIds.clear();
@@ -1301,6 +1449,12 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 			uint32_t entityId = (uint32_t)(&entity - es->clState->systems.entities.entities.data);
 
 			sf::Vec3 pos = entity.transform.position;
+			if (entity.svId && es->dragCharacters.size() > 0) {
+				if (DragCharacter *dragChr = es->dragCharacters.findValue(entity.svId)) {
+					pos = sf::Vec3((float)dragChr->currentTile.x, 0.0f, (float)dragChr->currentTile.y);
+				}
+			}
+
 			sf::Vec4 projected = frameArgs.mainRenderArgs.worldToClip * sf::Vec4(pos, 1.0f);
 			if (projected.w <= 0.00001f) continue;
 
@@ -1460,6 +1614,15 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 						applyDragTransform(es, ed->transform, dragCos, dragSin, !es->dragSmooth);
 						edits.push(ed);
 					}
+
+					for (auto &pair : es->dragCharacters) {
+						DragCharacter &dragChr = pair.val;
+						auto ed = sf::box<sv::MoveCharacterEdit>();
+						ed->characterId = pair.key;
+						ed->position = pair.val.currentTile;
+						edits.push(ed);
+					}
+					es->dragCharacters.clear();
 				}
 			}
 		}
@@ -1591,9 +1754,13 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 					es->selectedSvIds.insert(entity.svId);
 
 					es->dragProps.clear();
+					es->dragCharacters.clear();
 					for (uint32_t svId : es->selectedSvIds) {
 						if (sv::Prop *prop = es->svState->props.find(svId)) {
 							es->dragProps.push(*prop);
+						} else if (sv::Character *chr = es->svState->characters.find(svId)) {
+							DragCharacter &dragChr = es->dragCharacters[svId];
+							dragChr.currentTile = dragChr.startTile = chr->tile;
 						}
 					}
 

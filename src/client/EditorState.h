@@ -16,6 +16,8 @@ struct EditorRequests
 	bool undo = false;
 	bool redo = false;
 	sf::Array<sf::StringBuf> queryDirs;
+	sf::Symbol joinMap;
+	bool saveMap = false;
 };
 
 struct EditorInput
@@ -40,5 +42,7 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 void editorHandleGui(EditorState *es, const GuiArgs &guiArgs);
 
 EditorRequests &editorPendingRequests(EditorState *es);
+
+void editorSaveMap(const sf::Box<sv::ServerState> &state, const sf::Symbol name);
 
 }

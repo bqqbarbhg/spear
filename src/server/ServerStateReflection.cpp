@@ -65,7 +65,9 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, RemoveProp, RemovePropEvent),
 		sf_poly(Event, ReplaceLocalProp, ReplaceLocalPropEvent),
 		sf_poly(Event, AddCharacter, AddCharacterEvent),
+		sf_poly(Event, RemoveCharacter, RemoveCharacterEvent),
 		sf_poly(Event, AddCard, AddCardEvent),
+		sf_poly(Event, RemoveCard, RemoveCardEvent),
 		sf_poly(Event, MoveProp, MovePropEvent),
 		sf_poly(Event, GiveCard, GiveCardEvent),
 		sf_poly(Event, SelectCard, SelectCardEvent),
@@ -89,6 +91,8 @@ template<> void initType<Edit>(Type *t)
 		sf_poly(Edit, MoveProp, MovePropEdit),
 		sf_poly(Edit, RemoveProp, RemovePropEdit),
 		sf_poly(Edit, AddCharacter, AddCharacterEdit),
+		sf_poly(Edit, RemoveCharacter, RemoveCharacterEdit),
+		sf_poly(Edit, MoveCharacter, MoveCharacterEdit),
 	};
 	sf_struct_poly(t, Edit, type, { }, polys);
 }
@@ -1036,12 +1040,28 @@ template<> void initType<AddCharacterEvent>(Type *t)
 	sf_struct_base(t, AddCharacterEvent, Event, fields);
 }
 
+template<> void initType<RemoveCharacterEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(RemoveCharacterEvent, characterId),
+	};
+	sf_struct_base(t, RemoveCharacterEvent, Event, fields);
+}
+
 template<> void initType<AddCardEvent>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(AddCardEvent, card),
 	};
 	sf_struct_base(t, AddCardEvent, Event, fields);
+}
+
+template<> void initType<RemoveCardEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(RemoveCardEvent, cardId),
+	};
+	sf_struct_base(t, RemoveCardEvent, Event, fields);
 }
 
 template<> void initType<MovePropEvent>(Type *t)
@@ -1107,6 +1127,7 @@ template<> void initType<MoveEvent>(Type *t)
 		sf_field(MoveEvent, characterId),
 		sf_field(MoveEvent, position),
 		sf_field(MoveEvent, waypoints),
+		sf_field(MoveEvent, instant),
 	};
 	sf_struct_base(t, MoveEvent, Event, fields);
 }
@@ -1186,6 +1207,23 @@ template<> void initType<AddCharacterEdit>(Type *t)
 		sf_field(AddCharacterEdit, character),
 	};
 	sf_struct_base(t, AddCharacterEdit, Edit, fields);
+}
+
+template<> void initType<RemoveCharacterEdit>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(RemoveCharacterEdit, characterId),
+	};
+	sf_struct_base(t, RemoveCharacterEdit, Edit, fields);
+}
+
+template<> void initType<MoveCharacterEdit>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(MoveCharacterEdit, characterId),
+		sf_field(MoveCharacterEdit, position),
+	};
+	sf_struct_base(t, MoveCharacterEdit, Edit, fields);
 }
 
 template<> void initType<MoveAction>(Type *t)

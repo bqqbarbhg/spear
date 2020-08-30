@@ -411,9 +411,32 @@ void ServerState::applyEvent(const Event &event)
 
 		addCharacterToTiles(*this, e->character);
 
+	} else if (auto *e = event.as<RemoveCharacterEvent>()) {
+		bool removed = characters.remove(e->characterId);
+		sv_check(*this, removed);
+
+		uint32_t *order = sf::find(turnOrder, e->characterId);
+		if (order) {
+			turnOrder.removeOrderedPtr(order);
+		}
+
+		removeEntityFromAllTiles(e->characterId);
+
 	} else if (auto *e = event.as<AddCardEvent>()) {
 		auto res = cards.insertOrAssign(e->card);
 		sv_check(*this, res.inserted);
+	} else if (auto *e = event.as<RemoveCardEvent>()) {
+		if (Card *card = findCard(*this, e->cardId)) {
+			if (card->ownerId) {
+				if (Character *chr = findCharacter(*this, card->ownerId)) {
+					sf::findRemoveSwap(chr->cards, e->cardId);
+				}
+			}
+		}
+
+		bool removed = cards.remove(e->cardId);
+		sv_check(*this, removed);
+
 	} else if (auto *e = event.as<MovePropEvent>()) {
 		if (Prop *prop = findProp(*this, e->propId)) {
 			removeEntityFromAllTiles(e->propId);
@@ -565,6 +588,8 @@ static sf::StaticRecursiveMutex g_configMutex;
 template <typename T>
 static sf::Box<T> loadConfig(ServerState &state, sf::String name)
 {
+	if (sf::beginsWith(name, "<")) return { };
+
 	sf::Symbol path = sf::Symbol(name);
 
 	sf::RecursiveMutexGuard mg(g_configMutex);
@@ -586,7 +611,12 @@ static sf::Box<T> loadConfig(ServerState &state, sf::String name)
 		return { };
 	}
 
-	if (!sp::readJson(value, entry)) return { };
+	if (!sp::readJson(value, entry)) {
+		jsi_free(value);
+		return { };
+	}
+
+	jsi_free(value);
 
 	entry->name = path;
 
@@ -1175,6 +1205,41 @@ uint32_t ServerState::addCard(sf::Array<sf::Box<Event>> &events, const Card &car
 	return id;
 }
 
+void ServerState::removeCharacter(sf::Array<sf::Box<Event>> &events, uint32_t characterId)
+{
+	Character *chr = findCharacter(*this, characterId);
+	if (!chr) return;
+
+	while (chr->statuses.size > 0) {
+		uint32_t statusId = chr->statuses[0];
+		auto e = sf::box<StatusRemoveEvent>();
+		e->statusId = statusId;
+		pushEvent(*this, events, std::move(e));
+	}
+
+	uint32_t slot = 0;
+	for (uint32_t cardId : chr->selectedCards) {
+		auto e = sf::box<UnselectCardEvent>();
+		e->ownerId = characterId;
+		e->prevCardId = cardId;
+		e->slot = slot;
+		pushEvent(*this, events, std::move(e));
+		slot++;
+	}
+
+	while (chr->cards.size > 0) {
+		auto e = sf::box<RemoveCardEvent>();
+		e->cardId = chr->cards[0];
+		pushEvent(*this, events, std::move(e));
+	}
+
+	{
+		auto e = sf::box<RemoveCharacterEvent>();
+		e->characterId = characterId;
+		pushEvent(*this, events, std::move(e));
+	}
+}
+
 void ServerState::addCharacterToSelect(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, int32_t count)
 {
 	Prefab *selectPrefab = loadPrefab(*this, events, type);
@@ -1532,9 +1597,35 @@ void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit,
 			removeProp(events, ed->propId);
 		}
 	} else if (const auto *ed = edit.as<AddCharacterEdit>()) {
-		// TODO: Undo
 
-		addCharacter(events, ed->character);
+		uint32_t chrId = addCharacter(events, ed->character);
+
+		{
+			auto ud = sf::box<RemoveCharacterEdit>();
+			ud->characterId = chrId;
+			undoBuf.push(ud);
+		}
+
+	} else if (const auto *ed = edit.as<RemoveCharacterEdit>()) {
+
+		removeCharacter(events, ed->characterId);
+
+	} else if (const auto *ed = edit.as<MoveCharacterEdit>()) {
+
+		if (Character *chr = findCharacter(*this, ed->characterId)) {
+			auto ud = sf::box<MoveCharacterEdit>();
+			ud->characterId = ed->characterId;
+			ud->position = chr->tile;
+			undoBuf.push(ud);
+		}
+
+		{
+			auto e = sf::box<MoveEvent>();
+			e->characterId = ed->characterId;
+			e->position = ed->position;
+			e->instant = true;
+			pushEvent(*this, events, e);
+		}
 
 	} else {
 		sf_failf("Unhandled edit type: %u", edit.type);
@@ -1751,6 +1842,19 @@ sf::UintFind ServerState::getEntityPackedTiles(uint32_t id) const
 	return entityToTile.findAll(id);
 }
 
+void ServerState::loadCanonicalPrefabs(sf::Array<sf::Box<sv::Event>> &events)
+{
+	PrefabMap oldPrefabs = prefabs;
+	for (Prefab &oldPrefab : oldPrefabs) {
+		if (sf::beginsWith(oldPrefab.name, "<")) continue;
+
+		sv::Prefab *canonical = loadConfig<Prefab>(*this, oldPrefab.name);
+		if (canonical) {
+			reloadPrefab(events, *canonical);
+		}
+	}
+}
+
 struct ReflectionFieldKey
 {
 	sf::Type *parent;
@@ -1806,9 +1910,18 @@ template<> void initType<ServerState>(Type *t)
 		sf_field(ServerState, lastAllocatedIdByType),
 		sf_field(ServerState, tileToEntity),
 		sf_field(ServerState, entityToTile),
+		sf_field(ServerState, turnOrder),
 		sf_field(ServerState, turnInfo),
 	};
 	sf_struct(t, ServerState, fields);
+}
+
+template<> void initType<SavedMap>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(SavedMap, state),
+	};
+	sf_struct(t, SavedMap, fields);
 }
 
 }

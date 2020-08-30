@@ -416,6 +416,20 @@ struct GameSystemImp final : GameSystem
 			entityToCharacter.insertDuplicate(entityId, characterId);
 			svToCharacter.insertDuplicate(svId, characterId);
 
+		} else if (const auto *e = event.as<sv::RemoveCharacterEvent>()) {
+
+			if (Character *chr = findCharacter(e->characterId)) {
+
+				systems.entities.removeEntityQueued(chr->entityId);
+
+				if (selectedCharacterId == e->characterId) {
+					selectedCharacterId = 0;
+				}
+				
+				sf::reset(*chr);
+				freeCharacterIds.push((uint32_t)(chr - characters.data));
+			}
+
 		} else if (const auto *e = event.as<sv::AddCardEvent>()) {
 
 			uint32_t svId = e->card.id;
@@ -513,7 +527,7 @@ struct GameSystemImp final : GameSystem
 				Character &character = characters[chrId];
 				character.tile = e->position;
 
-				if (ctx.immediate) {
+				if (ctx.immediate || e->instant || e->waypoints.size == 0) {
 					Transform transform;
 					transform.position = sf::Vec3((float)e->position.x, 0.0f, (float)e->position.y);
 					systems.entities.updateTransform(systems, character.entityId, transform);
