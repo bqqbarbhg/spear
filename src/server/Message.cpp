@@ -102,6 +102,8 @@ template<> void initType<sv::Message>(Type *t)
 		sf_poly(sv::Message, RequestEdit, sv::MessageRequestEdit),
 		sf_poly(sv::Message, RequestEditUndo, sv::MessageRequestEditUndo),
 		sf_poly(sv::Message, RequestEditRedo, sv::MessageRequestEditRedo),
+		sf_poly(sv::Message, RequestReplayBegin, sv::MessageRequestReplayBegin),
+		sf_poly(sv::Message, RequestReplayReplay, sv::MessageRequestReplayReplay),
 		sf_poly(sv::Message, RequestAction, sv::MessageRequestAction),
 		sf_poly(sv::Message, QueryFiles, sv::MessageQueryFiles),
 		sf_poly(sv::Message, QueryFilesResult, sv::MessageQueryFilesResult),
@@ -156,6 +158,16 @@ template<> void initType<sv::MessageRequestEditUndo>(Type *t)
 template<> void initType<sv::MessageRequestEditRedo>(Type *t)
 {
 	sf_struct_base(t, sv::MessageRequestEditRedo, sv::Message, { });
+}
+
+template<> void initType<sv::MessageRequestReplayBegin>(Type *t)
+{
+	sf_struct_base(t, sv::MessageRequestReplayBegin, sv::Message, { });
+}
+
+template<> void initType<sv::MessageRequestReplayReplay>(Type *t)
+{
+	sf_struct_base(t, sv::MessageRequestReplayReplay, sv::Message, { });
 }
 
 template<> void initType<sv::MessageRequestAction>(Type *t)

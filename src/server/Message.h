@@ -30,6 +30,8 @@ struct Message
 		RequestEdit,
 		RequestEditUndo,
 		RequestEditRedo,
+		RequestReplayBegin,
+		RequestReplayReplay,
 		RequestAction,
 		QueryFiles,
 		QueryFilesResult,
@@ -84,6 +86,14 @@ struct MessageRequestEditUndo : MessageBase<Message::RequestEditUndo>
 };
 
 struct MessageRequestEditRedo : MessageBase<Message::RequestEditRedo>
+{
+};
+
+struct MessageRequestReplayBegin : MessageBase<Message::RequestReplayBegin>
+{
+};
+
+struct MessageRequestReplayReplay : MessageBase<Message::RequestReplayReplay>
 {
 };
 

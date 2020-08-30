@@ -138,6 +138,7 @@ struct EditorState
 	bool windowAssets = false;
 	bool windowPrefabs = false;
 	bool windowProperties = false;
+	bool windowMaps = false;
 	bool windowDebugGameState = false;
 	bool windowDebugEvents = false;
 	bool windowErrors = false;
@@ -151,6 +152,7 @@ struct EditorState
 	// Folder navigation
 	EditorDir dirAssets;
 	EditorDir dirPrefabs;
+	EditorDir dirMaps;
 
 	// File/folder creation
 	sf::StringBuf addPath;
@@ -270,6 +272,7 @@ EditorState *editorCreate(const sf::Box<sv::ServerState> &svState, const sf::Box
 
 	es->dirAssets.prefix = "Assets";
 	es->dirPrefabs.prefix = "Prefabs";
+	es->dirMaps.prefix = "Maps";
 
 	return es;
 }
@@ -349,10 +352,12 @@ void editorPreRefresh(EditorState *es)
 {
 	es->entityIcons.clear();
 	es->clState.reset();
+	sf::reset(es->editedPrefab);
 }
 
-void editorPostRefresh(EditorState *es, const sf::Box<cl::ClientState> &clState)
+void editorPostRefresh(EditorState *es, const sf::Box<sv::ServerState> &svState, const sf::Box<cl::ClientState> &clState)
 {
+	es->svState = svState;
 	es->clState = clState;
 }
 
@@ -377,6 +382,7 @@ void handleImguiMenu(EditorState *es)
 			if (ImGui::MenuItem("Assets")) es->windowAssets = true;
 			if (ImGui::MenuItem("Prefabs")) es->windowPrefabs = true;
 			if (ImGui::MenuItem("Properties")) es->windowProperties = true;
+			if (ImGui::MenuItem("Maps")) es->windowMaps = true;
 			if (ImGui::MenuItem("Errors")) es->windowErrors = true;
 			if (ImGui::BeginMenu("Debug")) {
 				if (ImGui::MenuItem("Game State")) es->windowDebugGameState = true;

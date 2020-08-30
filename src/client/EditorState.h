@@ -33,7 +33,7 @@ bool editorPeekEventPre(EditorState *es, const sf::Box<sv::Event> &event);
 void editorAddQueryDir(EditorState *es, const sf::StringBuf &root, const sv::QueryDir &dir);
 
 void editorPreRefresh(EditorState *es);
-void editorPostRefresh(EditorState *es, const sf::Box<cl::ClientState> &clState);
+void editorPostRefresh(EditorState *es, const sf::Box<sv::ServerState> &svState, const sf::Box<cl::ClientState> &clState);
 
 void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput &input, const EditorInput &editorInput);
 

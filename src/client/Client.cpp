@@ -454,6 +454,16 @@ static void handleLoadEvent(void *user, sv::Event &event)
 void handleMessage(Client *c, sv::Message &msg)
 {
 	if (auto m = msg.as<sv::MessageLoad>()) {
+		cl::ClientPersist persist;
+		c->clState->writePersist(persist);
+
+		if (c->editor) {
+			editorPreRefresh(c->editor);
+		}
+
+		c->clState.reset();
+		c->clState = makeClientState(c, persist);
+
 		c->svState = m->state;
 		c->svState->localClientId = m->clientId;
 		c->clState->localClientId = m->clientId;
@@ -463,6 +473,10 @@ void handleMessage(Client *c, sv::Message &msg)
 		#endif
 
 		m->state->getAsEvents(&handleLoadEvent, c);
+
+		if (c->editor) {
+			editorPostRefresh(c->editor, c->svState, c->clState);
+		}
 
 	} else if (auto m = msg.as<sv::MessageUpdate>()) {
 		for (const sf::Box<sv::Event> &event : m->events) {
@@ -544,9 +558,15 @@ bool clientUpdate(Client *c, const ClientInput &input)
 					c->svState->getAsEvents(&handleLoadEvent, c);
 
 					if (c->editor) {
-						editorPostRefresh(c->editor, c->clState);
+						editorPostRefresh(c->editor, c->svState, c->clState);
 					}
 				}
+			} else if (event.key_code == SAPP_KEYCODE_F6) {
+				sv::MessageRequestReplayBegin msg;
+				sendMessage(*c, msg);
+			} else if (event.key_code == SAPP_KEYCODE_F7) {
+				sv::MessageRequestReplayReplay msg;
+				sendMessage(*c, msg);
 			}
 		}
 	}

@@ -27,7 +27,7 @@ struct ImplicitHashMap
 	{
 		memset(this, 0, sizeof(ImplicitHashMap));
 		reserve(rhs.map.size);
-		for (Entry &entry : rhs) {
+		for (const Entry &entry : rhs) {
 			insert(entry);
 		}
 	}
@@ -44,8 +44,8 @@ struct ImplicitHashMap
 	{
 		if (&rhs == this) return *this;
 		clear();
-		reserve(rhs.size);
-		for (Entry &entry : rhs) {
+		reserve(rhs.size());
+		for (const Entry &entry : rhs) {
 			insert(entry);
 		}
 		return *this;

@@ -36,6 +36,10 @@ struct Session
 	uint32_t id = 0;
 	uint32_t secret = 0;
 
+	uint32_t replayEventBase = ~0u;
+	sf::Box<ServerState> replayState;
+	sf::Array<sf::Box<Event>> replayEvents;
+
 	uint32_t eventBase = 0;
 	sf::Array<sf::Box<Event>> events;
 	sf::Box<ServerState> state;
@@ -239,7 +243,12 @@ static void updateSession(Session &session)
 				for (const sv::Edit *edit : m->edits) {
 					session.state->applyEdit(session.events, *edit, undoBundle);
 				}
-				if (undoBundle.size > 0) client.undoStack.push(std::move(undoBundle));
+				if (undoBundle.size > 0) {
+					client.undoStack.push(std::move(undoBundle));
+					if (client.undoStack.size > 1024) {
+						client.undoStack.removeOrdered(0, 512);
+					}
+				}
 			} else if (auto m = msg->as<sv::MessageRequestEditUndo>()) {
 				if (client.undoStack.size > 0) {
 					sf::Array<sf::Box<sv::Edit>> redoBundle;
@@ -248,6 +257,9 @@ static void updateSession(Session &session)
 					}
 					client.undoStack.pop();
 					if (redoBundle.size > 0) client.redoStack.push(std::move(redoBundle));
+					if (client.redoStack.size > 1024) {
+						client.redoStack.removeOrdered(0, 512);
+					}
 				}
 			} else if (auto m = msg->as<sv::MessageRequestEditRedo>()) {
 				if (client.redoStack.size > 0) {
@@ -257,10 +269,45 @@ static void updateSession(Session &session)
 					}
 					client.redoStack.pop();
 					if (undoBundle.size > 0) client.undoStack.push(std::move(undoBundle));
+					if (client.undoStack.size > 1024) {
+						client.undoStack.removeOrdered(0, 512);
+					}
 				}
 			} else if (auto m = msg->as<sv::MessageRequestAction>()) {
 
 				session.state->requestAction(session.events, *m->action);
+
+			} else if (auto m = msg->as<sv::MessageRequestReplayBegin>()) {
+
+				session.replayState = sf::box<sv::ServerState>(*session.state);
+				session.replayEventBase = session.eventBase + session.events.size;
+
+			} else if (auto m = msg->as<sv::MessageRequestReplayReplay>()) {
+
+				if (session.replayEventBase != ~0u) {
+					uint32_t offset = session.eventBase - session.replayEventBase;
+					session.replayEvents.clear();
+					session.replayEvents.push(session.events.slice().drop(offset));
+					session.replayEventBase = ~0u;
+				}
+
+				PrefabMap replayPrefabs = session.state->prefabs;
+				session.events.clear();
+				session.events.push(session.replayEvents);
+				session.eventBase = 0;
+				session.state = session.replayState;
+				session.state->prefabs = replayPrefabs;
+
+				for (Client &cl2 : session.clients) {
+					sv::MessageLoad load;
+					load.state = session.replayState;
+					load.sessionId = session.id;
+					load.sessionSecret = session.secret;
+					load.clientId = cl2.clientId;
+					sendMessage(cl2, load);
+
+					cl2.lastSentEvent = 0;
+				}
 
 			} else if (auto m = msg->as<sv::MessageQueryFiles>()) {
 
@@ -329,6 +376,12 @@ static void updateSession(Session &session)
 		bqws_send_binary(client.ws, data.data, data.size);
 
 		client.lastSentEvent = totalEvents;
+	}
+
+	// TODO: Keep some events for rewind?
+	if (session.replayEventBase == ~0u) {
+		session.eventBase += session.events.size;
+		session.events.clear();
 	}
 }
 

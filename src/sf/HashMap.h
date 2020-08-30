@@ -34,7 +34,7 @@ struct HashMap
 	{
 		memset(this, 0, sizeof(HashMap));
 		reserve(rhs.map.size);
-		for (Entry &entry : rhs) {
+		for (const Entry &entry : rhs) {
 			insert(entry.key, entry.val);
 		}
 	}
@@ -52,7 +52,7 @@ struct HashMap
 		if (&rhs == this) return *this;
 		clear();
 		reserve(rhs.size);
-		for (auto &pair : rhs) {
+		for (const auto &pair : rhs) {
 			insert(pair.key, pair.value);
 		}
 		return *this;
