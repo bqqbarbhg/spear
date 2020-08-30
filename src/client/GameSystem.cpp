@@ -1503,7 +1503,7 @@ struct GameSystemImp final : GameSystem
 					blk->boxOffset.x = 20.0f;
 					blk->boxOffset.y = frameArgs.guiResolution.y - ll->boxExtent.y - 20.0f;
 
-					uint32_t lastMeleeSlot = 1;
+					uint32_t lastMeleeSlot = chrComp->meleeSlots;
 					uint32_t lastSkillSlot = lastMeleeSlot + chrComp->skillSlots;
 					uint32_t lastSpellSlot = lastSkillSlot + chrComp->spellSlots;
 					uint32_t lastItemSlot = lastSpellSlot + chrComp->itemSlots;

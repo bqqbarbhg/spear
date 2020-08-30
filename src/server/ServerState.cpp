@@ -347,6 +347,10 @@ void ServerState::applyEvent(const Event &event)
 				sf::findRemoveSwap(chr->statuses, e->statusId);
 			}
 		}
+
+		bool removed = statuses.remove(e->statusId);
+		sv_check(*this, removed);
+
 	} else if (auto *e = event.as<DamageEvent>()) {
 		if (Character *chr = findCharacter(*this, e->damageInfo.targetId)) {
 			chr->health -= (int32_t)e->finalDamage;
@@ -861,11 +865,7 @@ void ServerState::meleeAttack(sf::Array<sf::Box<Event>> &events, const MeleeInfo
 	Character *attackerChr = findCharacter(*this, meleeInfo.attackerId);
 	if (!attackerChr) return;
 
-	if (!attackerChr->selectedCards[0]) return;
-	Card *card = findCard(*this, attackerChr->selectedCards[0]);
-	if (!card) return;
-
-	Prefab *cardPrefab = loadPrefab(*this, events, card->prefabName);
+	Prefab *cardPrefab = loadPrefab(*this, events, meleeInfo.cardName);
 	if (!cardPrefab) return;
 
 	CardMeleeComponent *meleeComponent = findComponent<CardMeleeComponent>(*this, *cardPrefab);
@@ -881,7 +881,7 @@ void ServerState::meleeAttack(sf::Array<sf::Box<Event>> &events, const MeleeInfo
 	DamageInfo damage = { };
 	damage.melee = true;
 	damage.physical = true;
-	damage.cardName = card->prefabName;
+	damage.cardName = meleeInfo.cardName;
 	damage.originalCasterId = meleeInfo.attackerId;
 	damage.causeId = meleeInfo.attackerId;
 	damage.targetId = meleeInfo.targetId;
@@ -1232,7 +1232,7 @@ void ServerState::giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, u
 		CardComponent *cardComp = findComponent<CardComponent>(*this, *cardPrefab);
 		if (!cardComp) return;
 
-		uint32_t lastMeleeSlot = 1;
+		uint32_t lastMeleeSlot = chrComp->meleeSlots;
 		uint32_t lastSkillSlot = lastMeleeSlot + chrComp->skillSlots;
 		uint32_t lastSpellSlot = lastSkillSlot + chrComp->spellSlots;
 		uint32_t lastItemSlot = lastSpellSlot + chrComp->itemSlots;

@@ -225,6 +225,7 @@ struct CharacterComponent : ComponentBase<Component::Character>
 	uint32_t baseArmor = 0;
 	uint32_t minWeightDice = 1;
 	uint32_t maxWeightDice = 100;
+	uint32_t meleeSlots = 1;
 	uint32_t skillSlots = 0;
 	uint32_t spellSlots = 0;
 	uint32_t itemSlots = 0;

@@ -477,6 +477,7 @@ template<> void initType<CharacterComponent>(Type *t)
 		sf_field(CharacterComponent, baseArmor),
 		sf_field(CharacterComponent, minWeightDice),
 		sf_field(CharacterComponent, maxWeightDice),
+		sf_field(CharacterComponent, meleeSlots),
 		sf_field(CharacterComponent, skillSlots),
 		sf_field(CharacterComponent, spellSlots),
 		sf_field(CharacterComponent, itemSlots),
