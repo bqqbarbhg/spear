@@ -445,9 +445,11 @@ void clientQuit(Client *c)
 	}
 	#endif
 
+#if 0
 	if (c->editMapPath) {
 		editorSaveMap(c->svStateClean, c->editMapPath);
 	}
+#endif
 
 	clientCleanupImp(c);
 }

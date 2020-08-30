@@ -146,6 +146,7 @@ struct EditorState
 	bool windowAssets = false;
 	bool windowPrefabs = false;
 	bool windowProperties = false;
+	bool windowCharacter = false;
 	bool windowMaps = false;
 	bool windowDebugGameState = false;
 	bool windowDebugEvents = false;
@@ -412,6 +413,7 @@ void handleImguiMenu(EditorState *es)
 			if (ImGui::MenuItem("Assets")) es->windowAssets = true;
 			if (ImGui::MenuItem("Prefabs")) es->windowPrefabs = true;
 			if (ImGui::MenuItem("Properties")) es->windowProperties = true;
+			if (ImGui::MenuItem("Character")) es->windowCharacter = true;
 			if (ImGui::MenuItem("Maps")) es->windowMaps = true;
 			if (ImGui::MenuItem("Errors")) es->windowErrors = true;
 			if (ImGui::BeginMenu("Debug")) {
@@ -1159,6 +1161,136 @@ void handleImguiPropertiesWindow(EditorState *es)
 	}
 }
 
+void handleImguiCharacterWindow(EditorState *es)
+{
+	sv::Character *chr = nullptr;
+	for (uint32_t id : es->selectedSvIds) {
+		chr = es->svState->characters.find(id);
+		if (chr) break;
+	}
+
+	if (!chr) return;
+
+	sv::Prefab *chrPrefab = es->svState->prefabs.find(chr->prefabName);
+	if (!chrPrefab) return;
+
+	sv::CharacterComponent *chrComp = chrPrefab->findComponent<sv::CharacterComponent>();
+	if (!chrComp) return;
+
+	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
+	if (es->windowCharacter) {
+		if (ImGui::Begin("Character", &es->windowProperties)) {
+			ImGui::Text("%s", chr->prefabName.data);
+
+			if (ImGui::CollapsingHeader("Selected Cards", ImGuiTreeNodeFlags_DefaultOpen)) {
+
+				uint32_t lastMeleeSlot = chrComp->meleeSlots;
+				uint32_t lastSkillSlot = lastMeleeSlot + chrComp->skillSlots;
+				uint32_t lastSpellSlot = lastSkillSlot + chrComp->spellSlots;
+				uint32_t lastItemSlot = lastSpellSlot + chrComp->itemSlots;
+
+				for (uint32_t i = 0; i < sv::NumSelectedCards; i++) {
+
+					sf::String label;
+					if (i < lastMeleeSlot) {
+						label = "Melee";
+					} else if (i < lastSkillSlot) {
+						label = "Skill";
+					} else if (i < lastSpellSlot) {
+						label = "Spell";
+					} else if (i < lastItemSlot) {
+						label = "Item";
+					}
+
+					if (!label.size) break;
+
+					ImGui::PushID((int)i);
+
+					sf::SmallStringBuf<512> textBuf;
+
+					uint32_t cardId = chr->selectedCards[i];
+					sv::Card *card = es->svState->cards.find(cardId);
+					if (card) {
+						textBuf.append(card->prefabName);
+					}
+
+					if (ImGui::Button("X")) {
+						// TODO
+					}
+
+					ImGui::SameLine();
+
+					if (ImGui::InputText(label.data, textBuf.data, textBuf.capacity, ImGuiInputTextFlags_AlignRight | ImGuiInputTextFlags_AutoSelectAll)) {
+						// TODO
+					}
+
+					if (ImGui::BeginDragDropTarget()) {
+						const char *key = "prefab";
+						const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(key);
+						if (payload) {
+							sf::Symbol sym = sf::Symbol((const char*)payload->Data, payload->DataSize);
+						}
+
+						ImGui::EndDragDropTarget();
+					}
+
+					ImGui::PopID();
+				}
+			}
+
+			if (ImGui::CollapsingHeader("Card Inventory", ImGuiTreeNodeFlags_DefaultOpen)) {
+
+				for (uint32_t i = 0; i <= chr->cards.size; i++) {
+
+					ImGui::PushID((int)i);
+
+					sf::SmallStringBuf<512> textBuf;
+
+					uint32_t cardId = chr->selectedCards[i];
+					sv::Card *card = es->svState->cards.find(cardId);
+					if (card) {
+						textBuf.append(card->prefabName);
+					}
+
+					if (i < chr->cards.size) {
+						if (ImGui::Button("X")) {
+							// TODO
+						}
+
+						ImGui::SameLine();
+					}
+
+					sf::SmallStringBuf<32> label;
+					if (i < chr->cards.size) {
+						label.format("%u", i);
+					} else {
+						label = "(Add)";
+					}
+
+					if (ImGui::InputText(label.data, textBuf.data, textBuf.capacity, ImGuiInputTextFlags_AlignRight | ImGuiInputTextFlags_AutoSelectAll)) {
+						// TODO
+					}
+
+					if (ImGui::BeginDragDropTarget()) {
+						const char *key = "prefab";
+						const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(key);
+						if (payload) {
+							sf::Symbol sym = sf::Symbol((const char*)payload->Data, payload->DataSize);
+						}
+
+						ImGui::EndDragDropTarget();
+					}
+
+					ImGui::PopID();
+				}
+
+			}
+
+		}
+		ImGui::End();
+	}
+}
+
 static void prepareDragTransform(EditorState *es, int32_t &dragCos, int32_t &dragSin)
 {
 	if (es->dragRotation > 0) {
@@ -1866,6 +1998,7 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 	handleImguiHelpWindow(es);
 	handleImguiDirectoryBrowsers(es);
 	handleImguiPropertiesWindow(es);
+	handleImguiCharacterWindow(es);
 	handleImguiErrorsWindow(es, editorInput.errors);
 	handleImguiDebugWindows(es);
 

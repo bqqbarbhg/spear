@@ -409,6 +409,9 @@ void ServerState::applyEvent(const Event &event)
 		auto res = characters.insertOrAssign(e->character);
 		sv_check(*this, res.inserted);
 
+		// TODO: Sort by playerness
+		turnOrder.push(e->character.id);
+
 		addCharacterToTiles(*this, e->character);
 
 	} else if (auto *e = event.as<RemoveCharacterEvent>()) {
@@ -1177,9 +1180,6 @@ uint32_t ServerState::addCharacter(sf::Array<sf::Box<Event>> &events, const Char
 		pushEvent(*this, events, e);
 	}
 
-	// TODO: Sort by playerness
-	turnOrder.push(id);
-
 	if (turnInfo.characterId == 0) {
 		startNextCharacterTurn(events);
 	}
@@ -1231,6 +1231,10 @@ void ServerState::removeCharacter(sf::Array<sf::Box<Event>> &events, uint32_t ch
 		auto e = sf::box<RemoveCardEvent>();
 		e->cardId = chr->cards[0];
 		pushEvent(*this, events, std::move(e));
+	}
+
+	if (turnInfo.characterId == characterId) {
+		startNextCharacterTurn(events);
 	}
 
 	{
