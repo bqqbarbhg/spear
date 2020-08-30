@@ -25,6 +25,7 @@ struct GameShaders
 	sg_shader debugMesh;
 	sg_shader debugSkinnedMesh;
 	sg_shader billboard;
+	sg_shader characterOutline;
 
 	sg_buffer fullscreenTriangleBuffer;
 

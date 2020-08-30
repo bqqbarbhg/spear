@@ -3,6 +3,8 @@
 #include "client/AreaSystem.h"
 #include "client/LightSystem.h"
 
+#include "game/shader/GameShaders.h"
+#include "game/shader/CharacterOutline.h"
 #include "game/shader2/GameShaders2.h"
 #include "client/MeshMaterial.h"
 
@@ -102,6 +104,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		sf::HashMap<sf::Symbol, int32_t> tags;
 		sf::Array<sf::Symbol> oneShotTags;
 		bool needStateUpdate = false;
+		bool seeThrough = false;
 
 		sf::Array<sf::Symbol> frameEvents;
 
@@ -184,7 +187,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 	sf::HashMap<sf::Symbol, double> tagWeights;
 
 	Shader2 skinShader;
-	sp::Pipeline skinPipe;
+	sp::Pipeline skinPipe[2];
+	sp::Pipeline outlinePipe;
 
 	AnimWorkCtx animCtx;
 
@@ -409,13 +413,38 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		{
 			uint32_t flags = sp::PipeDepthWrite|sp::PipeCullCCW;
 			flags |= sp::PipeIndex16;
-			auto &d = skinPipe.init(skinShader.handle, flags);
+			auto &d = skinPipe[0].init(skinShader.handle, flags);
 			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
 			d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT2;
 			d.layout.attrs[2].format = SG_VERTEXFORMAT_SHORT4N;
 			d.layout.attrs[3].format = SG_VERTEXFORMAT_SHORT4N;
 			d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4;
 			d.layout.attrs[5].format = SG_VERTEXFORMAT_UBYTE4N;
+		}
+
+		{
+			uint32_t flags = sp::PipeDepthWrite|sp::PipeCullCCW;
+			flags |= sp::PipeIndex16;
+			auto &d = skinPipe[1].init(skinShader.handle, flags);
+			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+			d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT2;
+			d.layout.attrs[2].format = SG_VERTEXFORMAT_SHORT4N;
+			d.layout.attrs[3].format = SG_VERTEXFORMAT_SHORT4N;
+			d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4;
+			d.layout.attrs[5].format = SG_VERTEXFORMAT_UBYTE4N;
+			d.depth_stencil.stencil_enabled = true;
+			d.depth_stencil.stencil_front.pass_op = SG_STENCILOP_REPLACE;
+			d.depth_stencil.stencil_ref = 0xff;
+			d.depth_stencil.stencil_write_mask = 0x01;
+		}
+
+		{
+			uint32_t flags = sp::PipeBlendPremultiply|sp::PipeVertexFloat2;
+			auto &d = outlinePipe.init(gameShaders.characterOutline, flags);
+			d.depth_stencil.stencil_enabled = true;
+			d.depth_stencil.stencil_front.compare_func = SG_COMPAREFUNC_EQUAL;
+			d.depth_stencil.stencil_read_mask = 0x3;
+			d.depth_stencil.stencil_ref = 0x3;
 		}
 	}
 
@@ -451,6 +480,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		model.modelToWorld = transform.asMatrix() * model.modelToEntity;
 
 		model.lastUpdateTime = animCtx.updateTime;
+
+		model.seeThrough = c.seeThrough;
 
 		model.model.load(c.modelName);
 		for (auto &material : c.materials) {
@@ -875,11 +906,11 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		for (uint32_t modelId : visibleAreas.get(AreaGroup::CharacterModel)) {
 			Model &model = models[modelId];
 
-			for (sp::Mesh &mesh : model.model->meshes) {
+			if (skinPipe[model.seeThrough].bind()) {
+				bindUniformVS(skinShader, tu);
+			}
 
-				if (skinPipe.bind()) {
-					bindUniformVS(skinShader, tu);
-				}
+			for (sp::Mesh &mesh : model.model->meshes) {
 
 				for (uint32_t i = 0; i < mesh.bones.size; i++) {
 					sp::MeshBone &meshBone = mesh.bones[i];
@@ -935,6 +966,25 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			}
 
 		}
+	}
+
+	void renderOutlines(const RenderArgs &renderArgs) override
+	{
+		{
+			outlinePipe.bind();
+
+			CharacterOutline_Vertex_t vu;
+			vu.u_PatternSize = sf::Vec2(1.0f / renderArgs.viewToClip.m00, 1.0f / renderArgs.viewToClip.m11) * 80.0f;
+
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_CharacterOutline_Vertex, &vu, sizeof(vu));
+
+			sg_bindings bindings = { };
+			bindings.vertex_buffers[0] = gameShaders.fullscreenTriangleBuffer;
+			sg_apply_bindings(&bindings);
+
+			sg_draw(0, 3, 1);
+		}
+
 	}
 
 };

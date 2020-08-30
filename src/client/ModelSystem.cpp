@@ -65,6 +65,8 @@ struct ModelSystemImp final : ModelSystem
 		sf::Mat34 modelToEntity;
 		sf::Mat34 modelToWorld;
 
+		bool seeThrough;
+
 		bool isLoading() const {
 			if (model.isLoading()) return true;
 			if (shadowModel && shadowModel.isLoading()) return true;
@@ -94,7 +96,7 @@ struct ModelSystemImp final : ModelSystem
 	sf::Array<uint32_t> loadQueue;
 
 	Shader2 meshShader;
-	sp::Pipeline meshPipes[(uint32_t)VertexFormat::Count];
+	sp::Pipeline meshPipes[(uint32_t)VertexFormat::Count][2];
 
 	void finishLoadingModel(AreaSystem *areaSystem, uint32_t modelId)
 	{
@@ -175,20 +177,32 @@ struct ModelSystemImp final : ModelSystem
 
 		uint32_t flags = sp::PipeDepthWrite|sp::PipeCullCCW|sp::PipeIndex16;
 
-		{
-			auto &d = meshPipes[(uint32_t)VertexFormat::Tile].init(meshShader.handle, flags);
+		for (uint32_t stencil = 0; stencil < 2; stencil++) {
+			auto &d = meshPipes[(uint32_t)VertexFormat::Tile][stencil].init(meshShader.handle, flags);
 			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
 			d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
 			d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT4;
 			d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2;
+			if (stencil) {
+				d.depth_stencil.stencil_enabled = true;
+				d.depth_stencil.stencil_front.pass_op = SG_STENCILOP_REPLACE;
+				d.depth_stencil.stencil_ref = 0xff;
+				d.depth_stencil.stencil_write_mask = 0x01;
+			}
 		}
 
-		{
-			auto &d = meshPipes[(uint32_t)VertexFormat::Packed].init(meshShader.handle, flags);
+		for (uint32_t stencil = 0; stencil < 2; stencil++) {
+			auto &d = meshPipes[(uint32_t)VertexFormat::Packed][stencil].init(meshShader.handle, flags);
 			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
 			d.layout.attrs[1].format = SG_VERTEXFORMAT_SHORT4N;
 			d.layout.attrs[2].format = SG_VERTEXFORMAT_SHORT4N;
 			d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2;
+			if (stencil) {
+				d.depth_stencil.stencil_enabled = true;
+				d.depth_stencil.stencil_front.pass_op = SG_STENCILOP_REPLACE;
+				d.depth_stencil.stencil_ref = 0xff;
+				d.depth_stencil.stencil_write_mask = 0x01;
+			}
 		}
 	}
 
@@ -215,6 +229,8 @@ struct ModelSystemImp final : ModelSystem
 
 		model.modelToEntity = getComponentTransform(c);
 		model.modelToWorld = transform.asMatrix() * model.modelToEntity;
+
+		model.seeThrough = c.seeThrough;
 
 		model.model.load(c.model);
 		if (c.castShadows) {
@@ -287,7 +303,7 @@ struct ModelSystemImp final : ModelSystem
 		for (uint32_t modelId : visibleAreas.get(AreaGroup::DynamicModel)) {
 			Model &model = models[modelId];
 
-			sp::Pipeline &pipe = meshPipes[(uint32_t)model.vertexFormat];
+			sp::Pipeline &pipe = meshPipes[(uint32_t)model.vertexFormat][model.seeThrough];
 			tu.modelToWorld = model.modelToWorld;
 			tu.worldToClip = renderArgs.worldToClip;
 

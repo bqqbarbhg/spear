@@ -22,6 +22,7 @@
 #include "DebugMesh.h"
 #include "DebugSkinnedMesh.h"
 #include "Billboard.h"
+#include "CharacterOutline.h"
 
 #include "GameShaders.h"
 
@@ -49,6 +50,7 @@ void GameShaders::load()
 	debugMesh = sg_make_shader(DebugMesh_DebugMesh_shader_desc());
 	debugSkinnedMesh = sg_make_shader(DebugSkinnedMesh_DebugSkinnedMesh_shader_desc());
 	billboard = sg_make_shader(Billboard_Billboard_shader_desc());
+	characterOutline = sg_make_shader(CharacterOutline_CharacterOutline_shader_desc());
 
 	{
 		sf::Vec2 verts[] = {

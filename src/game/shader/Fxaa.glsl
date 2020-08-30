@@ -87,5 +87,3 @@ void main()
 @end
 
 @program Fxaa vs fs
-
-

@@ -39,6 +39,7 @@ struct CharacterModelSystem : EntitySystem
 	virtual void queryFrameEvents(const Entities &entities, uint32_t entityId, sf::Array<sf::Symbol> &events) = 0;
 
 	virtual void renderMain(LightSystem *lightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
+	virtual void renderOutlines(const RenderArgs &renderArgs) = 0;
 };
 
 }
