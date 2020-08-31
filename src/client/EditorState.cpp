@@ -1183,6 +1183,7 @@ void handleImguiCharacterWindow(EditorState *es)
 			ImGui::Text("%s", chr->prefabName.data);
 
 			if (ImGui::CollapsingHeader("Selected Cards", ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::PushID("Selected Cards");
 
 				uint32_t lastMeleeSlot = chrComp->meleeSlots;
 				uint32_t lastSkillSlot = lastMeleeSlot + chrComp->skillSlots;
@@ -1236,9 +1237,11 @@ void handleImguiCharacterWindow(EditorState *es)
 
 					ImGui::PopID();
 				}
+				ImGui::PopID();
 			}
 
 			if (ImGui::CollapsingHeader("Card Inventory", ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::PushID("Card Inventory");
 
 				for (uint32_t i = 0; i <= chr->cards.size; i++) {
 
@@ -1246,7 +1249,7 @@ void handleImguiCharacterWindow(EditorState *es)
 
 					sf::SmallStringBuf<512> textBuf;
 
-					uint32_t cardId = chr->selectedCards[i];
+					uint32_t cardId = i < chr->cards.size ? chr->cards[i] : 0;
 					sv::Card *card = es->svState->cards.find(cardId);
 					if (card) {
 						textBuf.append(card->prefabName);
@@ -1254,36 +1257,54 @@ void handleImguiCharacterWindow(EditorState *es)
 
 					if (i < chr->cards.size) {
 						if (ImGui::Button("X")) {
-							// TODO
+							if (cardId) {
+								sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();
+								auto ed = sf::box<sv::RemoveCardEdit>();
+								ed->cardId = cardId;
+								edits.push(ed);
+							}
 						}
 
 						ImGui::SameLine();
 					}
+
+					bool add = false;
 
 					sf::SmallStringBuf<32> label;
 					if (i < chr->cards.size) {
 						label.format("%u", i);
 					} else {
 						label = "(Add)";
+						add = true;
 					}
 
 					if (ImGui::InputText(label.data, textBuf.data, textBuf.capacity, ImGuiInputTextFlags_AlignRight | ImGuiInputTextFlags_AutoSelectAll)) {
 						// TODO
 					}
 
-					if (ImGui::BeginDragDropTarget()) {
-						const char *key = "prefab";
-						const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(key);
-						if (payload) {
-							sf::Symbol sym = sf::Symbol((const char*)payload->Data, payload->DataSize);
-						}
+					if (add) {
+						if (ImGui::BeginDragDropTarget()) {
+							const char *key = "prefab";
+							const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(key);
+							if (payload) {
+								sf::Symbol sym = sf::Symbol((const char*)payload->Data, payload->DataSize);
 
-						ImGui::EndDragDropTarget();
+								sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();
+
+								auto ed = sf::box<sv::AddCardEdit>();
+								ed->characterId = chr->id;
+								ed->cardName = sym;
+								edits.push(ed);
+							}
+
+							ImGui::EndDragDropTarget();
+						}
 					}
 
 					ImGui::PopID();
 				}
 
+				ImGui::PopID();
 			}
 
 		}

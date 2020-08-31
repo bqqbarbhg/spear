@@ -429,11 +429,9 @@ void ServerState::applyEvent(const Event &event)
 		auto res = cards.insertOrAssign(e->card);
 		sv_check(*this, res.inserted);
 	} else if (auto *e = event.as<RemoveCardEvent>()) {
-		if (Card *card = findCard(*this, e->cardId)) {
-			if (card->ownerId) {
-				if (Character *chr = findCharacter(*this, card->ownerId)) {
-					sf::findRemoveSwap(chr->cards, e->cardId);
-				}
+		if (e->prevOwnerId) {
+			if (Character *chr = findCharacter(*this, e->prevOwnerId)) {
+				sf::findRemoveSwap(chr->cards, e->cardId);
 			}
 		}
 
@@ -1230,6 +1228,7 @@ void ServerState::removeCharacter(sf::Array<sf::Box<Event>> &events, uint32_t ch
 	while (chr->cards.size > 0) {
 		auto e = sf::box<RemoveCardEvent>();
 		e->cardId = chr->cards[0];
+		e->prevOwnerId = characterId;
 		pushEvent(*this, events, std::move(e));
 	}
 
@@ -1240,6 +1239,31 @@ void ServerState::removeCharacter(sf::Array<sf::Box<Event>> &events, uint32_t ch
 	{
 		auto e = sf::box<RemoveCharacterEvent>();
 		e->characterId = characterId;
+		pushEvent(*this, events, std::move(e));
+	}
+}
+
+void ServerState::removeCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId)
+{
+	Card *card = findCard(*this, cardId);
+	if (!card) return;
+
+	if (card->ownerId) {
+		if (Character *chr = findCharacter(*this, card->ownerId)) {
+			uint32_t *pSelected = sf::find(sf::slice(chr->selectedCards), cardId);
+			if (pSelected) {
+				auto e = sf::box<UnselectCardEvent>();
+				e->ownerId = card->ownerId;
+				e->prevCardId = cardId;
+				e->slot = (uint32_t)(pSelected - chr->selectedCards);
+			}
+		}
+	}
+
+	{
+		auto e = sf::box<RemoveCardEvent>();
+		e->cardId = cardId;
+		e->prevOwnerId = card->ownerId;
 		pushEvent(*this, events, std::move(e));
 	}
 }
@@ -1630,6 +1654,24 @@ void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit,
 			e->instant = true;
 			pushEvent(*this, events, e);
 		}
+
+	} else if (const auto *ed = edit.as<AddCardEdit>()) {
+
+		Card cardProto = { };
+		cardProto.prefabName = ed->cardName;
+		uint32_t cardId = addCard(events, cardProto);
+
+		if (cardId) {
+			auto e = sf::box<GiveCardEvent>();
+			e->cardId = cardId;
+			e->previousOwnerId = 0;
+			e->ownerId = ed->characterId;
+			pushEvent(*this, events, e);
+		}
+
+	} else if (const auto *ed = edit.as<RemoveCardEdit>()) {
+
+		removeCard(events, ed->cardId);
 
 	} else {
 		sf_failf("Unhandled edit type: %u", edit.type);

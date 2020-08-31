@@ -747,6 +747,7 @@ struct AddCardEvent : EventBase<Event::AddCard>
 struct RemoveCardEvent : EventBase<Event::RemoveCard>
 {
 	uint32_t cardId;
+	uint32_t prevOwnerId;
 };
 
 struct MovePropEvent : EventBase<Event::MoveProp>
@@ -843,6 +844,9 @@ struct Edit
 		AddCharacter,
 		RemoveCharacter,
 		MoveCharacter,
+		AddCard,
+		ReplaceCard,
+		RemoveCard,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -918,6 +922,17 @@ struct MoveCharacterEdit : EditBase<Edit::MoveCharacter>
 {
 	uint32_t characterId;
 	sf::Vec2i position;
+};
+
+struct AddCardEdit : EditBase<Edit::AddCard>
+{
+	uint32_t characterId;
+	sf::Symbol cardName;
+};
+
+struct RemoveCardEdit : EditBase<Edit::RemoveCard>
+{
+	uint32_t cardId;
 };
 
 struct Action
@@ -1095,6 +1110,7 @@ struct ServerState
 	uint32_t addCharacter(sf::Array<sf::Box<Event>> &events, const Character &chr, bool local=false);
 	uint32_t addCard(sf::Array<sf::Box<Event>> &events, const Card &card, bool local=false);
 	void removeCharacter(sf::Array<sf::Box<Event>> &events, uint32_t characterId);
+	void removeCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId);
 	void addCharacterToSelect(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, int32_t count);
 
 	void moveProp(sf::Array<sf::Box<Event>> &events, uint32_t propId, const PropTransform &transform);

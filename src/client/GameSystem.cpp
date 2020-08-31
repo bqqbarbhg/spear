@@ -449,6 +449,23 @@ struct GameSystemImp final : GameSystem
 
 			svToCard.insertDuplicate(svId, cardId);
 
+		} else if (const auto *e = event.as<sv::UnselectCardEvent>()) {
+
+			if (Character *chr = findCharacter(e->ownerId)) {
+				chr->selectedCards[e->slot].currentSvId = 0;
+			}
+
+		} else if (const auto *e = event.as<sv::RemoveCardEvent>()) {
+
+			if (Character *chr = findCharacter(e->prevOwnerId)) {
+				sf::findRemoveSwap(chr->cardIds, e->cardId);
+			}
+
+			if (Card *card = findCard(e->cardId)) {
+				sf::reset(*card);
+				freeCardIds.push(e->cardId);
+			}
+
 		} else if (const auto *e = event.as<sv::StatusAddEvent>()) {
 
 			uint32_t svId = e->status.id;
