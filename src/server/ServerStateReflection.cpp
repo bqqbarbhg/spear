@@ -39,6 +39,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, Effect, EffectComponent),
 		sf_poly(Component, Sound, SoundComponent),
 		sf_poly(Component, RoomConnection, RoomConnectionComponent),
+		sf_poly(Component, Wall, WallComponent),
 	};
 	sf_struct_poly(t, Component, type, { }, polys);
 }
@@ -574,6 +575,12 @@ template<> void initType<CardComponent>(Type *t)
 		sf_field(CardComponent, skill),
 		sf_field(CardComponent, spell),
 		sf_field(CardComponent, item),
+		sf_field(CardComponent, targetSelf),
+		sf_field(CardComponent, targetRadius),
+		sf_field(CardComponent, targetBoxRadius),
+		sf_field(CardComponent, blockedByCharacter),
+		sf_field(CardComponent, blockedByProp),
+		sf_field(CardComponent, blockedByWall),
 	};
 	sf_struct_base(t, CardComponent, Component, fields);
 
@@ -584,6 +591,30 @@ template<> void initType<CardComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "description");
 		info.multiline = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "targetSelf");
+		info.description = "Allow casting the card to self";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "targetRadius");
+		info.description = "Movement distance to target";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "targetBoxRadius");
+		info.description = "Distance including diagonals to target";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "blockedByCharacter");
+		info.description = "Targeting blocked by characters";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "blockedByProp");
+		info.description = "Targeting blocked by props";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "blockedByWall");
+		info.description = "Targeting blocked by walls";
 	}
 }
 
@@ -877,6 +908,14 @@ template<> void initType<RoomConnectionComponent>(Type *t)
 		ReflectionInfo &info = addTypeReflectionInfo(t, "connectionType");
 		info.description = "Name of the connection that can be matched with this";
 	}
+}
+
+template<> void initType<WallComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(WallComponent, temp),
+	};
+	sf_struct_base(t, WallComponent, Component, fields);
 }
 
 template<> void initType<AllocateIdEvent>(Type *t)
@@ -1630,6 +1669,7 @@ template<> void initType<Prop>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(Prop, id),
+		sf_field(Prop, flags),
 		sf_field(Prop, transform),
 		sf_field(Prop, prefabName),
 	};

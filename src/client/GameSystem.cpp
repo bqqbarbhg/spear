@@ -1291,20 +1291,31 @@ struct GameSystemImp final : GameSystem
 					didHover = false;
 				}
 
-				if (Character *chr = findCharacter(pointerState->startSvId)) {
+				Character *chr = findCharacter(pointerState->startSvId);
+				Character *caster = nullptr;
+				Card *card = nullptr;
+				bool canTarget = true;
+				if (selectedCardSlot != ~0u) {
+					caster = findCharacter(selectedCharacterId);
+					card = findCard(caster->selectedCards[selectedCardSlot].currentSvId);
+					if (chr && caster && card && svState.canTarget(caster->svId, chr->svId, card->svPrefab->name)) {
+						canTarget = true;
+					} else {
+						canTarget = false;
+					}
+				}
 
+				if (chr && canTarget) {
 					if (didClick) {
 
 						if (selectedCardSlot != ~0u) {
-							if (Character *caster = findCharacter(selectedCharacterId)) {
-								auto action = sf::box<sv::UseCardAction>();
+							auto action = sf::box<sv::UseCardAction>();
 
-								action->characterId = selectedCharacterId;
-								action->targetId = chr->svId;
-								action->cardId = caster->selectedCards[selectedCardSlot].currentSvId;
+							action->characterId = selectedCharacterId;
+							action->targetId = chr->svId;
+							action->cardId = caster->selectedCards[selectedCardSlot].currentSvId;
 
-								requestedActions.push(std::move(action));
-							}
+							requestedActions.push(std::move(action));
 							selectedCardSlot = ~0u;
 						} else {
 							if (chr->svId != selectedCharacterId) {

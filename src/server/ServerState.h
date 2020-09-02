@@ -60,6 +60,7 @@ struct Component
 		Effect,
 		Sound,
 		RoomConnection,
+		Wall,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -307,6 +308,14 @@ struct CardComponent : ComponentBase<Component::Card>
 	bool skill = false;
 	bool spell = false;
 	bool item = false;
+
+	// Targetting
+	bool targetSelf = true; //! Allow casting the card to self
+	int32_t targetRadius = 1; //! Movement distance to target
+	int32_t targetBoxRadius = 1; //! Distance including diagonals to target
+	bool blockedByCharacter = false; //! Targeting blocked by characters
+	bool blockedByProp = false; //! Targeting blocked by props
+	bool blockedByWall = false; //! Targeting blocked by walls
 };
 
 struct CardAttachComponent : ComponentBase<Component::CardAttach>
@@ -450,6 +459,11 @@ struct RoomConnectionComponent : ComponentBase<Component::RoomConnection>
 	sf::Symbol connectionType; //! Name of the connection that can be matched with this
 };
 
+struct WallComponent : ComponentBase<Component::Wall>
+{
+	bool temp = false;
+};
+
 struct Prefab sv_reflect()
 {
 	sf::Symbol name;
@@ -471,7 +485,13 @@ struct PropTransform sv_reflect()
 
 struct Prop sv_reflect()
 {
+	/* no-reflect */ enum Flag
+	/* no-reflect */ {
+	/* no-reflect */ Wall = 0x1,
+	/* no-reflect */ };
+
 	uint32_t id;
+	uint32_t flags = 0;
 	PropTransform transform;
 	sf::Symbol prefabName sv_reflect(prefab);
 };
@@ -1090,6 +1110,8 @@ struct ServerState
 	void applyEvent(const Event &event);
 
 	void getAsEvents(EventCallbackFn *callback, void *user) const;
+
+	bool canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol &cardName) const;
 
 	// -- Server only
 

@@ -13,6 +13,7 @@
 
 #include "server/FixedPoint.h"
 #include "server/ServerStateReflection.h"
+#include "server/LineRasterizer.h"
 
 #include <stdarg.h>
 
@@ -595,6 +596,53 @@ void ServerState::getAsEvents(EventCallbackFn *callback, void *user) const
 	}
 }
 
+bool ServerState::canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol &cardName) const
+{
+	const Prefab *cardPrefab = prefabs.find(cardName);
+	if (!cardPrefab) return false;
+
+	const CardComponent *cardComp = cardPrefab->findComponent<CardComponent>();
+	if (!cardComp) return false;
+
+	if (!cardComp->targetSelf && selfId == targetId) return false;
+
+	const Character *self = characters.find(selfId);
+	const Character *target = characters.find(targetId);
+	if (!self || !target) return false;
+
+	sf::Vec2i delta = target->tile - self->tile;
+	if (delta.x < 0) delta.x = -delta.x;
+	if (delta.y < 0) delta.y = -delta.y;
+
+	if (delta.x + delta.y > cardComp->targetRadius && sf::max(delta.x, delta.y) > cardComp->targetBoxRadius) return false;
+
+	if (cardComp->blockedByCharacter || cardComp->blockedByProp || cardComp->blockedByWall) {
+		sv::ConservativeLineRasterizer raster(self->tile, target->tile);
+		for (;;) {
+			sf::Vec2i tile = raster.next();
+			if (tile == self->tile) continue;
+			if (tile == target->tile) break;
+
+			uint32_t id;
+			sf::UintFind find = getTileEntities(tile);
+			while (find.next(id)) {
+				IdType type = getIdType(id);
+				if (type == IdType::Prop) {
+					if (cardComp->blockedByProp) return false;
+					if (cardComp->blockedByWall) {
+						const Prop *prop = props.find(id);
+						if (prop && (prop->flags & Prop::Wall) != 0) return false;
+					}
+				} else if (type == IdType::Character) {
+					if (cardComp->blockedByCharacter) return false;
+				}
+			}
+		}
+	}
+
+	return true;
+}
+
 static sf::StaticRecursiveMutex g_configMutex;
 
 template <typename T>
@@ -1155,6 +1203,9 @@ uint32_t ServerState::addProp(sf::Array<sf::Box<Event>> &events, const Prop &pro
 		auto e = sf::box<AddPropEvent>();
 		e->prop = prop;
 		e->prop.id = id;
+		if (prefab->findComponent<WallComponent>()) {
+			e->prop.flags |= Prop::Wall;
+		}
 		pushEvent(*this, events, e);
 	}
 
@@ -1926,16 +1977,6 @@ void ServerState::removeEntityFromTile(uint32_t id, const sf::Vec2i &tile)
 
 void ServerState::removeEntityFromAllTiles(uint32_t id)
 {
-	sf::debugPrintLine("PRE REMOVE %p (%u)", this, id);
-	for (sf::UintKeyVal kv : tileToEntity) {
-		sf::Vec2i tile = unpackTile(kv.key);
-		sf::debugPrintLine("  (%d,%d) -> %u", tile.x, tile.y, kv.val);
-	}
-	for (sf::UintKeyVal kv : entityToTile) {
-		sf::Vec2i tile = unpackTile(kv.val);
-		sf::debugPrintLine("  %u -> (%d,%d)", kv.key, tile.x, tile.y);
-	}
-
 	{
 		uint32_t key;
 		sf::UintFind find = entityToTile.findAll(id);
@@ -1943,16 +1984,6 @@ void ServerState::removeEntityFromAllTiles(uint32_t id)
 			tileToEntity.removeExistingPair(key, id);
 			entityToTile.removeFound(find);
 		}
-	}
-
-	sf::debugPrintLine("POST REMOVE %p (%u)", this, id);
-	for (sf::UintKeyVal kv : tileToEntity) {
-		sf::Vec2i tile = unpackTile(kv.key);
-		sf::debugPrintLine("  (%d,%d) -> %u", tile.x, tile.y, kv.val);
-	}
-	for (sf::UintKeyVal kv : entityToTile) {
-		sf::Vec2i tile = unpackTile(kv.val);
-		sf::debugPrintLine("  %u -> (%d,%d)", kv.key, tile.x, tile.y);
 	}
 
 	// TODO: Do this only if necessary?
