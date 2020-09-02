@@ -20,6 +20,7 @@ GuiResources::GuiResources()
 
 	buttonSprite.load("Assets/Gui/Misc/Button_Base.png");
 	buttonFont.load("Assets/Gui/Font/Alegreya-Regular.ttf");
+	damageFont.load("Assets/Gui/Font/Overlock-Regular.ttf");
 }
 
 } }

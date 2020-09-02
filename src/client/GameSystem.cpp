@@ -260,6 +260,16 @@ struct GameSystemImp final : GameSystem
 		float flightSpeed = 1.0f;
 	};
 
+	struct DamageNumber
+	{
+		static const constexpr float BaseHeight = 20.0f;
+
+		sf::SmallStringBuf<16> text;
+		sf::Vec3 position;
+		sf::Vec2 origin;
+		float time = 0.0f;
+	};
+
 	sf::Array<Character> characters;
 	sf::Array<uint32_t> freeCharacterIds;
 
@@ -322,6 +332,8 @@ struct GameSystemImp final : GameSystem
 	uint32_t moveWaypointIndex = ~0u;
 	sf::Vec3 moveVelocity;
 	float moveEndTime = 0.0f;
+
+	sf::Array<DamageNumber> damageNumbers;
 
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
 	{
@@ -676,10 +688,18 @@ struct GameSystemImp final : GameSystem
 			if (ctx.immediate) return true;
 
 			if (Character *chr = findCharacter(e->damageInfo.targetId)) {
+				Entity &entity = systems.entities.entities[chr->entityId];
+
 				if (ctx.begin) {
 					systems.characterModel->addOneShotTag(systems.entities, chr->entityId, symStagger);
+
+					DamageNumber &damageNumber = damageNumbers.push();
+					damageNumber.text.format("-%u", e->damageRoll.total);
+					damageNumber.position = entity.transform.position + chr->centerOffset;
+					damageNumber.origin = guiResources.damageFont->measureText(damageNumber.text, DamageNumber::BaseHeight) * sf::Vec2(-0.5f, 0.1f);
 				}
 			}
+
 
 			if (ctx.timer < 0.5f) return false;
 		} else if (const auto *e = event.as<sv::CastSpellEvent>()) {
@@ -1750,6 +1770,42 @@ struct GameSystemImp final : GameSystem
 			trade.time += frameArgs.dt * 0.75f;
 			if (trade.time >= 1.0f) {
 				cardTrades.removeOrdered(i);
+				i--;
+			}
+		}
+
+		for (uint32_t i = 0; i < damageNumbers.size; i++) {
+			DamageNumber &damageNumber = damageNumbers[i];
+
+			float t = damageNumber.time + frameArgs.dt;
+			damageNumber.time = t;
+
+			float fade = gui::smoothEnd(sf::clamp((1.0f - t) * 10.0f, 0.0f, 1.0f));
+
+			sf::Vec3 pos = damageNumber.position + sf::Vec3(0.0f, 0.5f, 0.0f);
+
+			sf::Vec4 projected = frameArgs.mainRenderArgs.worldToClip * sf::Vec4(pos, 1.0f);
+			sf::Vec2 offset = sf::Vec2(projected.x / projected.w, (projected.y + t) / projected.w);
+			offset = (offset + sf::Vec2(1.0f, -1.0f)) * sf::Vec2(0.5f, -0.5f) * guiArgs.resolution;
+			float height = 0.5f / projected.w * guiArgs.resolution.y;
+			height = sf::clamp(height, 20.0f, 50.0f);
+
+			{
+				sp::TextDraw draw;
+				draw.string = damageNumber.text;
+				draw.font = guiResources.damageFont;
+				draw.transform = sf::mat2D::translate(offset) * sf::mat2D::scale(height * (1.0f / DamageNumber::BaseHeight)) * sf::mat2D::translate(damageNumber.origin);
+				draw.height = DamageNumber::BaseHeight;
+				draw.color = sf::Vec4(0.0f, 0.0f, 0.0f, 1.0f) * fade;
+				draw.weight = 0.3f;
+				canvas.drawText(draw);
+				draw.color = sf::Vec4(1.0f, 1.0f, 1.0f, 1.0f) * fade;
+				draw.weight = 0.48f;
+				canvas.drawText(draw);
+			}
+
+			if (t >= 1.0f) {
+				damageNumbers.removeOrdered(i);
 				i--;
 			}
 		}

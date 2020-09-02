@@ -23,6 +23,8 @@ struct GuiResources
 	sp::SpriteRef buttonSprite;
 	sp::FontRef buttonFont;
 
+	sp::FontRef damageFont;
+
 	GuiResources();
 };
 
