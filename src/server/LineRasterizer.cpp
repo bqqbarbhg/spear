@@ -7,24 +7,27 @@ ConservativeLineRasterizer::ConservativeLineRasterizer(const sf::Vec2i &begin, c
 	this->pos = begin;
 	this->end = end;
 	sf::Vec2i delta = end - begin;
-	unitDelta.x = delta.x > 0 ? +1 : -1;
-	unitDelta.y = delta.y > 0 ? +1 : -1;
-	absDelta = unitDelta * delta;
-	error = absDelta.x - absDelta.y;
+	step.x = delta.x > 0 ? +1 : -1;
+	step.y = delta.y > 0 ? +1 : -1;
+	num = step * delta;
+	t = sf::Vec2i(0);
 }
 
 sf::Vec2i ConservativeLineRasterizer::next()
 {
 	sf::Vec2i prevPos = pos;
 
-	if (error > 0) {
-		pos.x += unitDelta.x;
-		error -= absDelta.y * 2;
-	} else if (error < 0) {
-		pos.y += unitDelta.y;
-		error += absDelta.x * 2;
+	int64_t dx = (uint64_t)(t.x * 2 + 1) * num.y;
+	int64_t dy = (uint64_t)(t.y * 2 + 1) * num.x;
+	if (dx < dy) {
+		pos.x += step.x;
+		t.x++;
+	} else if (dx > dy) {
+		pos.y += step.y;
+		t.y++;
 	} else {
-		pos += unitDelta;
+		pos += step;
+		t += sf::Vec2i(1);
 	}
 
 	return prevPos;

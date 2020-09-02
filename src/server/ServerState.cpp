@@ -620,8 +620,8 @@ bool ServerState::canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol
 		sv::ConservativeLineRasterizer raster(self->tile, target->tile);
 		for (;;) {
 			sf::Vec2i tile = raster.next();
-			if (tile == self->tile) continue;
 			if (tile == target->tile) break;
+			if (tile == self->tile) continue;
 
 			uint32_t id;
 			sf::UintFind find = getTileEntities(tile);
