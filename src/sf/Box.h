@@ -116,4 +116,7 @@ struct InitType<Box<T>> {
 	}
 };
 
+template <typename T> struct IsZeroInitializable<Box<T>> { enum { value = 1 }; };
+template <typename T> struct IsRelocatable<Box<T>> { enum { value = 1 }; };
+
 }
