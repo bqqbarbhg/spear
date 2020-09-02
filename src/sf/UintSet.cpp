@@ -33,7 +33,7 @@ UintSet::UintSet(const UintSet &rhs)
 	growImp(rhs.set.size);
 	uint32_t hash = 0, scan = 0;
 	while (rhset_next_inline(&rhs.set, &hash, &scan)) {
-		rhset_insert_inline(&set, hash, scan);
+		rhset_insert_inline(&set, hash, scan - 1);
 	}
 }
 
@@ -50,7 +50,7 @@ UintSet& UintSet::operator=(const UintSet &rhs)
 	reserve(rhs.set.size);
 	uint32_t hash = 0, scan = 0;
 	while (rhset_next_inline(&rhs.set, &hash, &scan)) {
-		rhset_insert_inline(&set, hash, scan);
+		rhset_insert_inline(&set, hash, scan - 1);
 	}
 	return *this;
 }

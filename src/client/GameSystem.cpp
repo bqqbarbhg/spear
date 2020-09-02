@@ -431,6 +431,15 @@ struct GameSystemImp final : GameSystem
 		} else if (const auto *e = event.as<sv::RemoveCharacterEvent>()) {
 
 			if (Character *chr = findCharacter(e->characterId)) {
+				Entity &entity = systems.entities.entities[chr->entityId];
+				Prefab &prefab = systems.entities.prefabs[entity.prefabId];
+
+				if (!ctx.immediate && ctx.begin) {
+					if (sv::CharacterComponent *c = prefab.svPrefab->findComponent<sv::CharacterComponent>()) {
+						sf::Vec3 pos = entity.transform.transformPoint(chr->centerOffset);
+						systems.effect->spawnOneShotEffect(systems, c->defeatEffect, pos);
+					}
+				}
 
 				systems.entities.removeEntityQueued(chr->entityId);
 

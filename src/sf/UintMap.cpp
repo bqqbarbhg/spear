@@ -34,7 +34,7 @@ UintMap::UintMap(const UintMap &rhs)
 	growImp(rhs.map.size);
 	uint32_t hash = 0, scan = 0, value;
 	while (rhmap_next_inline(&rhs.map, &hash, &scan, &value)) {
-		rhmap_insert_inline(&map, hash, scan, value);
+		rhmap_insert_inline(&map, hash, scan - 1, value);
 	}
 }
 
@@ -51,7 +51,7 @@ UintMap& UintMap::operator=(const UintMap &rhs)
 	reserve(rhs.map.size);
 	uint32_t hash = 0, scan = 0, value;
 	while (rhmap_next_inline(&rhs.map, &hash, &scan, &value)) {
-		rhmap_insert_inline(&map, hash, scan, value);
+		rhmap_insert_inline(&map, hash, scan - 1, value);
 	}
 	return *this;
 }

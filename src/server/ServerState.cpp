@@ -420,7 +420,13 @@ void ServerState::applyEvent(const Event &event)
 
 		uint32_t *order = sf::find(turnOrder, e->characterId);
 		if (order) {
-			turnOrder.removeOrderedPtr(order);
+			uint32_t ix = (uint32_t)(order - turnOrder.data);
+			if (ix <= turnCharacterIndex) {
+				if (turnCharacterIndex > 0) {
+					turnCharacterIndex--;
+				}
+			}
+			turnOrder.removeOrdered(ix);
 		}
 
 		removeEntityFromAllTiles(e->characterId);
@@ -492,6 +498,11 @@ void ServerState::applyEvent(const Event &event)
 		}
 	} else if (auto *e = event.as<TurnUpdateEvent>()) {
 		turnInfo = e->turnInfo;
+
+		uint32_t *foundChrId = sf::find(turnOrder, e->turnInfo.characterId);
+		if (foundChrId) {
+			turnCharacterIndex = (uint32_t)(foundChrId - turnOrder.data) % turnOrder.size;
+		}
 	}
 }
 
@@ -624,7 +635,7 @@ static sf::Box<T> loadConfig(ServerState &state, sf::String name)
 	return entry;
 }
 
-static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, sf::HashSet<sf::Symbol> *marks, const sf::Symbol &name)
+static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, sf::HashSet<sf::Symbol> *marks, const sf::Symbol &name, bool selfLoaded=false)
 {
 	if (!name) return;
 	if (marks) {
@@ -633,17 +644,21 @@ static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, s
 	Prefab *prefab = state.prefabs.find(name);
 
 	if (events) {
-		if (prefab) return;
+		if (selfLoaded) {
+			if (!prefab) return;
+		} else {
+			if (prefab) return;
 
-		sf::Box<Prefab> box = loadConfig<Prefab>(state, name);
-		if (!box) return;
-		
-		{
-			auto e = sf::box<LoadPrefabEvent>();
-			e->prefab = *box;
-			pushEvent(state, *events, e);
+			sf::Box<Prefab> box = loadConfig<Prefab>(state, name);
+			if (!box) return;
+			
+			{
+				auto e = sf::box<LoadPrefabEvent>();
+				e->prefab = *box;
+				pushEvent(state, *events, e);
+			}
+			prefab = box;
 		}
-		prefab = box;
 	}
 
 	for (Component *component : prefab->components) {
@@ -674,6 +689,8 @@ static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, s
 			for (const StarterCard &starter : c->starterCards) {
 				walkPrefabs(state, events, marks, starter.prefabName);
 			}
+		} else if (auto *c = component->as<CharacterComponent>()) {
+			walkPrefabs(state, events, marks, c->defeatEffect);
 		}
 	}
 }
@@ -746,11 +763,11 @@ void ServerState::doDamage(sf::Array<sf::Box<Event>> &events, const DamageInfo &
 	e->damageRoll = rollDice(damageInfo.damageRoll, "damage");
 	e->meleeArmor = targetChr->armor;
 
-	if (damageInfo.melee) {
+	if (damageInfo.weaponRoll) {
 		uint32_t total = 0;
 		for (uint32_t val : e->damageRoll.results) {
 			// TODO: > ?
-			uint32_t damage = e->damageRoll.total;
+			uint32_t damage = e->damageRoll.roll.bias;
 			if (val == e->damageRoll.roll.die) {
 				// Crit doubles melee damage
 				damage *= 2;
@@ -917,100 +934,113 @@ void ServerState::meleeAttack(sf::Array<sf::Box<Event>> &events, const MeleeInfo
 	damage.causeId = meleeInfo.attackerId;
 	damage.targetId = meleeInfo.targetId;
 	damage.damageRoll = meleeComponent->hitRoll;
+	damage.weaponRoll = !meleeComponent->directRoll;
 	doDamage(events, damage);
 }
 
-void ServerState::startCharacterTurn(sf::Array<sf::Box<Event>> &events, uint32_t characterId)
+void ServerState::processDeadCharacters(sf::Array<sf::Box<Event>> &events, bool startNextTurnIfNecessary)
 {
-	Character *chr = findCharacter(*this, characterId);
-	if (!chr) return;
+	sf::SmallArray<uint32_t, 32> deadCharacterIds;
 
-	Prefab *chrPrefab = loadPrefab(*this, events, chr->prefabName);
-	if (!chrPrefab) return;
-
-	CharacterComponent *chrComp = findComponent<CharacterComponent>(*this, *chrPrefab);
-	if (!chrComp) return;
-
-	{
-		auto e = sf::box<TurnUpdateEvent>();
-		e->turnInfo.characterId = characterId;
-		e->turnInfo.movementLeft = chrComp->baseSpeed;
-		e->turnInfo.startTurn = true;
-		pushEvent(*this, events, e);
-	}
-
-	for (uint32_t cardId : chr->cards) {
-		Card *card = findCard(*this, cardId);
-		if (!card) continue;
-
-		if (card->cooldownLeft > 0) {
-			auto e = sf::box<CardCooldownTickEvent>();
-			e->cardId = cardId;
-			pushEvent(*this, events, std::move(e));
+	for (Character &chr : characters) {
+		if (chr.health <= 0) {
+			deadCharacterIds.push(chr.id);
 		}
 	}
 
-	sf::SmallArray<uint32_t, 64> statusIds;
-	statusIds.push(chr->statuses.slice());
-	for (uint32_t id : statusIds) {
-		Status *status = statuses.find(id);
-		if (!status) continue;
-
-		if (status->turnsLeft > 0) {
-			auto e = sf::box<StatusTickEvent>();
-			e->statusId = status->id;
-			pushEvent(*this, events, std::move(e));
-		}
-
-		if (Prefab *statusPrefab = loadPrefab(*this, events, status->prefabName)) {
-			for (Component *component : statusPrefab->components) {
-				if (auto *c = component->as<CastOnTurnStartComponent>()) {
-					SpellInfo spell = { };
-					spell.originalCasterId = status->originalCasterId;
-					spell.casterId = status->casterId;
-					spell.targetId = status->characterId;
-					spell.cardName = status->cardName;
-					spell.spellName = c->spellName;
-					castSpell(events, spell);
-				} else if (auto *c = component->as<DamageOnTurnStartComponent>()) {
-					DamageInfo damage = { };
-					damage.magic = true;
-					damage.cardName = status->cardName;
-					damage.originalCasterId = status->originalCasterId;
-					damage.causeId = status->casterId;
-					damage.targetId = characterId;
-					damage.damageRoll = c->damageRoll;
-					doDamage(events, damage);
-				}
-			}
-		}
-
-		if (status->turnsLeft == 0) {
-			auto e = sf::box<StatusRemoveEvent>();
-			e->statusId = status->id;
-			pushEvent(*this, events, std::move(e));
-		}
-	}
-}
-
-uint32_t ServerState::getNextTurnCharacter() const
-{
-	const uint32_t *pIndex = sf::find(turnOrder, turnInfo.characterId);
-	if (pIndex) {
-		uint32_t nextIndex = ((uint32_t)(pIndex - turnOrder.data) + 1) % turnOrder.size;
-		return turnOrder[nextIndex];
-	} else if (turnOrder.size > 0) {
-		return turnOrder[0];
-	} else {
-		return 0;
+	for (uint32_t chrId : deadCharacterIds) {
+		removeCharacter(events, chrId, startNextTurnIfNecessary);
 	}
 }
 
 void ServerState::startNextCharacterTurn(sf::Array<sf::Box<Event>> &events)
 {
-	uint32_t id = getNextTurnCharacter();
-	if (id != 0) {
-		startCharacterTurn(events, id);
+	processDeadCharacters(events, false);
+
+	uint32_t characterId;
+	do {
+		characterId = getNextTurnCharacter();
+		Character *chr = characters.find(characterId);
+		if (!chr) return;
+
+		Prefab *chrPrefab = loadPrefab(*this, events, chr->prefabName);
+		if (!chrPrefab) return;
+
+		CharacterComponent *chrComp = findComponent<CharacterComponent>(*this, *chrPrefab);
+		if (!chrComp) return;
+
+		{
+			auto e = sf::box<TurnUpdateEvent>();
+			e->turnInfo.characterId = characterId;
+			e->turnInfo.movementLeft = chrComp->baseSpeed;
+			e->turnInfo.startTurn = true;
+			pushEvent(*this, events, e);
+		}
+
+		for (uint32_t cardId : chr->cards) {
+			Card *card = findCard(*this, cardId);
+			if (!card) continue;
+
+			if (card->cooldownLeft > 0) {
+				auto e = sf::box<CardCooldownTickEvent>();
+				e->cardId = cardId;
+				pushEvent(*this, events, std::move(e));
+			}
+		}
+
+		sf::SmallArray<uint32_t, 64> statusIds;
+		statusIds.push(chr->statuses.slice());
+		for (uint32_t id : statusIds) {
+			Status *status = statuses.find(id);
+			if (!status) continue;
+
+			if (status->turnsLeft > 0) {
+				auto e = sf::box<StatusTickEvent>();
+				e->statusId = status->id;
+				pushEvent(*this, events, std::move(e));
+			}
+
+			if (Prefab *statusPrefab = loadPrefab(*this, events, status->prefabName)) {
+				for (Component *component : statusPrefab->components) {
+					if (auto *c = component->as<CastOnTurnStartComponent>()) {
+						SpellInfo spell = { };
+						spell.originalCasterId = status->originalCasterId;
+						spell.casterId = status->casterId;
+						spell.targetId = status->characterId;
+						spell.cardName = status->cardName;
+						spell.spellName = c->spellName;
+						castSpell(events, spell);
+					} else if (auto *c = component->as<DamageOnTurnStartComponent>()) {
+						DamageInfo damage = { };
+						damage.magic = true;
+						damage.cardName = status->cardName;
+						damage.originalCasterId = status->originalCasterId;
+						damage.causeId = status->casterId;
+						damage.targetId = characterId;
+						damage.damageRoll = c->damageRoll;
+						doDamage(events, damage);
+					}
+				}
+			}
+
+			if (status->turnsLeft == 0) {
+				auto e = sf::box<StatusRemoveEvent>();
+				e->statusId = status->id;
+				pushEvent(*this, events, std::move(e));
+			}
+		}
+
+		processDeadCharacters(events, false);
+
+	} while (!characters.find(characterId));
+}
+
+uint32_t ServerState::getNextTurnCharacter() const
+{
+	if (turnCharacterIndex + 1 < turnOrder.size) {
+		return turnOrder[turnCharacterIndex + 1];
+	} else {
+		return turnOrder[0];
 	}
 }
 
@@ -1039,7 +1069,7 @@ void ServerState::reloadPrefab(sf::Array<sf::Box<Event>> &events, const Prefab &
 		e->prefab = prefab;
 		pushEvent(*this, events, e);
 	}
-	loadPrefab(*this, events, prefab.name);
+	walkPrefabs(*this, &events, nullptr, prefab.name, true);
 }
 
 static void updateSpawnPosition(const ServerState &state, sf::Vec2i &bestTile, int32_t &bestDist, const sf::Vec2i &origin, int32_t dx, int32_t dy)
@@ -1203,7 +1233,7 @@ uint32_t ServerState::addCard(sf::Array<sf::Box<Event>> &events, const Card &car
 	return id;
 }
 
-void ServerState::removeCharacter(sf::Array<sf::Box<Event>> &events, uint32_t characterId)
+void ServerState::removeCharacter(sf::Array<sf::Box<Event>> &events, uint32_t characterId, bool startNextTurnIfNecessary)
 {
 	Character *chr = findCharacter(*this, characterId);
 	if (!chr) return;
@@ -1232,7 +1262,7 @@ void ServerState::removeCharacter(sf::Array<sf::Box<Event>> &events, uint32_t ch
 		pushEvent(*this, events, std::move(e));
 	}
 
-	if (turnInfo.characterId == characterId) {
+	if (turnInfo.characterId == characterId && startNextTurnIfNecessary) {
 		startNextCharacterTurn(events);
 	}
 
@@ -1637,7 +1667,7 @@ void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit,
 
 	} else if (const auto *ed = edit.as<RemoveCharacterEdit>()) {
 
-		removeCharacter(events, ed->characterId);
+		removeCharacter(events, ed->characterId, true);
 
 	} else if (const auto *ed = edit.as<MoveCharacterEdit>()) {
 
@@ -1896,6 +1926,16 @@ void ServerState::removeEntityFromTile(uint32_t id, const sf::Vec2i &tile)
 
 void ServerState::removeEntityFromAllTiles(uint32_t id)
 {
+	sf::debugPrintLine("PRE REMOVE %p (%u)", this, id);
+	for (sf::UintKeyVal kv : tileToEntity) {
+		sf::Vec2i tile = unpackTile(kv.key);
+		sf::debugPrintLine("  (%d,%d) -> %u", tile.x, tile.y, kv.val);
+	}
+	for (sf::UintKeyVal kv : entityToTile) {
+		sf::Vec2i tile = unpackTile(kv.val);
+		sf::debugPrintLine("  %u -> (%d,%d)", kv.key, tile.x, tile.y);
+	}
+
 	{
 		uint32_t key;
 		sf::UintFind find = entityToTile.findAll(id);
@@ -1903,6 +1943,16 @@ void ServerState::removeEntityFromAllTiles(uint32_t id)
 			tileToEntity.removeExistingPair(key, id);
 			entityToTile.removeFound(find);
 		}
+	}
+
+	sf::debugPrintLine("POST REMOVE %p (%u)", this, id);
+	for (sf::UintKeyVal kv : tileToEntity) {
+		sf::Vec2i tile = unpackTile(kv.key);
+		sf::debugPrintLine("  (%d,%d) -> %u", tile.x, tile.y, kv.val);
+	}
+	for (sf::UintKeyVal kv : entityToTile) {
+		sf::Vec2i tile = unpackTile(kv.val);
+		sf::debugPrintLine("  %u -> (%d,%d)", kv.key, tile.x, tile.y);
 	}
 
 	// TODO: Do this only if necessary?
@@ -1998,6 +2048,7 @@ template<> void initType<ServerState>(Type *t)
 		sf_field(ServerState, entityToTile),
 		sf_field(ServerState, turnOrder),
 		sf_field(ServerState, turnInfo),
+		sf_field(ServerState, turnCharacterIndex),
 	};
 	sf_struct(t, ServerState, fields);
 }

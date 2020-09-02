@@ -231,6 +231,7 @@ struct CharacterComponent : ComponentBase<Component::Character>
 	uint32_t itemSlots = 0;
 	uint32_t baseSpeed = 5;
 	sf::Vec3 centerOffset = sf::Vec3(0.0f, 0.5f, 0.0f);
+	sf::Symbol defeatEffect sv_reflect(prefab);
 };
 
 struct AnimationEvent sv_reflect()
@@ -325,6 +326,7 @@ struct CardStatusComponent : ComponentBase<Component::CardStatus>
 struct CardMeleeComponent : ComponentBase<Component::CardMelee>
 {
 	DiceRoll hitRoll;
+	bool directRoll = false;
 };
 
 struct ProjectileComponent : ComponentBase<Component::Projectile>
@@ -540,6 +542,7 @@ struct DamageInfo sv_reflect()
 	bool physical = false;
 	bool magic = false;
 	bool passive = false;
+	bool weaponRoll = false;
 	sf::Symbol cardName sv_reflect(prefab);
 	uint32_t originalCasterId;
 	uint32_t causeId;
@@ -1080,6 +1083,7 @@ struct ServerState
 
 	sf::Array<uint32_t> turnOrder;
 	TurnInfo turnInfo;
+	uint32_t turnCharacterIndex = 0;
 
 	bool isIdValid(uint32_t id);
 
@@ -1095,7 +1099,7 @@ struct ServerState
 	void doDamage(sf::Array<sf::Box<Event>> &events, const DamageInfo &damageInfo);
 	void castSpell(sf::Array<sf::Box<Event>> &events, const SpellInfo &spellInfo);
 	void meleeAttack(sf::Array<sf::Box<Event>> &events, const MeleeInfo &meleeInfo);
-	void startCharacterTurn(sf::Array<sf::Box<Event>> &events, uint32_t characterId);
+	void processDeadCharacters(sf::Array<sf::Box<Event>> &events, bool startNextTurnIfNecessary);
 
 	uint32_t getNextTurnCharacter() const;
 	void startNextCharacterTurn(sf::Array<sf::Box<Event>> &events);
@@ -1110,7 +1114,7 @@ struct ServerState
 	uint32_t replaceLocalProp(sf::Array<sf::Box<Event>> &events, const Prop &prop, uint32_t clientId, uint32_t localId);
 	uint32_t addCharacter(sf::Array<sf::Box<Event>> &events, const Character &chr, bool local=false);
 	uint32_t addCard(sf::Array<sf::Box<Event>> &events, const Card &card, bool local=false);
-	void removeCharacter(sf::Array<sf::Box<Event>> &events, uint32_t characterId);
+	void removeCharacter(sf::Array<sf::Box<Event>> &events, uint32_t characterId, bool startNextTurnIfNecessary);
 	void removeCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId);
 	void addCharacterToSelect(sf::Array<sf::Box<Event>> &events, const sf::Symbol &type, int32_t count);
 

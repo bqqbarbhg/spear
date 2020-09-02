@@ -489,6 +489,7 @@ template<> void initType<CharacterComponent>(Type *t)
 		sf_field(CharacterComponent, itemSlots),
 		sf_field(CharacterComponent, baseSpeed),
 		sf_field(CharacterComponent, centerOffset),
+		sf_field(CharacterComponent, defeatEffect),
 	};
 	sf_struct_base(t, CharacterComponent, Component, fields);
 
@@ -499,6 +500,10 @@ template<> void initType<CharacterComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "image");
 		info.asset = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "defeatEffect");
+		info.prefab = true;
 	}
 }
 
@@ -616,6 +621,7 @@ template<> void initType<CardMeleeComponent>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(CardMeleeComponent, hitRoll),
+		sf_field(CardMeleeComponent, directRoll),
 	};
 	sf_struct_base(t, CardMeleeComponent, Component, fields);
 }
@@ -1760,6 +1766,7 @@ template<> void initType<DamageInfo>(Type *t)
 		sf_field(DamageInfo, physical),
 		sf_field(DamageInfo, magic),
 		sf_field(DamageInfo, passive),
+		sf_field(DamageInfo, weaponRoll),
 		sf_field(DamageInfo, cardName),
 		sf_field(DamageInfo, originalCasterId),
 		sf_field(DamageInfo, causeId),
