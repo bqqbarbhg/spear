@@ -383,6 +383,7 @@ void editorPreRefresh(EditorState *es)
 {
 	es->entityIcons.clear();
 	es->clState.reset();
+	es->preloadedPrefabNames.clear();
 	sf::reset(es->editedPrefab);
 }
 
