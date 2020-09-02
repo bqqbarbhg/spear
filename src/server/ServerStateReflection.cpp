@@ -1234,6 +1234,7 @@ template<> void initType<AddCardEdit>(Type *t)
 	static Field fields[] = {
 		sf_field(AddCardEdit, characterId),
 		sf_field(AddCardEdit, cardName),
+		sf_field(AddCardEdit, slotIndex),
 	};
 	sf_struct_base(t, AddCardEdit, Edit, fields);
 }

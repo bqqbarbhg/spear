@@ -928,6 +928,7 @@ struct AddCardEdit : EditBase<Edit::AddCard>
 {
 	uint32_t characterId;
 	sf::Symbol cardName;
+	uint32_t slotIndex = ~0u;
 };
 
 struct RemoveCardEdit : EditBase<Edit::RemoveCard>

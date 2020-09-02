@@ -1215,11 +1215,16 @@ void handleImguiCharacterWindow(EditorState *es)
 						textBuf.append(card->prefabName);
 					}
 
-					if (ImGui::Button("X")) {
-						// TODO
+					if (cardId) {
+						if (ImGui::Button("X")) {
+							sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();
+							auto ed = sf::box<sv::RemoveCardEdit>();
+							ed->cardId = cardId;
+							edits.push(ed);
+						}
+						ImGui::SameLine();
 					}
 
-					ImGui::SameLine();
 
 					if (ImGui::InputText(label.data, textBuf.data, textBuf.capacity, ImGuiInputTextFlags_AlignRight | ImGuiInputTextFlags_AutoSelectAll)) {
 						// TODO
@@ -1230,6 +1235,14 @@ void handleImguiCharacterWindow(EditorState *es)
 						const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(key);
 						if (payload) {
 							sf::Symbol sym = sf::Symbol((const char*)payload->Data, payload->DataSize);
+
+							sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();
+
+							auto ed = sf::box<sv::AddCardEdit>();
+							ed->characterId = chr->id;
+							ed->cardName = sym;
+							ed->slotIndex = i;
+							edits.push(ed);
 						}
 
 						ImGui::EndDragDropTarget();
@@ -1244,12 +1257,15 @@ void handleImguiCharacterWindow(EditorState *es)
 				ImGui::PushID("Card Inventory");
 
 				for (uint32_t i = 0; i <= chr->cards.size; i++) {
+					uint32_t cardId = i < chr->cards.size ? chr->cards[i] : 0;
+					if (cardId != 0 && sf::find(sf::slice(chr->selectedCards), cardId)) {
+						continue;
+					}
 
 					ImGui::PushID((int)i);
 
 					sf::SmallStringBuf<512> textBuf;
 
-					uint32_t cardId = i < chr->cards.size ? chr->cards[i] : 0;
 					sv::Card *card = es->svState->cards.find(cardId);
 					if (card) {
 						textBuf.append(card->prefabName);

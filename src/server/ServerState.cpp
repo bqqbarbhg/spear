@@ -1256,6 +1256,7 @@ void ServerState::removeCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId)
 				e->ownerId = card->ownerId;
 				e->prevCardId = cardId;
 				e->slot = (uint32_t)(pSelected - chr->selectedCards);
+				pushEvent(*this, events, e);
 			}
 		}
 	}
@@ -1656,6 +1657,37 @@ void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit,
 		}
 
 	} else if (const auto *ed = edit.as<AddCardEdit>()) {
+		Character *chr = findCharacter(*this, ed->characterId);
+		if (!chr) return;
+
+		Prefab *chrPrefab = loadPrefab(*this, events, chr->prefabName);
+		if (!chrPrefab) return;
+
+		CharacterComponent *chrComp = chrPrefab->findComponent<CharacterComponent>();
+
+		Prefab *cardPrefab = loadPrefab(*this, events, ed->cardName);
+		if (!cardPrefab) return;
+
+		CardComponent *cardComp = cardPrefab->findComponent<CardComponent>();
+
+		if (ed->slotIndex != ~0u) {
+			uint32_t lastMeleeSlot = chrComp->meleeSlots;
+			uint32_t lastSkillSlot = lastMeleeSlot + chrComp->skillSlots;
+			uint32_t lastSpellSlot = lastSkillSlot + chrComp->spellSlots;
+			uint32_t lastItemSlot = lastSpellSlot + chrComp->itemSlots;
+
+			bool select = false;
+			if (ed->slotIndex < lastMeleeSlot) {
+				select = cardComp->melee;
+			} else if (ed->slotIndex < lastSkillSlot) {
+				select = cardComp->skill;
+			} else if (ed->slotIndex < lastSpellSlot) {
+				select = cardComp->spell;
+			} else if (ed->slotIndex < lastItemSlot) {
+				select = cardComp->item;
+			}
+			if (!select) return;
+		}
 
 		Card cardProto = { };
 		cardProto.prefabName = ed->cardName;
@@ -1667,6 +1699,14 @@ void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit,
 			e->previousOwnerId = 0;
 			e->ownerId = ed->characterId;
 			pushEvent(*this, events, e);
+
+			if (ed->slotIndex != ~0u) {
+				auto e = sf::box<SelectCardEvent>();
+				e->ownerId = ed->characterId;
+				e->cardId = cardId;
+				e->slot = ed->slotIndex;
+				pushEvent(*this, events, e);
+			}
 		}
 
 	} else if (const auto *ed = edit.as<RemoveCardEdit>()) {
