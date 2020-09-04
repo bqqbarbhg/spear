@@ -2,6 +2,11 @@
 
 ## Building
 
+### Windows
+
+Download premake from https://premake.github.io/ and use it to generate MSVC solutions.
+All other dependencies are bundled either as source or binary.
+
 ### Linux
 Run the following commands, in order:
 ```shell
