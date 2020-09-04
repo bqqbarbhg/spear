@@ -166,8 +166,11 @@ workspace "spear"
 
 	filter { "platforms:not wasm", "system:linux", "not options:dedicated-processor", "not options:dedicated-server" }
 		links {
+			"asound",
 			"GL",
 			"X11",
+			"Xcursor",
+			"Xi"
 		}
 
 	filter "options:opengl"
