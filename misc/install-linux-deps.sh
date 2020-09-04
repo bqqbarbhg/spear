@@ -8,4 +8,5 @@ then
     sudo pacman -S base-devel curl mesa libxcursor clang
 else
     echo "No supported package manager found."
+    exit 1
 fi
