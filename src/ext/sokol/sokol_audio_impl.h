@@ -409,7 +409,7 @@
 
 #if defined(SOKOL_DUMMY_BACKEND)
     // No threads needed for SOKOL_DUMMY_BACKEND
-#elif (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
+#elif (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && (!defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__))
     #include <pthread.h>
 #elif defined(_WIN32)
     #ifndef WIN32_LEAN_AND_MEAN
@@ -491,7 +491,7 @@
 
 typedef struct { int dummy_mutex; } _saudio_mutex_t;
 
-#elif (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && !defined(__EMSCRIPTEN__)
+#elif (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && (!defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__))
 
 typedef struct {
     pthread_mutex_t mutex;

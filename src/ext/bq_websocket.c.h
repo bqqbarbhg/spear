@@ -60,7 +60,123 @@ static size_t bqws_timestamp_delta_to_ms(bqws_timestamp begin, bqws_timestamp en
 	return (size_t)((double)(end - begin) * 1000.0 / (double)CLOCKS_PER_SEC);
 }
 
+#ifndef BQWS_DEBUG
+#if defined(NDEBUG)
+	#define BQWS_DEBUG 0
+#else
+	#define BQWS_DEBUG 1
+#endif
+#endif
+
+#ifndef BQWS_SINGLE_THREAD
+#define BQWS_SINGLE_THREAD 0
+#endif
+
 #ifndef bqws_mutex
+
+#if defined(_WIN32) && !BQWS_SINGLE_THREAD
+
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <Windows.h>
+
+typedef struct {
+	CRITICAL_SECTION cs;
+#if BQWS_DEBUG
+	DWORD thread;
+#endif
+} bqws_mutex;
+
+static void bqws_mutex_init(bqws_mutex *m)
+{
+	InitializeCriticalSection(&m->cs);
+#if BQWS_DEBUG
+	m->thread = 0;
+#endif
+}
+
+static void bqws_mutex_free(bqws_mutex *m)
+{
+#if BQWS_DEBUG
+	m->thread = 0;
+#endif
+	DeleteCriticalSection(&m->cs);
+}
+
+static void bqws_mutex_lock(bqws_mutex *m)
+{
+	EnterCriticalSection(&m->cs);
+#if BQWS_DEBUG
+	m->thread = GetCurrentThreadId();
+#endif
+}
+
+static void bqws_mutex_unlock(bqws_mutex *m)
+{
+#if BQWS_DEBUG
+	m->thread = 0;
+#endif
+	LeaveCriticalSection(&m->cs);
+}
+
+#if BQWS_DEBUG
+	#define bqws_assert_locked(m) bqws_assert((m)->thread == GetCurrentThreadId());
+#else
+	#define bqws_assert_locked(m) (void)0
+#endif
+
+#elif (defined(__APPLE__) || defined(__linux__) || defined(__unix__)) && (!defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)) && !BQWS_SINGLE_THREAD
+
+#include <pthread.h>
+
+typedef struct {
+	pthread_mutex_t mutex;
+#if BQWS_DEBUG
+	bool locked;
+	pthread_t thread;
+#endif
+} bqws_mutex;
+
+static void bqws_mutex_init(bqws_mutex *m)
+{
+	pthread_mutex_init(&m->mutex, NULL);
+#if BQWS_DEBUG
+	m->locked = false;
+#endif
+}
+
+static void bqws_mutex_free(bqws_mutex *m)
+{
+#if BQWS_DEBUG
+	m->locked = false;
+#endif
+	pthread_mutex_destroy(&m->mutex);
+}
+
+static void bqws_mutex_lock(bqws_mutex *m)
+{
+	pthread_mutex_lock(&m->mutex);
+#if BQWS_DEBUG
+	m->locked = true;
+	m->thread = pthread_self();
+#endif
+}
+
+static void bqws_mutex_unlock(bqws_mutex *m)
+{
+#if BQWS_DEBUG
+	m->locked = false;
+#endif
+	pthread_mutex_unlock(&m->mutex);
+}
+
+#if BQWS_DEBUG
+	#define bqws_assert_locked(m) ((m)->locked && (m)->thread == pthread_self())
+#else
+	#define bqws_assert_locked(m) (void)0
+#endif
+
+#else
 
 typedef struct {
 	bool is_locked;
@@ -90,6 +206,14 @@ static void bqws_mutex_unlock(bqws_mutex *m)
 #define bqws_assert_locked(m) bqws_assert((m)->is_locked)
 
 #endif
+
+#else // not defined bqws_mutex
+
+#ifndef bqws_assert_locked
+#define bqws_assert_locked(m) (void)0
+#endif
+
+#endif // not defined bqws_mutex
 
 // -- Magic constants
 
@@ -162,6 +286,9 @@ typedef struct {
 
 	const char *protocols[BQWS_MAX_PROTOCOLS];
 	size_t num_protocols;
+
+	bqws_verify_fn *verify_fn;
+	void *verify_user;
 
 	size_t text_size;
 	char text_data[];
@@ -251,6 +378,7 @@ struct bqws_socket {
 		bool stop_read;
 		bool close_sent;
 		bool close_received;
+		bool io_started;
 		bool io_closed;
 
 		char *chosen_protocol;
@@ -349,6 +477,11 @@ static void ws_close(bqws_socket *ws)
 
 	if (ws->state.state != BQWS_STATE_CLOSED) {
 		ws_log(ws, "State: CLOSED");
+
+		if (ws->user_io.close_fn && !ws->state.io_closed) {
+			ws->user_io.close_fn(ws->user_io.user, ws);
+		}
+		ws->state.io_closed = true;
 
 		ws->state.state = BQWS_STATE_CLOSED;
 		ws->state.stop_read = true;
@@ -988,9 +1121,14 @@ static void hs_client_handshake(bqws_socket *ws, const bqws_client_opts *opts)
 
 	uint8_t digest[20];
 	bqws_sha1(digest, &entropy, sizeof(entropy));
+	const uint8_t *key = digest;
+
+	if (opts->use_random_key) {
+		key = (const uint8_t*)opts->random_key;
+	}
 
 	// We need to retain the key until we have parsed the server handshake
-	bool ret = hs_to_base64(ws->io.client_key_base64, sizeof(ws->io.client_key_base64), digest, 16);
+	bool ret = hs_to_base64(ws->io.client_key_base64, sizeof(ws->io.client_key_base64), key, 16);
 	bqws_assert(ret == true); // 32 bytes should always be enough
 	hs_push3(ws, "Sec-WebSocket-Key: ", ws->io.client_key_base64, "\r\n");
 
@@ -2180,7 +2318,7 @@ static void bqws_internal_filter_verify(void *user, bqws_socket *ws, const bqws_
 
 	const char *protocol = NULL;
 	if (f->num_protocols > 0) {
-		// If the fitler has protocols try to find one
+		// If the filter has protocols try to find one
 		// O(n^2) but bounded by BQWS_MAX_PROTOCOLS
 		for (size_t ci = 0; ci < opts->num_protocols && !protocol; ci++) {
 			for (size_t fi = 0; fi < f->num_protocols; fi++) {
@@ -2198,7 +2336,11 @@ static void bqws_internal_filter_verify(void *user, bqws_socket *ws, const bqws_
 
 	if (ok) {
 		bqws_assert(protocol != NULL);
-		bqws_server_accept(ws, protocol);
+		if (f->verify_fn) {
+			f->verify_fn(f->verify_user, ws, opts);
+		} else {
+			bqws_server_accept(ws, protocol);
+		}
 	} else {
 		bqws_server_reject(ws);
 	}
@@ -2357,7 +2499,7 @@ bqws_socket *bqws_new_server(const bqws_opts *opts, const bqws_server_opts *serv
 		ws->verify_user = server_opts->verify_user;
 
 		// Setup automatic verify filter if needed
-		if (server_opts->verify_filter && !ws->verify_fn) {
+		if (server_opts->verify_filter) {
 			bqws_client_opts *filter = server_opts->verify_filter;
 			size_t text_size = 0;
 
@@ -2390,6 +2532,8 @@ bqws_socket *bqws_new_server(const bqws_opts *opts, const bqws_server_opts *serv
 
 			bqws_assert(offset == text_size);
 
+			copy->verify_fn = ws->verify_fn;
+			copy->verify_user = ws->verify_user;
 			ws->verify_fn = &bqws_internal_filter_verify;
 			ws->verify_user = copy;
 		}
@@ -2464,13 +2608,6 @@ void bqws_free_socket(bqws_socket *ws)
 	// Free everything, as the socket may have errored it can
 	// be in almost any state
 
-	// Mutexes
-	bqws_mutex_free(&ws->err_mutex);
-	bqws_mutex_free(&ws->state.mutex);
-	bqws_mutex_free(&ws->io.mutex);
-	bqws_mutex_free(&ws->alloc.mutex);
-	bqws_mutex_free(&ws->partial.mutex);
-
 	// Pending messages
 	msg_free_queue(ws, &ws->recv_queue);
 	msg_free_queue(ws, &ws->recv_partial_queue);
@@ -2499,6 +2636,13 @@ void bqws_free_socket(bqws_socket *ws)
 		filter->magic = BQWS_DELETED_MAGIC;
 		ws_free(ws, filter, sizeof(bqws_verify_filter) + filter->text_size);
 	}
+
+	// Mutexes
+	bqws_mutex_free(&ws->err_mutex);
+	bqws_mutex_free(&ws->state.mutex);
+	bqws_mutex_free(&ws->io.mutex);
+	bqws_mutex_free(&ws->alloc.mutex);
+	bqws_mutex_free(&ws->partial.mutex);
 
 	bqws_assert(ws->alloc.memory_used == 0);
 
@@ -2987,11 +3131,17 @@ void bqws_update_io_read(bqws_socket *ws)
 
 	// If read and write are stopped close the IO
 	bqws_mutex_lock(&ws->state.mutex);
+	if (!ws->state.io_started) {
+		if (ws->user_io.init_fn) {
+			ws->user_io.init_fn(ws->user_io.user, ws);
+		}
+		ws->state.io_started = true;
+	}
 	if (ws->state.stop_read && ws->state.stop_write) {
 		if (ws->user_io.close_fn && !ws->state.io_closed) {
 			ws->user_io.close_fn(ws->user_io.user, ws);
-			ws->state.io_closed = true;
 		}
+		ws->state.io_closed = true;
 	}
 	do_read = !ws->state.stop_read;
 	bqws_mutex_unlock(&ws->state.mutex);
@@ -3019,11 +3169,17 @@ void bqws_update_io_write(bqws_socket *ws)
 
 	// If read and write are stopped close the IO
 	bqws_mutex_lock(&ws->state.mutex);
+	if (!ws->state.io_started) {
+		if (ws->user_io.init_fn) {
+			ws->user_io.init_fn(ws->user_io.user, ws);
+		}
+		ws->state.io_started = true;
+	}
 	if (ws->state.stop_read && ws->state.stop_write) {
 		if (ws->user_io.close_fn && !ws->state.io_closed) {
 			ws->user_io.close_fn(ws->user_io.user, ws);
-			ws->state.io_closed = true;
 		}
+		ws->state.io_closed = true;
 	}
 	do_write = !ws->state.stop_write;
 	bqws_mutex_unlock(&ws->state.mutex);
