@@ -5,7 +5,5 @@
 #define bqws_realloc(ptr, size) sf_realloc(ptr, size)
 #define bqws_free(ptr) sf_free(ptr)
 
-#define BQWS_IMPL
-
-#include "bq_websocket.c"
-#include "bq_websocket_platform.c"
+#include "bq_websocket.c.h"
+#include "bq_websocket_platform.c.h"

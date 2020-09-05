@@ -58,7 +58,6 @@ workspace "spear"
 	exceptionhandling "Off"
 	rtti "Off"
 
-	defines { "BQWS_USE_IMPL=1" }
 	defines { "JSI_USE_IMPL=1" }
 
 	-- TODO: Fix mimalloc on WASM
