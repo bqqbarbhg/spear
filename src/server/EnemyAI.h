@@ -7,12 +7,19 @@
 
 namespace sv {
 
+struct EnemyState
+{
+	uint32_t id;
+	uint32_t targetId = 0;
+};
+
 struct AiState
 {
 	ReachableSet reachableSet;
 	sf::Random rng;
+	sf::ImplicitHashMap<EnemyState, KeyId> enemies;
 };
 
-bool getEnemyActions(AiState &ai, sf::Array<sf::Box<sv::Action>> &actions, const sv::ServerState &state);
+bool doEnemyActions(AiState &ai, sf::Array<sf::Box<sv::Event>> &events, sv::ServerState &state);
 
 }

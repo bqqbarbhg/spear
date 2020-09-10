@@ -432,12 +432,7 @@ static void updateSession(Session &session)
 	{
 		sf::SmallArray<sf::Box<Action>, 128> actions;
 		uint32_t chrId = session.state->turnInfo.characterId;
-		if (getEnemyActions(session.aiState, actions, *session.state)) {
-			for (Action *action : actions) {
-				if (!session.state->requestAction(session.events, *action)) {
-					break;
-				}
-			}
+		if (doEnemyActions(session.aiState, session.events, *session.state)) {
 
 			// Didn't finish the turn..
 			if (session.state->turnInfo.characterId == chrId) {
