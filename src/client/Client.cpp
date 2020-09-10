@@ -22,6 +22,7 @@
 #include "client/ClientState.h"
 #include "client/EditorState.h"
 #include "client/ParticleTexture.h"
+#include "client/EnvmapTexture.h"
 #include "client/TileMaterial.h"
 #include "client/MeshMaterial.h"
 #include "client/GameSystem.h"
@@ -312,10 +313,12 @@ void clientGlobalInit()
 	MeshMaterial::globalInit();
 	TileMaterial::globalInit();
 	ParticleTexture::globalInit();
+	EnvmapTexture::globalInit();
 }
 
 void clientGlobalCleanup()
 {
+	EnvmapTexture::globalCleanup();
 	ParticleTexture::globalCleanup();
 	TileMaterial::globalCleanup();
 	MeshMaterial::globalCleanup();

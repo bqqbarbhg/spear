@@ -60,7 +60,10 @@ struct LightSystem : EntitySystem
 
 	virtual void renderShadowMaps(Systems &systems, const VisibleAreas &visibleAreas, uint64_t frameIndex) = 0;
 
+	virtual void setIblEnabled(bool enabled) = 0;
+
 	virtual sg_image getShadowTexture() const = 0;
+	virtual sg_image getEnvmapTexture(const sf::Bounds3 &bounds) const = 0;
 };
 
 }

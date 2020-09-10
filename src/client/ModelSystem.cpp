@@ -61,6 +61,7 @@ struct ModelSystemImp final : ModelSystem
 		cl::MeshMaterialRef material;
 
 		sf::Bounds3 modelBounds;
+		sf::Bounds3 worldBounds;
 
 		sf::Mat34 modelToEntity;
 		sf::Mat34 modelToWorld;
@@ -138,13 +139,14 @@ struct ModelSystemImp final : ModelSystem
 		if (model.shadowModel) {
 			model.modelBounds = sf::boundsUnion(model.modelBounds, model.shadowModel->bounds);
 		}
+		model.worldBounds = sf::transformBounds(model.modelToWorld, model.modelBounds);
 
 		if (model.areaId != ~0u) {
-			areaSystem->updateBoxArea(model.areaId, model.modelBounds, model.modelToWorld);
+			areaSystem->updateBoxArea(model.areaId, model.worldBounds);
 		} else {
 			uint32_t areaFlags = Area::Visibility | Area::EditorPick;
 			if (model.shadowModel) areaFlags |= Area::Shadow;
-			model.areaId = areaSystem->addBoxArea(AreaGroup::DynamicModel, modelId, model.modelBounds, model.modelToWorld, areaFlags);
+			model.areaId = areaSystem->addBoxArea(AreaGroup::DynamicModel, modelId, model.worldBounds, areaFlags);
 		}
 	}
 
@@ -237,9 +239,10 @@ struct ModelSystemImp final : ModelSystem
 		Model &model = models[modelId];
 
 		model.modelToWorld = update.entityToWorld * model.modelToEntity;
+		model.worldBounds = sf::transformBounds(model.modelToWorld, model.modelBounds);
 
 		if (model.areaId != ~0u) {
-			systems.area->updateBoxArea(model.areaId, model.modelBounds, model.modelToWorld);
+			systems.area->updateBoxArea(model.areaId, model.worldBounds);
 		}
 	}
 
@@ -286,6 +289,9 @@ struct ModelSystemImp final : ModelSystem
 
 		for (uint32_t modelId : visibleAreas.get(AreaGroup::DynamicModel)) {
 			Model &model = models[modelId];
+
+			sg_image envmap = lightSystem->getEnvmapTexture(model.worldBounds);
+			bindImageFS(meshShader, bindings, TEX_envmap, envmap);
 
 			sp::Pipeline &pipe = meshPipes[(uint32_t)model.vertexFormat];
 			tu.modelToWorld = model.modelToWorld;

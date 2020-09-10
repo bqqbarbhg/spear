@@ -324,6 +324,7 @@ typedef struct sptex_info {
 	uint16_t crop_min_x, crop_min_y;
 	uint16_t crop_max_x, crop_max_y;
 	uint32_t num_mips;
+	uint32_t num_slices;
 } sptex_info;
 
 typedef struct sptex_header {

@@ -7,6 +7,7 @@
 #include "client/AreaSystem.h"
 #include "client/TapAreaSystem.h"
 #include "client/EffectSystem.h"
+#include "client/LightSystem.h"
 
 #include "game/DebugDraw.h"
 
@@ -1114,28 +1115,6 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
-		if (showDebugMenu) {
-			ImGui::SetNextWindowSize(ImVec2(200.0f, 200.0f), ImGuiCond_Appearing);
-			if (ImGui::Begin("Game Debug", &showDebugMenu)) {
-				ImGui::Checkbox("Simulate touch", &simulateTouch);
-				if (ImGui::Button("Pointers")) showDebugPointers = true;
-			}
-			ImGui::End();
-		}
-
-		if (showDebugPointers) {
-			ImGui::SetNextWindowSize(ImVec2(400.0f, 100.0f), ImGuiCond_Appearing);
-			if (ImGui::Begin("Pointers"), &showDebugPointers) {
-				sf::SmallStringBuf<128> str;
-				for (Pointer &p : input.pointers) {
-					str.clear();
-					p.formatDebugString(str);
-					ImGui::Text("%s", str.data);
-				}
-			}
-			ImGui::End();
-		}
-
 		Camera::State state = Camera::lerp(camera.previous, camera.current, camera.timeDelta / cameraDt);
 
 		sf::Vec3 eye;
@@ -1163,8 +1142,39 @@ struct GameSystemImp final : GameSystem
 		persist.zoom = camera.current.zoom;
 	}
 
+	void updateDebugMenu(Systems &systems)
+	{
+		if (showDebugMenu) {
+			ImGui::SetNextWindowSize(ImVec2(200.0f, 200.0f), ImGuiCond_Appearing);
+			if (ImGui::Begin("Game Debug", &showDebugMenu)) {
+				static bool iblEnabled = true;
+				if (ImGui::Checkbox("IBL enabled", &iblEnabled)) {
+					systems.light->setIblEnabled(iblEnabled);
+				}
+				ImGui::Checkbox("Simulate touch", &simulateTouch);
+				if (ImGui::Button("Pointers")) showDebugPointers = true;
+			}
+			ImGui::End();
+		}
+
+		if (showDebugPointers) {
+			ImGui::SetNextWindowSize(ImVec2(400.0f, 100.0f), ImGuiCond_Appearing);
+			if (ImGui::Begin("Pointers"), &showDebugPointers) {
+				sf::SmallStringBuf<128> str;
+				for (Pointer &p : input.pointers) {
+					str.clear();
+					p.formatDebugString(str);
+					ImGui::Text("%s", str.data);
+				}
+			}
+			ImGui::End();
+		}
+	}
+
 	void update(const sv::ServerState &svState, Systems &systems, const FrameArgs &frameArgs) override
 	{
+		updateDebugMenu(systems);
+
 		while (queuedEvents.size > 0) {
 			if (!applyEventImp(systems, *queuedEvents[0], queuedEventContext)) {
 				queuedEventContext.begin = false;

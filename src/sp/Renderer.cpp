@@ -872,6 +872,7 @@ const char *getPixelFormatSuffix(sg_pixel_format format)
     case SG_PIXELFORMAT_BQQ_ASTC_4X4_SRGB: return "astc4x4";
     case SG_PIXELFORMAT_BQQ_ASTC_8X8_RGBA: return "astc8x8";
     case SG_PIXELFORMAT_BQQ_ASTC_8X8_SRGB: return "astc8x8";
+    case SG_PIXELFORMAT_RG11B10F: return "r11g11b10f";
     default:
         sf_failf("Invalid pixel format: %u", (uint32_t)format);
         return "";

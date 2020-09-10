@@ -11,6 +11,8 @@
 
 #include "sf/Sort.h"
 
+#include "client/EnvmapTexture.h"
+
 namespace cl {
 
 struct ShadowCache
@@ -135,6 +137,9 @@ struct LightSystemImp final : LightSystem
 
 	sf::Array<ShadowSlot> shadowSlots;
 	sf::Array<uint32_t> shadowsToUpdate;
+
+	bool iblEnabled = true;
+	EnvmapTextureRef envmapTexture;
 
 	double gameTime = 0.0;
 
@@ -280,6 +285,9 @@ struct LightSystemImp final : LightSystem
 	{
 		shadowCache.recreateTargets();
 		shadowSlots.resize(shadowCache.cacheNumTilesX * shadowCache.cacheNumTilesY);
+
+		// HACK HACK
+		envmapTexture.load("Assets/Envmaps/Castle/CastleRoom");
 	}
 
 	void addPointLight(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::PointLightComponent &c, const Transform &transform) override
@@ -445,9 +453,19 @@ struct LightSystemImp final : LightSystem
 		}
 	}
 
+	virtual void setIblEnabled(bool enabled)
+	{
+		iblEnabled = enabled;
+	}
+
 	virtual sg_image getShadowTexture() const override
 	{
 		return shadowCache.shadowTexture.image;
+	}
+
+	virtual sg_image getEnvmapTexture(const sf::Bounds3 &bounds) const
+	{
+		return iblEnabled && envmapTexture.isLoaded() ? envmapTexture->image : EnvmapTexture::defaultImage;
 	}
 
 	void editorHighlight(Systems &systems, const EntityComponent &ec, EditorHighlight type) override

@@ -38,8 +38,6 @@ sf::Symbol operator "" _sym(const char *data, size_t size)
 	return sf::Symbol(data, size);
 }
 
-sf::Symbol texcompExe { "sf-texcomp" };
-
 enum class JobPriority
 {
 	Normal,
@@ -454,6 +452,10 @@ static const sf::Symbol s_drop_arr[] = {
 	sf::Symbol("drop8"),  sf::Symbol("drop9"),  sf::Symbol("drop10"), sf::Symbol("drop11"),
 	sf::Symbol("drop12"), sf::Symbol("drop13"), sf::Symbol("drop14"), sf::Symbol("drop15"),
 };
+static const sf::Symbol s_face_arr[] = {
+	sf::Symbol("face0"),  sf::Symbol("face1"), sf::Symbol("face2"),  sf::Symbol("face3"),
+	sf::Symbol("face4"),  sf::Symbol("face5"), 
+};
 
 bool endsWithStrip(sf::Symbol &base, sf::String path, sf::String suffix)
 {
@@ -604,6 +606,87 @@ struct ParticleTextureTask : Task
 		p.addJobs(priority, ti, jq);
 	}
 };
+
+struct EnvmapTask : Task
+{
+	sf::Symbol format;
+	int maxExtent;
+	sf::SmallStringBuf<32> maxExtentStr;
+	sf::StringBuf directory;
+
+	EnvmapTask(sf::String format, sf::String directory, int maxExtent)
+		: format(format), directory(directory), maxExtent(maxExtent)
+	{
+		name.format("ParticleTextureTask (%s) %s %d", directory.data, format.data, maxExtent);
+		maxExtentStr.format("%d", maxExtent);
+		tools.push("sp-envmap");
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (!sf::containsDirectory(path, directory)) return false;
+		static const sf::String suffixes[] = {
+			"_3.exr", "_1.exr", "_5.exr", "_4.exr", "_6.exr", "_2.exr", 
+		};
+		for (uint32_t i = 0; i < 6; i++) {
+			sf::String suffix = suffixes[i];
+			if (!sf::endsWith(path, suffix)) continue;
+			ti.key = sf::Symbol(sf::String(path).slice().dropRight(suffix.size));
+			ti.inputs[s_face_arr[i]] = path;
+			ti.outputs[s_dst] = symf("%s.%s.sptex", ti.key, format.data);
+			ti.assets.insert(ti.key);
+			return true;
+		}
+		return false;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		if (ti.inputs.size() != 6) return;
+
+		sf::Array<sf::StringBuf> args;
+
+		sf::StringBuf tempFile, dstFile;
+		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+
+		args.push("--level");
+		args.push().format("%d", p.level);
+
+		if (p.level < 10) {
+			args.push("--samples");
+			args.push().format("%d", 64);
+		}
+
+		args.push("--format");
+		args.push(sf::String(format));
+
+		args.push("--resolution");
+		args.push(maxExtentStr);
+
+		{
+			args.push("--input");
+			for (uint32_t i = 0; i < 6; i++) {
+				sf::SmallStringBuf<512> path;
+				sf::appendPath(path, p.dataRoot, ti.inputs[s_face_arr[i]]);
+				args.push(path);
+			}
+		}
+
+		args.push("--output");
+		args.push(tempFile);
+
+		JobPriority priority = getPriorityForTextureFormat(format);
+
+		JobQueue jq;
+		jq.mkdirsToFile(tempFile);
+		jq.mkdirsToFile(dstFile);
+		jq.exec("sp-envmap", std::move(args));
+		jq.move(tempFile, dstFile);
+		p.addJobs(priority, ti, jq);
+	}
+};
+
 
 struct MaterialTextureTask : Task
 {
@@ -1239,6 +1322,9 @@ void initializeProcessing(const ProcessingDesc &desc)
 	p.tasks.push(sf::box<ParticleTextureTask>("bc3", "Particles", maxParticleExtent));
 	if (doAstc) p.tasks.push(sf::box<ParticleTextureTask>("astc4x4", "Particles", maxParticleExtent));
 	if (doRgba) p.tasks.push(sf::box<ParticleTextureTask>("rgba8", "Particles", maxParticleExtent));
+
+	int envmapExtent = 128;
+	p.tasks.push(sf::box<EnvmapTask>("r11g11b10f", "Envmaps", envmapExtent));
 
 	p.tasks.push(sf::box<AnimationTask>());
 	p.tasks.push(sf::box<CharacterModelTask>());

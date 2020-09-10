@@ -649,6 +649,9 @@ struct TileModelSystemImp final : TileModelSystem
 				bindUniformVS(chunkMeshShader, tu);
 			}
 
+			sg_image envmap = lightSystem->getEnvmapTexture(chunk.bounds);
+			bindImageFS(chunkMeshShader, bindings, TEX_envmap, envmap);
+
 			pointLights.clear();
 			lightSystem->queryVisiblePointLights(visibleAreas, pointLights, chunk.bounds);
 

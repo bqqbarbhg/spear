@@ -875,6 +875,9 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		for (uint32_t modelId : visibleAreas.get(AreaGroup::CharacterModel)) {
 			Model &model = models[modelId];
 
+			sg_image envmap = lightSystem->getEnvmapTexture(model.bounds);
+			bindImageFS(skinShader, bindings, TEX_envmap, envmap);
+
 			for (sp::Mesh &mesh : model.model->meshes) {
 
 				if (skinPipe.bind()) {

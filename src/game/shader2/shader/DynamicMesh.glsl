@@ -50,6 +50,7 @@ uniform Pixel
 };
 
 #include "light/PointLight.glsl"
+#include "light/IBL.glsl"
 #include "util/NormalMap.glsl"
 #include "util/Tonemap.glsl"
 
@@ -79,6 +80,8 @@ void main()
 	float alpha2 = alpha*alpha;
 
 	result += matAlbedo * matMask.z;
+
+	result += evaluateIBL(N, V, cdiff, f0, alpha) * matMask.y;
 
 	for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
 		result += evaluatePointLight(P, N, V, cdiff, f0, alpha2, base);
