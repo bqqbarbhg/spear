@@ -1183,6 +1183,23 @@ void handleImguiCharacterWindow(EditorState *es)
 		if (ImGui::Begin("Character", &es->windowCharacter)) {
 			ImGui::Text("%s", chr->prefabName.data);
 
+			if (ImGui::CollapsingHeader("Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::PushID("Properties");
+				sv::Character chrCopy = *chr;
+				bool modified = false;
+
+				modified |= ImGui::Checkbox("Enemy", &chrCopy.enemy);
+
+				if (modified) {
+					sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();
+					auto ed = sf::box<sv::TweakCharacterEdit>();
+					ed->character = chrCopy;
+					edits.push(ed);
+				}
+
+				ImGui::PopID();
+			}
+
 			if (ImGui::CollapsingHeader("Selected Cards", ImGuiTreeNodeFlags_DefaultOpen)) {
 				ImGui::PushID("Selected Cards");
 

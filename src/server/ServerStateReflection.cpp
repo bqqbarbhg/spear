@@ -76,6 +76,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, AddCharacterToSpawn, AddCharacterToSpawn),
 		sf_poly(Event, SelectCharacterToSpawn, SelectCharacterToSpawnEvent),
 		sf_poly(Event, Move, MoveEvent),
+		sf_poly(Event, TweakCharacter, TweakCharacterEvent),
 		sf_poly(Event, TurnUpdate, TurnUpdateEvent),
 	};
 	sf_struct_poly(t, Event, type, { }, polys);
@@ -94,6 +95,7 @@ template<> void initType<Edit>(Type *t)
 		sf_poly(Edit, AddCharacter, AddCharacterEdit),
 		sf_poly(Edit, RemoveCharacter, RemoveCharacterEdit),
 		sf_poly(Edit, MoveCharacter, MoveCharacterEdit),
+		sf_poly(Edit, TweakCharacter, TweakCharacterEdit),
 		sf_poly(Edit, AddCard, AddCardEdit),
 		sf_poly(Edit, RemoveCard, RemoveCardEdit),
 	};
@@ -1180,6 +1182,14 @@ template<> void initType<MoveEvent>(Type *t)
 	sf_struct_base(t, MoveEvent, Event, fields);
 }
 
+template<> void initType<TweakCharacterEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(TweakCharacterEvent, character),
+	};
+	sf_struct_base(t, TweakCharacterEvent, Event, fields);
+}
+
 template<> void initType<TurnUpdateEvent>(Type *t)
 {
 	static Field fields[] = {
@@ -1272,6 +1282,14 @@ template<> void initType<MoveCharacterEdit>(Type *t)
 		sf_field(MoveCharacterEdit, position),
 	};
 	sf_struct_base(t, MoveCharacterEdit, Edit, fields);
+}
+
+template<> void initType<TweakCharacterEdit>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(TweakCharacterEdit, character),
+	};
+	sf_struct_base(t, TweakCharacterEdit, Edit, fields);
 }
 
 template<> void initType<AddCardEdit>(Type *t)
@@ -1732,6 +1750,7 @@ template<> void initType<Character>(Type *t)
 		sf_field(Character, statuses),
 		sf_field(Character, tile),
 		sf_field(Character, armor),
+		sf_field(Character, enemy),
 	};
 	sf_struct(t, Character, fields);
 

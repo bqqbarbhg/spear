@@ -293,7 +293,6 @@ struct GameSystemImp final : GameSystem
 	Camera camera;
 
 	sv::ReachableSet moveSet;
-	sf::Array<sf::Vec2i> moveWaypoints;
 
 	gui::GuiResources guiResources;
 

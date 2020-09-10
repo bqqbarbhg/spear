@@ -497,6 +497,10 @@ void ServerState::applyEvent(const Event &event)
 			removeEntityFromAllTiles(e->characterId);
 			addCharacterToTiles(*this, *chr);
 		}
+	} else if (auto *e = event.as<TweakCharacterEvent>()) {
+		if (Character *chr = findCharacter(*this, e->character.id)) {
+			chr->enemy = e->character.enemy;
+		}
 	} else if (auto *e = event.as<TurnUpdateEvent>()) {
 		turnInfo = e->turnInfo;
 
@@ -1736,6 +1740,21 @@ void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit,
 			e->instant = true;
 			pushEvent(*this, events, e);
 		}
+
+	} else if (const auto *ed = edit.as<TweakCharacterEdit>()) {
+
+		if (Character *chr = findCharacter(*this, ed->character.id)) {
+			auto ud = sf::box<TweakCharacterEdit>();
+			ud->character = *chr;
+			undoBuf.push(ud);
+		}
+
+		{
+			auto e = sf::box<TweakCharacterEvent>();
+			e->character = ed->character;
+			pushEvent(*this, events, e);
+		}
+
 
 	} else if (const auto *ed = edit.as<AddCardEdit>()) {
 		Character *chr = findCharacter(*this, ed->characterId);

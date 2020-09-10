@@ -528,6 +528,7 @@ struct Character sv_reflect()
 	sf::Array<uint32_t> statuses;
 	sf::Vec2i tile;
 	uint32_t armor = 0;
+	bool enemy = false;
 };
 
 struct StatusInfo sv_reflect()
@@ -623,6 +624,7 @@ struct Event
 		AddCharacterToSpawn,
 		SelectCharacterToSpawn,
 		Move,
+		TweakCharacter,
 		TurnUpdate,
 
 		Type_Count,
@@ -825,6 +827,11 @@ struct MoveEvent : EventBase<Event::Move>
 	bool instant = false;
 };
 
+struct TweakCharacterEvent : EventBase<Event::TweakCharacter>
+{
+	Character character;
+};
+
 struct TurnInfo sv_reflect()
 {
 	bool startTurn = false;
@@ -867,6 +874,7 @@ struct Edit
 		AddCharacter,
 		RemoveCharacter,
 		MoveCharacter,
+		TweakCharacter,
 		AddCard,
 		ReplaceCard,
 		RemoveCard,
@@ -945,6 +953,11 @@ struct MoveCharacterEdit : EditBase<Edit::MoveCharacter>
 {
 	uint32_t characterId;
 	sf::Vec2i position;
+};
+
+struct TweakCharacterEdit : EditBase<Edit::TweakCharacter>
+{
+	Character character;
 };
 
 struct AddCardEdit : EditBase<Edit::AddCard>

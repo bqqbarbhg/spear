@@ -5,6 +5,8 @@
 
 #include "game/LocalServer.h"
 
+#include "server/EnemyAI.h"
+
 #include "ext/bq_websocket.h"
 #include "ext/bq_websocket_platform.h"
 
@@ -50,6 +52,7 @@ struct Session
 	sf::Array<Client> clients;
 
 	sf::Symbol editMapPath;
+	AiState aiState;
 };
 
 struct Server
@@ -394,35 +397,54 @@ static void updateSession(Session &session)
 
 			} else if (auto m = msg->as<sv::MessageQueryFiles>()) {
 
-					if (!sf::contains(m->root, ".")) {
+				if (!sf::contains(m->root, ".")) {
 
-						sf::SmallArray<sf::FileInfo, 64> files;
-						sf::listFiles(m->root, files);
+					sf::SmallArray<sf::FileInfo, 64> files;
+					sf::listFiles(m->root, files);
 
-						sv::MessageQueryFilesResult resMsg;
-						resMsg.root = m->root;
-						const char *begin = m->root.data;
-						for (const char &c : m->root) {
-							if (c == '/') begin = &c + 1;
+					sv::MessageQueryFilesResult resMsg;
+					resMsg.root = m->root;
+					const char *begin = m->root.data;
+					for (const char &c : m->root) {
+						if (c == '/') begin = &c + 1;
+					}
+					resMsg.dir.name.append(sf::String(begin, m->root.size - (begin - m->root.data)));
+					for (sf::FileInfo &info : files) {
+						if (info.isDirectory) {
+							sv::QueryDir &dir = resMsg.dir.dirs.push();
+							dir.name = info.name;
+						} else {
+							sv::QueryFile &file = resMsg.dir.files.push();
+							file.name = info.name;
 						}
-						resMsg.dir.name.append(sf::String(begin, m->root.size - (begin - m->root.data)));
-						for (sf::FileInfo &info : files) {
-							if (info.isDirectory) {
-								sv::QueryDir &dir = resMsg.dir.dirs.push();
-								dir.name = info.name;
-							} else {
-								sv::QueryFile &file = resMsg.dir.files.push();
-								file.name = info.name;
-							}
-						}
-
-						sf::sortBy(resMsg.dir.dirs, [](const sv::QueryDir &dir) { return sf::String(dir.name); });
-						sf::sortBy(resMsg.dir.files, [](const sv::QueryFile &file) { return sf::String(file.name); });
-
-						sendMessage(client, resMsg);
 					}
 
+					sf::sortBy(resMsg.dir.dirs, [](const sv::QueryDir &dir) { return sf::String(dir.name); });
+					sf::sortBy(resMsg.dir.files, [](const sv::QueryFile &file) { return sf::String(file.name); });
+
+					sendMessage(client, resMsg);
 				}
+
+			}
+		}
+	}
+
+	{
+		sf::SmallArray<sf::Box<Action>, 128> actions;
+		uint32_t chrId = session.state->turnInfo.characterId;
+		if (getEnemyActions(session.aiState, actions, *session.state)) {
+			for (Action *action : actions) {
+				if (!session.state->requestAction(session.events, *action)) {
+					break;
+				}
+			}
+
+			// Didn't finish the turn..
+			if (session.state->turnInfo.characterId == chrId) {
+				EndTurnAction endTurn = { };
+				endTurn.characterId = chrId;
+				session.state->requestAction(session.events, endTurn);
+			}
 		}
 	}
 
