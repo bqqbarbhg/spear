@@ -1,5 +1,47 @@
 #include "bq_websocket.h"
 
+/*
+------------------------------------------------------------------------------
+This software is available under 2 licenses -- choose whichever you prefer.
+------------------------------------------------------------------------------
+ALTERNATIVE A - MIT License
+Copyright (c) 2020 Samuli Raivio
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+------------------------------------------------------------------------------
+ALTERNATIVE B - Public Domain (www.unlicense.org)
+This is free and unencumbered software released into the public domain.
+Anyone is free to copy, modify, publish, use, compile, sell, or distribute this
+software, either in source code form or as a compiled binary, for any purpose,
+commercial or non-commercial, and by any means.
+In jurisdictions that recognize copyright laws, the author or authors of this
+software dedicate any and all copyright interest in the software to the public
+domain. We make this dedication for the benefit of the public at large and to
+the detriment of our heirs and successors. We intend this dedication to be an
+overt act of relinquishment in perpetuity of all present and future rights to
+this software under copyright law.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+----------------------------------------
+*/
+
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -40,11 +82,11 @@
 #endif
 
 #ifndef bqws_realloc
-#define bqws_realloc(ptr, size) realloc((ptr), (size))
+#define bqws_realloc(ptr, old_size, new_size) realloc((ptr), (new_size))
 #endif
 
 #ifndef bqws_free
-#define bqws_free(ptr) free((ptr))
+#define bqws_free(ptr, size) free((ptr))
 #endif
 
 // TODO: QueryPerformanceCounter() or clock_gettime() might be faster
@@ -491,7 +533,6 @@ static void ws_close(bqws_socket *ws)
 
 static void ws_fail(bqws_socket *ws, bqws_error err)
 {
-	bool should_close = false;
 	bool should_report = false;
 
 	bqws_mutex_lock(&ws->state.mutex);
@@ -654,7 +695,7 @@ void *bqws_allocator_realloc(const bqws_allocator *at, void *ptr, size_t old_siz
 		return new_ptr;
 	} else {
 		// Default: realloc()
-		return bqws_realloc(ptr, new_size);
+		return bqws_realloc(ptr, old_size, new_size);
 	}
 }
 
@@ -673,7 +714,7 @@ void bqws_allocator_free(const bqws_allocator *at, void *ptr, size_t size)
 		bqws_assert(at->alloc_fn == NULL);
 
 		// Default: free(), only if there is no user defined allocator
-		bqws_free(ptr);
+		bqws_free(ptr, size);
 	}
 }
 
@@ -739,7 +780,7 @@ static void ws_free(bqws_socket *ws, void *ptr, size_t size)
 static char *ws_copy_str(bqws_socket *ws, const char *str)
 {
 	size_t len = strlen(str) + 1;
-	char *dst = ws_alloc(ws, len);
+	char *dst = (char*)ws_alloc(ws, len);
 	if (!dst) return NULL;
 	memcpy(dst, str, len);
 	return dst;
@@ -761,7 +802,7 @@ static bqws_msg_imp *msg_alloc(bqws_socket *ws, bqws_msg_type type, size_t size)
 	if (type & BQWS_MSG_TEXT) capacity += 1;
 
 	size_t alloc_size = sizeof(bqws_msg_imp) + capacity;
-	bqws_msg_imp *msg = ws_alloc(ws, alloc_size);
+	bqws_msg_imp *msg = (bqws_msg_imp*)ws_alloc(ws, alloc_size);
 	if (!msg) return NULL;
 
 	msg->magic = BQWS_MSG_MAGIC;
@@ -1001,9 +1042,9 @@ static void hs_push_size(bqws_socket *ws, const char *data, size_t size)
 			return;
 		}
 
-		char *data = ws_realloc(ws, ws->io.handshake.data,	 ws->io.handshake.capacity, new_cap);
-		if (!data) return;
-		ws->io.handshake.data = data;
+		char *new_data = (char*)ws_realloc(ws, ws->io.handshake.data, ws->io.handshake.capacity, new_cap);
+		if (!new_data) return;
+		ws->io.handshake.data = new_data;
 		ws->io.handshake.capacity = new_cap;
 	}
 
@@ -1024,11 +1065,6 @@ static void hs_push2(bqws_socket *ws, const char *a, const char *b)
 static void hs_push3(bqws_socket *ws, const char *a, const char *b, const char *c)
 {
 	hs_push(ws, a); hs_push(ws, b); hs_push(ws, c);
-}
-
-static void hs_push4(bqws_socket *ws, const char *a, const char *b, const char *c, const char *d)
-{
-	hs_push(ws, a); hs_push(ws, b); hs_push(ws, c); hs_push(ws, c);
 }
 
 static const char *base64_tab = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -1219,8 +1255,8 @@ static bool streq_ic(const char *sa, const char *sb)
 {
 	for (;;) {
 		char a = *sa++, b = *sb++;
-		if ((unsigned)(unsigned char)a < 0x80u) a = tolower(a);
-		if ((unsigned)(unsigned char)b < 0x80u) b = tolower(b);
+		if ((unsigned)(unsigned char)a < 0x80u) a = (char)tolower(a);
+		if ((unsigned)(unsigned char)b < 0x80u) b = (char)tolower(b);
 		if (a != b) return false;
 		if (a == 0) return true;
 	}
@@ -1235,7 +1271,7 @@ static bool hs_parse_client_handshake(bqws_socket *ws)
 
 	size_t pos = 0;
 
-	bqws_client_opts *opts = ws_alloc(ws, sizeof(bqws_client_opts));
+	bqws_client_opts *opts = (bqws_client_opts*)ws_alloc(ws, sizeof(bqws_client_opts));
 	if (!opts) return false;
 	memset(opts, 0, sizeof(bqws_client_opts));
 	ws->io.opts_from_client = opts;
@@ -1343,7 +1379,6 @@ static bool hs_parse_server_handshake(bqws_socket *ws)
 		header.name = hs_parse_token(ws, &pos, ':');
 		hs_skip_space(ws, &pos);
 
-		size_t value_pos = pos;
 		header.value = hs_parse_token(ws, &pos, '\r');
 		if (!header.name || !header.value) return false;
 		if (!hs_parse_literal(ws, &pos, "\n")) return false;
@@ -1428,7 +1463,7 @@ static void hs_store_handshake_overflow(bqws_socket *ws)
 	size_t left = ws->io.handshake.size - offset;
 	if (left == 0) return;
 
-	ws->io.handshake_overflow.data = ws_alloc(ws, left);
+	ws->io.handshake_overflow.data = (char*)ws_alloc(ws, left);
 	if (!ws->io.handshake_overflow.data) return;
 	memcpy(ws->io.handshake_overflow.data, ws->io.handshake.data + offset, left);
 	ws->io.handshake_overflow.capacity = left;
@@ -1448,8 +1483,6 @@ static void ws_enqueue_send(bqws_socket *ws, bqws_msg_imp *msg)
 
 static void ws_enqueue_recv(bqws_socket *ws, bqws_msg_imp *msg)
 {
-	size_t msg_memory_size = msg_alloc_size(&msg->msg);
-
 	// If the user callback returns true the message won't be
 	// enqueued to the receive queue.
 	if (ws->message_fn) {
@@ -1597,7 +1630,7 @@ static bool ws_read_handshake(bqws_socket *ws, bqws_io_recv_fn recv_fn, void *us
 				return false;
 			}
 
-			char *data = ws_realloc(ws, ws->io.handshake.data,	 ws->io.handshake.capacity, new_cap);
+			char *data = (char*)ws_realloc(ws, ws->io.handshake.data, ws->io.handshake.capacity, new_cap);
 			if (!data) return false;
 			ws->io.handshake.data = data;
 			ws->io.handshake.capacity = new_cap;
@@ -1621,7 +1654,7 @@ static bool ws_read_handshake(bqws_socket *ws, bqws_io_recv_fn recv_fn, void *us
 		if (begin < 0) begin = 0;
 		char *ptr = ws->io.handshake.data + begin;
 		char *end = ws->io.handshake.data + ws->io.handshake.size;
-		while ((ptr = memchr(ptr, '\r', end - ptr)) != NULL) {
+		while ((ptr = (char*)memchr(ptr, '\r', end - ptr)) != NULL) {
 			if (end - ptr >= 4 && !memcmp(ptr, "\r\n\r\n", 4)) {
 				return true;
 			} else {
@@ -1835,7 +1868,7 @@ static bool ws_read_data(bqws_socket *ws, bqws_io_recv_fn recv_fn, void *user)
 			h += 4;
 		}
 
-		bqws_assert((const char*)h - ws->io.recv_header == buf->header_size);
+		bqws_assert((size_t)((const char*)h - ws->io.recv_header) == buf->header_size);
 
 		bqws_msg_type type = BQWS_MSG_INVALID;
 
@@ -1849,9 +1882,9 @@ static bool ws_read_data(bqws_socket *ws, bqws_io_recv_fn recv_fn, void *user)
 				return false;
 			}
 
-			type = buf->partial_type | BQWS_MSG_PARTIAL_BIT;
+			type = (bqws_msg_type)(buf->partial_type | BQWS_MSG_PARTIAL_BIT);
 			if (fin) {
-				type |= BQWS_MSG_FINAL_BIT;
+				type = (bqws_msg_type)(type | BQWS_MSG_FINAL_BIT);
 				buf->partial_type = BQWS_MSG_INVALID;
 			}
 
@@ -1867,7 +1900,7 @@ static bool ws_read_data(bqws_socket *ws, bqws_io_recv_fn recv_fn, void *user)
 				}
 
 				buf->partial_type = type;
-				type |= BQWS_MSG_PARTIAL_BIT;
+				type = (bqws_msg_type)(type | BQWS_MSG_PARTIAL_BIT);
 			}
 		} else if (opcode >= 0x8 && opcode <= 0xa) {
 			// Control frames
@@ -1971,7 +2004,7 @@ static bool ws_read_data(bqws_socket *ws, bqws_io_recv_fn recv_fn, void *user)
 			// If this is the final message concatenate all the partial messages
 			// in the queue and enqueue the final one>
 
-			bqws_msg_type base_type = msg->msg.type & BQWS_MSG_TYPE_MASK;
+			bqws_msg_type base_type = (bqws_msg_type)(msg->msg.type & BQWS_MSG_TYPE_MASK);
 			bqws_msg_imp *combined = msg_alloc(ws, base_type, ws->io.recv_partial_size);
 			if (!combined) return false;
 
@@ -2164,7 +2197,7 @@ static bool ws_write_data(bqws_socket *ws, bqws_io_send_fn *send_fn, void *user)
 		uint32_t opcode = ~0u;
 
 		if (type & BQWS_MSG_TYPE_MASK) {
-			bqws_msg_type base_type = type & BQWS_MSG_TYPE_MASK;
+			bqws_msg_type base_type = (bqws_msg_type)(type & BQWS_MSG_TYPE_MASK);
 			opcode = base_type == BQWS_MSG_TEXT ? 0x1 : 0x2;
 
 			if (type & BQWS_MSG_PARTIAL_BIT) {
@@ -2510,7 +2543,7 @@ bqws_socket *bqws_new_server(const bqws_opts *opts, const bqws_server_opts *serv
 				text_size += strlen(filter->protocols[i]) + 1;
 			}
 
-			bqws_verify_filter *copy = ws_alloc(ws, sizeof(bqws_verify_filter) + text_size);
+			bqws_verify_filter *copy = (bqws_verify_filter*)ws_alloc(ws, sizeof(bqws_verify_filter) + text_size);
 			if (!copy) {
 				bqws_free_socket(ws);
 				return NULL;
@@ -2630,7 +2663,7 @@ void bqws_free_socket(bqws_socket *ws)
 
 	// Verify filter copy
 	if (ws->verify_fn == &bqws_internal_filter_verify) {
-		bqws_verify_filter *filter = ws->verify_user;
+		bqws_verify_filter *filter = (bqws_verify_filter*)ws->verify_user;
 		bqws_assert(filter->magic == BQWS_FILTER_MAGIC);
 		filter->magic = BQWS_DELETED_MAGIC;
 		ws_free(ws, filter, sizeof(bqws_verify_filter) + filter->text_size);
@@ -2905,7 +2938,7 @@ bqws_msg *bqws_allocate_msg(bqws_socket *ws, bqws_msg_type type, size_t size)
 void bqws_send_msg(bqws_socket *ws, bqws_msg *msg)
 {
 	bqws_assert(ws && ws->magic == BQWS_SOCKET_MAGIC);
-	bqws_assert(msg && msg->type == BQWS_MSG_TEXT || msg->type == BQWS_MSG_BINARY);
+	bqws_assert(msg && (msg->type == BQWS_MSG_TEXT || msg->type == BQWS_MSG_BINARY));
 	bqws_assert(msg->size <= msg->capacity);
 
 	bqws_msg_imp *imp = msg_imp(msg);
@@ -2948,7 +2981,7 @@ void bqws_send_append(bqws_socket *ws, const void *data, size_t size)
 		ws_enqueue_send(ws, ws->partial.next_partial_to_send);
 	}
 
-	bqws_msg_type partial_type = ws->partial.send_partial_type | BQWS_MSG_PARTIAL_BIT;
+	bqws_msg_type partial_type = (bqws_msg_type)(ws->partial.send_partial_type | BQWS_MSG_PARTIAL_BIT);
 	bqws_msg_imp *imp = msg_alloc(ws, partial_type, size);
 	if (imp) {
 		memcpy(imp->msg.data, data, size);
@@ -2958,7 +2991,7 @@ void bqws_send_append(bqws_socket *ws, const void *data, size_t size)
 	bqws_mutex_unlock(&ws->partial.mutex);
 }
 
-void bqws_send_append_str(bqws_socket *ws, const void *str)
+void bqws_send_append_str(bqws_socket *ws, const char *str)
 {
 	bqws_send_append(ws, str, strlen(str));
 }
@@ -2982,7 +3015,7 @@ void bqws_send_append_msg(bqws_socket *ws, bqws_msg *msg)
 	bqws_msg_imp *imp = msg_imp(msg);
 	if (!msg_acquire_ownership(ws, imp)) return;
 
-	msg->type = ws->partial.send_partial_type | BQWS_MSG_PARTIAL_BIT;
+	msg->type = (bqws_msg_type)(ws->partial.send_partial_type | BQWS_MSG_PARTIAL_BIT);
 	ws->partial.next_partial_to_send = imp;
 
 	bqws_mutex_unlock(&ws->partial.mutex);
@@ -2999,7 +3032,8 @@ void bqws_send_finish(bqws_socket *ws)
 
 	if (ws->partial.next_partial_to_send) {
 		bqws_assert(ws->partial.next_partial_to_send->magic == BQWS_MSG_MAGIC);
-		ws->partial.next_partial_to_send->msg.type |= BQWS_MSG_FINAL_BIT;
+		bqws_msg_type type = ws->partial.next_partial_to_send->msg.type;
+		ws->partial.next_partial_to_send->msg.type = (bqws_msg_type)(type | BQWS_MSG_FINAL_BIT);
 		ws_enqueue_send(ws, ws->partial.next_partial_to_send);
 		ws->partial.next_partial_to_send = NULL;
 	}

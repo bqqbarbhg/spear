@@ -1,8 +1,49 @@
 #include "bq_websocket_platform.h"
 
+/*
+------------------------------------------------------------------------------
+This software is available under 2 licenses -- choose whichever you prefer.
+------------------------------------------------------------------------------
+ALTERNATIVE A - MIT License
+Copyright (c) 2020 Samuli Raivio
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+------------------------------------------------------------------------------
+ALTERNATIVE B - Public Domain (www.unlicense.org)
+This is free and unencumbered software released into the public domain.
+Anyone is free to copy, modify, publish, use, compile, sell, or distribute this
+software, either in source code form or as a compiled binary, for any purpose,
+commercial or non-commercial, and by any means.
+In jurisdictions that recognize copyright laws, the author or authors of this
+software dedicate any and all copyright interest in the software to the public
+domain. We make this dedication for the benefit of the public at large and to
+the detriment of our heirs and successors. We intend this dedication to be an
+overt act of relinquishment in perpetuity of all present and future rights to
+this software under copyright law.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+----------------------------------------
+*/
+
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <stdio.h>
 
 // -- Generic
@@ -78,6 +119,11 @@ typedef struct {
 
 } pt_em_socket;
 
+static void pt_sleep_ms(uint32_t ms)
+{
+	emscripten_sleep(ms);
+}
+
 static void pt_em_free(pt_em_socket *em)
 {
 	bqws_assert(em->magic == BQWS_PT_EM_MAGIC);
@@ -145,13 +191,15 @@ EMSCRIPTEN_KEEPALIVE int pt_em_is_closed(pt_em_socket *em)
 }
 
 EM_JS(int, pt_em_connect_websocket, (pt_em_socket *em, const char *url, const char **protocols, size_t num_protocols), {
+	var webSocket = typeof WebSocket !== "undefined" ? WebSocket : require("ws");
+
 	var url_str = UTF8ToString(url);
 	var protocols_str = [];
 	for (var i = 0; i < num_protocols; i++) {
 		var protocol = HEAPU32[(protocols >> 2) + i];
 		protocols_str.push(UTF8ToString(protocol));
 	}
-	var ws = new WebSocket(url_str, protocols_str);
+	var ws = new webSocket(url_str, protocols_str);
 
 	ws.binaryType = "arraybuffer";
 
@@ -322,7 +370,7 @@ static bool pt_send_message(void *user, bqws_socket *ws, bqws_msg *msg)
 
 	if (type & BQWS_MSG_PARTIAL_BIT) {
 
-		pt_em_partial *part = bqws_allocator_alloc(&em->allocator, sizeof(pt_em_partial) + size);
+		pt_em_partial *part = (pt_em_partial*)bqws_allocator_alloc(&em->allocator, sizeof(pt_em_partial) + size);
 		part->next = NULL;
 		part->size = size;
 		memcpy(part->data, data, size);
@@ -342,7 +390,7 @@ static bool pt_send_message(void *user, bqws_socket *ws, bqws_msg *msg)
 			partial_buf = ptr;
 			data = ptr;
 			size = em->partial_size;
-			type = (type & BQWS_MSG_TYPE_MASK);
+			type = (bqws_msg_type)(type & BQWS_MSG_TYPE_MASK);
 
 			pt_em_partial *next = em->partial_first;
 			while (next) {
@@ -364,9 +412,9 @@ static bool pt_send_message(void *user, bqws_socket *ws, bqws_msg *msg)
 	bool ret = true;
 
 	if (type == BQWS_MSG_BINARY) {
-		ret = (bool)pt_em_websocket_send_binary(em->handle, em, data, size);
+		ret = (bool)pt_em_websocket_send_binary(em->handle, em, (const char *)data, size);
 	} else if (type == BQWS_MSG_TEXT) {
-		ret = (bool)pt_em_websocket_send_text(em->handle, em, data, size);
+		ret = (bool)pt_em_websocket_send_text(em->handle, em, (const char *)data, size);
 	} else if (type == BQWS_MSG_CONTROL_CLOSE) {
 		unsigned code = 1000;
 		if (msg->size >= 2) {
@@ -491,7 +539,7 @@ static bqws_socket *pt_connect(const bqws_url *url, const bqws_pt_connect_opts *
 	opt.ping_response_timeout = SIZE_MAX;
 	opt.close_timeout = SIZE_MAX;
 
-	pt_em_socket *em = bqws_allocator_alloc(&opts->allocator, sizeof(pt_em_socket));
+	pt_em_socket *em = (pt_em_socket*)bqws_allocator_alloc(&opts->allocator, sizeof(pt_em_socket));
 	memset(em, 0, sizeof(pt_em_socket));
 	em->magic = BQWS_PT_EM_MAGIC;
 	em->allocator = opts->allocator;
@@ -610,6 +658,11 @@ static void pt_fail_wsa(const char *func)
 	t_err.function = func;
 	t_err.type = BQWS_PT_ERRTYPE_WSA;
 	t_err.data = (uint32_t)WSAGetLastError();
+}
+
+static void pt_sleep_ms(uint32_t ms)
+{
+	Sleep((DWORD)ms);
 }
 
 static bool os_init(const bqws_pt_init_opts *opts)
@@ -778,7 +831,7 @@ static size_t os_socket_recv(os_socket s, void *data, size_t size)
 {
 	if (size > INT_MAX) size = INT_MAX;
 
-	int res = recv(s, data, (int)size, 0);
+	int res = recv(s, (char*)data, (int)size, 0);
 	if (res < 0) {
 		int err = WSAGetLastError();
 		if (err == WSAEWOULDBLOCK) return 0;
@@ -794,7 +847,7 @@ static size_t os_socket_send(os_socket s, const void *data, size_t size)
 {
 	if (size > INT_MAX) size = INT_MAX;
 
-	int res = send(s, data, (int)size, 0);
+	int res = send(s, (const char*)data, (int)size, 0);
 	if (res < 0) {
 		int err = WSAGetLastError();
 		if (err == WSAEWOULDBLOCK) return 0;
@@ -817,6 +870,7 @@ static void os_socket_close(os_socket s)
 
 #include <errno.h>
 #include <unistd.h>
+#include <time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -836,6 +890,14 @@ static void pt_fail_posix(const char *func)
 	t_err.function = func;
 	t_err.type = BQWS_PT_ERRTYPE_POSIX;
 	t_err.data = errno;
+}
+
+static void pt_sleep_ms(uint32_t ms)
+{
+	struct timespec ts;
+	ts.tv_sec = ms / 1000;
+	ts.tv_nsec = (ms % 1000) * 1000000;
+	while (nanosleep(&ts, &ts)) { }
 }
 
 static bool os_init(const bqws_pt_init_opts *opts)
@@ -1321,7 +1383,7 @@ static size_t cf_send(pt_cf *cf, const void *data, size_t size)
     
     if (!cf->set_nonblocking) {
         cf->set_nonblocking = true;
-        CFDataRef socket_data = CFWriteStreamCopyProperty(cf->write, kCFStreamPropertySocketNativeHandle);
+        CFDataRef socket_data = (CFDataRef)CFWriteStreamCopyProperty(cf->write, kCFStreamPropertySocketNativeHandle);
         if (socket_data) {
             CFSocketNativeHandle s = -1;
             CFDataGetBytes(socket_data, CFRangeMake(0, sizeof(CFSocketNativeHandle)), (UInt8*)&s);
@@ -1333,7 +1395,7 @@ static size_t cf_send(pt_cf *cf, const void *data, size_t size)
         }
     }
     
-    CFIndex res = CFWriteStreamWrite(cf->write, data, size);
+    CFIndex res = CFWriteStreamWrite(cf->write, (const UInt8*)data, size);
     if (res < 0) return SIZE_MAX;
     return (size_t)res;
 }
@@ -1395,9 +1457,8 @@ static bool cf_connect(const bqws_url *url, pt_cf *cf)
 static void cf_get_address(pt_cf *cf, bqws_pt_address *address)
 {
     if (!cf->has_address) {
-        cf->has_address = true;
         
-        CFDataRef socket_data = CFWriteStreamCopyProperty(cf->write, kCFStreamPropertySocketNativeHandle);
+        CFDataRef socket_data = (CFDataRef)CFWriteStreamCopyProperty(cf->write, kCFStreamPropertySocketNativeHandle);
         if (socket_data) {
             CFSocketNativeHandle s = -1;
             CFDataGetBytes(socket_data, CFRangeMake(0, sizeof(CFSocketNativeHandle)), (UInt8*)&s);
@@ -1411,6 +1472,8 @@ static void cf_get_address(pt_cf *cf, bqws_pt_address *address)
             }
             CFRelease(socket_data);
         }
+
+        cf->has_address = true;
     }
 }
 
@@ -1579,6 +1642,7 @@ static bool pt_init(const bqws_pt_init_opts *opts)
 
 static void pt_shutdown()
 {
+	tls_shutdown();
 	os_shutdown();
 }
 
@@ -1587,19 +1651,19 @@ static bqws_socket *pt_connect(const bqws_url *url, const bqws_pt_connect_opts *
 	pt_io *io = NULL;
 
 	do {
-        io = bqws_allocator_alloc(&opts->allocator, sizeof(pt_io));
+        io = (pt_io*)bqws_allocator_alloc(&opts->allocator, sizeof(pt_io));
         if (!io) break;
 
         memset(io, 0, sizeof(pt_io));
 		io->allocator = opts->allocator;
         io->s = OS_BAD_SOCKET;
+	io->magic = BQWS_PT_IO_MAGIC;
 
         if (!cf_connect(url, &io->cf)) {
-    		bqws_pt_address addr = { 0 };
+    		bqws_pt_address addr = { BQWS_PT_ADDRESS_UNKNOWN };
     		io->s = os_socket_connect(url, &addr);
     		if (io->s == OS_BAD_SOCKET) break;
 
-    		io->magic = BQWS_PT_IO_MAGIC;
     		io->address = addr;
 
     		if (url->secure) {
@@ -1661,14 +1725,14 @@ static bqws_socket *pt_accept(bqws_pt_server *sv, const bqws_opts *opts, const b
 {
 	bqws_assert(sv && sv->magic == BQWS_PT_SERVER_MAGIC);
 
-	bqws_pt_address addr = { 0 };
+	bqws_pt_address addr = { BQWS_PT_ADDRESS_UNKNOWN };
 	os_socket s = os_socket_accept(sv->s, &addr);
 	if (s == OS_BAD_SOCKET) return NULL;
 
 	pt_io *io = NULL;
 
 	do {
-		io = bqws_allocator_alloc(&opts->allocator, sizeof(pt_io));
+		io = (pt_io*)bqws_allocator_alloc(&opts->allocator, sizeof(pt_io));
 		if (!io) break;
 
 		memset(io, 0, sizeof(pt_io));
@@ -1681,7 +1745,7 @@ static bqws_socket *pt_accept(bqws_pt_server *sv, const bqws_opts *opts, const b
 
 		if (sv->secure) {
 			io->secure = true;
-			if (!tls_init_accept(&io->tls, &sv->tls, s)) return false;
+			if (!tls_init_accept(&io->tls, &sv->tls, s)) break;
 		}
 
 		bqws_opts opt;
@@ -1727,8 +1791,7 @@ static bqws_pt_address pt_get_address(const bqws_socket *ws)
 {
 	pt_io *io = (pt_io*)bqws_get_io_user(ws);
 	bqws_assert(io && io->magic == BQWS_PT_IO_MAGIC);
-    
-    if (cf_enabled(&io->cf)) cf_get_address(&io->cf, &io->address);
+    	if (cf_enabled(&io->cf)) cf_get_address(&io->cf, &io->address);
     
 	return io->address;
 }
@@ -1854,7 +1917,7 @@ bqws_pt_address bqws_pt_get_address(const bqws_socket *ws)
 {
 	bqws_assert(ws);
 	if (bqws_get_io_closed(ws)) {
-		bqws_pt_address null_addr = { 0 };
+		bqws_pt_address null_addr = { BQWS_PT_ADDRESS_UNKNOWN };
 		return null_addr;
 	}
 	return pt_get_address(ws);
@@ -1976,11 +2039,20 @@ void bqws_pt_get_error_desc(char *dst, size_t size, const bqws_pt_error *err)
 		break;
 
 	case BQWS_PT_ERRTYPE_POSIX:
+		{
 		#if defined(_WIN32)
 			strerror_s(dst, size, (int)err->data);
 		#else
-			strerror_r((int)err->data, dst, size);
+			const char *ptr = (const char*)(uintptr_t)strerror_r((int)err->data, dst, size);
+			if (dst[0] == '\0' && ptr != dst) {
+				const char *err_str = strerror((int)err->data);
+				size_t len = strlen(err_str);
+				if (len >= size - 1) len = size - 1;
+				memcpy(dst, err_str, len);
+				dst[len] = '\0';
+			}
 		#endif
+		}
 		break;
 
 	case BQWS_PT_ERRTYPE_GETADDRINFO:
@@ -2002,6 +2074,11 @@ void bqws_pt_get_error_desc(char *dst, size_t size, const bqws_pt_error *err)
 		break;
 
 	}
+}
+
+void bqws_pt_sleep_ms(uint32_t ms)
+{
+	pt_sleep_ms(ms);
 }
 
 const char *bqws_pt_error_type_str(bqws_pt_error_type type)
