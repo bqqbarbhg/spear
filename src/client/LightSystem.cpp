@@ -453,7 +453,7 @@ struct LightSystemImp final : LightSystem
 		}
 	}
 
-	virtual void setIblEnabled(bool enabled)
+	virtual void setIblEnabled(bool enabled) override
 	{
 		iblEnabled = enabled;
 	}
@@ -463,7 +463,7 @@ struct LightSystemImp final : LightSystem
 		return shadowCache.shadowTexture.image;
 	}
 
-	virtual sg_image getEnvmapTexture(const sf::Bounds3 &bounds) const
+	virtual sg_image getEnvmapTexture(const sf::Bounds3 &bounds) const override
 	{
 		return iblEnabled && envmapTexture.isLoaded() ? envmapTexture->image : EnvmapTexture::defaultImage;
 	}

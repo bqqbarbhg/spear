@@ -633,7 +633,7 @@ struct EnvmapTask : Task
 			if (!sf::endsWith(path, suffix)) continue;
 			ti.key = sf::Symbol(sf::String(path).slice().dropRight(suffix.size));
 			ti.inputs[s_face_arr[i]] = path;
-			ti.outputs[s_dst] = symf("%s.%s.sptex", ti.key, format.data);
+			ti.outputs[s_dst] = symf("%s.%s.sptex", ti.key.data, format.data);
 			ti.assets.insert(ti.key);
 			return true;
 		}
