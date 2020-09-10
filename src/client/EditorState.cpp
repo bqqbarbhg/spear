@@ -1180,7 +1180,7 @@ void handleImguiCharacterWindow(EditorState *es)
 
 	ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_Appearing);
 	if (es->windowCharacter) {
-		if (ImGui::Begin("Character", &es->windowProperties)) {
+		if (ImGui::Begin("Character", &es->windowCharacter)) {
 			ImGui::Text("%s", chr->prefabName.data);
 
 			if (ImGui::CollapsingHeader("Selected Cards", ImGuiTreeNodeFlags_DefaultOpen)) {
