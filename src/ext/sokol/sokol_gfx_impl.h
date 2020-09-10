@@ -3020,6 +3020,9 @@ _SOKOL_PRIVATE void _sg_gl_reset_state_cache(void) {
         glEnable(GL_MULTISAMPLE);
         glEnable(GL_PROGRAM_POINT_SIZE);
     #endif
+
+    /* Proper cubemap sampling */
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 }
 
 /*-- main GL backend state and functions -------------------------------------*/
