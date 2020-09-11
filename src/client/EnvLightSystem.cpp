@@ -700,7 +700,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 			d.label = label.data;
 			d.pixel_format = SG_PIXELFORMAT_RGBA32F;
 			d.type = SG_IMAGETYPE_3D;
-			d.width = envmapResolution * 6;
+			d.width = envmapResolution * 3;
 			d.height = envmapResolution;
 			d.depth = DepthSlices;
 			d.num_mipmaps = 1;

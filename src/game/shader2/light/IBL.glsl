@@ -65,21 +65,26 @@ vec3 evaluateIBL(vec3 P, vec3 N, vec3 V, vec3 cdiff, vec3 f0, float roughness)
     vec2 uv = P.xz * diffuseEnvmapMad.xy + diffuseEnvmapMad.zw;
 
     float d = P.y * 0.75;
+    vec4 shR = textureLod(diffuseEnvmapAtlas, vec3((uv.x + 0.0) * (1.0 / 3.0), uv.y, d), 0.0);
+    vec4 shG = textureLod(diffuseEnvmapAtlas, vec3((uv.x + 1.0) * (1.0 / 3.0), uv.y, d), 0.0);
+    vec4 shB = textureLod(diffuseEnvmapAtlas, vec3((uv.x + 2.0) * (1.0 / 3.0), uv.y, d), 0.0);
 
-    float x = uv.x * (1.0 / 6.0);
-    vec3 diffEnv;
-	diffEnv  = N.x*N.x*textureLod(diffuseEnvmapAtlas, vec3(x + (N.x>0 ? 0.0/6.0 : 1.0/6.0), uv.y, d), 0.0).xyz;
-	diffEnv += N.y*N.y*textureLod(diffuseEnvmapAtlas, vec3(x + (N.y>0 ? 2.0/6.0 : 3.0/6.0), uv.y, d), 0.0).xyz;
-	diffEnv += N.z*N.z*textureLod(diffuseEnvmapAtlas, vec3(x + (N.z>0 ? 4.0/6.0 : 5.0/6.0), uv.y, d), 0.0).xyz;
+    // const float CSH0 = 0.25;
+    // const float CSH1 = 0.5;
+    const float CSH0 = 0.282095;
+    const float CSH1 = 0.488603;
+    vec4 basisN = vec4(CSH0, CSH1*N.x, CSH1*N.y, CSH1*N.z);
+    vec4 basisR = vec4(CSH0, CSH1*R.x, CSH1*R.y, CSH1*R.z);
 
-#if 0
+    vec3 diffEnv = vec3(dot(shR, basisN), dot(shG, basisN), dot(shB, basisN));
+    vec3 specEnv = vec3(dot(shR, basisR), dot(shG, basisR), dot(shB, basisR));
+
     const float NumSpecularLods = 5.0;
 
     vec3 iblSpec = textureLod(envmap, R, roughness * NumSpecularLods).xyz;
 
     float nDotV = dot(N, V);
     vec3 result = cdiff * diffEnv + specEnv * iblSpec * EnvDFGPolynomial(f0, gloss, nDotV);
-#endif
 
 	// return result;
 	return diffEnv;
