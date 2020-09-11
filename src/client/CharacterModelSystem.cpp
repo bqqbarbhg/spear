@@ -2,6 +2,7 @@
 
 #include "client/AreaSystem.h"
 #include "client/LightSystem.h"
+#include "client/EnvLightSystem.h"
 
 #include "game/shader2/GameShaders2.h"
 #include "client/MeshMaterial.h"
@@ -858,7 +859,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		}
 	}
 
-	void renderMain(LightSystem *lightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
+	void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
 	{
 		sf::SmallArray<cl::PointLight, 64> pointLights;
 		const uint32_t maxLights = 16;
@@ -867,8 +868,11 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		UBO_Pixel pu;
 		UBO_Bones bones;
 
+		EnvLightAltas envLight = envLightSystem->getEnvLightAtlas();
+
 		sg_bindings bindings = { };
 		bindImageFS(skinShader, bindings, CL_SHADOWCACHE_TEX, lightSystem->getShadowTexture());
+		bindImageFS(skinShader, bindings, TEX_diffuseEnvmapAtlas, envLight.image);
 
 		tu.worldToClip = renderArgs.worldToClip;
 
@@ -904,6 +908,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 				pu.numLightsF = (float)pointLights.size;
 				pu.cameraPosition = renderArgs.cameraPosition;
+				pu.diffuseEnvmapMad = envLight.worldMad;
 				sf::Vec4 *dst = pu.pointLightData;
 				for (PointLight &light : pointLights) {
 					light.writeShader(dst);

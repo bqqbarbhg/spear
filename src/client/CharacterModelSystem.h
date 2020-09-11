@@ -38,7 +38,7 @@ struct CharacterModelSystem : EntitySystem
 	virtual void removeTag(const Entities &entities, uint32_t entityId, const sf::Symbol &tag) = 0;
 	virtual void queryFrameEvents(const Entities &entities, uint32_t entityId, sf::Array<sf::Symbol> &events) = 0;
 
-	virtual void renderMain(LightSystem *lightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
+	virtual void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
 };
 
 }

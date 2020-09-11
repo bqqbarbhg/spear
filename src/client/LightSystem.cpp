@@ -310,7 +310,7 @@ struct LightSystemImp final : LightSystem
 		point.baseColor = c.color * c.intensity;
 		point.hasShadows = c.hasShadows;
 
-		point.areaId = systems.area->addSphereArea(AreaGroup::PointLight, pointId, point.sphere, Area::Visibility);
+		point.areaId = systems.area->addSphereArea(AreaGroup::PointLight, pointId, point.sphere, Area::Visibility | Area::Envmap);
 
 		if (point.fadeInSpeed > 0.0f) {
 			point.fadeIndex = fadingPointLightIds.size;
@@ -396,6 +396,24 @@ struct LightSystemImp final : LightSystem
 				pointLights[fadingPointLightIds.back()].fadeIndex = i;
 				point.fadeIndex = ~0u;
 				fadingPointLightIds.removeSwap(i--);
+			}
+		}
+	}
+
+	void queryVisiblePointLights(const VisibleAreas &visibleAreas, sf::Array<PointLight> &outPointLights) const override
+	{
+		for (uint32_t pointId : visibleAreas.get(AreaGroup::PointLight)) {
+			const PointLightImp &point = pointLights[pointId];
+			PointLight &outPoint = outPointLights.push();
+			outPoint.position = point.sphere.origin;
+			outPoint.radius = point.sphere.radius;
+			outPoint.color = point.currentColor;
+			if (point.shadowIndex != ~0u) {
+				outPoint.shadowMul = point.shadowMul;
+				outPoint.shadowBias = point.shadowBias;
+			} else {
+				outPoint.shadowMul = sf::Vec3(0.0f);
+				outPoint.shadowBias = sf::Vec3(0.0f);
 			}
 		}
 	}

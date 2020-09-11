@@ -281,6 +281,8 @@ struct ModelSystemImp final : ModelSystem
 		sf::SmallArray<cl::PointLight, 64> pointLights;
 		const uint32_t maxLights = 16;
 
+		return;
+
 		UBO_DynamicTransform tu;
 		UBO_Pixel pu;
 

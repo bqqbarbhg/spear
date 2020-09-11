@@ -26,6 +26,8 @@
 
 #include "sf/Mutex.h"
 
+#include "ext/sokol/sokol_gl.h"
+
 #if SF_OS_EMSCRIPTEN
 	#include <emscripten/emscripten.h>
 	#include <emscripten/html5.h>
@@ -375,6 +377,7 @@ void spFrame(float dt)
 
         canvas.render(sp::CanvasRenderOpts::windowPixels());
 
+		sgl_draw();
 		simgui_render();
 
 		sp::endPass();

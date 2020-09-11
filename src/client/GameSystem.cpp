@@ -8,6 +8,7 @@
 #include "client/TapAreaSystem.h"
 #include "client/EffectSystem.h"
 #include "client/LightSystem.h"
+#include "client/EnvLightSystem.h"
 
 #include "game/DebugDraw.h"
 
@@ -33,6 +34,8 @@
 #include "client/gui/WidgetCard.h"
 #include "client/gui/GuiBuilder.h"
 #include "client/gui/GuiResources.h"
+
+#include "ext/sokol/sokol_gl.h"
 
 namespace cl {
 
@@ -325,6 +328,7 @@ struct GameSystemImp final : GameSystem
 	bool showDebugMenu = false;
 	bool showDebugPointers = false;
 	bool simulateTouch = false;
+	bool visualizeEnvLighting = false;
 
 	bool castAnimDone = false;
 	bool castDone = false;
@@ -1151,6 +1155,7 @@ struct GameSystemImp final : GameSystem
 				if (ImGui::Checkbox("IBL enabled", &iblEnabled)) {
 					systems.light->setIblEnabled(iblEnabled);
 				}
+				ImGui::Checkbox("Visualize env lighting", &visualizeEnvLighting);
 				ImGui::Checkbox("Simulate touch", &simulateTouch);
 				if (ImGui::Button("Pointers")) showDebugPointers = true;
 			}
@@ -1168,6 +1173,26 @@ struct GameSystemImp final : GameSystem
 				}
 			}
 			ImGui::End();
+		}
+
+		if (visualizeEnvLighting) {
+			float aspect = (float)systems.frameArgs.resolution.x / (float)systems.frameArgs.resolution.y;
+			sgl_matrix_mode_modelview();
+			sgl_load_identity();
+			sgl_matrix_mode_projection();
+			sgl_load_identity();
+			sgl_matrix_mode_texture();
+			sgl_load_identity();
+			sgl_enable_texture();
+			sgl_texture(systems.envLight->getDebugLightingImage());
+			sgl_begin_quads();
+			sgl_c3f(1.0f, 1.0f, 1.0f);
+			sgl_v2f_t2f(0.0f, 0.0f, 0.0f, 0.0f);
+			sgl_v2f_t2f(0.5f, 0.0f, 1.0f, 0.0f);
+			sgl_v2f_t2f(0.5f, -0.5f * aspect, 1.0f, 1.0f);
+			sgl_v2f_t2f(0.0f, -0.5f * aspect, 0.0f, 1.0f);
+			sgl_end();
+			sgl_disable_texture();
 		}
 	}
 

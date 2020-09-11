@@ -964,6 +964,20 @@ Mat44 perspectiveGL(float fov, float aspect, float near, float far)
 	};
 }
 
+Mat44 orthoSkewedD3D(const sf::Vec2 &extent, const sf::Vec2 &skew, float near, float far)
+{
+	Mat44 mat;
+
+	mat.m00 = 1.0f / extent.x;
+	mat.m11 = 1.0f / extent.y;
+	mat.m02 = skew.x * mat.m00;
+	mat.m12 = skew.y * mat.m11;
+	mat.m22 = 1.0f / (far - near);
+	mat.m23 = near / (near - far);
+
+	return mat;
+}
+
 }
 
 namespace mat2D {

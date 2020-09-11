@@ -2,6 +2,7 @@
 
 #include "client/AreaSystem.h"
 #include "client/LightSystem.h"
+#include "client/EnvLightSystem.h"
 #include "client/ModelSystem.h"
 #include "client/TileModelSystem.h"
 #include "client/CharacterModelSystem.h"
@@ -183,14 +184,18 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 
 void ClientState::renderShadows()
 {
+	for (uint32_t i = 0; i < 10; i++) {
+		systems.envLight->renderEnvmap(systems);
+	}
+
 	systems.light->renderShadowMaps(systems, systems.visibleAreas, systems.frameArgs.frameIndex);
 }
 
 void ClientState::renderMain(const RenderArgs &args)
 {
 	systems.model->renderMain(systems.light, systems.visibleAreas, args);
-	systems.tileModel->renderMain(systems.light, systems.visibleAreas, args);
-	systems.characterModel->renderMain(systems.light, systems.visibleAreas, args);
+	systems.tileModel->renderMain(systems.light,  systems.envLight, systems.visibleAreas, args);
+	systems.characterModel->renderMain(systems.light, systems.envLight, systems.visibleAreas, args);
 	systems.blobShadow->renderMain(systems.visibleAreas, args);
 	systems.billboard->renderMain(systems.visibleAreas, args);
 	systems.particle->renderMain(systems.visibleAreas, args);

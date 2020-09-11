@@ -2,6 +2,7 @@
 
 #include "client/AreaSystem.h"
 #include "client/LightSystem.h"
+#include "client/EnvLightSystem.h"
 #include "client/ModelSystem.h"
 #include "client/TileModelSystem.h"
 #include "client/CharacterModelSystem.h"
@@ -30,6 +31,7 @@ void Systems::init(const SystemsDesc &desc)
 {
 	area = AreaSystem::create();
 	light = LightSystem::create();
+	envLight = EnvLightSystem::create();
 	model = ModelSystem::create();
 	tileModel = TileModelSystem::create();
 	characterModel = CharacterModelSystem::create(desc);
@@ -62,6 +64,13 @@ void Systems::renderShadows(const RenderArgs &renderArgs)
 	updateVisibility(shadowAreas, Area::Shadow, renderArgs.frustum);
 
 	tileModel->renderShadow(shadowAreas, renderArgs);
+}
+
+void Systems::renderEnvmapGBuffer(const RenderArgs &renderArgs)
+{
+	updateVisibility(envmapAreas, Area::Envmap, renderArgs.frustum);
+
+	tileModel->renderEnvmapGBuffer(envmapAreas, renderArgs);
 }
 
 bool EntitySystem::prepareForRemove(Systems &systems, uint32_t entityId, const EntityComponent &ec, const FrameArgs &args)

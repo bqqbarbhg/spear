@@ -3,6 +3,7 @@
 #include "client/AreaSystem.h"
 #include "client/TileMaterial.h"
 #include "client/LightSystem.h"
+#include "client/EnvLightSystem.h"
 
 #include "sf/Array.h"
 
@@ -12,6 +13,7 @@
 
 #include "game/shader/GameShaders.h"
 #include "game/shader/MapShadow.h"
+#include "game/shader/MapGBuffer.h"
 
 #include "game/shader2/GameShaders2.h"
 
@@ -108,7 +110,7 @@ struct TileModelSystemImp final : TileModelSystem
 				areaFlags = Area::Shadow;
 			} else {
 				padding = ShadowPadding;
-				areaFlags = Area::Visibility | Area::EditorPick;
+				areaFlags = Area::Visibility | Area::EditorPick | Area::Envmap;
 			}
 
 			if (cullingAreaId == ~0u) {
@@ -623,7 +625,7 @@ struct TileModelSystemImp final : TileModelSystem
 		}
 	}
 
-	void renderMain(const LightSystem *lightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
+	void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
 	{
 		UBO_Transform tu = { };
 		tu.worldToClip = renderArgs.worldToClip;
@@ -634,11 +636,14 @@ struct TileModelSystemImp final : TileModelSystem
 
 		const uint32_t maxLights = 16;
 
+		EnvLightAltas envLight = envLightSystem->getEnvLightAtlas();
+
 		sg_bindings bindings = { };
 		bindImageFS(chunkMeshShader, bindings, CL_SHADOWCACHE_TEX, lightSystem->getShadowTexture());
 		bindImageFS(chunkMeshShader, bindings, TEX_albedoAtlas, cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Albedo));
 		bindImageFS(chunkMeshShader, bindings, TEX_normalAtlas, cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Normal));
 		bindImageFS(chunkMeshShader, bindings, TEX_maskAtlas, cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Mask));
+		bindImageFS(chunkMeshShader, bindings, TEX_diffuseEnvmapAtlas, envLight.image);
 
 		for (uint32_t chunkId : visibleAreas.get(AreaGroup::TileChunkCulling)) {
 			Chunk &chunk = chunks[chunkId];
@@ -662,6 +667,7 @@ struct TileModelSystemImp final : TileModelSystem
 
 			pu.numLightsF = (float)pointLights.size;
 			pu.cameraPosition = renderArgs.cameraPosition;
+			pu.diffuseEnvmapMad = envLight.worldMad;
 			sf::Vec4 *dst = pu.pointLightData;
 			for (PointLight &light : pointLights) {
 				light.writeShader(dst);
@@ -672,6 +678,35 @@ struct TileModelSystemImp final : TileModelSystem
 			bindings.vertex_buffers[0] = chunk.vertexBuffer.buffer;
 			bindings.index_buffer = chunk.indexBuffer.buffer;
 
+			sg_apply_bindings(&bindings);
+
+			sg_draw(0, chunk.numIndices, 1);
+		}
+	}
+
+	void renderEnvmapGBuffer(const VisibleAreas &envmapAreas, const RenderArgs &renderArgs) override
+	{
+		bool first = true;
+		sg_bindings bindings = { };
+
+		sg_image albedoAltas = cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Albedo);
+		bindings.fs_images[SLOT_MapGBuffer_albedoAtlas] = albedoAltas;
+
+		for (uint32_t chunkId : envmapAreas.get(AreaGroup::TileChunkCulling)) {
+			Chunk &chunk = chunks[chunkId];
+			sf_assert(!chunk.shadow);
+			if (!chunk.indexBuffer.buffer.id) continue;
+
+			sp::Pipeline &pipe = gameShaders.mapChunkEnvmapPipe[chunk.largeIndices];
+			if (pipe.bind() || first) {
+				first = false;
+				MapGBuffer_Vertex_t vu;
+				renderArgs.worldToClip.writeColMajor44(vu.worldToClip);
+				sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_MapShadow_Vertex, &vu, sizeof(vu));
+			}
+
+			bindings.vertex_buffers[0] = chunk.vertexBuffer.buffer;
+			bindings.index_buffer = chunk.indexBuffer.buffer;
 			sg_apply_bindings(&bindings);
 
 			sg_draw(0, chunk.numIndices, 1);

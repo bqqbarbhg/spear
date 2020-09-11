@@ -168,6 +168,7 @@ struct Area
 		Shadow = 0x4,
 		EditorPick = 0x8,
 		GamePick = 0x10,
+		Envmap = 0x20,
 	};
 
 	AreaGroup group;
@@ -221,6 +222,7 @@ struct BoneUpdates
 
 struct AreaSystem;
 struct LightSystem;
+struct EnvLightSystem;
 struct ModelSystem;
 struct TileModelSystem;
 struct CharacterModelSystem;
@@ -239,6 +241,7 @@ struct RenderArgs
 	sf::Mat44 viewToClip;
 	sf::Mat44 worldToClip;
 	sf::Frustum frustum;
+	bool flipCulling = false;
 };
 
 struct FrameArgs
@@ -260,9 +263,11 @@ struct Systems
 	VisibleAreas activeAreas;
 	VisibleAreas visibleAreas;
 	VisibleAreas shadowAreas;
+	VisibleAreas envmapAreas;
 	BoneUpdates boneUpdates;
 	sf::Box<AreaSystem> area;
 	sf::Box<LightSystem> light;
+	sf::Box<EnvLightSystem> envLight;
 	sf::Box<ModelSystem> model;
 	sf::Box<TileModelSystem> tileModel;
 	sf::Box<CharacterModelSystem> characterModel;
@@ -280,6 +285,7 @@ struct Systems
 	void updateVisibility(VisibleAreas &areas, uint32_t areaFlags, const sf::Frustum &frustum);
 
 	void renderShadows(const RenderArgs &renderArgs);
+	void renderEnvmapGBuffer(const RenderArgs &renderArgs);
 };
 
 }

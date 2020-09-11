@@ -48,6 +48,7 @@ uniform Pixel
 {
 	float numLightsF;
 	vec3 cameraPosition;
+	vec4 diffuseEnvmapMad;
 	vec4 pointLightData[MAX_LIGHTS*SP_POINTLIGHT_DATA_SIZE];
 };
 
@@ -65,7 +66,6 @@ uniform sampler2D maskAtlas;
 void main()
 {
 	vec3 result = asVec3(0.0);
-	int end = int(numLightsF) * SP_POINTLIGHT_DATA_SIZE;
 
 	vec2 matNormal = sampleNormalMap(normalAtlas, v_uv);
 	float matNormalY = sqrt(clamp(1.0 - dot(matNormal, matNormal), 0.0, 1.0));
@@ -83,8 +83,9 @@ void main()
 
 	result += matAlbedo * matMask.z;
 
-	result += evaluateIBL(N, V, cdiff, f0, alpha) * matMask.y;
+	result += evaluateIBL(P, N, V, cdiff, f0, alpha) * matMask.y;
 
+	int end = int(numLightsF) * SP_POINTLIGHT_DATA_SIZE;
 	for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
 		result += evaluatePointLight(P, N, V, cdiff, f0, alpha2, base);
 	}

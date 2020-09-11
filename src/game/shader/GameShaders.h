@@ -25,11 +25,15 @@ struct GameShaders
 	sg_shader debugMesh;
 	sg_shader debugSkinnedMesh;
 	sg_shader billboard;
+	sg_shader mapGBuffer;
+	sg_shader envmapBlend;
 
 	sg_buffer fullscreenTriangleBuffer;
 
 	sp::Pipeline mapChunkShadowPipe[2];
+	sp::Pipeline mapChunkEnvmapPipe[2];
 	sp::Pipeline shadowGridPipe;
+	sp::Pipeline envmapBlendPipe;
 	sp::Pipeline fakeShadowPipe;
 	sp::Pipeline debugMeshPipe;
 	sp::Pipeline debugSkinnedMeshPipe;

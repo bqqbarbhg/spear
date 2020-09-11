@@ -46,6 +46,7 @@ uniform Pixel
 {
 	float numLightsF;
 	vec3 cameraPosition;
+	vec4 diffuseEnvmapMad;
 	vec4 pointLightData[MAX_LIGHTS*SP_POINTLIGHT_DATA_SIZE];
 };
 
@@ -81,7 +82,7 @@ void main()
 
 	result += matAlbedo * matMask.z;
 
-	result += evaluateIBL(N, V, cdiff, f0, alpha) * matMask.y;
+	result += evaluateIBL(P, N, V, cdiff, f0, alpha) * matMask.y;
 
 	for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
 		result += evaluatePointLight(P, N, V, cdiff, f0, alpha2, base);

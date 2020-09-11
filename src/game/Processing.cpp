@@ -544,6 +544,68 @@ struct GuiTextureTask : Task
 	}
 };
 
+struct MiscTextureTask : Task
+{
+	sf::Symbol format;
+	int maxExtent;
+	sf::SmallStringBuf<32> maxExtentStr;
+	sf::StringBuf directory;
+
+	MiscTextureTask(sf::String format, sf::String directory)
+		: format(format), directory(directory), maxExtent(maxExtent)
+	{
+		name.format("MiscTextureTask (%s) %s %d", directory.data, format.data, maxExtent);
+		maxExtentStr.format("%d", maxExtent);
+		tools.push("sp-texcomp");
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (!sf::containsDirectory(path, directory)) return false;
+		if (!sf::endsWith(path, ".png")) return false;
+		ti.outputs[s_dst] = symf("%s.sptex", path.data);
+		ti.inputs[s_src] = path;
+		ti.assets.insert(path);
+		return true;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		sf::Array<sf::StringBuf> args;
+
+		sf::StringBuf tempFile, dstFile;
+		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+
+		args.push("--level");
+		args.push().format("%d", p.level);
+
+		args.push("--format");
+		args.push(sf::String(format));
+
+		{
+			sf::SmallStringBuf<512> path;
+			sf::appendPath(path, p.dataRoot, ti.inputs[s_src]);
+			args.push("--input");
+			args.push(path);
+		}
+
+		args.push("--linear");
+
+		args.push("--output");
+		args.push(tempFile);
+
+		JobPriority priority = getPriorityForTextureFormat(format);
+
+		JobQueue jq;
+		jq.mkdirsToFile(tempFile);
+		jq.mkdirsToFile(dstFile);
+		jq.exec("sp-texcomp", std::move(args));
+		jq.move(tempFile, dstFile);
+		p.addJobs(priority, ti, jq);
+	}
+};
+
 struct ParticleTextureTask : Task
 {
 	sf::Symbol format;
@@ -1325,6 +1387,8 @@ void initializeProcessing(const ProcessingDesc &desc)
 
 	int envmapExtent = 128;
 	p.tasks.push(sf::box<EnvmapTask>("r11g11b10f", "Envmaps", envmapExtent));
+
+	p.tasks.push(sf::box<MiscTextureTask>("rgba8", "Misc_RGBA"));
 
 	p.tasks.push(sf::box<AnimationTask>());
 	p.tasks.push(sf::box<CharacterModelTask>());

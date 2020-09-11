@@ -22,6 +22,8 @@
 #include "DebugMesh.h"
 #include "DebugSkinnedMesh.h"
 #include "Billboard.h"
+#include "MapGBuffer.h"
+#include "EnvmapBlend.h"
 
 #include "GameShaders.h"
 
@@ -49,6 +51,8 @@ void GameShaders::load()
 	debugMesh = sg_make_shader(DebugMesh_DebugMesh_shader_desc());
 	debugSkinnedMesh = sg_make_shader(DebugSkinnedMesh_DebugSkinnedMesh_shader_desc());
 	billboard = sg_make_shader(Billboard_Billboard_shader_desc());
+	mapGBuffer = sg_make_shader(MapGBuffer_MapGBuffer_shader_desc());
+	envmapBlend = sg_make_shader(EnvmapBlend_EnvmapBlend_shader_desc());
 
 	{
 		sf::Vec2 verts[] = {
@@ -71,7 +75,20 @@ void GameShaders::load()
 		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
 	}
 
+	for (int largeIndices = 0; largeIndices <= 1; largeIndices++) {
+		uint32_t flags = sp::PipeDepthWrite | sp::PipeCullAuto | (largeIndices ? sp::PipeIndex32 : sp::PipeIndex16);
+		sg_pipeline_desc &d = mapChunkEnvmapPipe[largeIndices].init(mapGBuffer, flags);
+		d.blend.color_attachment_count = 2;
+		d.rasterizer.cull_mode = SG_CULLMODE_BACK;
+		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT4;
+		d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2;
+		d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4N;
+	}
+
 	shadowGridPipe.init(shadowGrid, sp::PipeVertexFloat2);
+	envmapBlendPipe.init(envmapBlend, sp::PipeVertexFloat2);
 
 	{
 		sg_pipeline_desc &d = fakeShadowPipe.init(fakeShadow, sp::PipeBlendOver | sp::PipeIndex16 | sp::PipeDepthTest);
