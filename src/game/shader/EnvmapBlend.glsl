@@ -43,8 +43,8 @@ vec4 getUpdated(vec2 atlasUv, float depth)
     vec3 prevUv = vec3(atlasUv + prevShift, depth);
     vec4 prev = textureLod(envmapPrev, prevUv, 0.0);
 
-    float part = floor(atlasUv.x * 3.0);
-    vec2 uv = vec2(atlasUv.x * 3.0 - part, atlasUv.y);
+    float part = floor(atlasUv.x * 6.0);
+    vec2 uv = vec2(atlasUv.x * 6.0 - part, atlasUv.y);
 
     vec2 lightUv = uv * uvToLightMad.xy + uvToLightMad.zw;
 
@@ -54,17 +54,22 @@ vec4 getUpdated(vec2 atlasUv, float depth)
         vec3 light = textureLod(lighting, sampleUv, 0.0).xyz;
         vec3 N = rayDirs[i].xyz;
 
-        const float SH0 = 0.282095;
-        const float SH1 = 0.488603;
-        vec4 basis = vec4(SH0, SH1 * N.x, SH1 * N.y, SH1 * N.z);
-
+        float weight = 0.0;
         if (part == 0.0) {
-            data += basis * light.x;
+            weight = N.x > 0.0 ? N.x*N.x : 0.0;
         } else if (part == 1.0) {
-            data += basis * light.y;
+            weight = N.x < 0.0 ? N.x*N.x : 0.0;
         } else if (part == 2.0) {
-            data += basis * light.z;
+            weight = N.y > 0.0 ? N.y*N.y : 0.0;
+        } else if (part == 3.0) {
+            weight = N.y < 0.0 ? N.y*N.y : 0.0;
+        } else if (part == 4.0) {
+            weight = N.z > 0.0 ? N.z*N.z : 0.0;
+        } else if (part == 5.0) {
+            weight = N.z < 0.0 ? N.z*N.z : 0.0;
         }
+
+        data += vec4(light * weight, 0.0);
     }
 
     return mix(prev, data * (1.0 / 3.0), 0.002);
