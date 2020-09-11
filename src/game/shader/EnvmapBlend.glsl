@@ -48,7 +48,7 @@ vec4 getUpdated(vec2 atlasUv, float depth)
 
     vec2 lightUv = uv * uvToLightMad.xy + uvToLightMad.zw;
 
-    vec4 data = vec4(0.0);
+    vec3 data = vec3(0.0);
     for (int i = 0; i < 3; i++) {
         vec2 sampleUv = (lightUv + vec2(depth, float(i))) * vec2(1.0/3.0, 1.0/3.0);
         vec3 light = textureLod(lighting, sampleUv, 0.0).xyz;
@@ -69,10 +69,12 @@ vec4 getUpdated(vec2 atlasUv, float depth)
             weight = N.z < 0.0 ? N.z*N.z : 0.0;
         }
 
-        data += vec4(light * weight, 0.0);
+        data += light * weight;
     }
 
-    return mix(prev, data * (1.0 / 3.0), 0.002);
+    float a = prev.a + 1.0;
+    vec3 v = mix(prev.xyz, data, 1.0 / a);
+    return vec4(v, a);
 }
 
 void main()

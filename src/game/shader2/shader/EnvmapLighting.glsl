@@ -72,13 +72,11 @@ void main()
     vec3 N = normal;
 
     // HACK CEILING
-    #if 0
     if (depth == 0.0 && rayDir.y > 0.0) {
         P += rayDir * ((3.7 - P.y) / rayDir.y);
         N = vec3(0.0, -1.0, 0.0);
-        cdiff = asVec3(0.05);
+        cdiff = asVec3(0.25);
     }
-    #endif
 
     vec3 result = asVec3(0.0);
 
@@ -92,7 +90,7 @@ void main()
     // result *= 1.0 / (1.0 + dist * dist);
 
     float len = length(result);
-    if (len > 3.0) result *= 3.0 / len;
+    if (len > 2.0) result *= 2.0 / len;
 
     result *= 4.0 * 3.141;
 

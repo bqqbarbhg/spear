@@ -65,7 +65,8 @@ void main()
 
     vec3 normal = v_normal;
     if (!gl_FrontFacing) {
-        discard;
+        albedo = vec3(0.0);
+        normal = -normal;
     }
 
 	o_gbuffer0 = vec4(linearToSrgb(albedo), depth);

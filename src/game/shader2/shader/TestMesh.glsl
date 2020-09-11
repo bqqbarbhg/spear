@@ -85,7 +85,6 @@ void main()
 
 	result += evaluateIBL(P, N, V, cdiff, f0, alpha) * matMask.y;
 
-#if 0
 	int end = int(numLightsF) * SP_POINTLIGHT_DATA_SIZE;
 	for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
 		result += evaluatePointLight(P, N, V, cdiff, f0, alpha2, base);
@@ -93,7 +92,6 @@ void main()
 
 	// HACK AO
 	result *= matMask.y;
-#endif
 
 	o_color = tonemap(result);
 }

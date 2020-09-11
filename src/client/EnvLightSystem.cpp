@@ -799,7 +799,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 				updateState.rayDir = rayDir;
 
 				sf::Vec3 eye = sf::Vec3(0.0f, sliceHeight[sliceI], 0.0f);
-				float extent = (float)renderResolution * 0.25f;
+				float extent = (float)renderResolution * 0.5f;
 				float range = 30.0f;
 				float attenuation = 40.0f;
 
@@ -943,7 +943,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 	{
 		EnvLightAltas atlas = { };
 		atlas.image = envDiffuse[envDiffuseIndex].image;
-		atlas.worldMad = sf::Vec4(2.0f / (float)envmapResolution, 2.0f / (float)envmapResolution, 0.5f, 0.5f);
+		atlas.worldMad = sf::Vec4(1.0f / (float)envmapResolution, 1.0f / (float)envmapResolution, 0.5f, 0.5f);
 		return atlas;
 	}
 
