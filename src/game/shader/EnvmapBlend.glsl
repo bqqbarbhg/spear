@@ -21,28 +21,66 @@ void main()
 @fs fs
 
 uniform sampler2D lighting;
-uniform sampler2D blueNoise;
-uniform sampler2DArray envmapPrev;
+// uniform sampler2D blueNoise;
+uniform sampler3D envmapPrev;
 
 in vec2 v_uv;
 
-out vec4 o_color;
+out vec4 o_color0;
+out vec4 o_color1;
+out vec4 o_color2;
 
 uniform Pixel
 {
-    float lightFactor;
-    float prevLevel;
+    vec4 rayDirs[3];
 	vec2 prevShift;
     vec4 uvToLightMad;
     vec4 uvToBlueNoiseMad;
 };
 
+vec4 getUpdated(vec2 atlasUv, float depth)
+{
+    vec3 prevUv = vec3(atlasUv + prevShift, depth);
+    vec4 prev = textureLod(envmapPrev, prevUv, 0.0);
+
+    float part = floor(atlasUv.x * 3.0);
+    vec2 uv = vec2(atlasUv.x * 3.0 - part, atlasUv.y);
+
+    vec2 lightUv = uv * uvToLightMad.xy + uvToLightMad.zw;
+
+    vec4 data = vec4(0.0);
+    for (int i = 0; i < 3; i++) {
+        vec2 sampleUv = (lightUv + vec2(depth, float(i))) * vec2(1.0/3.0, 1.0/3.0);
+        vec3 light = textureLod(lighting, sampleUv, 0.0).xyz;
+        vec3 N = rayDirs[i].xyz;
+
+        const float SH0 = 0.282095;
+        const float SH1 = 0.488603;
+        vec4 basis = vec4(SH0, SH1 * N.x, SH1 * N.y, SH1 * N.z);
+
+        if (part == 0.0) {
+            data += basis * light.x;
+        } else if (part == 1.0) {
+            data += basis * light.y;
+        } else if (part == 2.0) {
+            data += basis * light.z;
+        }
+    }
+
+    return mix(prev, data * (1.0 / 3.0), 0.002);
+}
+
 void main()
 {
     vec2 uv = v_uv;
-    vec3 prevUv = vec3(uv + prevShift, prevLevel);
-    vec4 prev = textureLod(envmapPrev, prevUv, 0.0);
 
+    o_color0 = getUpdated(uv, 0.0);
+    o_color1 = getUpdated(uv, 1.0);
+    o_color2 = getUpdated(uv, 2.0);
+
+    
+
+#if 0
     float alpha = max((1.0 - prev.a) * 0.1, 0.01);
     alpha = 0.001;
 
@@ -59,6 +97,7 @@ void main()
 
     vec3 result = mix(prev.xyz, light, alpha);
     o_color = vec4(result, clamp(prev.a + alpha, 0.0, 1.0));
+#endif
 }
 
 @end

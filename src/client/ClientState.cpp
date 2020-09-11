@@ -184,9 +184,7 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 
 void ClientState::renderShadows()
 {
-	for (uint32_t i = 0; i < 10; i++) {
-		systems.envLight->renderEnvmap(systems);
-	}
+	systems.envLight->renderEnvmap(systems);
 
 	systems.light->renderShadowMaps(systems, systems.visibleAreas, systems.frameArgs.frameIndex);
 }

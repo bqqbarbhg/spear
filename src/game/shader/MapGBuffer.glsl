@@ -62,6 +62,13 @@ void main()
     float depth = gl_FragCoord.z;
     float depth1 = fract(depth * 256.0);
     depth -= depth1 * (1.0 / 256.0);
+
+    vec3 normal = v_normal;
+    if (!gl_FrontFacing) {
+        albedo = vec3(0.0);
+        normal = -normal;
+    }
+
 	o_gbuffer0 = vec4(linearToSrgb(albedo), depth);
     o_gbuffer1 = vec4(v_normal * 0.5 + 0.5, depth1);
 }

@@ -76,7 +76,7 @@ void GameShaders::load()
 	}
 
 	for (int largeIndices = 0; largeIndices <= 1; largeIndices++) {
-		uint32_t flags = sp::PipeDepthWrite | sp::PipeCullAuto | (largeIndices ? sp::PipeIndex32 : sp::PipeIndex16);
+		uint32_t flags = sp::PipeDepthWrite | (largeIndices ? sp::PipeIndex32 : sp::PipeIndex16);
 		sg_pipeline_desc &d = mapChunkEnvmapPipe[largeIndices].init(mapGBuffer, flags);
 		d.blend.color_attachment_count = 2;
 		d.rasterizer.cull_mode = SG_CULLMODE_BACK;
@@ -88,7 +88,6 @@ void GameShaders::load()
 	}
 
 	shadowGridPipe.init(shadowGrid, sp::PipeVertexFloat2);
-	envmapBlendPipe.init(envmapBlend, sp::PipeVertexFloat2);
 
 	{
 		sg_pipeline_desc &d = fakeShadowPipe.init(fakeShadow, sp::PipeBlendOver | sp::PipeIndex16 | sp::PipeDepthTest);

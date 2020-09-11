@@ -32,11 +32,16 @@ uniform EnvmapPixel
     mat4 clipToWorld;
 	float numLightsF;
     float depthToDistance;
-    vec4 blueNoiseMad;
+    vec4 uvMad;
+    vec3 rayDir;
+    vec4 diffuseEnvmapMad;
 	vec4 pointLightData[MAX_LIGHTS*SP_POINTLIGHT_DATA_SIZE];
 };
 
+#define IBL_NO_SPECULAR
+
 #include "light/PointLight.glsl"
+#include "light/IBL.glsl"
 #include "util/Srgb.glsl"
 
 out vec4 o_color;
@@ -48,10 +53,9 @@ void main()
 {
     // TODO: texelFetch()
     vec2 uv = v_uv;
-    vec4 g0 = textureLod(gbuffer0, uv, 0);
-    vec4 g1 = textureLod(gbuffer1, uv, 0);
-
-    vec2 blueNoiseUv = uv * blueNoiseMad.xy + blueNoiseMad.zw;
+    vec2 sampleUv = uv * uvMad.xy + uvMad.zw;
+    vec4 g0 = textureLod(gbuffer0, sampleUv, 0);
+    vec4 g1 = textureLod(gbuffer1, sampleUv, 0);
 
     vec3 albedo = srgbToLinear(g0.xyz);
     // vec3 albedo = g0.xyz;
@@ -60,7 +64,6 @@ void main()
     float depth = g0.w + g1.w * (1.0 / 256.0);
 
     float dist = depthToDistance * depth;
-
     vec3 cdiff = albedo;
 
     vec4 clipP = vec4(uv.x * 2.0 - 1.0, uv.y * -2.0 + 1.0, depth, 1.0);
@@ -68,19 +71,30 @@ void main()
     vec3 P = worldP.xyz * (1.0 / worldP.w);
     vec3 N = normal;
 
+    // HACK CEILING
+    #if 0
+    if (depth == 0.0 && rayDir.y > 0.0) {
+        P += rayDir * ((3.7 - P.y) / rayDir.y);
+        N = vec3(0.0, -1.0, 0.0);
+        cdiff = asVec3(0.05);
+    }
+    #endif
+
     vec3 result = asVec3(0.0);
 
-	int end = int(numLightsF) * SP_POINTLIGHT_DATA_SIZE;
-	for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
-		result += evaluatePointLightDiffuse(P, N, cdiff, base);
-	}
+	// result += evaluateIBLDiffuse(P, N, cdiff) * 0.5;
+
+    int end = int(numLightsF) * SP_POINTLIGHT_DATA_SIZE;
+    for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
+        result += evaluatePointLightDiffuse(P, N, cdiff, base);
+    }
 
     // result *= 1.0 / (1.0 + dist * dist);
 
     float len = length(result);
-    if (len > 1.0) result /= len;
+    if (len > 3.0) result *= 3.0 / len;
 
-    result *= 10.0 * 3.141;
+    result *= 4.0 * 3.141;
 
     o_color = vec4(result, 1.0);
 }

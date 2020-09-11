@@ -7,7 +7,7 @@
 #define SpShader_EnvmapLighting 1
 #define SpShader_TestMesh 2
 #define SpShader_TestSkin 3
-#define SpShaderDataSize 129695
+#define SpShaderDataSize 125415
 
 #define SP_SHADOWGRID_USE_ARRAY 0
 #define SP_NORMALMAP_REMAP 1
@@ -44,7 +44,10 @@ struct UBO_EnvmapPixel {
 	float numLightsF;
 	float depthToDistance;
 	uint32_t _sp_pad0[2];
-	sf::Vec4 blueNoiseMad;
+	sf::Vec4 uvMad;
+	sf::Vec3 rayDir;
+	uint32_t _sp_pad1[1];
+	sf::Vec4 diffuseEnvmapMad;
 	sf::Vec4 pointLightData[128];
 };
 
@@ -89,4 +92,4 @@ extern const SpPermutationInfo spPermutations[18];
 extern const SpUniformBlockInfo spUniformBlock[8];
 extern const SpSamplerInfo spSamplers[13];
 extern const SpAttribInfo spAttribs[12];
-extern const char spShaderData[3732];
+extern const char spShaderData[3681];

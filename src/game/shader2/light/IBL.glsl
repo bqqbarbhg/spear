@@ -1,8 +1,33 @@
 #pragma once
 
+#ifndef IBL_NO_SPECULAR
 uniform samplerCube envmap;
-uniform sampler2DArray diffuseEnvmapAtlas;
+#endif
 
+uniform sampler3D diffuseEnvmapAtlas;
+
+vec3 evaluateIBLDiffuse(vec3 P, vec3 N, vec3 cdiff)
+{
+    vec2 uv = P.xz * diffuseEnvmapMad.xy + diffuseEnvmapMad.zw;
+
+    float d = P.y * 0.5;
+    vec4 shR = textureLod(diffuseEnvmapAtlas, vec3((uv.x + 0.0) * (1.0 / 3.0), uv.y, d), 0.0);
+    vec4 shG = textureLod(diffuseEnvmapAtlas, vec3((uv.x + 1.0) * (1.0 / 3.0), uv.y, d), 0.0);
+    vec4 shB = textureLod(diffuseEnvmapAtlas, vec3((uv.x + 2.0) * (1.0 / 3.0), uv.y, d), 0.0);
+
+    // const float CSH0 = 0.25;
+    // const float CSH1 = 0.5;
+    const float CSH0 = 1.0;
+    const float CSH1 = 1.0;
+    vec4 basisN = vec4(CSH0, CSH1*N.x, CSH1*N.y, CSH1*N.z);
+
+    vec3 diffEnv = vec3(dot(shR, basisN), dot(shG, basisN), dot(shB, basisN));
+    vec3 result = cdiff * diffEnv;
+
+	return result;
+}
+
+#ifndef IBL_NO_SPECULAR
 vec3 EnvDFGPolynomial(vec3 f0, float gloss, float nDotV)
 {
     float x = gloss;
@@ -30,6 +55,7 @@ vec3 EnvDFGPolynomial(vec3 f0, float gloss, float nDotV)
     return f0 * scale + bias;
 }
 
+
 vec3 evaluateIBL(vec3 P, vec3 N, vec3 V, vec3 cdiff, vec3 f0, float roughness)
 {
     float gloss = 1.0 - roughness;
@@ -38,38 +64,29 @@ vec3 evaluateIBL(vec3 P, vec3 N, vec3 V, vec3 cdiff, vec3 f0, float roughness)
 
     vec2 uv = P.xz * diffuseEnvmapMad.xy + diffuseEnvmapMad.zw;
 
-    float w1;
-    float slice0 = 0.0;
-    if (P.y < 1.5) {
-        w1 = saturate(P.y * (1.0 / 1.5));
-    } else {
-        w1 = saturate((P.y - 1.5) * (1.0 / 1.5));
-        slice0 = 6.0;
-    }
-    float slice1 = slice0 + 6.0;
-    float w0 = 1.0 - w1;
+    float d = P.y * 0.75;
+    vec4 shR = textureLod(diffuseEnvmapAtlas, vec3((uv.x + 0.0) * (1.0 / 3.0), uv.y, d), 0.0);
+    vec4 shG = textureLod(diffuseEnvmapAtlas, vec3((uv.x + 1.0) * (1.0 / 3.0), uv.y, d), 0.0);
+    vec4 shB = textureLod(diffuseEnvmapAtlas, vec3((uv.x + 2.0) * (1.0 / 3.0), uv.y, d), 0.0);
 
-	vec3 diffEnv, specEnv;
-	diffEnv  = N.x*N.x*w0*textureLod(diffuseEnvmapAtlas, vec3(uv.x, uv.y, slice0 + (N.x>0 ? 0.0 : 1.0)), 0.0).xyz;
-	diffEnv += N.y*N.y*w0*textureLod(diffuseEnvmapAtlas, vec3(uv.x, uv.y, slice0 + (N.y>0 ? 2.0 : 3.0)), 0.0).xyz;
-	diffEnv += N.z*N.z*w0*textureLod(diffuseEnvmapAtlas, vec3(uv.x, uv.y, slice0 + (N.z>0 ? 4.0 : 5.0)), 0.0).xyz;
-	diffEnv += N.x*N.x*w1*textureLod(diffuseEnvmapAtlas, vec3(uv.x, uv.y, slice1 + (N.x>0 ? 0.0 : 1.0)), 0.0).xyz;
-	diffEnv += N.y*N.y*w1*textureLod(diffuseEnvmapAtlas, vec3(uv.x, uv.y, slice1 + (N.y>0 ? 2.0 : 3.0)), 0.0).xyz;
-	diffEnv += N.z*N.z*w1*textureLod(diffuseEnvmapAtlas, vec3(uv.x, uv.y, slice1 + (N.z>0 ? 4.0 : 5.0)), 0.0).xyz;
+    // const float CSH0 = 0.25;
+    // const float CSH1 = 0.5;
+    const float CSH0 = 0.282095;
+    const float CSH1 = 0.488603;
+    vec4 basisN = vec4(CSH0, CSH1*N.x, CSH1*N.y, CSH1*N.z);
+    vec4 basisR = vec4(CSH0, CSH1*R.x, CSH1*R.y, CSH1*R.z);
 
-	specEnv  = R.x*R.x*w0*textureLod(diffuseEnvmapAtlas, vec3(uv.x, uv.y, slice0 + (R.x>0 ? 0.0 : 1.0)), 0.0).xyz;
-	specEnv += R.y*R.y*w0*textureLod(diffuseEnvmapAtlas, vec3(uv.x, uv.y, slice0 + (R.y>0 ? 2.0 : 3.0)), 0.0).xyz;
-	specEnv += R.z*R.z*w0*textureLod(diffuseEnvmapAtlas, vec3(uv.x, uv.y, slice0 + (R.z>0 ? 4.0 : 5.0)), 0.0).xyz;
-	specEnv += R.x*R.x*w1*textureLod(diffuseEnvmapAtlas, vec3(uv.x, uv.y, slice1 + (R.x>0 ? 0.0 : 1.0)), 0.0).xyz;
-	specEnv += R.y*R.y*w1*textureLod(diffuseEnvmapAtlas, vec3(uv.x, uv.y, slice1 + (R.y>0 ? 2.0 : 3.0)), 0.0).xyz;
-	specEnv += R.z*R.z*w1*textureLod(diffuseEnvmapAtlas, vec3(uv.x, uv.y, slice1 + (R.z>0 ? 4.0 : 5.0)), 0.0).xyz;
+    vec3 diffEnv = vec3(dot(shR, basisN), dot(shG, basisN), dot(shB, basisN));
+    vec3 specEnv = vec3(dot(shR, basisR), dot(shG, basisR), dot(shB, basisR));
+
     const float NumSpecularLods = 5.0;
-    const float DiffuseLod = 6.0;
 
     vec3 iblSpec = textureLod(envmap, R, roughness * NumSpecularLods).xyz;
 
     float nDotV = dot(N, V);
     vec3 result = cdiff * diffEnv + specEnv * iblSpec * EnvDFGPolynomial(f0, gloss, nDotV);
 
-	return result;
+	// return result;
+	return diffEnv;
 }
+#endif

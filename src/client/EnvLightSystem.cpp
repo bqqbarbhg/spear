@@ -632,12 +632,21 @@ static const sf::Vec3 cubeDirs[] = {
 };
 
 static const float sliceHeight[] = {
-	0.5f, 1.5f, 2.5f,
+	0.05f, 0.75f, 1.5f,
 };
 
 struct EnvLightSystemImp final : EnvLightSystem
 {
 	static const uint32_t DepthSlices = 3;
+	static const uint32_t UpdateCount = 3;
+
+	struct UpdateState
+	{
+		sf::Vec3 rayDir;
+		sf::Array<PointLight> pointLights;
+		RenderArgs renderArgs;
+		float depthToDistance;
+	};
 
 	uint32_t envmapResolution = 256;
 	uint32_t renderResolution = 128;
@@ -649,6 +658,8 @@ struct EnvLightSystemImp final : EnvLightSystem
 	sp::RenderTarget lightingTarget;
 	sp::RenderPass lightingPass;
 
+	sp::Pipeline envmapBlendPipe;
+
 	Shader2 lightingShader;
 	sp::Pipeline lightingPipe;
 	sf::Random rng;
@@ -656,15 +667,17 @@ struct EnvLightSystemImp final : EnvLightSystem
 	bool firstUpdate = true;
 	uint32_t envDiffuseIndex = 0;
 	sp::Texture envDiffuse[2];
-	sp::RenderPass envBlendPass[2][DepthSlices][6];
+	sp::RenderPass envBlendPass[2];
 
 	MiscTextureRef blueNoiseTex;
 
 	uint32_t haltonIx = 0;
 
+	UpdateState updateStates[UpdateCount][DepthSlices];
+
 	void initTargets()
 	{
-		sf::Vec2i res = sf::Vec2i(renderResolution);
+		sf::Vec2i res = sf::Vec2i(renderResolution * DepthSlices, renderResolution * UpdateCount);
 
 		gbufferTarget[0].init("envmap gbuffer0", res, SG_PIXELFORMAT_RGBA8);
 		gbufferTarget[1].init("envmap gbuffer1", res, SG_PIXELFORMAT_RGBA8);
@@ -685,33 +698,30 @@ struct EnvLightSystemImp final : EnvLightSystem
 			sg_image_desc d = { };
 			d.render_target = true;
 			d.label = label.data;
-			d.pixel_format = SG_PIXELFORMAT_RGBA16F;
-			d.type = SG_IMAGETYPE_ARRAY;
-			d.width = envmapResolution;
+			d.pixel_format = SG_PIXELFORMAT_RGBA32F;
+			d.type = SG_IMAGETYPE_3D;
+			d.width = envmapResolution * 3;
 			d.height = envmapResolution;
-			d.depth = 6 * DepthSlices;
+			d.depth = DepthSlices;
 			d.num_mipmaps = 1;
 			d.min_filter = d.mag_filter = SG_FILTER_LINEAR;
 			d.wrap_u = d.wrap_v = d.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
 			envDiffuse[swapI].init(d);
 
 			sp::FramebufferDesc fbDesc;
-			fbDesc.colorFormat = SG_PIXELFORMAT_RGBA16F;
+			fbDesc.colorFormat = SG_PIXELFORMAT_RGBA32F;
 			fbDesc.depthFormat = SG_PIXELFORMAT_NONE;
 
 			sg_pass_desc passDesc = { };
-			for (uint32_t sliceI = 0; sliceI < DepthSlices; sliceI++) {
-				for (uint32_t faceI = 0; faceI < 6; faceI++) {
-					sf::SmallStringBuf<128> name;
-					name.format("envBlend%u face %u", swapI, faceI);
-					passDesc.label = name.data;
-					passDesc.color_attachments[0].image = envDiffuse[swapI].image;
-					passDesc.color_attachments[0].layer = sliceI * 6 + faceI;
-					envBlendPass[swapI][sliceI][faceI].init(passDesc, sf::Vec2i((int32_t)envmapResolution), fbDesc);
-				}
+			sf::SmallStringBuf<128> name;
+			name.format("envBlend%u", swapI);
+			passDesc.label = name.data;
+			for (uint32_t i = 0; i < DepthSlices; i++) {
+				passDesc.color_attachments[i].image = envDiffuse[swapI].image;
+				passDesc.color_attachments[i].slice = i;
 			}
+			envBlendPass[swapI].init(passDesc, sf::Vec2i((int32_t)envmapResolution), fbDesc);
 		}
-
 	}
 
 	// API
@@ -735,68 +745,45 @@ struct EnvLightSystemImp final : EnvLightSystem
 		}
 
 		lightingPipe.init(lightingShader.handle, sp::PipeVertexFloat2);
+
+		{
+			sg_pipeline_desc &d = envmapBlendPipe.init(gameShaders.envmapBlend, sp::PipeVertexFloat2);
+			d.blend.color_attachment_count = DepthSlices;
+		}
 	}
 
 	void renderEnvmap(Systems &systems) override
 	{
 		if (!blueNoiseTex.isLoaded()) return;
 
-		sf::Vec2 sample = halton2D[haltonIx++];
-		if (haltonIx >= sf_arraysize(halton2D)) haltonIx = 0;
-
-		sample += rng.nextVec2() * 0.01f;
-		if (sample.x >= 1.0) sample.x -= 1.0f;
-		if (sample.y >= 1.0) sample.y -= 1.0f;
-
-		sf::Vec3 rayDir = sampleSphereUniform(sample);
-
 		if (firstUpdate) {
 			sg_pass_action action = { };
 			action.colors[0].action = SG_ACTION_CLEAR;
-			for (uint32_t sliceI = 0; sliceI < DepthSlices; sliceI++) {
-				for (uint32_t faceI = 0; faceI < 6; faceI++) {
-					sp::beginPass(envBlendPass[0][sliceI][faceI], &action);
-					sp::endPass();
-				}
-			}
+			sp::beginPass(envBlendPass[0], &action);
+			sp::endPass();
 		}
+
+		EnvLightAltas prevEnvAtlas = getEnvLightAtlas();
 
 		uint32_t writeSwap = envDiffuseIndex ^ 1;
 		uint32_t readSwap = envDiffuseIndex;
 		envDiffuseIndex = writeSwap;
 
-		for (uint32_t sliceI = 0; sliceI < DepthSlices; sliceI++) {
+		sf::Vec3 rayDirs[UpdateCount];
 
-			sf::SmallArray<cl::PointLight, 64> pointLights;
-			const uint32_t maxLights = 32;
+		for (uint32_t i = 0; i < UpdateCount; i++) {
+			sf::Vec2 sample = halton2D[haltonIx++];
+			if (haltonIx >= sf_arraysize(halton2D)) haltonIx = 0;
 
-			sf::Vec3 eye = sf::Vec3(0.0f, sliceHeight[sliceI], 0.0f);
-			float extent = (float)renderResolution * 0.25f;
-			float range = 30.0f;
-			float attenuation = 40.0f;
+			sample += rng.nextVec2() * 0.01f;
+			if (sample.x >= 1.0) sample.x -= 1.0f;
+			if (sample.y >= 1.0) sample.y -= 1.0f;
 
-			sf::Vec3 dir, up;
-			sf::Vec2 skew;
+			rayDirs[i] = sampleSphereUniform(sample);
+		}
 
-			float tanY = sf::max(sf::abs(rayDir.y), 0.01f);
-			float far = tanY * range;
-			if (rayDir.y > 0.0f) {
-				dir = sf::Vec3(0.0f, +1.0f, 0.0f);
-				up = sf::Vec3(0.0f, 0.0f, +1.0f);
-				skew = sf::Vec2(rayDir.x / -tanY, rayDir.z / -tanY);
-			} else {
-				dir = sf::Vec3(0.0f, -1.0f, 0.0f);
-				up = sf::Vec3(0.0f, 0.0f, -1.0f);
-				skew = sf::Vec2(rayDir.x / tanY, rayDir.z / tanY);
-			}
-
-			RenderArgs renderArgs;
-			renderArgs.cameraPosition = eye;
-			renderArgs.worldToView = sf::mat::look(eye, dir, up);
-			renderArgs.viewToClip = sf::mat::orthoSkewedD3D(sf::Vec2(extent), skew, 0.0f, far);
-			renderArgs.worldToClip = renderArgs.viewToClip * renderArgs.worldToView;
-			renderArgs.frustum = sf::Frustum(renderArgs.worldToClip, sp::getClipNearW());
-
+		// Pass 1: Render G-buffers
+		{
 			sg_pass_action action = { };
 			action.colors[0].action = SG_ACTION_CLEAR;
 			action.colors[1].action = SG_ACTION_CLEAR;
@@ -804,36 +791,89 @@ struct EnvLightSystemImp final : EnvLightSystem
 			action.depth.val = 1.0f;
 			sp::beginPass(gbufferPass, &action);
 
-			systems.renderEnvmapGBuffer(renderArgs);
+			for (uint32_t rayI = 0; rayI < UpdateCount; rayI++)
+			for (uint32_t sliceI = 0; sliceI < DepthSlices; sliceI++) {
+				UpdateState &updateState = updateStates[rayI][sliceI];
+				sf::Vec3 rayDir = rayDirs[rayI];
+
+				updateState.rayDir = rayDir;
+
+				sf::Vec3 eye = sf::Vec3(0.0f, sliceHeight[sliceI], 0.0f);
+				float extent = (float)renderResolution * 0.25f;
+				float range = 30.0f;
+				float attenuation = 40.0f;
+
+				sf::Vec3 dir, up;
+				sf::Vec2 skew;
+
+				float tanY = sf::max(sf::abs(rayDir.y), 0.01f);
+				float far = tanY * range;
+				if (rayDir.y > 0.0f) {
+					dir = sf::Vec3(0.0f, +1.0f, 0.0f);
+					up = sf::Vec3(0.0f, 0.0f, +1.0f);
+					skew = sf::Vec2(rayDir.x / -tanY, rayDir.z / -tanY);
+				} else {
+					dir = sf::Vec3(0.0f, -1.0f, 0.0f);
+					up = sf::Vec3(0.0f, 0.0f, -1.0f);
+					skew = sf::Vec2(rayDir.x / tanY, rayDir.z / tanY);
+				}
+
+				updateState.depthToDistance = range / tanY / attenuation;
+
+				RenderArgs &renderArgs = updateState.renderArgs;
+				renderArgs.cameraPosition = eye;
+				renderArgs.worldToView = sf::mat::look(eye, dir, up);
+				renderArgs.viewToClip = sf::mat::orthoSkewedD3D(sf::Vec2(extent), skew, 0.0f, far);
+				renderArgs.worldToClip = renderArgs.viewToClip * renderArgs.worldToView;
+				renderArgs.frustum = sf::Frustum(renderArgs.worldToClip, sp::getClipNearW());
+
+				sg_apply_viewport((int)(renderResolution * sliceI), (int)renderResolution * rayI, (int)renderResolution, (int)renderResolution, true);
+
+				systems.renderEnvmapGBuffer(renderArgs);
+
+				updateState.pointLights.clear();
+				systems.light->queryVisiblePointLights(systems.envmapAreas, updateState.pointLights);
+			}
 
 			sp::endPass();
+		}
 
-			{
+		const uint32_t maxLights = 32;
+
+		// Pass 2: Evaluate lighting
+		{
+			sg_pass_action action = { };
+			action.colors[0].action = SG_ACTION_CLEAR;
+			action.depth.action = SG_ACTION_CLEAR;
+			action.depth.val = 1.0f;
+			sp::beginPass(lightingPass, &action);
+
+			for (uint32_t rayI = 0; rayI < UpdateCount; rayI++)
+			for (uint32_t sliceI = 0; sliceI < DepthSlices; sliceI++) {
+				UpdateState &updateState = updateStates[rayI][sliceI];
+				sf::Vec3 rayDir = updateState.rayDir;
+
+				// TODO(profile): Do this with geometry instead?
+				sg_apply_viewport((int)(renderResolution * sliceI), (int)renderResolution * rayI, (int)renderResolution, (int)renderResolution, true);
+
 				sg_bindings binds = { };
 
-				sg_pass_action action = { };
-				action.colors[0].action = SG_ACTION_LOAD;
-				action.depth.action = SG_ACTION_CLEAR;
-				action.depth.val = 1.0f;
-				sp::beginPass(lightingPass, &action);
-
-				pointLights.clear();
-				systems.light->queryVisiblePointLights(systems.envmapAreas, pointLights);
-
 				// TODO: Multiple passes
-				if (pointLights.size > maxLights) {
-					pointLights.resizeUninit(maxLights);
+				if (updateState.pointLights.size > maxLights) {
+					updateState.pointLights.resizeUninit(maxLights);
 				}
 
 				UBO_EnvmapVertex vu;
 				vu.flipY = rayDir.y > 0.0f ? -1.0f : 1.0f;
 
 				UBO_EnvmapPixel pu;
-				pu.clipToWorld = sf::inverse(renderArgs.worldToClip);
-				pu.numLightsF = (float)pointLights.size;
-				pu.depthToDistance = range / tanY / attenuation;
+				pu.clipToWorld = sf::inverse(updateState.renderArgs.worldToClip);
+				pu.numLightsF = (float)updateState.pointLights.size;
+				pu.uvMad = sf::Vec4(1.0f / 3.0f, 1.0f / 3.0f, (float)sliceI / 3.0f, (float)rayI / 3.0f);
+				pu.rayDir = rayDir;
+				pu.diffuseEnvmapMad = prevEnvAtlas.worldMad;
 				sf::Vec4 *dst = pu.pointLightData;
-				for (PointLight &light : pointLights) {
+				for (PointLight &light : updateState.pointLights) {
 					light.writeShader(dst);
 				}
 
@@ -845,57 +885,58 @@ struct EnvLightSystemImp final : EnvLightSystem
 				bindUniformFS(lightingShader, pu);
 
 				bindImageFS(lightingShader, binds, CL_SHADOWCACHE_TEX, systems.light->getShadowTexture());
+				bindImageFS(lightingShader, binds, TEX_diffuseEnvmapAtlas, prevEnvAtlas.image);
 				bindImageFS(lightingShader, binds, TEX_gbuffer0, gbufferTarget[0].image);
 				bindImageFS(lightingShader, binds, TEX_gbuffer1, gbufferTarget[1].image);
 
 				sg_apply_bindings(&binds);
 
 				sg_draw(0, 3, 1);
-
-				sp::endPass();
 			}
 
-			{
-
-				sg_bindings binds = { };
-				binds.vertex_buffers[0] = gameShaders.fullscreenTriangleBuffer;
-				binds.fs_images[SLOT_EnvmapBlend_blueNoise] = blueNoiseTex->image;
-				binds.fs_images[SLOT_EnvmapBlend_lighting] = lightingTarget.image;
-				binds.fs_images[SLOT_EnvmapBlend_envmapPrev] = envDiffuse[readSwap].image;
-
-				EnvmapBlend_Pixel_t pu = { };
-
-				float uvToNoise = (float)envmapResolution / 64.0f;
-				sf::Vec2 blueNoiseOffset = rng.nextVec2();
-				pu.uvToBlueNoiseMad = sf::Vec4(uvToNoise, uvToNoise, blueNoiseOffset.x, blueNoiseOffset.y);
-				pu.uvToLightMad = sf::Vec4(2.0f, 2.0f, -0.5f, -0.5f);
-				pu.prevShift = sf::Vec2();
-
-				sg_pass_action action = { };
-				action.colors[0].action = SG_ACTION_CLEAR; // TODO: DONTCARE, make it clear on D3D11..
-				for (uint32_t faceI = 0; faceI < 6; faceI++) {
-					sf::Vec3 dir = cubeDirs[faceI];
-					float factor = sf::dot(dir, rayDir);
-
-					pu.lightFactor = sf::max(factor, 0.0f);
-					pu.prevLevel = (float)(6 * sliceI + faceI);
-
-					sp::beginPass(envBlendPass[writeSwap][sliceI][faceI], &action);
-
-					if (gameShaders.envmapBlendPipe.bind()) {
-						sg_apply_bindings(&binds);
-					}
-
-					sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_EnvmapBlend_Pixel, &pu, sizeof(pu));
-
-					sg_draw(0, 3, 1);
-
-					sp::endPass();
-				}
-			}
-
-			firstUpdate = false;
+			sp::endPass();
 		}
+
+		// Pass 3: Update the atlas
+		{
+			sg_pass_action action = { };
+			action.colors[0].action = SG_ACTION_CLEAR;
+			action.depth.action = SG_ACTION_CLEAR;
+			action.depth.val = 1.0f;
+			sp::beginPass(envBlendPass[writeSwap], &action);
+
+			sg_bindings binds = { };
+			binds.vertex_buffers[0] = gameShaders.fullscreenTriangleBuffer;
+			// binds.fs_images[SLOT_EnvmapBlend_blueNoise] = blueNoiseTex->image;
+			binds.fs_images[SLOT_EnvmapBlend_lighting] = lightingTarget.image;
+			binds.fs_images[SLOT_EnvmapBlend_envmapPrev] = envDiffuse[readSwap].image;
+
+			EnvmapBlend_Pixel_t pu = { };
+
+			float uvToNoise = (float)envmapResolution / 64.0f;
+			sf::Vec2 blueNoiseOffset = rng.nextVec2();
+			pu.uvToBlueNoiseMad = sf::Vec4(uvToNoise, uvToNoise, blueNoiseOffset.x, blueNoiseOffset.y);
+			pu.uvToLightMad = sf::Vec4(2.0f, 2.0f, -0.5f, -0.5f);
+			pu.prevShift = sf::Vec2();
+
+			for (uint32_t i = 0; i < DepthSlices; i++) {
+				pu.rayDirs[i] = sf::Vec4(rayDirs[i], 0.0f);
+			}
+			pu.prevShift = sf::Vec2();
+			pu.uvToLightMad = sf::Vec4(2.0f, 2.0f, -0.5f, -0.5f);
+
+			if (envmapBlendPipe.bind()) {
+				sg_apply_bindings(&binds);
+			}
+
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_EnvmapBlend_Pixel, &pu, sizeof(pu));
+
+			sg_draw(0, 3, 1);
+
+			sp::endPass();
+		}
+
+	firstUpdate = false;
 	}
 
 	EnvLightAltas getEnvLightAtlas() const override
