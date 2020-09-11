@@ -669,11 +669,15 @@ struct EnvLightSystemImp final : EnvLightSystem
 	sp::Texture envDiffuse[2];
 	sp::RenderPass envBlendPass[2];
 
+	sp::Texture nullDiffuse;
+
 	MiscTextureRef blueNoiseTex;
 
 	uint32_t haltonIx = 0;
 
 	UpdateState updateStates[UpdateCount][DepthSlices];
+
+	bool iblEnabled = true;
 
 	void initTargets()
 	{
@@ -692,13 +696,29 @@ struct EnvLightSystemImp final : EnvLightSystem
 		gbufferPass.init("envmap gbuffer", gbufferTarget[0], gbufferTarget[1], gbufferDepthTarget);
 		lightingPass.init("envmap lighting", lightingTarget);
 
+		{
+			sg_image_desc d = { };
+			d.label = "nullDiffuse";
+			d.pixel_format = SG_PIXELFORMAT_RGBA16F;
+			d.type = SG_IMAGETYPE_3D;
+			d.width = 1;
+			d.height = 1;
+			d.depth = 1;
+			d.num_mipmaps = 1;
+			d.min_filter = d.mag_filter = SG_FILTER_LINEAR;
+			d.wrap_u = d.wrap_v = d.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
+			d.content.subimage[0][0].ptr = "\0\0\0\0\0\0\0\0\0";
+			d.content.subimage[0][0].size = 8;
+			nullDiffuse.init(d);
+		}
+
 		for (uint32_t swapI = 0; swapI < 2; swapI++) {
 			sf::SmallStringBuf<64> label;
 			label.format("envDiffuse%u", swapI);
 			sg_image_desc d = { };
 			d.render_target = true;
 			d.label = label.data;
-			d.pixel_format = SG_PIXELFORMAT_RGBA32F;
+			d.pixel_format = SG_PIXELFORMAT_RGBA16F;
 			d.type = SG_IMAGETYPE_3D;
 			d.width = envmapResolution * 6;
 			d.height = envmapResolution;
@@ -709,7 +729,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 			envDiffuse[swapI].init(d);
 
 			sp::FramebufferDesc fbDesc;
-			fbDesc.colorFormat = SG_PIXELFORMAT_RGBA32F;
+			fbDesc.colorFormat = SG_PIXELFORMAT_RGBA16F;
 			fbDesc.depthFormat = SG_PIXELFORMAT_NONE;
 
 			sg_pass_desc passDesc = { };
@@ -939,11 +959,19 @@ struct EnvLightSystemImp final : EnvLightSystem
 	firstUpdate = false;
 	}
 
+	void setIblEnabled(bool enabled) override
+	{
+		iblEnabled = enabled;
+	}
+
 	EnvLightAltas getEnvLightAtlas() const override
 	{
 		EnvLightAltas atlas = { };
 		atlas.image = envDiffuse[envDiffuseIndex].image;
 		atlas.worldMad = sf::Vec4(1.0f / (float)envmapResolution, 1.0f / (float)envmapResolution, 0.5f, 0.5f);
+		if (!iblEnabled) {
+			atlas.image = nullDiffuse.image;
+		}
 		return atlas;
 	}
 

@@ -17,6 +17,8 @@ struct EnvLightSystem : System
 
 	virtual void renderEnvmap(Systems &systems) = 0;
 
+	virtual void setIblEnabled(bool enabled) = 0;
+
 	virtual EnvLightAltas getEnvLightAtlas() const = 0;
 
 	virtual sg_image getDebugLightingImage() const = 0;

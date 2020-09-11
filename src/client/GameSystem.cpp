@@ -1154,6 +1154,7 @@ struct GameSystemImp final : GameSystem
 				static bool iblEnabled = true;
 				if (ImGui::Checkbox("IBL enabled", &iblEnabled)) {
 					systems.light->setIblEnabled(iblEnabled);
+					systems.envLight->setIblEnabled(iblEnabled);
 				}
 				ImGui::Checkbox("Visualize env lighting", &visualizeEnvLighting);
 				ImGui::Checkbox("Simulate touch", &simulateTouch);

@@ -11,7 +11,7 @@
     #endif
 #endif
 
-#if SP_USE_TIMING
+#if !SP_USE_TIMING
     // Nop: No timing
 #elif defined(SOKOL_D3D11)
 	#define _WIN32_LEAN_AND_MEAN
@@ -124,7 +124,7 @@ namespace sp {
 
 static sf::Array<PassTime> g_passTimes;
 
-#if SP_USE_TIMING
+#if !SP_USE_TIMING
 
 static void beginQueryFrame() { }
 static void endQueryFrame() { }
