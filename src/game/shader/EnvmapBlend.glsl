@@ -52,6 +52,10 @@ vec4 getUpdated(vec2 atlasUv, float depth)
     for (int i = 0; i < 3; i++) {
         vec2 sampleUv = (lightUv + vec2(depth, float(i))) * vec2(1.0/3.0, 1.0/3.0);
         vec3 light = textureLod(lighting, sampleUv, 0.0).xyz;
+
+        // Compensate for PDF
+        light *= 4.0 * 3.141;
+
         vec3 N = rayDirs[i].xyz;
 
         float weight = 0.0;
@@ -81,9 +85,9 @@ void main()
 {
     vec2 uv = v_uv;
 
-    o_color0 = getUpdated(uv, 0.0);
-    o_color1 = getUpdated(uv, 1.0);
-    o_color2 = getUpdated(uv, 2.0);
+    o_color0 = getUpdated(uv, 0.0 / 2.0);
+    o_color1 = getUpdated(uv, 1.0 / 2.0);
+    o_color2 = getUpdated(uv, 2.0 / 2.0);
 
     
 

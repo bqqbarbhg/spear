@@ -37,6 +37,7 @@ struct GameShaders
 	sp::Pipeline debugMeshPipe;
 	sp::Pipeline debugSkinnedMeshPipe;
 	sp::Pipeline billboardPipe;
+	sp::Pipeline postprocessPipe;
 
 	void load();
 };

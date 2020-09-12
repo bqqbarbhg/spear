@@ -287,7 +287,7 @@ struct LightSystemImp final : LightSystem
 		shadowSlots.resize(shadowCache.cacheNumTilesX * shadowCache.cacheNumTilesY);
 
 		// HACK HACK
-		envmapTexture.load("Assets/Envmaps/Castle/CastleRoom");
+		envmapTexture.load("Assets/Envmaps/Castle/CastleMono");
 	}
 
 	void addPointLight(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::PointLightComponent &c, const Transform &transform) override

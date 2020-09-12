@@ -255,7 +255,7 @@ void spEvent(const sapp_event *e)
 		}
 #endif
 
-		if (e->key_code == SAPP_KEYCODE_F3) {
+		if (e->key_code == SAPP_KEYCODE_F4) {
 			g_showStats = !g_showStats;
 		}
 

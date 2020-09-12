@@ -184,14 +184,24 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 
 void ClientState::renderShadows()
 {
-	systems.envLight->renderEnvmap(systems);
-
 	systems.light->renderShadowMaps(systems, systems.visibleAreas, systems.frameArgs.frameIndex);
+	for (uint32_t i = 0; i < 10; i++) {
+		systems.envLight->renderEnvmap(systems);
+	}
+
+	if (systems.game->getVisualizeGI()) {
+		systems.envLight->renderEnvmapDebug(systems, systems.frameArgs.mainRenderArgs, systems.frameArgs.resolution);
+	}
 }
 
 void ClientState::renderMain(const RenderArgs &args)
 {
-	systems.model->renderMain(systems.light, systems.visibleAreas, args);
+	if (systems.game->getVisualizeGI()) {
+		systems.envLight->compositeEnvmapDebug();
+		return;
+	}
+
+	systems.model->renderMain(systems.light, systems.envLight, systems.visibleAreas, args);
 	systems.tileModel->renderMain(systems.light,  systems.envLight, systems.visibleAreas, args);
 	systems.characterModel->renderMain(systems.light, systems.envLight, systems.visibleAreas, args);
 	systems.blobShadow->renderMain(systems.visibleAreas, args);

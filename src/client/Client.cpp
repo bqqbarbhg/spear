@@ -24,6 +24,7 @@
 #include "client/ParticleTexture.h"
 #include "client/EnvmapTexture.h"
 #include "client/TileMaterial.h"
+#include "client/GIMaterial.h"
 #include "client/MeshMaterial.h"
 #include "client/GameSystem.h"
 #include "client/AudioSystem.h"
@@ -312,6 +313,7 @@ void clientGlobalInit()
 	gameShaders.load();
 	MeshMaterial::globalInit();
 	TileMaterial::globalInit();
+	GIMaterial::globalInit();
 	ParticleTexture::globalInit();
 	EnvmapTexture::globalInit();
 }
@@ -320,6 +322,7 @@ void clientGlobalCleanup()
 {
 	EnvmapTexture::globalCleanup();
 	ParticleTexture::globalCleanup();
+	GIMaterial::globalCleanup();
 	TileMaterial::globalCleanup();
 	MeshMaterial::globalCleanup();
 }

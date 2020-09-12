@@ -75,12 +75,12 @@ void main()
     if (depth == 0.0 && rayDir.y > 0.0) {
         P += rayDir * ((3.7 - P.y) / rayDir.y);
         N = vec3(0.0, -1.0, 0.0);
-        cdiff = asVec3(0.25);
+        cdiff = asVec3(0.1);
     }
 
     vec3 result = asVec3(0.0);
 
-	// result += evaluateIBLDiffuse(P, N, cdiff) * 0.5;
+	result += evaluateIBLDiffuse(P, N, cdiff) * 0.5;
 
     int end = int(numLightsF) * SP_POINTLIGHT_DATA_SIZE;
     for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
@@ -91,8 +91,6 @@ void main()
 
     float len = length(result);
     if (len > 2.0) result *= 2.0 / len;
-
-    result *= 4.0 * 3.141;
 
     o_color = vec4(result, 1.0);
 }

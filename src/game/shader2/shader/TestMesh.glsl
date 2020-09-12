@@ -88,6 +88,7 @@ void main()
 	int end = int(numLightsF) * SP_POINTLIGHT_DATA_SIZE;
 	for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
 		result += evaluatePointLight(P, N, V, cdiff, f0, alpha2, base);
+        // result += evaluatePointLightDiffuse(P, N, cdiff, base);
 	}
 
 	// HACK AO

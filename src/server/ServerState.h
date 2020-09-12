@@ -100,6 +100,8 @@ struct TileModelComponent : ComponentBase<Component::TileModel>
 	sf::Symbol model sv_reflect(asset); //! Model .fbx asset
 	sf::Symbol shadowModel sv_reflect(asset); //! Model .fbx used for shadow instead of 'model'
 	sf::Symbol material sv_reflect(asset); //! Material used fo the asset
+	sf::Symbol giModel sv_reflect(asset); //! Model .fbx used for GI rendering
+	sf::Symbol giMaterial sv_reflect(asset); //! Color texture used for GI rendering
 	sf::Vec3 position; //! Offset (in meters) of the model relative to the entity
 	sf::Vec3 rotation; //! Rotation (XYZ in degrees) of the model relative to the entity
 	float scale = 1.0f; //! Uniform scaling applied to the model

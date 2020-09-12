@@ -50,6 +50,6 @@ vec3 BRDF_specularGGX(vec3 cdiff, vec3 f0, float alpha2, float VdotH, float Ndot
 {
 	vec3 F = F_Schlick(f0, VdotH);
 	float VD = VD_GGX(NdotL, NdotV, NdotH, alpha2);
-	return VD * F + (vec3(1.0) - F) * cdiff * (1.0 / Brdf_PI);
+	return VD * F + /*(vec3(1.0) - F)*/ * cdiff * (1.0 / Brdf_PI);
 }
 

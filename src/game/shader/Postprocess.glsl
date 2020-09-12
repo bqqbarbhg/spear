@@ -49,7 +49,7 @@ vec3 tonemap(vec3 v)
 void main()
 {
 	vec3 color = texture(mainImage, v_uv).xyz;
-	color = tonemap(color * 4.0);
+	color = tonemap(color * 1.0);
 	color = linearToSrgb(color);
 	float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
 	o_color = vec4(color, luma);

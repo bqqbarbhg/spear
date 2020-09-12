@@ -82,13 +82,13 @@ void GameShaders::load()
 		d.rasterizer.cull_mode = SG_CULLMODE_NONE;
 		d.rasterizer.face_winding = SG_FACEWINDING_CCW;
 		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
-		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT4;
-		d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2;
-		d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4N;
+		d.layout.attrs[1].format = SG_VERTEXFORMAT_UINT10_N2;
+		d.layout.attrs[2].format = SG_VERTEXFORMAT_USHORT2N;
+		d.layout.attrs[3].format = SG_VERTEXFORMAT_UBYTE4N;
 	}
 
 	shadowGridPipe.init(shadowGrid, sp::PipeVertexFloat2);
+	postprocessPipe.init(postprocess, sp::PipeVertexFloat2);
 
 	{
 		sg_pipeline_desc &d = fakeShadowPipe.init(fakeShadow, sp::PipeBlendOver | sp::PipeIndex16 | sp::PipeDepthTest);

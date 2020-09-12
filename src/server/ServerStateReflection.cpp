@@ -177,6 +177,8 @@ template<> void initType<TileModelComponent>(Type *t)
 		sf_field(TileModelComponent, model),
 		sf_field(TileModelComponent, shadowModel),
 		sf_field(TileModelComponent, material),
+		sf_field(TileModelComponent, giModel),
+		sf_field(TileModelComponent, giMaterial),
 		sf_field(TileModelComponent, position),
 		sf_field(TileModelComponent, rotation),
 		sf_field(TileModelComponent, scale),
@@ -199,6 +201,16 @@ template<> void initType<TileModelComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "material");
 		info.description = "Material used fo the asset";
+		info.asset = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "giModel");
+		info.description = "Model .fbx used for GI rendering";
+		info.asset = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "giMaterial");
+		info.description = "Color texture used for GI rendering";
 		info.asset = true;
 	}
 	{

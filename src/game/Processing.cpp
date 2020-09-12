@@ -982,6 +982,82 @@ struct MaskTextureTask : MaterialTextureTask
 	}
 };
 
+struct GIAlbedoTextureTask : Task
+{
+	sf::Symbol format;
+	int resolution;
+	sf::SmallStringBuf<16> resolutionString;
+
+	GIAlbedoTextureTask(sf::String format, int resolution)
+		: format(format), resolution(resolution)
+	{
+		name.append("GIAlbedoTextureTask ", format);
+		resolutionString.format("%d", resolution);
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (sf::endsWith(path, "_GI_Color.png")) {
+			ti.inputs[s_albedo] = path;
+		} else {
+			return false;
+		}
+		ti.outputs[s_dst] = symf("%s.%s.sptex", path.data, format.data);
+		ti.assets.insert(path);
+		return true;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		sf::Array<sf::StringBuf> args;
+
+		args.push("--level");
+		args.push().format("%d", p.level);
+
+		args.push("--format");
+		args.push(sf::String(format));
+
+		args.push("--flip-y");
+
+		args.push("--resolution");
+		args.push(resolutionString);
+		args.push(resolutionString);
+
+		sf::StringBuf tempPattern;
+		sf::appendPath(tempPattern, p.tempRoot, ti.outputs[s_dst]);
+
+		args.push("--output");
+		args.push(tempPattern);
+
+		sf::StringBuf path;
+		sf::appendPath(path, p.dataRoot, ti.inputs[s_albedo]);
+		args.push("--input");
+		args.push(std::move(path));
+
+		args.push("--output-ignores-alpha");
+
+		JobQueue jq;
+		{
+			sf::SmallStringBuf<256> tempFile, dstFile;
+			sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+			sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+			jq.mkdirsToFile(tempFile);
+			jq.mkdirsToFile(dstFile);
+		}
+		jq.exec("sp-texcomp", std::move(args));
+		{
+			sf::SmallStringBuf<256> tempFile, dstFile;
+			sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+			sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+			jq.move(tempFile, dstFile);
+		}
+
+		JobPriority priority = getPriorityForTextureFormat(format);
+		p.addJobs(priority, ti, jq);
+	}
+};
+
+
 struct AnimationTask : Task
 {
 	AnimationTask()
@@ -1372,6 +1448,11 @@ void initializeProcessing(const ProcessingDesc &desc)
 	p.tasks.push(sf::box<MaskTextureTask>("bc3", materialResolution, materialMips));
 	if (doAstc) p.tasks.push(sf::box<MaskTextureTask>("astc8x8", materialResolution, materialMips));
 	if (doRgba) p.tasks.push(sf::box<MaskTextureTask>("rgba8", materialResolution, materialMips));
+
+	int giMaterialResolution = 32;
+	p.tasks.push(sf::box<GIAlbedoTextureTask>("bc1", giMaterialResolution));
+	p.tasks.push(sf::box<GIAlbedoTextureTask>("astc8x8", giMaterialResolution));
+	p.tasks.push(sf::box<GIAlbedoTextureTask>("rgba8", giMaterialResolution));
 
 	int maxGuiExtent = 512;
 	int maxCardExtent = 256;

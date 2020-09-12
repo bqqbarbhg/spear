@@ -1176,6 +1176,7 @@ struct GameSystemImp final : GameSystem
 			ImGui::End();
 		}
 
+#if 0
 		if (visualizeEnvLighting) {
 			float aspect = (float)systems.frameArgs.resolution.x / (float)systems.frameArgs.resolution.y;
 			sgl_matrix_mode_modelview();
@@ -1195,6 +1196,7 @@ struct GameSystemImp final : GameSystem
 			sgl_end();
 			sgl_disable_texture();
 		}
+#endif
 	}
 
 	void update(const sv::ServerState &svState, Systems &systems, const FrameArgs &frameArgs) override
@@ -1908,6 +1910,12 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 	}
+
+	bool getVisualizeGI() const
+	{
+		return visualizeEnvLighting;
+	}
+
 
 };
 
