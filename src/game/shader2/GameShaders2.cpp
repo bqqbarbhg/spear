@@ -16,6 +16,8 @@
 	#include "GameShadersImp_macos.h"
 #endif
 
+#include "sf/HashMap.h"
+
 static_assert(SP_MAX_UNIFORMS_PER_SHADER <= SG_MAX_SHADERSTAGE_UBS, "Too many uniforms");
 
 static char *uncompressedShaderData;
@@ -60,13 +62,11 @@ static uint16_t getShaderStage2(sg_shader_stage_desc &d, const SpShaderStageInfo
 	return info.permutationOffset + permIndex;
 }
 
-static Shader2 shaderCache[sf_arraysize(spPermutations)];
+static sf::HashMap<uint32_t, Shader2> shaderCache;
 
 Shader2 getShader2(uint32_t index, sf::Slice<const uint8_t> permutations)
 {
 	sf_assert(index < sf_arraysize(spShaders));
-	Shader2 &shader = shaderCache[index];
-	if (shader.handle.id) return shader;
 
 	if (!uncompressedShaderData) {
 		uncompressedShaderData = (char*)sf::memAlloc(SpShaderDataSize);
@@ -78,8 +78,14 @@ Shader2 getShader2(uint32_t index, sf::Slice<const uint8_t> permutations)
 	sg_shader_desc d = { };
 	d.label = shaderInfo.name;
 
-	shader.vsIndex = getShaderStage2(d.vs, shaderInfo.stages[0], permutations);
-	shader.fsIndex = getShaderStage2(d.fs, shaderInfo.stages[1], permutations);
+	uint16_t vsIndex = getShaderStage2(d.vs, shaderInfo.stages[0], permutations);
+	uint16_t fsIndex = getShaderStage2(d.fs, shaderInfo.stages[1], permutations);
+	uint32_t key = (uint32_t)vsIndex | (uint32_t)fsIndex << 16;
+
+	Shader2 &shader = shaderCache[key];
+	if (shader.handle.id) return shader;
+	shader.vsIndex = vsIndex;
+	shader.fsIndex = fsIndex;
 
 	{
 		const SpPermutationInfo &permInfo = spPermutations[shader.vsIndex];

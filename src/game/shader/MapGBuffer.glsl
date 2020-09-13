@@ -40,6 +40,7 @@ uniform sampler2D albedoAtlas;
 
 layout(location=0) out vec4 o_gbuffer0;
 layout(location=1) out vec4 o_gbuffer1;
+layout(location=2) out vec4 o_gbuffer2;
 
 float linearToSrgb(float x)
 {
@@ -57,17 +58,18 @@ vec3 linearToSrgb(vec3 v)
 
 void main()
 {
-    vec3 albedo = textureLod(albedoAtlas, v_uv, 0.0).xyz * v_tint;
+    vec4 albedo = textureLod(albedoAtlas, v_uv, 0.0) * vec4(v_tint, 1.0);
     float depth = gl_FragCoord.z;
     float depth1 = fract(depth * 256.0);
     depth -= depth1 * (1.0 / 256.0);
 
     if (!gl_FrontFacing) {
-        albedo = vec3(0.0);
+        albedo = vec4(0.0);
     }
 
-	o_gbuffer0 = vec4(linearToSrgb(albedo), depth);
+	o_gbuffer0 = vec4(linearToSrgb(albedo.xyz), depth);
     o_gbuffer1 = vec4(normalize(v_normal) * 0.5 + 0.5, depth1);
+    o_gbuffer2 = vec4(albedo.w, 0.0, 0.0, 0.0);
 }
 
 @end

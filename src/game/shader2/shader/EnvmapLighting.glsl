@@ -24,6 +24,7 @@ void main()
 #ifdef SP_FS
 
 #pragma permutation SP_SHADOWGRID_USE_ARRAY 2
+#pragma permutation SP_DEBUG_MODE 2
 
 #define MAX_LIGHTS 32
 
@@ -48,6 +49,11 @@ out vec4 o_color;
 
 uniform sampler2D gbuffer0;
 uniform sampler2D gbuffer1;
+uniform sampler2D gbuffer2;
+
+#ifndef SP_DEBUG_MODE
+    #error "Permutation SP_DEBUG_MODE not defined"
+#endif
 
 void main()
 {
@@ -56,6 +62,7 @@ void main()
     vec2 sampleUv = uv * uvMad.xy + uvMad.zw;
     vec4 g0 = textureLod(gbuffer0, sampleUv, 0);
     vec4 g1 = textureLod(gbuffer1, sampleUv, 0);
+    vec4 g2 = textureLod(gbuffer2, sampleUv, 0);
 
     vec3 albedo = srgbToLinear(g0.xyz);
     // vec3 albedo = g0.xyz;
@@ -70,21 +77,33 @@ void main()
     vec4 worldP = mul(clipP, clipToWorld);
     vec3 P = worldP.xyz * (1.0 / worldP.w);
     vec3 N = normal;
-
-    // HACK CEILING
-    if (depth == 0.0 && rayDir.y > 0.0) {
-        P += rayDir * ((3.7 - P.y) / rayDir.y);
-        N = vec3(0.0, -1.0, 0.0);
-        cdiff = asVec3(0.1);
-    }
+	float alpha = g2.x*g2.x;
+	vec3 f0 = asVec3(0.03 * g2.x);
+	float alpha2 = alpha*alpha;
 
     vec3 result = asVec3(0.0);
 
-	result += evaluateIBLDiffuse(P, N, cdiff) * 0.5;
+    #if SP_DEBUG_MODE
+        vec3 V = normalize(rayDir - P);
+    #else
+        vec3 V = -rayDir;
 
-    int end = int(numLightsF) * SP_POINTLIGHT_DATA_SIZE;
-    for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
-        result += evaluatePointLightDiffuse(P, N, cdiff, base);
+        // HACK CEILING
+        if (depth == 0.0 && rayDir.y > 0.0) {
+            P += rayDir * ((3.7 - P.y) / rayDir.y);
+            N = vec3(0.0, -1.0, 0.0);
+            cdiff = asVec3(0.15);
+            depth = 1.0;
+        }
+    #endif
+
+    if (depth > 0.0) {
+        result += evaluateIBLDiffuse(P, N, cdiff) * 0.5;
+
+        int end = int(numLightsF) * SP_POINTLIGHT_DATA_SIZE;
+        for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
+            result += evaluatePointLight(P, N, V, cdiff, f0, alpha2, base);
+        }
     }
 
     // result *= 1.0 / (1.0 + dist * dist);

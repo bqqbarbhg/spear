@@ -15,7 +15,7 @@ sf_inline uint8_t floatToUnorm(float v)
 float linearToSrgb(float x)
 {
 	x = sf::clamp(x, 0.0f, 1.0f);
-	if (x <= 0.00031308f)
+	if (x <= 0.0031308f)
 		return 12.92f * x;
 	else
 		return 1.055f*powf(x, (1.0f / 2.4f)) - 0.055f;

@@ -653,7 +653,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 	uint32_t renderResolution = 128;
 	float probeDistance = 0.5f;
 
-	sp::RenderTarget gbufferTarget[2];
+	sp::RenderTarget gbufferTarget[3];
 	sp::RenderTarget gbufferDepthTarget;
 	sp::RenderPass gbufferPass;
 
@@ -663,7 +663,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 	sp::Pipeline envmapBlendPipe;
 
 	sf::Vec2i debugResolution;
-	sp::RenderTarget debugGBufferTarget[2];
+	sp::RenderTarget debugGBufferTarget[3];
 	sp::RenderTarget debugGBufferDepthTarget;
 	sp::RenderPass debugGBufferPass;
 
@@ -671,7 +671,9 @@ struct EnvLightSystemImp final : EnvLightSystem
 	sp::RenderPass debugLightingPass;
 
 	Shader2 lightingShader;
+	Shader2 debugLightingShader;
 	sp::Pipeline lightingPipe;
+	sp::Pipeline debugLightingPipe;
 	sf::Random rng;
 
 	bool firstUpdate = true;
@@ -695,6 +697,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 		gbufferTarget[0].init("envmap gbuffer0", res, SG_PIXELFORMAT_RGBA8);
 		gbufferTarget[1].init("envmap gbuffer1", res, SG_PIXELFORMAT_RGBA8);
+		gbufferTarget[2].init("envmap gbuffer2", res, SG_PIXELFORMAT_RGBA8);
 		gbufferDepthTarget.init("envmap gbufferDepth", res, SG_PIXELFORMAT_DEPTH);
 
 		{
@@ -703,7 +706,8 @@ struct EnvLightSystemImp final : EnvLightSystem
 			lightingTarget.init("envmap lighting", res, SG_PIXELFORMAT_RGBA16F, 1, d);
 		}
 
-		gbufferPass.init("envmap gbuffer", gbufferTarget[0], gbufferTarget[1], gbufferDepthTarget);
+		// TODO(depth-sample): Pack roughness/metallic to A0, A1
+		gbufferPass.init("envmap gbuffer", gbufferTarget[0], gbufferTarget[1], gbufferTarget[2], gbufferDepthTarget);
 		lightingPass.init("envmap lighting", lightingTarget);
 
 		{
@@ -763,6 +767,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 		debugGBufferTarget[0].init("debug envmap gbuffer0", res, SG_PIXELFORMAT_RGBA8);
 		debugGBufferTarget[1].init("debug envmap gbuffer1", res, SG_PIXELFORMAT_RGBA8);
+		debugGBufferTarget[2].init("debug envmap gbuffer2", res, SG_PIXELFORMAT_RGBA8);
 		debugGBufferDepthTarget.init("debug envmap gbufferDepth", res, SG_PIXELFORMAT_DEPTH);
 
 		{
@@ -771,7 +776,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 			debugLightingTarget.init("debug envmap lighting", res, SG_PIXELFORMAT_RGBA16F, 1, d);
 		}
 
-		debugGBufferPass.init("debug envmap gbuffer", debugGBufferTarget[0], debugGBufferTarget[1], debugGBufferDepthTarget);
+		debugGBufferPass.init("debug envmap gbuffer", debugGBufferTarget[0], debugGBufferTarget[1], debugGBufferTarget[2], debugGBufferDepthTarget);
 		debugLightingPass.init("debug envmap lighting", debugLightingTarget);
 	}
 
@@ -788,6 +793,10 @@ struct EnvLightSystemImp final : EnvLightSystem
 			permutation[SP_SHADOWGRID_USE_ARRAY] = 0;
 		#endif
 		lightingShader = getShader2(SpShader_EnvmapLighting, permutation);
+		lightingPipe.init(lightingShader.handle, sp::PipeVertexFloat2);
+		permutation[SP_DEBUG_MODE] = 1;
+		debugLightingShader = getShader2(SpShader_EnvmapLighting, permutation);
+		debugLightingPipe.init(debugLightingShader.handle, sp::PipeVertexFloat2);
 
 		{
 			MiscTextureProps props;
@@ -795,7 +804,6 @@ struct EnvLightSystemImp final : EnvLightSystem
 			blueNoiseTex.load(sf::Symbol("Assets/Misc/Misc_RGBA/BlueNoise_64.png"), props);
 		}
 
-		lightingPipe.init(lightingShader.handle, sp::PipeVertexFloat2);
 
 		{
 			sg_pipeline_desc &d = envmapBlendPipe.init(gameShaders.envmapBlend, sp::PipeVertexFloat2);
@@ -838,6 +846,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 			sg_pass_action action = { };
 			action.colors[0].action = SG_ACTION_CLEAR;
 			action.colors[1].action = SG_ACTION_CLEAR;
+			action.colors[2].action = SG_ACTION_CLEAR;
 			action.depth.action = SG_ACTION_CLEAR;
 			action.depth.val = 1.0f;
 			sp::beginPass(gbufferPass, &action);
@@ -939,6 +948,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 				bindImageFS(lightingShader, binds, TEX_diffuseEnvmapAtlas, prevEnvAtlas.image);
 				bindImageFS(lightingShader, binds, TEX_gbuffer0, gbufferTarget[0].image);
 				bindImageFS(lightingShader, binds, TEX_gbuffer1, gbufferTarget[1].image);
+				bindImageFS(lightingShader, binds, TEX_gbuffer2, gbufferTarget[2].image);
 
 				sg_apply_bindings(&binds);
 
@@ -998,11 +1008,12 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 		sf::SmallArray<PointLight, 64> pointLights;
 
-		// Pass 1: Render G-buffer
+		// Pass 1: Render G-buffers
 		{
 			sg_pass_action action = { };
 			action.colors[0].action = SG_ACTION_CLEAR;
 			action.colors[1].action = SG_ACTION_CLEAR;
+			action.colors[2].action = SG_ACTION_CLEAR;
 			action.depth.action = SG_ACTION_CLEAR;
 			action.depth.val = 1.0f;
 			sp::beginPass(debugGBufferPass, &action);
@@ -1036,24 +1047,25 @@ struct EnvLightSystemImp final : EnvLightSystem
 			pu.clipToWorld = sf::inverse(renderArgs.worldToClip);
 			pu.numLightsF = (float)pointLights.size;
 			pu.uvMad = sf::Vec4(1.0f, 1.0f, 0.0f, 0.0f);
-			pu.rayDir = sf::Vec3();
+			pu.rayDir = renderArgs.cameraPosition;
 			pu.diffuseEnvmapMad = prevEnvAtlas.worldMad;
 			sf::Vec4 *dst = pu.pointLightData;
 			for (PointLight &light : pointLights) {
 				light.writeShader(dst);
 			}
 
-			lightingPipe.bind();
+			debugLightingPipe.bind();
 
 			binds.vertex_buffers[0] = gameShaders.fullscreenTriangleBuffer;
 
-			bindUniformVS(lightingShader, vu);
-			bindUniformFS(lightingShader, pu);
+			bindUniformVS(debugLightingShader, vu);
+			bindUniformFS(debugLightingShader, pu);
 
-			bindImageFS(lightingShader, binds, CL_SHADOWCACHE_TEX, systems.light->getShadowTexture());
-			bindImageFS(lightingShader, binds, TEX_diffuseEnvmapAtlas, prevEnvAtlas.image);
-			bindImageFS(lightingShader, binds, TEX_gbuffer0, debugGBufferTarget[0].image);
-			bindImageFS(lightingShader, binds, TEX_gbuffer1, debugGBufferTarget[1].image);
+			bindImageFS(debugLightingShader, binds, CL_SHADOWCACHE_TEX, systems.light->getShadowTexture());
+			bindImageFS(debugLightingShader, binds, TEX_diffuseEnvmapAtlas, prevEnvAtlas.image);
+			bindImageFS(debugLightingShader, binds, TEX_gbuffer0, debugGBufferTarget[0].image);
+			bindImageFS(debugLightingShader, binds, TEX_gbuffer1, debugGBufferTarget[1].image);
+			bindImageFS(debugLightingShader, binds, TEX_gbuffer2, debugGBufferTarget[2].image);
 
 			sg_apply_bindings(&binds);
 
