@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 // Output
 
@@ -142,12 +143,12 @@ void jso_flush(jso_stream *s)
 
 static void jso_indent(jso_stream *s)
 {
-	if (s->pos == s->capacity) s->flush_fn(s);
+	if (s->capacity - s->pos < JSO_BUFFER_MIN_SIZE + 1) s->flush_fn(s);
 	s->data[s->pos++] = '\n';
 	s->indent_pos = s->total_pos + s->pos;
 
 	for (int i = s->level; i > 0; --i) {
-		if (s->capacity - s->pos < 2) s->flush_fn(s);
+		if (s->capacity - s->pos < JSO_BUFFER_MIN_SIZE + 2) s->flush_fn(s);
 		s->data[s->pos++] = ' ';
 		s->data[s->pos++] = ' ';
 	}
@@ -163,7 +164,7 @@ static void jso_prettify(jso_stream *s)
 				jso_indent(s);
 				s->level = temp;
 			} else if (s->add_comma || !s->pretty_array) {
-				if (s->capacity == s->pos) s->flush_fn(s);
+				if (s->capacity - s->pos < JSO_BUFFER_MIN_SIZE + 1) s->flush_fn(s);
 				s->data[s->pos++] = ' ';
 			}
 		} else {
@@ -195,6 +196,7 @@ void jso_int(jso_stream *s, int value)
 	if (s->pretty) jso_prettify(s);
 	s->add_comma = 1;
 	s->pos += snprintf(s->data + s->pos, s->capacity - s->pos, "%d", value);
+	assert(s->pos <= s->capacity);
 }
 
 void jso_uint(jso_stream *s, unsigned value)
@@ -204,6 +206,7 @@ void jso_uint(jso_stream *s, unsigned value)
 	if (s->pretty) jso_prettify(s);
 	s->add_comma = 1;
 	s->pos += snprintf(s->data + s->pos, s->capacity - s->pos, "%u", value);
+	assert(s->pos <= s->capacity);
 }
 
 void jso_int64(jso_stream *s, long long value)
@@ -213,6 +216,7 @@ void jso_int64(jso_stream *s, long long value)
 	if (s->pretty) jso_prettify(s);
 	s->add_comma = 1;
 	s->pos += snprintf(s->data + s->pos, s->capacity - s->pos, "%lld", value);
+	assert(s->pos <= s->capacity);
 }
 
 void jso_uint64(jso_stream *s, unsigned long long value)
@@ -222,6 +226,7 @@ void jso_uint64(jso_stream *s, unsigned long long value)
 	if (s->pretty) jso_prettify(s);
 	s->add_comma = 1;
 	s->pos += snprintf(s->data + s->pos, s->capacity - s->pos, "%llud", value);
+	assert(s->pos <= s->capacity);
 }
 
 void jso_double(jso_stream *s, double value)
@@ -231,13 +236,14 @@ void jso_double(jso_stream *s, double value)
 	if (s->pretty) jso_prettify(s);
 	s->add_comma = 1;
 	s->pos += snprintf(s->data + s->pos, s->capacity - s->pos, "%f", value);
+	assert(s->pos <= s->capacity);
 }
 
 static void jso_raw_string(jso_stream *s, const char *value)
 {
 	const char *ptr = value;
 	char c;
-	if (s->pos - s->capacity < 4) s->flush_fn(s);
+	if (s->capacity - s->pos < 4) s->flush_fn(s);
 	s->data[s->pos++] = '"';
 	while ((c = *ptr++) != '\0') {
 		if (s->capacity - s->pos < 4) s->flush_fn(s);
@@ -257,12 +263,13 @@ static void jso_raw_string(jso_stream *s, const char *value)
 		}
 	}
 	s->data[s->pos++] = '"';
+	assert(s->pos <= s->capacity);
 }
 
 static void jso_raw_string_len(jso_stream *s, const char *value, size_t length)
 {
 	const char *ptr = value, *end = ptr + length;
-	if (s->pos - s->capacity < 4) s->flush_fn(s);
+	if (s->capacity - s->pos < 4) s->flush_fn(s);
 	s->data[s->pos++] = '"';
 	for (; ptr != end; ptr++) {
 		char c = *ptr;
@@ -283,6 +290,7 @@ static void jso_raw_string_len(jso_stream *s, const char *value, size_t length)
 		}
 	}
 	s->data[s->pos++] = '"';
+	assert(s->pos <= s->capacity);
 }
 
 void jso_string(jso_stream *s, const char *value)
@@ -311,6 +319,7 @@ void jso_null(jso_stream *s)
 	s->add_comma = 1;
 	memcpy(s->data + s->pos, "null", 4);
 	s->pos += 4;
+	assert(s->pos <= s->capacity);
 }
 
 void jso_json(jso_stream *s, const char *json)
@@ -330,6 +339,7 @@ void jso_json(jso_stream *s, const char *json)
 	}
 	memcpy(s->data + s->pos, json + pos, length - pos);
 	s->pos += length - pos;
+	assert(s->pos <= s->capacity);
 }
 
 void jso_json_len(jso_stream *s, const char *json, size_t length)
@@ -348,6 +358,7 @@ void jso_json_len(jso_stream *s, const char *json, size_t length)
 	}
 	memcpy(s->data + s->pos, json + pos, length - pos);
 	s->pos += length - pos;
+	assert(s->pos <= s->capacity);
 }
 
 static void jso_prettify_begin_array(jso_stream *s)
