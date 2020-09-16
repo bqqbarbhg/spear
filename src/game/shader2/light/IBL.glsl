@@ -16,9 +16,9 @@ vec3 evaluateIBLDiffuse(vec3 P, vec3 N, vec3 cdiff)
 
     vec3 diffEnv;
     float x = uv.x * (1.0 / 6.0);
-	diffEnv  = N.x*N.x*textureLod(diffuseEnvmapAtlas, vec3(x + (N.x>0 ? 0.0/6.0 : 1.0/6.0), uv.y, d), 0.0).xyz;
-	diffEnv += N.y*N.y*textureLod(diffuseEnvmapAtlas, vec3(x + (N.y>0 ? 2.0/6.0 : 3.0/6.0), uv.y, d), 0.0).xyz;
-	diffEnv += N.z*N.z*textureLod(diffuseEnvmapAtlas, vec3(x + (N.z>0 ? 4.0/6.0 : 5.0/6.0), uv.y, d), 0.0).xyz;
+	diffEnv  = N.x*N.x*textureLod(diffuseEnvmapAtlas, vec3(x + (N.x>0.0 ? 0.0/6.0 : 1.0/6.0), uv.y, d), 0.0).xyz;
+	diffEnv += N.y*N.y*textureLod(diffuseEnvmapAtlas, vec3(x + (N.y>0.0 ? 2.0/6.0 : 3.0/6.0), uv.y, d), 0.0).xyz;
+	diffEnv += N.z*N.z*textureLod(diffuseEnvmapAtlas, vec3(x + (N.z>0.0 ? 4.0/6.0 : 5.0/6.0), uv.y, d), 0.0).xyz;
 
 	return cdiff * diffEnv;
 }
@@ -48,7 +48,7 @@ vec3 EnvDFGPolynomial(vec3 f0, float gloss, float nDotV)
     float scale = delta - bias;
  
     bias *= saturate( 50.0 * f0.y );
-    return f0 * scale + bias;
+    return f0 * scale + vec3(bias);
 }
 
 
@@ -65,12 +65,12 @@ vec3 evaluateIBL(vec3 P, vec3 N, vec3 V, vec3 cdiff, vec3 f0, float roughness)
     float x = uv.x * (1.0 / 6.0);
     vec3 diffEnv;
     vec3 specEnv;
-	diffEnv  = N.x*N.x*textureLod(diffuseEnvmapAtlas, vec3(x + (N.x>0 ? 0.0/6.0 : 1.0/6.0), uv.y, d), 0.0).xyz;
-	diffEnv += N.y*N.y*textureLod(diffuseEnvmapAtlas, vec3(x + (N.y>0 ? 2.0/6.0 : 3.0/6.0), uv.y, d), 0.0).xyz;
-	diffEnv += N.z*N.z*textureLod(diffuseEnvmapAtlas, vec3(x + (N.z>0 ? 4.0/6.0 : 5.0/6.0), uv.y, d), 0.0).xyz;
-	specEnv  = R.x*R.x*textureLod(diffuseEnvmapAtlas, vec3(x + (R.x>0 ? 0.0/6.0 : 1.0/6.0), uv.y, d), 0.0).xyz;
-	specEnv += R.y*R.y*textureLod(diffuseEnvmapAtlas, vec3(x + (R.y>0 ? 2.0/6.0 : 3.0/6.0), uv.y, d), 0.0).xyz;
-	specEnv += R.z*R.z*textureLod(diffuseEnvmapAtlas, vec3(x + (R.z>0 ? 4.0/6.0 : 5.0/6.0), uv.y, d), 0.0).xyz;
+	diffEnv  = N.x*N.x*textureLod(diffuseEnvmapAtlas, vec3(x + (N.x>0.0 ? 0.0/6.0 : 1.0/6.0), uv.y, d), 0.0).xyz;
+	diffEnv += N.y*N.y*textureLod(diffuseEnvmapAtlas, vec3(x + (N.y>0.0 ? 2.0/6.0 : 3.0/6.0), uv.y, d), 0.0).xyz;
+	diffEnv += N.z*N.z*textureLod(diffuseEnvmapAtlas, vec3(x + (N.z>0.0 ? 4.0/6.0 : 5.0/6.0), uv.y, d), 0.0).xyz;
+	specEnv  = R.x*R.x*textureLod(diffuseEnvmapAtlas, vec3(x + (R.x>0.0 ? 0.0/6.0 : 1.0/6.0), uv.y, d), 0.0).xyz;
+	specEnv += R.y*R.y*textureLod(diffuseEnvmapAtlas, vec3(x + (R.y>0.0 ? 2.0/6.0 : 3.0/6.0), uv.y, d), 0.0).xyz;
+	specEnv += R.z*R.z*textureLod(diffuseEnvmapAtlas, vec3(x + (R.z>0.0 ? 4.0/6.0 : 5.0/6.0), uv.y, d), 0.0).xyz;
 
     const float NumSpecularLods = 5.0;
     vec3 iblSpec = textureLod(envmap, R, roughness * NumSpecularLods).xyz;

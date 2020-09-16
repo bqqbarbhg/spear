@@ -289,7 +289,7 @@ struct ModelSystemImp final : ModelSystem
 
 		sg_bindings bindings = { };
 		bindImageFS(meshShader, bindings, CL_SHADOWCACHE_TEX, lightSystem->getShadowTexture());
-		bindImageFS(meshShader, bindings, TEX_diffuseEnvmapAtlas, lightSystem->getShadowTexture());
+		bindImageFS(meshShader, bindings, TEX_diffuseEnvmapAtlas, envLight.image);
 
 		for (uint32_t modelId : visibleAreas.get(AreaGroup::DynamicModel)) {
 			Model &model = models[modelId];

@@ -381,6 +381,7 @@ static void setupInThread()
 {
 	sfetch_desc_t desc = { };
 	desc.num_lanes = NumLanes;
+	desc.max_requests = 2048;
 	sfetch_setup(&desc);
 }
 

@@ -73,8 +73,8 @@ void main()
     // TODO: texelFetch()
     vec2 uv = v_uv;
     vec2 sampleUv = uv * uvMad.xy + uvMad.zw;
-    vec4 g0 = textureLod(gbuffer0, sampleUv, 0);
-    vec4 g1 = textureLod(gbuffer1, sampleUv, 0);
+    vec4 g0 = textureLod(gbuffer0, sampleUv, 0.0);
+    vec4 g1 = textureLod(gbuffer1, sampleUv, 0.0);
 
     vec3 albedo = srgbToLinear(g0.xyz);
     // vec3 albedo = g0.xyz;
