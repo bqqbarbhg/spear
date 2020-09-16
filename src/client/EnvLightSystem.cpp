@@ -649,9 +649,9 @@ struct EnvLightSystemImp final : EnvLightSystem
 		float depthToDistance;
 	};
 
-	uint32_t envmapResolution = 128;
-	uint32_t renderResolution = 128;
-	float probeDistance = 0.5f;
+	uint32_t envmapResolution = 64;
+	uint32_t renderResolution = 64;
+	float probeDistance = 1.0f;
 
 	sf::Vec2i prevOffsetInProbes;
 	sf::Vec2i offsetInProbes;
