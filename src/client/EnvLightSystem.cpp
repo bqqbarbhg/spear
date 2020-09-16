@@ -1038,6 +1038,8 @@ struct EnvLightSystemImp final : EnvLightSystem
 	{
 		initDebugTargets(resolution);
 
+		bool topLeft = sg_query_features().origin_top_left;
+
 		EnvLightAltas prevEnvAtlas = getEnvLightAtlas();
 
 		sf::SmallArray<PointLight, 64> pointLights;
@@ -1081,7 +1083,11 @@ struct EnvLightSystemImp final : EnvLightSystem
 			UBO_EnvmapPixel pu;
 			pu.clipToWorld = sf::inverse(renderArgs.worldToClip);
 			pu.numLightsF = (float)pointLights.size;
-			pu.uvMad = sf::Vec4(1.0f, 1.0f, 0.0f, 0.0f);
+			if (topLeft) {
+				pu.uvMad = sf::Vec4(1.0f, 1.0f, 0.0f, 0.0f);
+			} else {
+				pu.uvMad = sf::Vec4(1.0f, -1.0f, 0.0f, 1.0f);
+			}
 			pu.rayDir = renderArgs.cameraPosition;
 			pu.diffuseEnvmapMad = prevEnvAtlas.worldMad;
 			sf::Vec4 *dst = pu.pointLightData;

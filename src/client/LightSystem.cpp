@@ -166,13 +166,19 @@ struct LightSystemImp final : LightSystem
 		action.depth.action = SG_ACTION_CLEAR;
 		action.depth.val = 1.0f;
 
-		float clipNearW = sg_query_features().origin_top_left ? -1.0f : 0.0f;
+		bool topLeft = sg_query_features().origin_top_left;
+		float clipNearW = topLeft ? -1.0f : 0.0f;
 		for (uint32_t side = 0; side < 6; side++) {
 			RenderArgs args;
 
 			const sf::Vec3 *basis = cubeBasis[side];
 			sf::Mat34 view = sf::mat::look(point.sphere.origin, basis[0], basis[1]);
-			sf::Mat44 proj = sf::mat::perspectiveD3D(sf::F_PI/2.0f, 1.0f, 0.1f, point.sphere.radius);
+			sf::Mat44 proj;
+			if (topLeft) {
+				proj = sf::mat::perspectiveD3D(sf::F_PI/2.0f, 1.0f, 0.1f, point.sphere.radius);
+			} else {
+				proj = sf::mat::perspectiveGL(sf::F_PI/2.0f, 1.0f, 0.1f, point.sphere.radius);
+			}
 			args.worldToClip = proj * view;
 			args.cameraPosition = point.sphere.origin;
 			args.frustum = sf::Frustum(args.worldToClip, clipNearW);

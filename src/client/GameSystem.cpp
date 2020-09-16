@@ -122,7 +122,12 @@ struct Camera
 		{
             eye = origin + sf::Vec3(0.0f, 5.0f, 1.0f) * exp2f(zoom);
             worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.6f + 0.2f * zoom));
-			viewToClip = sf::mat::perspectiveD3D(1.0f, aspect, 1.0f, 100.0f);
+			float near = 0.1f, far = 100.0f;
+			if (sg_query_features().origin_top_left) {
+				viewToClip = sf::mat::perspectiveD3D(1.0f, aspect, near, far);
+			} else {
+				viewToClip = sf::mat::perspectiveGL(1.0f, aspect, near, far);
+			}
 		}
 	};
 
