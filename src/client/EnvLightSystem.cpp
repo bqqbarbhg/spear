@@ -656,7 +656,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 	sf::Vec2i prevOffsetInProbes;
 	sf::Vec2i offsetInProbes;
 
-	sp::RenderTarget gbufferTarget[3];
+	sp::RenderTarget gbufferTarget[2];
 	sp::RenderTarget gbufferDepthTarget;
 	sp::RenderPass gbufferPass;
 
@@ -666,7 +666,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 	sp::Pipeline envmapBlendPipe;
 
 	sf::Vec2i debugResolution;
-	sp::RenderTarget debugGBufferTarget[3];
+	sp::RenderTarget debugGBufferTarget[2];
 	sp::RenderTarget debugGBufferDepthTarget;
 	sp::RenderPass debugGBufferPass;
 
@@ -702,7 +702,6 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 		gbufferTarget[0].init("envmap gbuffer0", res, SG_PIXELFORMAT_RGBA8);
 		gbufferTarget[1].init("envmap gbuffer1", res, SG_PIXELFORMAT_RGBA8);
-		gbufferTarget[2].init("envmap gbuffer2", res, SG_PIXELFORMAT_RGBA8);
 		gbufferDepthTarget.init("envmap gbufferDepth", res, SG_PIXELFORMAT_DEPTH);
 
 		{
@@ -712,7 +711,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 		}
 
 		// TODO(depth-sample): Pack roughness/metallic to A0, A1
-		gbufferPass.init("envmap gbuffer", gbufferTarget[0], gbufferTarget[1], gbufferTarget[2], gbufferDepthTarget);
+		gbufferPass.init("envmap gbuffer", gbufferTarget[0], gbufferTarget[1], gbufferDepthTarget);
 		lightingPass.init("envmap lighting", lightingTarget);
 
 		{
@@ -776,7 +775,6 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 		debugGBufferTarget[0].init("debug envmap gbuffer0", res, SG_PIXELFORMAT_RGBA8);
 		debugGBufferTarget[1].init("debug envmap gbuffer1", res, SG_PIXELFORMAT_RGBA8);
-		debugGBufferTarget[2].init("debug envmap gbuffer2", res, SG_PIXELFORMAT_RGBA8);
 		debugGBufferDepthTarget.init("debug envmap gbufferDepth", res, SG_PIXELFORMAT_DEPTH);
 
 		{
@@ -785,7 +783,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 			debugLightingTarget.init("debug envmap lighting", res, SG_PIXELFORMAT_RGBA16F, 1, d);
 		}
 
-		debugGBufferPass.init("debug envmap gbuffer", debugGBufferTarget[0], debugGBufferTarget[1], debugGBufferTarget[2], debugGBufferDepthTarget);
+		debugGBufferPass.init("debug envmap gbuffer", debugGBufferTarget[0], debugGBufferTarget[1], debugGBufferDepthTarget);
 		debugLightingPass.init("debug envmap lighting", debugLightingTarget);
 	}
 
@@ -867,7 +865,6 @@ struct EnvLightSystemImp final : EnvLightSystem
 			sg_pass_action action = { };
 			action.colors[0].action = SG_ACTION_CLEAR;
 			action.colors[1].action = SG_ACTION_CLEAR;
-			action.colors[2].action = SG_ACTION_CLEAR;
 			action.depth.action = SG_ACTION_CLEAR;
 			action.depth.val = 1.0f;
 			sp::beginPass(gbufferPass, &action);
@@ -971,7 +968,6 @@ struct EnvLightSystemImp final : EnvLightSystem
 				bindImageFS(lightingShader, binds, TEX_diffuseEnvmapAtlas, prevEnvAtlas.image);
 				bindImageFS(lightingShader, binds, TEX_gbuffer0, gbufferTarget[0].image);
 				bindImageFS(lightingShader, binds, TEX_gbuffer1, gbufferTarget[1].image);
-				bindImageFS(lightingShader, binds, TEX_gbuffer2, gbufferTarget[2].image);
 
 				sg_apply_bindings(&binds);
 
@@ -1039,7 +1035,6 @@ struct EnvLightSystemImp final : EnvLightSystem
 			sg_pass_action action = { };
 			action.colors[0].action = SG_ACTION_CLEAR;
 			action.colors[1].action = SG_ACTION_CLEAR;
-			action.colors[2].action = SG_ACTION_CLEAR;
 			action.depth.action = SG_ACTION_CLEAR;
 			action.depth.val = 1.0f;
 			sp::beginPass(debugGBufferPass, &action);
@@ -1091,7 +1086,6 @@ struct EnvLightSystemImp final : EnvLightSystem
 			bindImageFS(debugLightingShader, binds, TEX_diffuseEnvmapAtlas, prevEnvAtlas.image);
 			bindImageFS(debugLightingShader, binds, TEX_gbuffer0, debugGBufferTarget[0].image);
 			bindImageFS(debugLightingShader, binds, TEX_gbuffer1, debugGBufferTarget[1].image);
-			bindImageFS(debugLightingShader, binds, TEX_gbuffer2, debugGBufferTarget[2].image);
 
 			sg_apply_bindings(&binds);
 

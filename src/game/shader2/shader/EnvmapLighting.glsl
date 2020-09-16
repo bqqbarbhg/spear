@@ -49,11 +49,21 @@ out vec4 o_color;
 
 uniform sampler2D gbuffer0;
 uniform sampler2D gbuffer1;
-uniform sampler2D gbuffer2;
 
 #ifndef SP_DEBUG_MODE
     #error "Permutation SP_DEBUG_MODE not defined"
 #endif
+
+vec3 decodeOctahedralNormal(vec2 f)
+{
+    f = f * 2.0 - 1.0;
+    // https://twitter.com/Stubbesaurus/status/937994790553227264
+    vec3 n = vec3( f.x, f.y, 1.0 - abs( f.x ) - abs( f.y ) );
+    float t = saturate( -n.z );
+    n.x += n.x >= 0.0 ? -t : t;
+    n.y += n.y >= 0.0 ? -t : t;
+    return normalize( n );
+}
 
 void main()
 {
@@ -62,12 +72,11 @@ void main()
     vec2 sampleUv = uv * uvMad.xy + uvMad.zw;
     vec4 g0 = textureLod(gbuffer0, sampleUv, 0);
     vec4 g1 = textureLod(gbuffer1, sampleUv, 0);
-    vec4 g2 = textureLod(gbuffer2, sampleUv, 0);
 
     vec3 albedo = srgbToLinear(g0.xyz);
     // vec3 albedo = g0.xyz;
     // vec3 albedo = asVec3(0.5);
-    vec3 normal = normalize(g1.xyz * 2.0 - 1.0);
+    vec3 normal = decodeOctahedralNormal(g1.xy);
     float depth = g0.w + g1.w * (1.0 / 256.0);
 
     float dist = depthToDistance * depth;
@@ -77,9 +86,7 @@ void main()
     vec4 worldP = mul(clipP, clipToWorld);
     vec3 P = worldP.xyz * (1.0 / worldP.w);
     vec3 N = normal;
-	float alpha = g2.x*g2.x;
-	vec3 f0 = asVec3(0.03 * g2.x);
-	float alpha2 = alpha*alpha;
+    float roughness = g1.z;
 
     vec3 result = asVec3(0.0);
 
@@ -94,8 +101,13 @@ void main()
             N = vec3(0.0, -1.0, 0.0);
             cdiff = asVec3(0.15);
             depth = 1.0;
+            roughness = 0.7;
         }
     #endif
+
+	float alpha = roughness*roughness;
+	vec3 f0 = asVec3(0.03 * g1.z);
+	float alpha2 = alpha*alpha;
 
     if (depth > 0.0) {
         result += evaluateIBLDiffuse(P, N, cdiff) * 0.5;

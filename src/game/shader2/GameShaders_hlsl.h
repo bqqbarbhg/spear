@@ -7,7 +7,7 @@
 #define SpShader_EnvmapLighting 1
 #define SpShader_TestMesh 2
 #define SpShader_TestSkin 3
-#define SpShaderDataSize 140930
+#define SpShaderDataSize 141528
 
 #define SP_SHADOWGRID_USE_ARRAY 0
 #define SP_NORMALMAP_REMAP 1
@@ -79,10 +79,9 @@ struct UBO_Bones {
 #define TEX_shadowGridArray 7
 #define TEX_gbuffer0 8
 #define TEX_gbuffer1 9
-#define TEX_gbuffer2 10
-#define TEX_albedoAtlas 11
-#define TEX_normalAtlas 12
-#define TEX_maskAtlas 13
+#define TEX_albedoAtlas 10
+#define TEX_normalAtlas 11
+#define TEX_maskAtlas 12
 
 struct SpShaderInfo;
 struct SpPermutationInfo;
@@ -92,6 +91,6 @@ struct SpAttribInfo;
 extern const SpShaderInfo spShaders[4];
 extern const SpPermutationInfo spPermutations[20];
 extern const SpUniformBlockInfo spUniformBlock[8];
-extern const SpSamplerInfo spSamplers[14];
+extern const SpSamplerInfo spSamplers[13];
 extern const SpAttribInfo spAttribs[12];
-extern const char spShaderData[3835];
+extern const char spShaderData[3927];

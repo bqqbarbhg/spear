@@ -40,7 +40,6 @@ uniform sampler2D albedoAtlas;
 
 layout(location=0) out vec4 o_gbuffer0;
 layout(location=1) out vec4 o_gbuffer1;
-layout(location=2) out vec4 o_gbuffer2;
 
 float linearToSrgb(float x)
 {
@@ -56,6 +55,15 @@ vec3 linearToSrgb(vec3 v)
 	return vec3(linearToSrgb(v.x), linearToSrgb(v.y), linearToSrgb(v.z));
 }
 
+vec2 encodeOctahedralNormal(vec3 n)
+{
+    n /= ( abs( n.x ) + abs( n.y ) + abs( n.z ) );
+    vec2 sig = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
+    n.xy = n.z >= 0.0 ? n.xy : ( 1.0 - abs( n.yx ) ) * sig;
+    n.xy = n.xy * 0.5 + 0.5;
+    return n.xy;
+}
+
 void main()
 {
     vec4 albedo = textureLod(albedoAtlas, v_uv, 0.0) * vec4(v_tint, 1.0);
@@ -67,9 +75,10 @@ void main()
         albedo = vec4(0.0);
     }
 
+    vec2 normal = encodeOctahedralNormal(normalize(v_normal));
+
 	o_gbuffer0 = vec4(linearToSrgb(albedo.xyz), depth);
-    o_gbuffer1 = vec4(normalize(v_normal) * 0.5 + 0.5, depth1);
-    o_gbuffer2 = vec4(albedo.w, 0.0, 0.0, 0.0);
+    o_gbuffer1 = vec4(normal.xy, albedo.w, depth1);
 }
 
 @end
