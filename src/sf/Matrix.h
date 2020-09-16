@@ -362,6 +362,7 @@ namespace mat {
 	Mat44 perspectiveGL(float fov, float aspect, float near, float far);
 
 	Mat44 orthoSkewedD3D(const sf::Vec2 &extent, const sf::Vec2 &skew, float near, float far);
+	Mat44 orthoSkewedGL(const sf::Vec2 &extent, const sf::Vec2 &skew, float near, float far);
 }
 
 namespace mat2D {

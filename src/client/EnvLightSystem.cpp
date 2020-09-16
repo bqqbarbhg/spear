@@ -821,6 +821,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 	void renderEnvmap(Systems &systems) override
 	{
 		if (!blueNoiseTex.isLoaded()) return;
+		bool topLeft = sg_query_features().origin_top_left;
 
 		if (firstUpdate) {
 			sg_pass_action action = { };
@@ -903,7 +904,11 @@ struct EnvLightSystemImp final : EnvLightSystem
 				RenderArgs &renderArgs = updateState.renderArgs;
 				renderArgs.cameraPosition = eye;
 				renderArgs.worldToView = sf::mat::look(eye, dir, up);
-				renderArgs.viewToClip = sf::mat::orthoSkewedD3D(sf::Vec2(extent), skew, 0.0f, far);
+				if (topLeft) {
+					renderArgs.viewToClip = sf::mat::orthoSkewedD3D(sf::Vec2(extent), skew, 0.0f, far);
+				} else {
+					renderArgs.viewToClip = sf::mat::orthoSkewedGL(sf::Vec2(extent), skew, 0.0f, far);
+				}
 				renderArgs.worldToClip = renderArgs.viewToClip * renderArgs.worldToView;
 				renderArgs.frustum = sf::Frustum(renderArgs.worldToClip, sp::getClipNearW());
 
@@ -936,7 +941,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 				sf::Vec3 rayDir = updateState.rayDir;
 
 				// TODO(profile): Do this with geometry instead?
-				sg_apply_viewport((int)(renderResolution * sliceI), (int)renderResolution * rayI, (int)renderResolution, (int)renderResolution, true);
+				sg_apply_viewport((int)(renderResolution * sliceI), (int)renderResolution * rayI, (int)renderResolution, (int)renderResolution, topLeft);
 
 				sg_bindings binds = { };
 
@@ -951,7 +956,12 @@ struct EnvLightSystemImp final : EnvLightSystem
 				UBO_EnvmapPixel pu;
 				pu.clipToWorld = sf::inverse(updateState.renderArgs.worldToClip);
 				pu.numLightsF = (float)updateState.pointLights.size;
-				pu.uvMad = sf::Vec4(1.0f / 3.0f, 1.0f / 3.0f, (float)sliceI / 3.0f, (float)rayI / 3.0f);
+				if (topLeft) {
+					pu.uvMad = sf::Vec4(1.0f / 3.0f, 1.0f / 3.0f, (float)sliceI / 3.0f, (float)rayI / 3.0f);
+				} else {
+					pu.uvMad = sf::Vec4(1.0f / 3.0f, -1.0f / 3.0f, (float)sliceI / 3.0f, 1.0f - (float)rayI / 3.0f);
+					vu.flipY = -vu.flipY;
+				}
 				pu.rayDir = rayDir;
 				pu.diffuseEnvmapMad = prevEnvAtlas.worldMad;
 				sf::Vec4 *dst = pu.pointLightData;

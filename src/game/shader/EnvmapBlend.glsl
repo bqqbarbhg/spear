@@ -6,6 +6,8 @@
 
 @vs vs
 
+@glsl_options flip_vert_y
+
 in vec2 pos;
 
 out vec2 v_uv;

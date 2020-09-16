@@ -3022,9 +3022,7 @@ _SOKOL_PRIVATE void _sg_gl_reset_state_cache(void) {
     #endif
 
     /* Proper cubemap sampling */
-    #if defined(SOKOL_GLCORE33)
-		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-	#endif
+	glEnable(0x884F); /* TEXTURE_CUBE_MAP_SEAMLESS */
 }
 
 /*-- main GL backend state and functions -------------------------------------*/

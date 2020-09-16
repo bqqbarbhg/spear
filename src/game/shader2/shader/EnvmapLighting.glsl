@@ -10,6 +10,9 @@ varying vec2 v_uv;
 uniform EnvmapVertex
 {
     float flipY;
+    float pad_1;
+    float pad_2;
+    float pad_3;
 };
 
 void main()
@@ -82,7 +85,11 @@ void main()
     float dist = depthToDistance * depth;
     vec3 cdiff = albedo;
 
-    vec4 clipP = vec4(uv.x * 2.0 - 1.0, uv.y * -2.0 + 1.0, depth, 1.0);
+    #if defined(SP_GLSL)
+        vec4 clipP = vec4(uv.x * 2.0 - 1.0, uv.y * -2.0 + 1.0, depth * 2.0 - 1.0, 1.0);
+    #else
+        vec4 clipP = vec4(uv.x * 2.0 - 1.0, uv.y * -2.0 + 1.0, depth, 1.0);
+    #endif
     vec4 worldP = mul(clipP, clipToWorld);
     vec3 P = worldP.xyz * (1.0 / worldP.w);
     vec3 N = normal;
