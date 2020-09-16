@@ -1911,7 +1911,7 @@ struct GameSystemImp final : GameSystem
 		}
 	}
 
-	bool getVisualizeGI() const
+	bool getVisualizeGI() const override
 	{
 		return visualizeEnvLighting;
 	}

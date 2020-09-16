@@ -65,7 +65,7 @@ struct GIMaterialContext
 	}
 };
 
-GIMaterialContext g_tileMaterialContext;
+GIMaterialContext g_giMaterialContext;
 
 struct GIMaterialImp : GIMaterial
 {
@@ -84,7 +84,7 @@ static void loadTextureImp(void *user, const sp::ContentFile &file)
 	GIMaterialImp *imp = (GIMaterialImp*)user;
 
 	if (file.size > 0) {
-		GIMaterialContext &ctx = g_tileMaterialContext;
+		GIMaterialContext &ctx = g_giMaterialContext;
 		GIMaterialAtlasTexture &atlas = ctx.atlas;
 
 		sptex_util su;
@@ -132,7 +132,7 @@ static void loadAlbedoImp(void *user, const sp::ContentFile &file) { loadTexture
 
 void GIMaterialImp::assetStartLoading()
 {
-    GIMaterialContext &ctx = g_tileMaterialContext;
+    GIMaterialContext &ctx = g_giMaterialContext;
 	sf::SmallStringBuf<256> path;
 
 	{
@@ -151,7 +151,7 @@ void GIMaterialImp::assetStartLoading()
 
 void GIMaterialImp::assetUnload()
 {
-	GIMaterialContext &ctx = g_tileMaterialContext;
+	GIMaterialContext &ctx = g_giMaterialContext;
 	sf::MutexGuard mg(ctx.mutex);
 
 	if (slot != ~0u) {
@@ -162,19 +162,19 @@ void GIMaterialImp::assetUnload()
 
 sg_image GIMaterial::getAtlasImage()
 {
-	GIMaterialContext &ctx = g_tileMaterialContext;
+	GIMaterialContext &ctx = g_giMaterialContext;
 	return ctx.atlas.texture.image;
 }
 
 uint32_t GIMaterial::getAtlasPixelFormat()
 {
-	GIMaterialContext &ctx = g_tileMaterialContext;
+	GIMaterialContext &ctx = g_giMaterialContext;
 	return (uint32_t)ctx.atlas.pixelFormat;
 }
 
 void GIMaterial::globalInit()
 {
-	GIMaterialContext &ctx = g_tileMaterialContext;
+	GIMaterialContext &ctx = g_giMaterialContext;
 
     sg_pixel_format giFormats[] = {
         // SG_PIXELFORMAT_BQQ_BC1_SRGB,
@@ -196,8 +196,8 @@ void GIMaterial::globalInit()
 
 void GIMaterial::globalCleanup()
 {
-	g_tileMaterialContext.~GIMaterialContext();
-	new (&g_tileMaterialContext) GIMaterialContext();
+	g_giMaterialContext.~GIMaterialContext();
+	new (&g_giMaterialContext) GIMaterialContext();
 }
 
 }
