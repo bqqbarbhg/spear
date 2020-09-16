@@ -26,7 +26,7 @@ void main()
 #pragma permutation SP_SHADOWGRID_USE_ARRAY 2
 #pragma permutation SP_DEBUG_MODE 2
 
-#define MAX_LIGHTS 32
+#define MAX_LIGHTS 128
 
 uniform EnvmapPixel
 {

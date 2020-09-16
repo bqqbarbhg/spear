@@ -48,6 +48,11 @@ struct PointLight
 	}
 };
 
+struct PointLightFilter
+{
+	bool bounce = false;
+};
+
 struct LightSystem : EntitySystem
 {
 	static sf::Box<LightSystem> create();
@@ -56,7 +61,7 @@ struct LightSystem : EntitySystem
 
 	virtual void updateLightFade(const FrameArgs &frameArgs) = 0;
 
-	virtual void queryVisiblePointLights(const VisibleAreas &visibleAreas, sf::Array<PointLight> &pointLights) const = 0;
+	virtual void queryVisiblePointLights(const VisibleAreas &visibleAreas, sf::Array<PointLight> &pointLights, const PointLightFilter &filter={}) const = 0;
 	virtual void queryVisiblePointLights(const VisibleAreas &visibleAreas, sf::Array<PointLight> &pointLights, const sf::Bounds3 &bounds) const = 0;
 
 	virtual void renderShadowMaps(Systems &systems, const VisibleAreas &visibleAreas, uint64_t frameIndex) = 0;

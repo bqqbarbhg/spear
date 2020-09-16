@@ -120,6 +120,7 @@ struct LightSystemImp final : LightSystem
 		bool isFadingOut = false;
 
 		bool hasShadows = false;
+		bool hasBounce = false;
 	};
 
 	struct ShadowSlot
@@ -309,6 +310,7 @@ struct LightSystemImp final : LightSystem
 		point.fadeOutSpeed = c.fadeOutTime > 0.001f ? 1.0f / c.fadeOutTime : 0.0f;
 		point.baseColor = c.color * c.intensity;
 		point.hasShadows = c.hasShadows;
+		point.hasBounce = c.hasBounce;
 
 		point.areaId = systems.area->addSphereArea(AreaGroup::PointLight, pointId, point.sphere, Area::Visibility | Area::Envmap);
 
@@ -400,10 +402,11 @@ struct LightSystemImp final : LightSystem
 		}
 	}
 
-	void queryVisiblePointLights(const VisibleAreas &visibleAreas, sf::Array<PointLight> &outPointLights) const override
+	void queryVisiblePointLights(const VisibleAreas &visibleAreas, sf::Array<PointLight> &outPointLights, const PointLightFilter &filter) const override
 	{
 		for (uint32_t pointId : visibleAreas.get(AreaGroup::PointLight)) {
 			const PointLightImp &point = pointLights[pointId];
+			if (filter.bounce && !point.hasBounce) continue;
 			PointLight &outPoint = outPointLights.push();
 			outPoint.position = point.sphere.origin;
 			outPoint.radius = point.sphere.radius;

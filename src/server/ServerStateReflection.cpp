@@ -248,6 +248,7 @@ template<> void initType<PointLightComponent>(Type *t)
 		sf_field(PointLightComponent, radius),
 		sf_field(PointLightComponent, position),
 		sf_field(PointLightComponent, hasShadows),
+		sf_field(PointLightComponent, hasBounce),
 		sf_field(PointLightComponent, minQuality),
 		sf_field(PointLightComponent, fadeInTime),
 		sf_field(PointLightComponent, fadeOutTime),
@@ -274,6 +275,10 @@ template<> void initType<PointLightComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "hasShadows");
 		info.description = "Does this light have shadows";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "hasBounce");
+		info.description = "Does light contribute to the environment lighting";
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "minQuality");

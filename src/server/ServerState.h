@@ -117,6 +117,7 @@ struct PointLightComponent : ComponentBase<Component::PointLight>
 	float radius = 1.0f; //! Maximum eistance in meters that the light can reach
 	sf::Vec3 position; //! Offset (in meters) of the light in the entity
 	bool hasShadows = true; //! Does this light have shadows
+	bool hasBounce = false; //! Does light contribute to the environment lighting
 	uint8_t minQuality = 0; //! Minimum quality level needed for this light (0-10)
 	float fadeInTime = 0.0f; //! Time to fade in when spawning
 	float fadeOutTime = 0.0f; //! Time to fade out when spawning

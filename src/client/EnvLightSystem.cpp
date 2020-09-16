@@ -911,14 +911,16 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 				systems.renderEnvmapGBuffer(renderArgs);
 
+				PointLightFilter filter = { };
+				filter.bounce = true;
 				updateState.pointLights.clear();
-				systems.light->queryVisiblePointLights(systems.envmapAreas, updateState.pointLights);
+				systems.light->queryVisiblePointLights(systems.envmapAreas, updateState.pointLights, filter);
 			}
 
 			sp::endPass();
 		}
 
-		const uint32_t maxLights = 32;
+		const uint32_t maxLights = 128;
 
 		// Pass 2: Evaluate lighting
 		{
@@ -1041,12 +1043,14 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 			systems.renderEnvmapGBuffer(renderArgs);
 
-			systems.light->queryVisiblePointLights(systems.envmapAreas, pointLights);
+			PointLightFilter filter = { };
+			filter.bounce = true;
+			systems.light->queryVisiblePointLights(systems.envmapAreas, pointLights, filter);
 
 			sp::endPass();
 		}
 
-		const uint32_t maxLights = 32;
+		const uint32_t maxLights = 128;
 
 		// Pass 2: Evaluate lighting
 		{
