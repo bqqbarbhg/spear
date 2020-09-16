@@ -547,15 +547,13 @@ struct GuiTextureTask : Task
 struct MiscTextureTask : Task
 {
 	sf::Symbol format;
-	int maxExtent;
 	sf::SmallStringBuf<32> maxExtentStr;
 	sf::StringBuf directory;
 
 	MiscTextureTask(sf::String format, sf::String directory)
-		: format(format), directory(directory), maxExtent(maxExtent)
+		: format(format), directory(directory)
 	{
-		name.format("MiscTextureTask (%s) %s %d", directory.data, format.data, maxExtent);
-		maxExtentStr.format("%d", maxExtent);
+		name.format("MiscTextureTask (%s) %s", directory.data, format.data);
 		tools.push("sp-texcomp");
 	}
 
