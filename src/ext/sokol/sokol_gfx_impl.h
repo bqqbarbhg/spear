@@ -3451,6 +3451,10 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_shader(_sg_shader_t* shd, const sg_s
     GLuint gl_vs = _sg_gl_compile_shader(SG_SHADERSTAGE_VS, desc->vs.source);
     GLuint gl_fs = _sg_gl_compile_shader(SG_SHADERSTAGE_FS, desc->fs.source);
     if (!(gl_vs && gl_fs)) {
+        if (desc->label) {
+			SOKOL_LOG("Failed to compile shader: ");
+			SOKOL_LOG(desc->label);
+        }
         return SG_RESOURCESTATE_FAILED;
     }
     GLuint gl_prog = glCreateProgram();
@@ -3473,6 +3477,10 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_shader(_sg_shader_t* shd, const sg_s
             SOKOL_FREE(log_buf);
         }
         glDeleteProgram(gl_prog);
+        if (desc->label) {
+			SOKOL_LOG("Failed to link shader: ");
+			SOKOL_LOG(desc->label);
+        }
         return SG_RESOURCESTATE_FAILED;
     }
     shd->gl_prog = gl_prog;

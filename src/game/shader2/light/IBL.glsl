@@ -60,7 +60,7 @@ vec3 evaluateIBL(vec3 P, vec3 N, vec3 V, vec3 cdiff, vec3 f0, float roughness)
 
     vec2 uv = P.xz * diffuseEnvmapMad.xy + diffuseEnvmapMad.zw;
 
-    float d = P.y * (1.0 / IBL_HEIGHT);
+    float d = P.y * (1.0 / IBL_HEIGHT) + (0.5 / 3.0);
 
     float x = uv.x * (1.0 / 6.0);
     vec3 diffEnv;
