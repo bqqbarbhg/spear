@@ -21,14 +21,13 @@ void main()
 @fs fs
 
 uniform sampler2D lighting;
-// uniform sampler2D blueNoise;
+uniform sampler3D blendPrev;
 uniform sampler3D envmapPrev;
 
 in vec2 v_uv;
 
-out vec4 o_color0;
-out vec4 o_color1;
-out vec4 o_color2;
+layout(location=0) out vec4 o_blend;
+layout(location=1) out vec4 o_envmap;
 
 uniform Pixel
 {
@@ -36,21 +35,26 @@ uniform Pixel
 	vec2 prevShift;
     vec4 uvToLightMad;
     vec4 uvToBlueNoiseMad;
+    float depthSlice;
 };
 
-vec4 getUpdated(vec2 atlasUv, float depth)
+vec4 blendAlpha(vec4 prev, vec3 next, float minA, float maxA)
 {
-    vec3 prevUv = vec3(atlasUv + prevShift, depth);
-    vec4 prev = textureLod(envmapPrev, prevUv, 0.0);
+    float a = prev.a + 1.0;
+    vec3 v = mix(prev.xyz, next.xyz, clamp(1.0 / a, minA, maxA));
+    return vec4(v, a);
+}
 
+vec3 getLighting(vec2 atlasUv)
+{
     float part = floor(atlasUv.x * 6.0);
     vec2 uv = vec2(atlasUv.x * 6.0 - part, atlasUv.y);
 
     vec2 lightUv = uv * uvToLightMad.xy + uvToLightMad.zw;
 
-    vec3 data = vec3(0.0);
+    vec3 result = vec3(0.0);
     for (int i = 0; i < 3; i++) {
-        vec2 sampleUv = (lightUv + vec2(depth, float(i))) * vec2(1.0/3.0, 1.0/3.0);
+        vec2 sampleUv = (lightUv + vec2(depthSlice, float(i))) * vec2(1.0/3.0, 1.0/3.0);
         vec3 light = textureLod(lighting, sampleUv, 0.0).xyz;
 
         // Compensate for PDF
@@ -73,23 +77,36 @@ vec4 getUpdated(vec2 atlasUv, float depth)
             weight = N.z < 0.0 ? N.z*N.z : 0.0;
         }
 
-        data += light * weight;
+        result += light * weight;
     }
 
-    float a = prev.a + 1.0;
-    vec3 v = mix(prev.xyz, data, 1.0 / a);
-    return vec4(v, a);
+    return result;
 }
 
 void main()
 {
     vec2 uv = v_uv;
 
-    o_color0 = getUpdated(uv, 0.0 / 2.0);
-    o_color1 = getUpdated(uv, 1.0 / 2.0);
-    o_color2 = getUpdated(uv, 2.0 / 2.0);
+    float depth = depthSlice * (1.0/3.0) + (0.5/3.0);
+    vec3 prevUv = vec3(uv + prevShift, depth);
 
-    
+    vec2 prevCell = floor(prevUv.xy * vec2(6.0, 1.0));
+    vec2 cell = floor(uv * vec2(6.0, 1.0));
+
+    vec4 env = textureLod(envmapPrev, prevUv, 0.0);
+    vec4 blend = textureLod(blendPrev, prevUv, 0.0);
+
+    if (prevCell != cell) {
+        env = blend = vec4(0.0);
+    }
+
+    vec3 light = getLighting(uv);
+
+    vec4 newBlend = blendAlpha(blend, light, 0.03, 0.4);
+    vec4 newEnvmap = blendAlpha(env, newBlend.xyz, 0.01, 0.2);
+
+    o_blend = newBlend;
+    o_envmap = newEnvmap;
 
 #if 0
     float alpha = max((1.0 - prev.a) * 0.1, 0.01);
