@@ -3063,8 +3063,9 @@ _SOKOL_PRIVATE void _sg_setup_backend(const sg_desc* desc) {
     }
     _SG_GL_CHECK_ERROR();
 
-    GLint ub_align;
+    GLint ub_align = 0;
     glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &ub_align);
+    if (ub_align < 256) ub_align = 256;
 	_sg.gl.ub_align_mask = ub_align - 1;
 }
 
