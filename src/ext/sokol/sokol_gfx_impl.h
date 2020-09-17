@@ -571,7 +571,7 @@ typedef struct {
     bool ext_anisotropic;
     GLint max_anisotropy;
     GLint max_combined_texture_image_units;
-    GLuint uniform_buffers[SG_NUM_INFLIGHT_FRAMES];
+    GLuint uniform_buffers[SG_HACK_GL_NUM_UNIFORM_BUFFERS];
     GLint cur_ub_offset;
     GLint ub_align_mask;
     int ub_slot;
@@ -3056,10 +3056,10 @@ _SOKOL_PRIVATE void _sg_setup_backend(const sg_desc* desc) {
         _sg_gl_init_caps_gles2();
     #endif
 
-    glGenBuffers(SG_NUM_INFLIGHT_FRAMES, _sg.gl.uniform_buffers);
-    for (int i = 0; i < SG_NUM_INFLIGHT_FRAMES; i++) {
+    glGenBuffers(SG_HACK_GL_NUM_UNIFORM_BUFFERS, _sg.gl.uniform_buffers);
+    for (int i = 0; i < SG_HACK_GL_NUM_UNIFORM_BUFFERS; i++) {
         glBindBuffer(GL_UNIFORM_BUFFER, _sg.gl.uniform_buffers[i]);
-        glBufferData(GL_UNIFORM_BUFFER, desc->mtl_global_uniform_buffer_size, NULL, GL_DYNAMIC_DRAW);
+        glBufferData(GL_UNIFORM_BUFFER, SG_HACK_GL_UNIFORM_BUFFER_SIZE, NULL, GL_DYNAMIC_DRAW);
     }
     _SG_GL_CHECK_ERROR();
 
@@ -4275,6 +4275,12 @@ _SOKOL_PRIVATE void _sg_apply_uniforms(sg_shader_stage stage_index, int ub_index
     if (ub->num_uniforms == 0) {
         GLint ub_offset = _sg.gl.cur_ub_offset;
 
+        GLint ub_end = _sg.gl.cur_ub_offset + num_bytes;
+        if (ub_end > SG_HACK_GL_UNIFORM_BUFFER_SIZE) {
+            _sg.gl.ub_slot = (_sg.gl.ub_slot + 1) % SG_HACK_GL_NUM_UNIFORM_BUFFERS;
+            ub_offset = 0;
+        }
+
         glBindBuffer(GL_UNIFORM_BUFFER, _sg.gl.uniform_buffers[_sg.gl.ub_slot]);
         glBufferSubData(GL_UNIFORM_BUFFER, ub_offset, num_bytes, data);
         glBindBufferRange(GL_UNIFORM_BUFFER, ub->binding, _sg.gl.uniform_buffers[_sg.gl.ub_slot], ub_offset, num_bytes);
@@ -4352,8 +4358,6 @@ _SOKOL_PRIVATE void _sg_commit(void) {
     /* "soft" clear bindings (only those that are actually bound) */
     _sg_gl_clear_buffer_bindings(false);
     _sg_gl_clear_texture_bindings(false);
-    _sg.gl.cur_ub_offset = 0;
-    _sg.gl.ub_slot = (_sg.gl.ub_slot + 1) % SG_NUM_INFLIGHT_FRAMES;
 }
 
 _SOKOL_PRIVATE void _sg_update_buffer(_sg_buffer_t* buf, const void* data_ptr, int data_size) {

@@ -92,7 +92,9 @@ enum {
     SG_MAX_UB_MEMBERS = 16,
     SG_MAX_VERTEX_ATTRIBUTES = 16,      /* NOTE: actual max vertex attrs can be less on GLES2, see sg_limits! */
     SG_MAX_MIPMAPS = 16,
-    SG_MAX_TEXTUREARRAY_LAYERS = 128
+    SG_MAX_TEXTUREARRAY_LAYERS = 128,
+    SG_HACK_GL_NUM_UNIFORM_BUFFERS = 64,
+    SG_HACK_GL_UNIFORM_BUFFER_SIZE = 65536,
 };
 
 /*
