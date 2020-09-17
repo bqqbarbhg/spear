@@ -5296,7 +5296,7 @@ _SOKOL_PRIVATE bool _sg_d3d11_load_d3dcompiler_dll(void) {
 #define _sg_d3d11_D3DCompile _sg.d3d11.D3DCompile_func
 #endif
 
-_SOKOL_PRIVATE ID3DBlob* _sg_d3d11_compile_shader(const sg_shader_stage_desc* stage_desc, const char* target) {
+_SOKOL_PRIVATE ID3DBlob* _sg_d3d11_compile_shader(const sg_shader_stage_desc* stage_desc, const char* target, const char *label) {
     if (!_sg_d3d11_load_d3dcompiler_dll()) {
         return NULL;
     }
@@ -5315,6 +5315,11 @@ _SOKOL_PRIVATE ID3DBlob* _sg_d3d11_compile_shader(const sg_shader_stage_desc* st
         &output,    /* ppCode */
         &errors);   /* ppErrorMsgs */
     if (errors) {
+        if (label) {
+            SOKOL_LOG("Shader compile error:");
+            SOKOL_LOG(label);
+            SOKOL_LOG(target);
+        }
         SOKOL_LOG((LPCSTR)ID3D10Blob_GetBufferPointer(errors));
         ID3D10Blob_Release(errors); errors = NULL;
         return NULL;
@@ -5384,8 +5389,8 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_shader(_sg_shader_t* shd, const sg_s
     }
     else {
         /* compile shader code */
-        vs_blob = _sg_d3d11_compile_shader(&desc->vs, "vs_5_0");
-        fs_blob = _sg_d3d11_compile_shader(&desc->fs, "ps_5_0");
+        vs_blob = _sg_d3d11_compile_shader(&desc->vs, "vs_5_0", desc->label);
+        fs_blob = _sg_d3d11_compile_shader(&desc->fs, "ps_5_0", desc->label);
         if (vs_blob && fs_blob) {
             vs_ptr = ID3D10Blob_GetBufferPointer(vs_blob);
             vs_length = ID3D10Blob_GetBufferSize(vs_blob);

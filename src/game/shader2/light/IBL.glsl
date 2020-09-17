@@ -48,7 +48,7 @@ vec3 EnvDFGPolynomial(vec3 f0, float gloss, float nDotV)
     float scale = delta - bias;
  
     bias *= saturate( 50.0 * f0.y );
-    return f0 * scale + vec3(bias);
+    return f0 * scale + asVec3(bias);
 }
 
 

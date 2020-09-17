@@ -20,6 +20,29 @@
 
 namespace cl {
 
+sf_inline uint32_t packVec2ToUnorm16(const sf::Vec2 &v)
+{
+	uint32_t x = (uint32_t)(sf::clamp(v.x, 0.0f, 1.0f) * 65535.0f);
+	uint32_t y = (uint32_t)(sf::clamp(v.y, 0.0f, 1.0f) * 65535.0f);
+	return x | y << 16;
+}
+
+sf_inline uint32_t packVec3ToUnorm10_2(const sf::Vec3 &v, uint32_t w=0)
+{
+	uint32_t x = (uint32_t)(sf::clamp(v.x, 0.0f, 1.0f) * 1023.0f);
+	uint32_t y = (uint32_t)(sf::clamp(v.y, 0.0f, 1.0f) * 1023.0f);
+	uint32_t z = (uint32_t)(sf::clamp(v.z, 0.0f, 1.0f) * 1023.0f);
+	return x | y << 10 | z << 20 | w << 30;
+}
+
+sf_inline uint32_t packSnormVec3ToUnorm10_2(const sf::Vec3 &v, uint32_t w=0)
+{
+	uint32_t x = (uint32_t)(sf::clamp(v.x, -1.0f, 1.0f) * 511.0f + 511.0f);
+	uint32_t y = (uint32_t)(sf::clamp(v.y, -1.0f, 1.0f) * 511.0f + 511.0f);
+	uint32_t z = (uint32_t)(sf::clamp(v.z, -1.0f, 1.0f) * 511.0f + 511.0f);
+	return x | y << 10 | z << 20 | w << 30;
+}
+
 struct TileModelSystemImp final : TileModelSystem
 {
 	static const constexpr float ChunkSize = 8.0f;
@@ -47,9 +70,9 @@ struct TileModelSystemImp final : TileModelSystem
 	struct MapVertex
 	{
 		sf::Vec3 position;
-		sf::Vec3 normal;
-		sf::Vec4 tangent;
-		sf::Vec2 uv;
+		uint32_t normal;
+		uint32_t tangent;
+		uint32_t uv;
 		uint32_t tint;
 	};
 
@@ -57,7 +80,7 @@ struct TileModelSystemImp final : TileModelSystem
 	{
 		sf::Vec3 position;
 		uint32_t normal;
-		uint16_t uv[2];
+		uint32_t uv;
 		uint32_t tint;
 	};
 
@@ -333,9 +356,9 @@ struct TileModelSystemImp final : TileModelSystem
 						tt *= sf::broadcastRcpLengthXYZ(tt);
 
 						dst.position = tp.asVec3();
-						dst.normal = tn.asVec3();
-						dst.tangent = sf::Vec4(tt.asVec3(), vertex.tangent.w);
-						dst.uv = vertex.uv * uvScale + uvBase;
+						dst.normal = packSnormVec3ToUnorm10_2(tn.asVec3());
+						dst.tangent = packSnormVec3ToUnorm10_2(tt.asVec3(), vertex.tangent.w > 0.0f ? 3 : 0);
+						dst.uv = packVec2ToUnorm16(vertex.uv * uvScale + uvBase);
 						dst.tint = model.tint;
 						builder.updateBounds(tp);
 					}
@@ -418,15 +441,10 @@ struct TileModelSystemImp final : TileModelSystem
 
 						sf::Vec2 uv = vertex.uv * uvScale + uvBase;
 						sf::Vec3 normal = tn.asVec3();
-						normal = sf::clamp(normal * 0.5f + sf::Vec3(0.5f), sf::Vec3(0.0f), sf::Vec3(1.0f));
 
 						dst.position = tp.asVec3();
-						dst.normal =
-							(uint32_t)(normal.x * 1023.0f) |
-							(uint32_t)(normal.y * 1023.0f) << 10 |
-							(uint32_t)(normal.z * 1023.0f) << 20;
-						dst.uv[0] = (uint16_t)(sf::clamp(uv.x, 0.0f, 1.0f) * 65535.0f);
-						dst.uv[1] = (uint16_t)(sf::clamp(uv.y, 0.0f, 1.0f) * 65535.0f);
+						dst.normal = packSnormVec3ToUnorm10_2(normal);
+						dst.uv = packVec2ToUnorm16(uv);
 						dst.tint = model.tint;
 						builder.updateBounds(tp);
 					}
@@ -560,9 +578,9 @@ struct TileModelSystemImp final : TileModelSystem
 			flags |= ix == 1 ? sp::PipeIndex32 : sp::PipeIndex16;
 			auto &d = chunkMeshPipe[ix].init(chunkMeshShader.handle, flags);
 			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-			d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
-			d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT4;
-			d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2;
+			d.layout.attrs[1].format = SG_VERTEXFORMAT_UINT10_N2;
+			d.layout.attrs[2].format = SG_VERTEXFORMAT_UINT10_N2;
+			d.layout.attrs[3].format = SG_VERTEXFORMAT_USHORT2N;
 			d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4N;
 		}
 	}

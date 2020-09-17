@@ -23,13 +23,15 @@ uniform Transform
 	mat4 worldToClip;
 };
 
+vec3 unpackUnorm10ToSnormVec3(vec3 v) { return v * (1024.0/511.0) - asVec3(1.0); }
+
 void main()
 {
 	v_position = a_position;
     gl_Position = mul(vec4(a_position, 1.0), worldToClip);
-	v_normal = a_normal;
-	v_tangent = a_tangent.xyz;
-	v_bitangent = a_tangent.w * cross(v_normal, v_tangent); 
+	v_normal = unpackUnorm10ToSnormVec3(a_normal);
+	v_tangent = unpackUnorm10ToSnormVec3(a_tangent.xyz);
+	v_bitangent = (a_tangent.w * 2.0 - 1.0) * cross(v_normal, v_tangent);
 	v_uv = a_uv;
 	v_tint.xyz = srgbToLinear(a_tint.xyz);
 	v_tint.w = 1.0;
