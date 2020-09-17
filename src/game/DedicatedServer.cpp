@@ -20,6 +20,7 @@ int main(int argc, char **argv)
 
 	sv::ServerOpts opts;
 	opts.port = 4004;
+	opts.messageEncoding.compressionLevel = 5;
 	server = sv::serverInit(opts);
 	if (!server) {
 		char desc[4096];

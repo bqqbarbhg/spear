@@ -374,6 +374,8 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::Str
 	}
 	#endif
 
+	c->messageEncoding.compressionLevel = 10;
+
 	c->clState = makeClientState(c, persist);
 
 	{
