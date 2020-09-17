@@ -887,7 +887,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 				sf::Vec3 dir, up;
 				sf::Vec2 skew;
 
-				float tanY = sf::max(sf::abs(rayDir.y), 0.01f);
+				float tanY = sf::max(sf::abs(rayDir.y), 0.001f);
 				float far = tanY * range;
 				if (rayDir.y > 0.0f) {
 					dir = sf::Vec3(0.0f, +1.0f, 0.0f);

@@ -970,7 +970,7 @@ Mat44 orthoSkewedD3D(const sf::Vec2 &extent, const sf::Vec2 &skew, float near, f
 
 	mat.m00 = 1.0f / extent.x;
 	mat.m11 = 1.0f / extent.y;
-	mat.m02 = -skew.x * mat.m00;
+	mat.m02 = skew.x * mat.m00;
 	mat.m12 = -skew.y * mat.m11;
 	mat.m22 = 1.0f / (far - near);
 	mat.m23 = near / (near - far);
@@ -984,7 +984,7 @@ Mat44 orthoSkewedGL(const sf::Vec2 &extent, const sf::Vec2 &skew, float near, fl
 
 	mat.m00 = 1.0f / extent.x;
 	mat.m11 = 1.0f / extent.y;
-	mat.m02 = -skew.x * mat.m00;
+	mat.m02 = skew.x * mat.m00;
 	mat.m12 = -skew.y * mat.m11;
 	mat.m22 = 2.0f / (far - near);
 	mat.m23 = -(far + near) / (far - near);
