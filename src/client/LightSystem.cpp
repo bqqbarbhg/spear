@@ -337,7 +337,13 @@ struct LightSystemImp final : LightSystem
 		uint32_t pointId = ec.userId;
 		PointLightImp &point = pointLights[pointId];
 
+		sf::Vec3 prev = point.sphere.origin;
 		point.sphere.origin = sf::transformPoint(update.entityToWorld, point.offset);
+
+		if (point.shadowIndex != ~0u) {
+			sf::Vec3 delta = point.sphere.origin - prev;
+			point.shadowBias -= point.shadowMul * delta;
+		}
 
 		systems.area->updateSphereArea(point.areaId, point.sphere);
 	}
