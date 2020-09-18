@@ -9,8 +9,8 @@ varying vec2 v_uv;
 
 uniform EnvmapVertex
 {
+    float flipX;
     float flipY;
-    float pad_1;
     float pad_2;
     float pad_3;
 };
@@ -19,7 +19,7 @@ void main()
 {
     vec2 pos = a_position;
 	v_uv = pos;
-    gl_Position = vec4(pos.x * 2.0 - 1.0, (pos.y * -2.0 + 1.0) * flipY, 0.5, 1.0);
+    gl_Position = vec4((pos.x * 2.0 - 1.0) * flipX, (pos.y * -2.0 + 1.0) * flipY, 0.5, 1.0);
 }
 
 #endif
@@ -117,7 +117,7 @@ void main()
 	float alpha2 = alpha*alpha;
 
     if (depth > 0.0) {
-        result += evaluateIBLDiffuse(P, N, cdiff) * 0.5;
+        result += evaluateIBLDiffuse(P, N, cdiff);// * 0.5;
 
         int end = int(numLightsF) * SP_POINTLIGHT_DATA_SIZE;
         for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {

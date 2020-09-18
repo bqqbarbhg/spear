@@ -8,7 +8,7 @@
 #define SpShader_EnvmapLighting 2
 #define SpShader_TestMesh 3
 #define SpShader_TestSkin 4
-#define SpShaderDataSize 145781
+#define SpShaderDataSize 145767
 
 #define SP_SHADOWGRID_USE_ARRAY 0
 #define SP_NORMALMAP_REMAP 1
@@ -54,8 +54,8 @@ struct UBO_Pixel {
 struct UBO_EnvmapVertex {
 	static const constexpr uint32_t UboIndex = 5;
 
+	float flipX;
 	float flipY;
-	float pad_1;
 	float pad_2;
 	float pad_3;
 };
@@ -115,4 +115,4 @@ extern const SpPermutationInfo spPermutations[22];
 extern const SpUniformBlockInfo spUniformBlock[10];
 extern const SpSamplerInfo spSamplers[13];
 extern const SpAttribInfo spAttribs[12];
-extern const char spShaderData[4362];
+extern const char spShaderData[4361];

@@ -660,6 +660,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 	sf::Vec2i prevOffsetInProbes;
 	sf::Vec2i offsetInProbes;
+	sf::Vec2 probeDeltaOffset;
 
 	sp::RenderTarget gbufferTarget[2];
 	sp::RenderTarget gbufferDepthTarget;
@@ -916,6 +917,8 @@ struct EnvLightSystemImp final : EnvLightSystem
 		prevOffsetInProbes = offsetInProbes;
 		offsetInProbes = sf::Vec2i(originInProbes);
 
+		probeDeltaOffset = sf::Vec2(0.5f);
+
 		uint32_t writeSwap = envDiffuseIndex ^ 1;
 		uint32_t readSwap = envDiffuseIndex;
 		envDiffuseIndex = writeSwap;
@@ -949,8 +952,8 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 				updateState.rayDir = rayDir;
 
-				float px = (float)offsetInProbes.x * probeDistance;
-				float py = (float)offsetInProbes.y * probeDistance;
+				float px = ((float)offsetInProbes.x - 0.5f) * probeDistance + probeDeltaOffset.x;
+				float py = ((float)offsetInProbes.y + 0.5f) * probeDistance + probeDeltaOffset.y;
 				sf::Vec3 eye = sf::Vec3(px, sliceHeight[sliceI], py);
 				float extent = (float)renderResolution * 0.5f * probeDistance;
 				float range = 30.0f;
@@ -968,7 +971,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 				} else {
 					dir = sf::Vec3(0.0f, -1.0f, 0.0f);
 					up = sf::Vec3(0.0f, 0.0f, -1.0f);
-					skew = sf::Vec2(rayDir.x / -tanY, rayDir.z / -tanY);
+					skew = sf::Vec2(rayDir.x / tanY, rayDir.z / -tanY);
 				}
 
 				updateState.depthToDistance = range / tanY / attenuation;
@@ -1023,6 +1026,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 				}
 
 				UBO_EnvmapVertex vu;
+				vu.flipX = 1.0f;
 				vu.flipY = rayDir.y > 0.0f ? -1.0f : 1.0f;
 
 				UBO_EnvmapPixel pu;
@@ -1150,6 +1154,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 			}
 
 			UBO_EnvmapVertex vu;
+			vu.flipX = 1.0f;
 			vu.flipY = 1.0f;
 
 			UBO_EnvmapPixel pu;
@@ -1226,8 +1231,8 @@ struct EnvLightSystemImp final : EnvLightSystem
 		vu.numLayers = 3;
 		vu.sphereGridMad.x = probeDistance;
 		vu.sphereGridMad.y = probeDistance;
-		vu.sphereGridMad.z = (offsetInProbes.x - (float)(vu.sphereGridSize.x / 2)) * probeDistance;
-		vu.sphereGridMad.w = (offsetInProbes.y - (float)(vu.sphereGridSize.y / 2)) * probeDistance;
+		vu.sphereGridMad.z = (offsetInProbes.x - (float)(vu.sphereGridSize.x / 2)) * probeDistance + probeDeltaOffset.x;
+		vu.sphereGridMad.w = (offsetInProbes.y - (float)(vu.sphereGridSize.y / 2)) * probeDistance + probeDeltaOffset.y;
 
 		pu.diffuseEnvmapMad = envAtlas.worldMad;
 
@@ -1246,8 +1251,8 @@ struct EnvLightSystemImp final : EnvLightSystem
 	{
 		EnvLightAltas atlas = { };
 		atlas.image = envDiffuse[envDiffuseIndex].image;
-		float px = (float)offsetInProbes.x / (float)envmapResolution;
-		float py = (float)offsetInProbes.y / (float)envmapResolution;
+		float px = ((float)offsetInProbes.x + probeDeltaOffset.x/probeDistance - 0.5f) / (float)envmapResolution;
+		float py = ((float)offsetInProbes.y + probeDeltaOffset.y/probeDistance + 0.5f) / (float)envmapResolution;
 		atlas.worldMad = sf::Vec4((1.0f / probeDistance) / (float)envmapResolution, (1.0f / probeDistance) / (float)envmapResolution, 0.5f - px, 0.5f - py);
 		if (!iblEnabled) {
 			atlas.image = nullDiffuse.image;

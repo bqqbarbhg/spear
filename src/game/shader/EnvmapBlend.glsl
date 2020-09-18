@@ -60,7 +60,7 @@ vec3 getLighting(vec2 atlasUv)
         vec3 light = textureLod(lighting, sampleUv, 0.0).xyz;
 
         // Compensate for PDF
-        light *= 4.0 * 3.141;
+        light *= 4.0 * 3.141 * (1.0/3.0);
 
         vec3 N = rayDirs[i].xyz;
 
