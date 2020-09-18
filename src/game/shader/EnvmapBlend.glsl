@@ -68,9 +68,9 @@ vec3 getLighting(vec2 atlasUv)
         // TODO: X is flipped, the problem is somewhere else...
         float weight = 0.0;
         if (part == 0.0) {
-            weight = N.x < 0.0 ? N.x*N.x : 0.0;
-        } else if (part == 1.0) {
             weight = N.x > 0.0 ? N.x*N.x : 0.0;
+        } else if (part == 1.0) {
+            weight = N.x < 0.0 ? N.x*N.x : 0.0;
         } else if (part == 2.0) {
             weight = N.y > 0.0 ? N.y*N.y : 0.0;
         } else if (part == 3.0) {

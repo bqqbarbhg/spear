@@ -20,6 +20,8 @@ struct EnvLightSystem : System
 	virtual void renderEnvmapDebug(Systems &systems, const RenderArgs &renderArgs, const sf::Vec2i &resolution) = 0;
 	virtual void compositeEnvmapDebug() = 0;
 
+	virtual void renderEnvmapDebugSpheres(const RenderArgs &renderArgs, const sf::Vec2i &resolution) = 0;
+
 	virtual void setIblEnabled(bool enabled) = 0;
 
 	virtual EnvLightAltas getEnvLightAtlas() const = 0;

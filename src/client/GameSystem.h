@@ -25,6 +25,7 @@ struct GameSystem : EntitySystem
 	virtual void handleGui(Systems &systems, const GuiArgs &guiArgs) = 0;
 
 	virtual bool getVisualizeGI() const = 0;
+	virtual bool getVisualizeGISpheres() const = 0;
 
 };
 

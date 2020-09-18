@@ -721,9 +721,9 @@ sg_image clientRender(Client *c)
 		sg_pass_action action = { };
 		action.colors[0].action = SG_ACTION_CLEAR;
 		#if SF_DEBUG
-			action.colors[0].val[0] = 0.5f;
-			action.colors[0].val[1] = 0.5f;
-			action.colors[0].val[2] = 0.5f;
+			action.colors[0].val[0] = 0.25f;
+			action.colors[0].val[1] = 0.25f;
+			action.colors[0].val[2] = 0.25f;
 		#else
 			action.colors[0].val[0] = 0.0f;
 			action.colors[0].val[1] = 0.0f;

@@ -193,6 +193,8 @@ class HLSL:
         lines.append("#define asVec4(a) (a)")
         lines.append("#define texture(s, p) s.Sample(s##_spSampler, p)")
         lines.append("#define textureLod(s, p, l) s.SampleLevel(s##_spSampler, p, l)")
+        if c.use_instance_id:
+            lines.append("#define gl_InstanceID int(sp_in.sp_instanceID)")
 
         interp_map = {
             "smooth": "linear",
@@ -212,6 +214,8 @@ class HLSL:
             lines.append("struct SP_Attribs {")
             for a in c.attribs:
                 lines.append("\t{} {}{} : TEXCOORD{};".format(a.type.name, tmp_name, a.name, a.location))
+            if c.use_instance_id:
+                lines.append("\tuint sp_instanceID : SV_InstanceID;")
             lines.append("};")
 
             lines.append("")
@@ -335,6 +339,7 @@ class Compiler:
         self.vert = not frag
         self.frag = frag
         self.skip_block = False
+        self.use_instance_id = False
 
     def do_line(self, line):
         if self.uniform_name:
@@ -352,6 +357,8 @@ class Compiler:
             if self.skip_block:
                 if line.strip() == "{": self.skip_block = False
                 return []
+            if "gl_InstanceID" in line:
+                self.use_instance_id = True
             for d in stmt_directives:
                 m = d.regex.match(line)
                 if not m: continue

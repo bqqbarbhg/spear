@@ -334,6 +334,7 @@ struct GameSystemImp final : GameSystem
 	bool showDebugPointers = false;
 	bool simulateTouch = false;
 	bool visualizeEnvLighting = false;
+	bool visualizeEnvSpheres = false;
 
 	bool castAnimDone = false;
 	bool castDone = false;
@@ -1162,6 +1163,7 @@ struct GameSystemImp final : GameSystem
 					systems.envLight->setIblEnabled(iblEnabled);
 				}
 				ImGui::Checkbox("Visualize env lighting", &visualizeEnvLighting);
+				ImGui::Checkbox("Visualize env spheres", &visualizeEnvSpheres);
 				ImGui::Checkbox("Simulate touch", &simulateTouch);
 				if (ImGui::Button("Pointers")) showDebugPointers = true;
 			}
@@ -1919,6 +1921,11 @@ struct GameSystemImp final : GameSystem
 	bool getVisualizeGI() const override
 	{
 		return visualizeEnvLighting;
+	}
+
+	bool getVisualizeGISpheres() const override
+	{
+		return visualizeEnvSpheres;
 	}
 
 

@@ -3,26 +3,45 @@
 #include "sf/Vector.h"
 #include "sf/Matrix.h"
 
-#define SpShader_DynamicMesh 0
-#define SpShader_EnvmapLighting 1
-#define SpShader_TestMesh 2
-#define SpShader_TestSkin 3
-#define SpShaderDataSize 126374
+#define SpShader_DebugEnvSphere 0
+#define SpShader_DynamicMesh 1
+#define SpShader_EnvmapLighting 2
+#define SpShader_TestMesh 3
+#define SpShader_TestSkin 4
+#define SpShaderDataSize 129420
 
 #define SP_SHADOWGRID_USE_ARRAY 0
 #define SP_NORMALMAP_REMAP 1
 #define SP_DEBUG_MODE 2
 #define SP_NUM_PERMUTATIONS 3
 
-struct UBO_DynamicTransform {
+struct UBO_DebugEnvSphereVertex {
 	static const constexpr uint32_t UboIndex = 1;
+
+	sf::Mat44 worldToClip;
+	sf::Vec4 sphereGridMad;
+	sf::Vec2i sphereGridSize;
+	uint32_t _sp_pad0[2];
+	sf::Vec4 layerHeights;
+	int32_t numLayers;
+	float sphereRadius;
+};
+
+struct UBO_DebugEnvSpherePixel {
+	static const constexpr uint32_t UboIndex = 2;
+
+	sf::Vec4 diffuseEnvmapMad;
+};
+
+struct UBO_DynamicTransform {
+	static const constexpr uint32_t UboIndex = 3;
 
 	sf::Mat44 modelToWorld;
 	sf::Mat44 worldToClip;
 };
 
 struct UBO_Pixel {
-	static const constexpr uint32_t UboIndex = 2;
+	static const constexpr uint32_t UboIndex = 4;
 
 	float numLightsF;
 	uint32_t _sp_pad0[3];
@@ -33,7 +52,7 @@ struct UBO_Pixel {
 };
 
 struct UBO_EnvmapVertex {
-	static const constexpr uint32_t UboIndex = 3;
+	static const constexpr uint32_t UboIndex = 5;
 
 	float flipY;
 	float pad_1;
@@ -42,7 +61,7 @@ struct UBO_EnvmapVertex {
 };
 
 struct UBO_EnvmapPixel {
-	static const constexpr uint32_t UboIndex = 4;
+	static const constexpr uint32_t UboIndex = 6;
 
 	sf::Mat44 clipToWorld;
 	float numLightsF;
@@ -56,26 +75,26 @@ struct UBO_EnvmapPixel {
 };
 
 struct UBO_Transform {
-	static const constexpr uint32_t UboIndex = 5;
+	static const constexpr uint32_t UboIndex = 7;
 
 	sf::Mat44 worldToClip;
 };
 
 struct UBO_SkinTransform {
-	static const constexpr uint32_t UboIndex = 6;
+	static const constexpr uint32_t UboIndex = 8;
 
 	sf::Mat44 worldToClip;
 };
 
 struct UBO_Bones {
-	static const constexpr uint32_t UboIndex = 7;
+	static const constexpr uint32_t UboIndex = 9;
 
 	sf::Vec4 bones[192];
 };
 
-#define TEX_shadowGrid3D 1
-#define TEX_envmap 2
-#define TEX_diffuseEnvmapAtlas 3
+#define TEX_diffuseEnvmapAtlas 1
+#define TEX_shadowGrid3D 2
+#define TEX_envmap 3
 #define TEX_albedoTexture 4
 #define TEX_normalTexture 5
 #define TEX_maskTexture 6
@@ -91,9 +110,9 @@ struct SpPermutationInfo;
 struct SpUniformBlockInfo;
 struct SpSamplerInfo;
 struct SpAttribInfo;
-extern const SpShaderInfo spShaders[4];
-extern const SpPermutationInfo spPermutations[20];
-extern const SpUniformBlockInfo spUniformBlock[8];
+extern const SpShaderInfo spShaders[5];
+extern const SpPermutationInfo spPermutations[22];
+extern const SpUniformBlockInfo spUniformBlock[10];
 extern const SpSamplerInfo spSamplers[13];
 extern const SpAttribInfo spAttribs[12];
-extern const char spShaderData[3759];
+extern const char spShaderData[4112];

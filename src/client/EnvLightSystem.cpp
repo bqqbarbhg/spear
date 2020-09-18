@@ -633,8 +633,13 @@ static const sf::Vec3 cubeDirs[] = {
 };
 
 static const float sliceHeight[] = {
-	0.05f, 1.0f, 2.0f,
+	0.05f, 1.5f, 3.0f,
 };
+
+static uint16_t pushVertex(sf::HashSet<sf::Vec3> &verts, const sf::Vec3 &v)
+{
+	return (uint16_t)(&verts.insert(v).entry - verts.data);
+}
 
 struct EnvLightSystemImp final : EnvLightSystem
 {
@@ -675,9 +680,14 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 	Shader2 lightingShader;
 	Shader2 debugLightingShader;
+	Shader2 debugSphereShader;
 	sp::Pipeline lightingPipe;
 	sp::Pipeline debugLightingPipe;
+	sp::Pipeline debugSpherePipe;
 	sf::Random rng;
+
+	sp::Buffer debugSphereVertexBuffer;
+	sp::Buffer debugSphereIndexBuffer;
 
 	bool firstUpdate = true;
 	uint32_t envDiffuseIndex = 0;
@@ -766,12 +776,77 @@ struct EnvLightSystemImp final : EnvLightSystem
 		}
 	}
 
-	void initDebugTargets(const sf::Vec2i &resolution)
+	void initDebugResources(const sf::Vec2i &resolution)
 	{
 		if (resolution == debugResolution) return;
 		debugResolution = resolution;
 
 		sf::Vec2i res = debugResolution;
+
+		uint8_t permutation[SP_NUM_PERMUTATIONS] = { };
+		#if CL_SHADOWCACHE_USE_ARRAY
+			permutation[SP_SHADOWGRID_USE_ARRAY] = 1;
+		#else
+			permutation[SP_SHADOWGRID_USE_ARRAY] = 0;
+		#endif
+		permutation[SP_DEBUG_MODE] = 1;
+
+		debugLightingShader = getShader2(SpShader_EnvmapLighting, permutation);
+		debugLightingPipe.init(debugLightingShader.handle, sp::PipeVertexFloat2);
+
+		debugSphereShader = getShader2(SpShader_DebugEnvSphere, permutation);
+		{
+			sg_pipeline_desc &d = debugSpherePipe.init(debugSphereShader.handle, sp::PipeDepthWrite|sp::PipeIndex16);
+			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+		}
+
+		{
+			float phi = 1.61803398875f;
+			sf::Vec3 sphereVertices[] = {
+				{-1,phi,0}, {1,phi,0}, {-1,-phi,0}, {1,-phi,0}, 
+				{0,-1,phi}, {0,1,phi}, {0,-1,-phi}, {0,1,-phi},
+				{phi,0,-1}, {phi,0,1}, {-phi,0,-1}, {-phi,0,1},
+			};
+			uint16_t sphereIndices[] = {
+				0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11,
+				4, 11, 10, 2, 10, 7, 6, 7, 1, 8, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6,
+				8, 3, 8, 9, 4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7, 9, 8, 1,
+			};
+
+			for (sf::Vec3 &v : sphereVertices) {
+				v = sf::normalize(v);
+			}
+
+			sf::Array<uint16_t> subIndices;
+			sf::HashSet<sf::Vec3> subVertices;
+
+			for (size_t i = 0; i < sf_arraysize(sphereIndices); i += 3) {
+				uint16_t i0 = sphereIndices[i + 0];
+				uint16_t i1 = sphereIndices[i + 1];
+				uint16_t i2 = sphereIndices[i + 2];
+				sf::Vec3 v0 = sphereVertices[i0];
+				sf::Vec3 v1 = sphereVertices[i1];
+				sf::Vec3 v2 = sphereVertices[i2];
+				sf::Vec3 v01 = sf::normalize(v0 + v1);
+				sf::Vec3 v12 = sf::normalize(v1 + v2);
+				sf::Vec3 v20 = sf::normalize(v2 + v0);
+				const sf::Vec3 verts[][3] = {
+					{ v0, v01, v20 }, { v1, v12, v01 }, { v2, v20, v12 }, { v01, v12, v20 },
+				};
+				for (const sf::Vec3 *tri : verts) {
+					subIndices.push(pushVertex(subVertices, tri[0]));
+					subIndices.push(pushVertex(subVertices, tri[1]));
+					subIndices.push(pushVertex(subVertices, tri[2]));
+				}
+			}
+
+			for (sf::Vec3 &v : subVertices) {
+				v = sf::normalize(v);
+			}
+
+			debugSphereVertexBuffer.initVertex("Debug sphere vertex buffer", sf::slice(subVertices.data, subVertices.size()));
+			debugSphereIndexBuffer.initIndex("Debug sphere index buffer", subIndices.slice());
+		}
 
 		debugGBufferTarget[0].init("debug envmap gbuffer0", res, SG_PIXELFORMAT_RGBA8);
 		debugGBufferTarget[1].init("debug envmap gbuffer1", res, SG_PIXELFORMAT_RGBA8);
@@ -801,9 +876,6 @@ struct EnvLightSystemImp final : EnvLightSystem
 		#endif
 		lightingShader = getShader2(SpShader_EnvmapLighting, permutation);
 		lightingPipe.init(lightingShader.handle, sp::PipeVertexFloat2);
-		permutation[SP_DEBUG_MODE] = 1;
-		debugLightingShader = getShader2(SpShader_EnvmapLighting, permutation);
-		debugLightingPipe.init(debugLightingShader.handle, sp::PipeVertexFloat2);
 
 		{
 			MiscTextureProps props;
@@ -1036,7 +1108,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 	void renderEnvmapDebug(Systems &systems, const RenderArgs &renderArgs, const sf::Vec2i &resolution) override
 	{
-		initDebugTargets(resolution);
+		initDebugResources(resolution);
 
 		bool topLeft = sg_query_features().origin_top_left;
 
@@ -1125,6 +1197,44 @@ struct EnvLightSystemImp final : EnvLightSystem
 		sg_apply_bindings(&bindings);
 
 		sg_draw(0, 3, 1);
+	}
+
+	void renderEnvmapDebugSpheres(const RenderArgs &renderArgs, const sf::Vec2i &resolution) override
+	{
+		initDebugResources(resolution);
+
+		EnvLightAltas envAtlas = getEnvLightAtlas();
+
+		debugSpherePipe.bind();
+
+		sg_bindings binds = { };
+
+		binds.vertex_buffers[0] = debugSphereVertexBuffer.buffer;
+		binds.index_buffer = debugSphereIndexBuffer.buffer;
+
+		bindImageFS(debugSphereShader, binds, TEX_diffuseEnvmapAtlas, envAtlas.image);
+
+		sg_apply_bindings(&binds);
+
+		UBO_DebugEnvSphereVertex vu = { };
+		UBO_DebugEnvSpherePixel pu = { };
+
+		vu.worldToClip = renderArgs.worldToClip;
+		memcpy(vu.layerHeights.v, sliceHeight, sizeof(sliceHeight));
+		vu.sphereRadius = 0.1f;
+		vu.sphereGridSize = sf::Vec2i(40, 20);
+		vu.numLayers = 3;
+		vu.sphereGridMad.x = probeDistance;
+		vu.sphereGridMad.y = probeDistance;
+		vu.sphereGridMad.z = (offsetInProbes.x - (float)(vu.sphereGridSize.x / 2)) * probeDistance;
+		vu.sphereGridMad.w = (offsetInProbes.y - (float)(vu.sphereGridSize.y / 2)) * probeDistance;
+
+		pu.diffuseEnvmapMad = envAtlas.worldMad;
+
+		bindUniformVS(debugSphereShader, vu);
+		bindUniformFS(debugSphereShader, pu);
+
+		sg_draw(0, 240, vu.numLayers * vu.sphereGridSize.x * vu.sphereGridSize.y);
 	}
 
 	void setIblEnabled(bool enabled) override

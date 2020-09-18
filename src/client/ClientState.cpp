@@ -201,6 +201,10 @@ void ClientState::renderMain(const RenderArgs &args)
 		return;
 	}
 
+	if (systems.game->getVisualizeGISpheres()) {
+		systems.envLight->renderEnvmapDebugSpheres(args, systems.frameArgs.resolution);
+	}
+
 	systems.model->renderMain(systems.light, systems.envLight, systems.visibleAreas, args);
 	systems.tileModel->renderMain(systems.light,  systems.envLight, systems.visibleAreas, args);
 	systems.characterModel->renderMain(systems.light, systems.envLight, systems.visibleAreas, args);
