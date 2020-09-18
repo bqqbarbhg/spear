@@ -26,15 +26,15 @@ void main()
         uint instanceIndex = uint(gl_InstanceID);
     #endif
 
-    uint layer = instanceIndex % uint(numLayers);
+    uint layer = uint(instanceIndex % uint(numLayers));
     float height;
-    if (layer == 0) height = layerHeights.x;
-    else if (layer == 1) height = layerHeights.y;
-    else if (layer == 2) height = layerHeights.z;
+    if (layer == uint(0)) height = layerHeights.x;
+    else if (layer == uint(1)) height = layerHeights.y;
+    else if (layer == uint(2)) height = layerHeights.z;
     else height = layerHeights.w;
 
     uint coordIndex = instanceIndex / uint(numLayers);
-    ivec2 coord = ivec2(uvec2(coordIndex % sphereGridSize.x, coordIndex / sphereGridSize.x));
+    ivec2 coord = ivec2(int(coordIndex % uint(sphereGridSize.x)), int(coordIndex / uint(sphereGridSize.x)));
     vec2 coordF = vec2(coord) * sphereGridMad.xy + sphereGridMad.zw;
 
     vec3 origin = vec3(coordF.x, height, coordF.y);
