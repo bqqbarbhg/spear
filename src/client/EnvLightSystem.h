@@ -11,6 +11,12 @@ struct EnvLightAltas
 	sf::Vec4 worldMad;
 };
 
+struct EnvVisualizeSphereOpts
+{
+	float specular = 0.0f;
+	float radius = 0.1f;
+};
+
 struct EnvLightSystem : System
 {
 	static sf::Box<EnvLightSystem> create();
@@ -20,7 +26,7 @@ struct EnvLightSystem : System
 	virtual void renderEnvmapDebug(Systems &systems, const RenderArgs &renderArgs, const sf::Vec2i &resolution) = 0;
 	virtual void compositeEnvmapDebug() = 0;
 
-	virtual void renderEnvmapDebugSpheres(const RenderArgs &renderArgs, const sf::Vec2i &resolution) = 0;
+	virtual void renderEnvmapDebugSpheres(const LightSystem *lightSystem, const RenderArgs &renderArgs, const sf::Vec2i &resolution, const EnvVisualizeSphereOpts &opts) = 0;
 
 	virtual void setIblEnabled(bool enabled) = 0;
 

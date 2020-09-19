@@ -8,7 +8,7 @@
 #define SpShader_EnvmapLighting 2
 #define SpShader_TestMesh 3
 #define SpShader_TestSkin 4
-#define SpShaderDataSize 129445
+#define SpShaderDataSize 131447
 
 #define SP_SHADOWGRID_USE_ARRAY 0
 #define SP_NORMALMAP_REMAP 1
@@ -31,6 +31,8 @@ struct UBO_DebugEnvSpherePixel {
 	static const constexpr uint32_t UboIndex = 2;
 
 	sf::Vec4 diffuseEnvmapMad;
+	sf::Vec3 cameraPosition;
+	float specular;
 };
 
 struct UBO_DynamicTransform {
@@ -92,9 +94,9 @@ struct UBO_Bones {
 	sf::Vec4 bones[192];
 };
 
-#define TEX_diffuseEnvmapAtlas 1
-#define TEX_shadowGrid3D 2
-#define TEX_envmap 3
+#define TEX_envmap 1
+#define TEX_diffuseEnvmapAtlas 2
+#define TEX_shadowGrid3D 3
 #define TEX_albedoTexture 4
 #define TEX_normalTexture 5
 #define TEX_maskTexture 6
@@ -115,4 +117,4 @@ extern const SpPermutationInfo spPermutations[22];
 extern const SpUniformBlockInfo spUniformBlock[10];
 extern const SpSamplerInfo spSamplers[13];
 extern const SpAttribInfo spAttribs[12];
-extern const char spShaderData[4114];
+extern const char spShaderData[4145];

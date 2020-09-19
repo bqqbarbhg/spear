@@ -1204,7 +1204,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 		sg_draw(0, 3, 1);
 	}
 
-	void renderEnvmapDebugSpheres(const RenderArgs &renderArgs, const sf::Vec2i &resolution) override
+	void renderEnvmapDebugSpheres(const LightSystem *lightSystem, const RenderArgs &renderArgs, const sf::Vec2i &resolution, const EnvVisualizeSphereOpts &opts) override
 	{
 		initDebugResources(resolution);
 
@@ -1218,6 +1218,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 		binds.index_buffer = debugSphereIndexBuffer.buffer;
 
 		bindImageFS(debugSphereShader, binds, TEX_diffuseEnvmapAtlas, envAtlas.image);
+		bindImageFS(debugSphereShader, binds, TEX_envmap, lightSystem->getEnvmapTexture(sf::Bounds3()));
 
 		sg_apply_bindings(&binds);
 
@@ -1226,7 +1227,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 		vu.worldToClip = renderArgs.worldToClip;
 		memcpy(vu.layerHeights.v, sliceHeight, sizeof(sliceHeight));
-		vu.sphereRadius = 0.1f;
+		vu.sphereRadius = opts.radius;
 		vu.sphereGridSize = sf::Vec2i(40, 20);
 		vu.numLayers = 3;
 		vu.sphereGridMad.x = probeDistance;
@@ -1235,6 +1236,8 @@ struct EnvLightSystemImp final : EnvLightSystem
 		vu.sphereGridMad.w = (offsetInProbes.y - (float)(vu.sphereGridSize.y / 2)) * probeDistance + probeDeltaOffset.y;
 
 		pu.diffuseEnvmapMad = envAtlas.worldMad;
+		pu.cameraPosition = renderArgs.cameraPosition;
+		pu.specular = opts.specular;
 
 		bindUniformVS(debugSphereShader, vu);
 		bindUniformFS(debugSphereShader, pu);

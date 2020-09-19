@@ -201,8 +201,11 @@ void ClientState::renderMain(const RenderArgs &args)
 		return;
 	}
 
-	if (systems.game->getVisualizeGISpheres()) {
-		systems.envLight->renderEnvmapDebugSpheres(args, systems.frameArgs.resolution);
+	{
+		EnvVisualizeSphereOpts envSphereOpts;
+		if (systems.game->getVisualizeGISpheres(envSphereOpts)) {
+			systems.envLight->renderEnvmapDebugSpheres(systems.light, args, systems.frameArgs.resolution, envSphereOpts);
+		}
 	}
 
 	systems.model->renderMain(systems.light, systems.envLight, systems.visibleAreas, args);

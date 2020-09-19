@@ -50,9 +50,9 @@ void main()
 uniform DebugEnvSpherePixel
 {
     vec4 diffuseEnvmapMad;
+    vec3 cameraPosition;
+    float specular;
 };
-
-#define IBL_NO_SPECULAR
 
 #include "light/IBL.glsl"
 #include "util/Tonemap.glsl"
@@ -65,9 +65,11 @@ void main()
 
     vec3 P = v_position;
     vec3 N = normalize(v_normal);
-    vec3 cdiff = asVec3(1.0);
+    vec3 V = normalize(cameraPosition - P);
 
-	result = evaluateIBLDiffuse(P, N, cdiff);
+    vec3 cdiff = asVec3(1.0 - specular);
+    vec3 f0 = asVec3(specular);
+	result = evaluateIBL(P, N, V, cdiff, f0, 0.0);
 
 	o_color = tonemap(result);
 }

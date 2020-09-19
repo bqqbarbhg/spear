@@ -64,8 +64,6 @@ vec3 getLighting(vec2 atlasUv)
 
         vec3 N = rayDirs[i].xyz;
 
-        // HACK
-        // TODO: X is flipped, the problem is somewhere else...
         float weight = 0.0;
         if (part == 0.0) {
             weight = N.x > 0.0 ? N.x*N.x : 0.0;

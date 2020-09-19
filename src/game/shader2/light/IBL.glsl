@@ -71,10 +71,9 @@ vec3 evaluateIBL(vec3 P, vec3 N, vec3 V, vec3 cdiff, vec3 f0, float roughness)
 	specEnv  = R.x*R.x*textureLod(diffuseEnvmapAtlas, vec3(x + (R.x>0.0 ? 0.0/6.0 : 1.0/6.0), uv.y, d), 0.0).xyz;
 	specEnv += R.y*R.y*textureLod(diffuseEnvmapAtlas, vec3(x + (R.y>0.0 ? 2.0/6.0 : 3.0/6.0), uv.y, d), 0.0).xyz;
 	specEnv += R.z*R.z*textureLod(diffuseEnvmapAtlas, vec3(x + (R.z>0.0 ? 4.0/6.0 : 5.0/6.0), uv.y, d), 0.0).xyz;
-    specEnv *= 0.0;
 
     const float NumSpecularLods = 5.0;
-    vec3 iblSpec = textureLod(envmap, R, roughness * NumSpecularLods).xyz;
+    vec3 iblSpec = textureLod(envmap, R, roughness * NumSpecularLods).xyz * 2.0;
 
     float nDotV = dot(N, V);
     vec3 result = cdiff * diffEnv + specEnv * iblSpec * EnvDFGPolynomial(f0, gloss, nDotV);

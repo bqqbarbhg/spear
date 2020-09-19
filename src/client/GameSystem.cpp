@@ -335,6 +335,7 @@ struct GameSystemImp final : GameSystem
 	bool simulateTouch = false;
 	bool visualizeEnvLighting = false;
 	bool visualizeEnvSpheres = false;
+	EnvVisualizeSphereOpts visualizeEnvSphereOpts;
 
 	bool castAnimDone = false;
 	bool castDone = false;
@@ -1164,6 +1165,12 @@ struct GameSystemImp final : GameSystem
 				}
 				ImGui::Checkbox("Visualize env lighting", &visualizeEnvLighting);
 				ImGui::Checkbox("Visualize env spheres", &visualizeEnvSpheres);
+				if (visualizeEnvSpheres) {
+					ImGui::Indent();
+					ImGui::SliderFloat("Radius", &visualizeEnvSphereOpts.radius, 0.01f, 0.3f);
+					ImGui::SliderFloat("Specular", &visualizeEnvSphereOpts.specular, 0.0f, 1.0f);
+					ImGui::Unindent();
+				}
 				ImGui::Checkbox("Simulate touch", &simulateTouch);
 				if (ImGui::Button("Pointers")) showDebugPointers = true;
 			}
@@ -1923,9 +1930,14 @@ struct GameSystemImp final : GameSystem
 		return visualizeEnvLighting;
 	}
 
-	bool getVisualizeGISpheres() const override
+	bool getVisualizeGISpheres(EnvVisualizeSphereOpts &opts) const override
 	{
-		return visualizeEnvSpheres;
+		if (visualizeEnvSpheres) {
+			opts = visualizeEnvSphereOpts;
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 

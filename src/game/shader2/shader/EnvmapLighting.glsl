@@ -95,6 +95,17 @@ void main()
     vec3 N = normal;
     float roughness = g1.z;
 
+    // Sphere position for direct lighting
+#if 0
+    #if defined(SP_GLSL)
+        vec4 clipSP = vec4(uv.x * 2.0 - 1.0, uv.y * -2.0 + 1.0, -1.0, 1.0);
+    #else
+        vec4 clipSP = vec4(uv.x * 2.0 - 1.0, uv.y * -2.0 + 1.0, 0.0, 1.0);
+    #endif
+    vec4 worldSP = mul(clipSP, clipToWorld);
+    vec3 SP = worldSP.xyz * (1.0 / worldSP.w);
+#endif
+
     vec3 result = asVec3(0.0);
 
     #if SP_DEBUG_MODE
@@ -122,6 +133,7 @@ void main()
         int end = int(numLightsF) * SP_POINTLIGHT_DATA_SIZE;
         for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
             result += evaluatePointLight(P, N, V, cdiff, f0, alpha2, base);
+            // result += evaluatePointLightDiffuse(SP, rayDir, asVec3(1.0), base);
         }
     }
 

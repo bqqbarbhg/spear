@@ -8,6 +8,8 @@ namespace sp { struct Canvas; }
 
 namespace cl {
 
+struct EnvVisualizeSphereOpts;
+
 struct GameSystem : EntitySystem
 {
 	static sf::Box<GameSystem> create(const SystemsDesc &desc);
@@ -25,7 +27,7 @@ struct GameSystem : EntitySystem
 	virtual void handleGui(Systems &systems, const GuiArgs &guiArgs) = 0;
 
 	virtual bool getVisualizeGI() const = 0;
-	virtual bool getVisualizeGISpheres() const = 0;
+	virtual bool getVisualizeGISpheres(EnvVisualizeSphereOpts &opts) const = 0;
 
 };
 
