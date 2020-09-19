@@ -41,7 +41,7 @@
 
 #if SF_OS_EMSCRIPTEN
 	#include <emscripten.h>
-	#include <gl/GL.h>
+	#include <GLES2/gl2.h>
 #endif
 
 namespace cl {
