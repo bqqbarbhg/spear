@@ -138,6 +138,19 @@ static RollInfo rollDice(const DiceRoll &roll, sf::Symbol name)
 	return info;
 }
 
+static const Card *findMeleeCard(const ServerState &state, const Character *chr)
+{
+	const Prefab *prefab = state.prefabs.find(chr->prefabName);
+	if (!prefab) return nullptr;
+	const CharacterComponent *chrComp = prefab->findComponent<CharacterComponent>();
+	if (!chrComp) return nullptr;
+	for (uint32_t i = 0; i < chrComp->meleeSlots; i++) {
+		uint32_t cardId = chr->selectedCards[i];
+		if (cardId) return state.cards.find(cardId);
+	}
+	return nullptr;
+}
+
 sf_inline RollInfo rollDice(const DiceRoll &roll, const char *name)
 {
 	return rollDice(roll, sf::Symbol(name));
@@ -614,13 +627,35 @@ bool ServerState::canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol
 	const Character *target = characters.find(targetId);
 	if (!self || !target) return false;
 
+	if (self != target) {
+		if (!cardComp->targetEnemies && self->enemy != target->enemy) return false;
+		if (!cardComp->targetFriends && self->enemy == target->enemy) return false;
+	}
+
+	const Prefab *selfPrefab = prefabs.find(self->prefabName);
+	if (!selfPrefab) return false;
+	const CharacterComponent *selfChr = selfPrefab->findComponent<CharacterComponent>();
+
+	const CardComponent *rangeComp = nullptr;
+	if (cardComp->useMeleeRange) {
+		if (const Card *meleeCard = findMeleeCard(*this, self)) {
+			const Prefab *meleePrefab = prefabs.find(meleeCard->prefabName);
+			if (meleePrefab) {
+				rangeComp = meleePrefab->findComponent<CardComponent>();
+			}
+		}
+	} else {
+		rangeComp = cardComp;
+	}
+	if (!rangeComp) return false;
+
 	sf::Vec2i delta = target->tile - self->tile;
 	if (delta.x < 0) delta.x = -delta.x;
 	if (delta.y < 0) delta.y = -delta.y;
 
-	if (delta.x + delta.y > cardComp->targetRadius && sf::max(delta.x, delta.y) > cardComp->targetBoxRadius) return false;
+	if (delta.x + delta.y > rangeComp->targetRadius && sf::max(delta.x, delta.y) > rangeComp->targetBoxRadius) return false;
 
-	if (cardComp->blockedByCharacter || cardComp->blockedByProp || cardComp->blockedByWall) {
+	if (rangeComp->blockedByCharacter || rangeComp->blockedByProp || rangeComp->blockedByWall) {
 		sv::ConservativeLineRasterizer raster(self->tile, target->tile);
 		for (;;) {
 			sf::Vec2i tile = raster.next();
@@ -632,13 +667,13 @@ bool ServerState::canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol
 			while (find.next(id)) {
 				IdType type = getIdType(id);
 				if (type == IdType::Prop) {
-					if (cardComp->blockedByProp) return false;
-					if (cardComp->blockedByWall) {
+					if (rangeComp->blockedByProp) return false;
+					if (rangeComp->blockedByWall) {
 						const Prop *prop = props.find(id);
 						if (prop && (prop->flags & Prop::Wall) != 0) return false;
 					}
 				} else if (type == IdType::Character) {
-					if (cardComp->blockedByCharacter) return false;
+					if (rangeComp->blockedByCharacter) return false;
 				}
 			}
 		}
@@ -1969,6 +2004,18 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 				info.cardName = card->prefabName;
 				info.manualCast = true;
 				castSpell(events, info);
+			} else if (auto *c = comp->as<CardCastMeleeComponent>()) {
+				RollInfo numRoll = rollDice(c->hitCount, "hit count");
+				const Card *meleeCard = findMeleeCard(*this, casterChr);
+				if (meleeCard) {
+					for (uint32_t i = 0; i < numRoll.total; i++) {
+						MeleeInfo info;
+						info.attackerId = casterId;
+						info.targetId = targetId;
+						info.cardName = meleeCard->prefabName;
+						meleeAttack(events, info);
+					}
+				}
 			}
 		}
 

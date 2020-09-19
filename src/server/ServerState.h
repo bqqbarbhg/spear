@@ -51,6 +51,7 @@ struct Component
 		Projectile,
 		ResistDamage,
 		CardCast,
+		CardCastMelee,
 		Spell,
 		SpellDamage,
 		SpellStatus,
@@ -313,7 +314,10 @@ struct CardComponent : ComponentBase<Component::Card>
 	bool item = false;
 
 	// Targetting
-	bool targetSelf = true; //! Allow casting the card to self
+	bool targetSelf = false; //! Allow casting the card to self
+	bool targetEnemies = true; //! Allow casting the card to enemies
+	bool targetFriends = true; //! Allow casting the card to friends
+	bool useMeleeRange = false; //! Use the range of the equipped melee card for this
 	int32_t targetRadius = 1; //! Movement distance to target
 	int32_t targetBoxRadius = 1; //! Distance including diagonals to target
 	bool blockedByCharacter = false; //! Targeting blocked by characters
@@ -385,6 +389,11 @@ struct ResistDamageComponent : ComponentBase<Component::ResistDamage>
 struct CardCastComponent : ComponentBase<Component::CardCast>
 {
 	sf::Symbol spellName sv_reflect(prefab);
+};
+
+struct CardCastMeleeComponent : ComponentBase<Component::CardCastMelee>
+{
+	DiceRoll hitCount;
 };
 
 struct SpellComponent : ComponentBase<Component::Spell>

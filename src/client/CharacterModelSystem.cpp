@@ -106,6 +106,9 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 		sf::Array<sf::Symbol> frameEvents;
 
+		double highlightTime = 0.0;
+		sf::Vec3 highlightColor;
+
 		double lastUpdateTime = 0.0;
 		bool hasBeenUpdated = false;
 
@@ -894,13 +897,27 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		}
 	}
 
-	void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
+	uint32_t getEntityId(uint32_t modelId) const override
+	{
+		const Model &model = models[modelId];
+		return model.entityId;
+	}
+
+	void addFrameHighlight(uint32_t modelId, const HighlightDesc &desc, const FrameArgs &frameArgs) override
+	{
+		Model &model = models[modelId];
+		float highlightFade = sf::max(0.0f, 1.0f - (float)(frameArgs.gameTime - model.highlightTime) * 5.0f);
+		model.highlightColor = sf::lerp(desc.color, model.highlightColor*highlightFade, exp2f(frameArgs.dt*-30.0f));
+		model.highlightTime = frameArgs.gameTime;
+	}
+
+	void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs, const FrameArgs &frameArgs) override
 	{
 		sf::SmallArray<cl::PointLight, 64> pointLights;
 		const uint32_t maxLights = 16;
 
 		UBO_SkinTransform tu;
-		UBO_Pixel pu;
+		UBO_SkinPixel pu;
 		UBO_Bones bones;
 
 		EnvLightAltas envLight = envLightSystem->getEnvLightAtlas();
@@ -910,6 +927,17 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		bindImageFS(skinShader, bindings, TEX_diffuseEnvmapAtlas, envLight.image);
 
 		tu.worldToClip = renderArgs.worldToClip;
+
+		static sf::Vec2 scaleMad = sf::Vec2(0.8f, 0.8f);
+		static sf::Vec2 biasMad = sf::Vec2(0.0f, 0.1f);
+#if 0
+		ImGui::InputFloat2("Highlight scale", scaleMad.v);
+		ImGui::InputFloat2("Highlight bias", biasMad.v);
+#endif
+
+		float t = powf((float)sin(frameArgs.gameTime * 5.5) * 0.5f + 0.5f, 2.0f) * 2.0f - 1.0f;
+		float highlightScale = t * scaleMad.x + scaleMad.y;
+		float highlightBias = t * biasMad.x + biasMad.y;
 
 		for (uint32_t modelId : visibleAreas.get(AreaGroup::CharacterModel)) {
 			Model &model = models[modelId];
@@ -941,8 +969,12 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 					pointLights.resizeUninit(maxLights);
 				}
 
+				float highlightFade = sf::max(0.0f, 1.0f - (float)(frameArgs.gameTime - model.highlightTime) * 5.0f);
+
 				pu.numLightsF = (float)pointLights.size;
 				pu.cameraPosition = renderArgs.cameraPosition;
+				pu.highlightColor = model.highlightColor * highlightFade;
+				pu.highlightMad = sf::Vec2(highlightScale, highlightBias);
 				pu.diffuseEnvmapMad = envLight.worldMad;
 				sf::Vec4 *dst = pu.pointLightData;
 				for (PointLight &light : pointLights) {

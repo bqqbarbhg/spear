@@ -210,7 +210,7 @@ void ClientState::renderMain(const RenderArgs &args)
 
 	systems.model->renderMain(systems.light, systems.envLight, systems.visibleAreas, args);
 	systems.tileModel->renderMain(systems.light,  systems.envLight, systems.visibleAreas, args);
-	systems.characterModel->renderMain(systems.light, systems.envLight, systems.visibleAreas, args);
+	systems.characterModel->renderMain(systems.light, systems.envLight, systems.visibleAreas, args, systems.frameArgs);
 	systems.blobShadow->renderMain(systems.visibleAreas, args);
 	systems.billboard->renderMain(systems.visibleAreas, args);
 	systems.particle->renderMain(systems.visibleAreas, args);

@@ -8,6 +8,11 @@ namespace sf { struct FastRay; }
 
 namespace cl {
 
+struct HighlightDesc
+{
+	sf::Vec3 color;
+};
+
 struct CharacterModelSystem : EntitySystem
 {
 	struct AttachDesc
@@ -38,7 +43,10 @@ struct CharacterModelSystem : EntitySystem
 	virtual void removeTag(const Entities &entities, uint32_t entityId, const sf::Symbol &tag) = 0;
 	virtual void queryFrameEvents(const Entities &entities, uint32_t entityId, sf::Array<sf::Symbol> &events) = 0;
 
-	virtual void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
+	virtual uint32_t getEntityId(uint32_t modelId) const = 0;
+	virtual void addFrameHighlight(uint32_t characterModelId, const HighlightDesc &desc, const FrameArgs &frameArgs) = 0;
+
+	virtual void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs, const FrameArgs &frameArgs) = 0;
 };
 
 }

@@ -85,10 +85,12 @@ void main()
 
 #define MAX_LIGHTS 16
 
-uniform Pixel
+uniform SkinPixel
 {
 	float numLightsF;
 	vec3 cameraPosition;
+	vec3 highlightColor;
+	vec2 highlightMad;
 	vec4 diffuseEnvmapMad;
 	vec4 pointLightData[MAX_LIGHTS*SP_POINTLIGHT_DATA_SIZE];
 };
@@ -129,6 +131,12 @@ void main()
 
 	for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
 		result += evaluatePointLight(P, N, V, cdiff, f0, alpha2, base);
+	}
+
+	{
+		float h = 1.0 - saturate(dot(N, V));
+		h = saturate(h * highlightMad.x + highlightMad.y);
+		result += highlightColor * h;
 	}
 
 	o_color = tonemap(result);

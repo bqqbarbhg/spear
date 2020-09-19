@@ -1311,6 +1311,24 @@ struct GameSystemImp final : GameSystem
 			systems.billboard->addBillboard(guiResources.characterActive, t, color, 1.0f);
 		}
 
+		if (selectedCardSlot != ~0u) {
+			Character *caster = findCharacter(selectedCharacterId);
+			Card *card = findCard(caster->selectedCards[selectedCardSlot].currentSvId);
+			if (caster && card) {
+				for (uint32_t characterModelId : systems.visibleAreas.get(AreaGroup::CharacterModel)) {
+					uint32_t entityId = systems.characterModel->getEntityId(characterModelId);
+					Entity &entity = systems.entities.entities[entityId];
+					if (!entity.svId) continue;
+
+					if (svState.canTarget(caster->svId, entity.svId, card->svPrefab->name)) {
+						HighlightDesc desc = { };
+						desc.color = sf::Vec3(1.0f);
+						systems.characterModel->addFrameHighlight(characterModelId, desc, frameArgs);
+					}
+				}
+			}
+		}
+
 		for (Pointer &pointer : input.pointers) {
 			PointerState *pointerState = pointerStates.find(pointer.id);
 			if (!pointerState) continue;

@@ -30,6 +30,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, CastOnDealDamage, CastOnDealDamageComponent),
 		sf_poly(Component, ResistDamage, ResistDamageComponent),
 		sf_poly(Component, CardCast, CardCastComponent),
+		sf_poly(Component, CardCastMelee, CardCastMeleeComponent),
 		sf_poly(Component, Spell, SpellComponent),
 		sf_poly(Component, SpellDamage, SpellDamageComponent),
 		sf_poly(Component, SpellStatus, SpellStatusComponent),
@@ -595,6 +596,9 @@ template<> void initType<CardComponent>(Type *t)
 		sf_field(CardComponent, spell),
 		sf_field(CardComponent, item),
 		sf_field(CardComponent, targetSelf),
+		sf_field(CardComponent, targetEnemies),
+		sf_field(CardComponent, targetFriends),
+		sf_field(CardComponent, useMeleeRange),
 		sf_field(CardComponent, targetRadius),
 		sf_field(CardComponent, targetBoxRadius),
 		sf_field(CardComponent, blockedByCharacter),
@@ -614,6 +618,18 @@ template<> void initType<CardComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "targetSelf");
 		info.description = "Allow casting the card to self";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "targetEnemies");
+		info.description = "Allow casting the card to enemies";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "targetFriends");
+		info.description = "Allow casting the card to friends";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "useMeleeRange");
+		info.description = "Use the range of the equipped melee card for this";
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "targetRadius");
@@ -774,6 +790,14 @@ template<> void initType<CardCastComponent>(Type *t)
 		ReflectionInfo &info = addTypeReflectionInfo(t, "spellName");
 		info.prefab = true;
 	}
+}
+
+template<> void initType<CardCastMeleeComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(CardCastMeleeComponent, hitCount),
+	};
+	sf_struct_base(t, CardCastMeleeComponent, Component, fields);
 }
 
 template<> void initType<SpellComponent>(Type *t)
