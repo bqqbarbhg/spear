@@ -639,8 +639,8 @@ static uint16_t pushVertex(sf::HashSet<sf::Vec3> &verts, const sf::Vec3 &v)
 
 struct EnvLightSystemImp final : EnvLightSystem
 {
-	static const uint32_t DepthSlices = 3;
-	static const uint32_t UpdateCount = 3;
+	static const uint32_t MaxDepthSlices = 4;
+	static const uint32_t MaxUpdateCount = 4;
 
 	struct UpdateState
 	{
@@ -650,10 +650,12 @@ struct EnvLightSystemImp final : EnvLightSystem
 		float depthToDistance;
 	};
 
+	uint32_t updateCount;
+	uint32_t sliceCount;
     sf::SmallArray<float, 4> sliceHeights;
 
-	uint32_t envmapResolution = 64;
-	uint32_t renderResolution = 64;
+	uint32_t envmapResolution = 48;
+	uint32_t renderResolution = 48;
 	float probeDistance = 1.0f;
 
 	sf::Vec2i prevOffsetInProbes;
@@ -693,7 +695,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 	sp::Texture blendDiffuse[2];
 	sp::Texture envDiffuse[2];
-	sp::RenderPass envBlendPass[2][DepthSlices];
+	sp::RenderPass envBlendPass[2][MaxDepthSlices];
 
 	sp::Texture nullDiffuse;
 
@@ -701,13 +703,13 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 	uint32_t haltonIx = 0;
 
-	UpdateState updateStates[UpdateCount][DepthSlices];
+	UpdateState updateStates[MaxUpdateCount][MaxDepthSlices];
 
 	bool iblEnabled = true;
 
 	void initTargets()
 	{
-		sf::Vec2i res = sf::Vec2i(renderResolution * DepthSlices, renderResolution * UpdateCount);
+		sf::Vec2i res = sf::Vec2i(renderResolution * sliceCount, renderResolution * updateCount);
 
 		gbufferTarget[0].init("envmap gbuffer0", res, SG_PIXELFORMAT_RGBA8);
 		gbufferTarget[1].init("envmap gbuffer1", res, SG_PIXELFORMAT_RGBA8);
@@ -749,19 +751,20 @@ struct EnvLightSystemImp final : EnvLightSystem
 			d.type = SG_IMAGETYPE_3D;
 			d.width = envmapResolution * 6;
 			d.height = envmapResolution;
-			d.depth = DepthSlices;
+			d.depth = sliceCount;
 			d.num_mipmaps = 1;
 			d.min_filter = d.mag_filter = SG_FILTER_LINEAR;
 			d.wrap_u = d.wrap_v = d.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
 			envDiffuse[swapI].init(d);
 
+			d.min_filter = d.mag_filter = SG_FILTER_NEAREST;
 			blendDiffuse[swapI].init(d);
 
 			sp::FramebufferDesc fbDesc;
 			fbDesc.colorFormat = SG_PIXELFORMAT_RGBA16F;
 			fbDesc.depthFormat = SG_PIXELFORMAT_NONE;
 
-			for (uint32_t depthI = 0; depthI < DepthSlices; depthI++) {
+			for (uint32_t depthI = 0; depthI < sliceCount; depthI++) {
 				sg_pass_desc passDesc = { };
 				sf::SmallStringBuf<128> name;
 				name.format("envBlend%u slice %u", swapI, depthI);
@@ -865,7 +868,6 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 	EnvLightSystemImp()
 	{
-		initTargets();
 
 		uint8_t permutation[SP_NUM_PERMUTATIONS] = { };
 		#if CL_SHADOWCACHE_USE_ARRAY
@@ -877,9 +879,25 @@ struct EnvLightSystemImp final : EnvLightSystem
 		lightingPipe.init(lightingShader.handle, sp::PipeVertexFloat2);
         
         // TODO: Settings
+#if 0
         sliceHeights.push(0.05f);
         sliceHeights.push(1.5f);
         sliceHeights.push(3.0f);
+		sliceCount = sliceHeights.size;
+		updateCount = 3;
+		envmapResolution = 64;
+		probeDistance = 1.0f;
+#else
+        sliceHeights.push(0.1f);
+        sliceHeights.push(2.0f);
+		sliceCount = sliceHeights.size;
+		updateCount = 1;
+		envmapResolution = 48;
+		probeDistance = 1.0f;
+#endif
+		renderResolution = envmapResolution;
+
+		initTargets();
 
 		{
 			MiscTextureProps props;
@@ -903,12 +921,11 @@ struct EnvLightSystemImp final : EnvLightSystem
 			sg_pass_action action = { };
 			action.colors[0].action = SG_ACTION_CLEAR;
 			action.colors[1].action = SG_ACTION_CLEAR;
-			for (uint32_t depthI = 0; depthI < DepthSlices; depthI++) {
+			for (uint32_t depthI = 0; depthI < sliceCount; depthI++) {
 				sp::beginPass(envBlendPass[0][depthI], &action);
 				sp::endPass();
 			}
 		}
-
 		
 		EnvLightAltas prevEnvAtlas = getEnvLightAtlas();
 
@@ -926,9 +943,9 @@ struct EnvLightSystemImp final : EnvLightSystem
 		uint32_t readSwap = envDiffuseIndex;
 		envDiffuseIndex = writeSwap;
 
-		sf::Vec3 rayDirs[UpdateCount];
+		sf::Vec3 rayDirs[MaxUpdateCount];
 
-		for (uint32_t i = 0; i < UpdateCount; i++) {
+		for (uint32_t i = 0; i < updateCount; i++) {
 			sf::Vec2 sample = halton2D[haltonIx++];
 			if (haltonIx >= sf_arraysize(halton2D)) haltonIx = 0;
 
@@ -948,8 +965,8 @@ struct EnvLightSystemImp final : EnvLightSystem
 			action.depth.val = 1.0f;
 			sp::beginPass(gbufferPass, &action);
 
-			for (uint32_t rayI = 0; rayI < UpdateCount; rayI++)
-			for (uint32_t sliceI = 0; sliceI < DepthSlices; sliceI++) {
+			for (uint32_t rayI = 0; rayI < updateCount; rayI++)
+			for (uint32_t sliceI = 0; sliceI < sliceCount; sliceI++) {
 				UpdateState &updateState = updateStates[rayI][sliceI];
 				sf::Vec3 rayDir = rayDirs[rayI];
 
@@ -957,7 +974,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 				float px = ((float)offsetInProbes.x - 0.5f) * probeDistance + probeDeltaOffset.x;
 				float py = ((float)offsetInProbes.y + 0.5f) * probeDistance + probeDeltaOffset.y;
-				sf::Vec3 eye = sf::Vec3(px, sliceHeight[sliceI], py);
+				sf::Vec3 eye = sf::Vec3(px, sliceHeights[sliceI], py);
 				float extent = (float)renderResolution * 0.5f * probeDistance;
 				float range = 30.0f;
 				float attenuation = 40.0f;
@@ -1013,8 +1030,8 @@ struct EnvLightSystemImp final : EnvLightSystem
 			action.depth.val = 1.0f;
 			sp::beginPass(lightingPass, &action);
 
-			for (uint32_t rayI = 0; rayI < UpdateCount; rayI++)
-			for (uint32_t sliceI = 0; sliceI < DepthSlices; sliceI++) {
+			for (uint32_t rayI = 0; rayI < updateCount; rayI++)
+			for (uint32_t sliceI = 0; sliceI < sliceCount; sliceI++) {
 				UpdateState &updateState = updateStates[rayI][sliceI];
 				sf::Vec3 rayDir = updateState.rayDir;
 
@@ -1036,9 +1053,9 @@ struct EnvLightSystemImp final : EnvLightSystem
 				pu.clipToWorld = sf::inverse(updateState.renderArgs.worldToClip);
 				pu.numLightsF = (float)updateState.pointLights.size;
 				if (topLeft) {
-					pu.uvMad = sf::Vec4(1.0f / 3.0f, 1.0f / 3.0f, (float)sliceI / 3.0f, (float)rayI / 3.0f);
+					pu.uvMad = sf::Vec4(1.0f / (float)sliceCount, 1.0f / (float)updateCount, (float)sliceI / (float)sliceCount, (float)rayI / (float)updateCount);
 				} else {
-					pu.uvMad = sf::Vec4(1.0f / 3.0f, -1.0f / 3.0f, (float)sliceI / 3.0f, 1.0f - (float)rayI / 3.0f);
+					pu.uvMad = sf::Vec4(1.0f / (float)sliceCount, -1.0f / (float)updateCount, (float)sliceI / (float)sliceCount, 1.0f - (float)rayI / (float)updateCount);
 					vu.flipY = -vu.flipY;
 				}
 				pu.rayDir = rayDir;
@@ -1069,7 +1086,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 		}
 
 		// Pass 3: Update the atlas
-		for (uint32_t depthI = 0; depthI < DepthSlices; depthI++) {
+		for (uint32_t depthI = 0; depthI < sliceCount; depthI++) {
 			sg_pass_action action = { };
 			action.colors[0].action = SG_ACTION_CLEAR;
 			action.depth.action = SG_ACTION_CLEAR;
@@ -1094,8 +1111,11 @@ struct EnvLightSystemImp final : EnvLightSystem
 			pu.uvToLightMad = sf::Vec4(1.0f, 1.0f, 0.0f, 0.0f);
 			pu.prevShift = sf::Vec2(dx / 6.0f, dy);
 			pu.depthSlice = (float)depthI;
+			pu.numUpdatesF = (float)updateCount;
+			pu.rcpDepthSlices = 1.0f / (float)sliceCount;
+			pu.rcpNumUpdates = 1.0f / (float)updateCount;
 
-			for (uint32_t i = 0; i < DepthSlices; i++) {
+			for (uint32_t i = 0; i < sliceCount; i++) {
 				pu.rayDirs[i] = sf::Vec4(rayDirs[i], 0.0f);
 			}
 
@@ -1229,10 +1249,10 @@ struct EnvLightSystemImp final : EnvLightSystem
 		UBO_DebugEnvSpherePixel pu = { };
 
 		vu.worldToClip = renderArgs.worldToClip;
-		memcpy(vu.layerHeights.v, sliceHeight, sizeof(sliceHeight));
+		memcpy(vu.layerHeights.v, sliceHeights.data, sliceHeights.byteSize());
 		vu.sphereRadius = opts.radius;
 		vu.sphereGridSize = sf::Vec2i(40, 20);
-		vu.numLayers = 3;
+		vu.numLayers = sliceCount;
 		vu.sphereGridMad.x = probeDistance;
 		vu.sphereGridMad.y = probeDistance;
 		vu.sphereGridMad.z = (offsetInProbes.x - (float)(vu.sphereGridSize.x / 2)) * probeDistance + probeDeltaOffset.x;

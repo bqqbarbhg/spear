@@ -37,7 +37,10 @@ uniform Pixel
 	vec2 prevShift;
     vec4 uvToLightMad;
     vec4 uvToBlueNoiseMad;
+    float numUpdatesF;
     float depthSlice;
+    float rcpDepthSlices;
+    float rcpNumUpdates;
 };
 
 vec4 blendAlpha(vec4 prev, vec3 next, float minA, float maxA)
@@ -55,12 +58,12 @@ vec3 getLighting(vec2 atlasUv)
     vec2 lightUv = uv * uvToLightMad.xy + uvToLightMad.zw;
 
     vec3 result = vec3(0.0);
-    for (int i = 0; i < 3; i++) {
-        vec2 sampleUv = (lightUv + vec2(depthSlice, float(i))) * vec2(1.0/3.0, 1.0/3.0);
+    for (int i = 0; i < int(numUpdatesF); i++) {
+        vec2 sampleUv = (lightUv + vec2(depthSlice, float(i))) * vec2(rcpDepthSlices, rcpNumUpdates);
         vec3 light = textureLod(lighting, sampleUv, 0.0).xyz;
 
         // Compensate for PDF
-        light *= 4.0 * 3.141 * (1.0/3.0);
+        light *= (4.0 * 3.141) * rcpNumUpdates;
 
         vec3 N = rayDirs[i].xyz;
 
@@ -89,7 +92,7 @@ void main()
 {
     vec2 uv = v_uv;
 
-    float depth = depthSlice * (1.0/3.0) + (0.5/3.0);
+    float depth = (depthSlice + 0.5) * rcpDepthSlices;
     vec3 prevUv = vec3(uv + prevShift, depth);
 
     vec2 prevCell = floor(prevUv.xy * vec2(6.0, 1.0));
