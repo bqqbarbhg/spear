@@ -248,6 +248,7 @@ struct Client
 	float resolutionGrowTimer = 0.0f;
 	float resolutionGrowLimit = 1.0f;
 	float lowestResTimer = 0.0f;
+	float msaaTimer = 0.0f;
 	bool slowMode = false;
 
 	// UI
@@ -643,6 +644,16 @@ bool clientUpdate(Client *c, const ClientInput &input)
 
 		float minHeightRatio = 320.0f / c->mainTarget.resolution.y;
 		float minRenderScale = sf::clamp(minHeightRatio * minHeightRatio, 0.25f, 1.0f);
+
+		if (c->renderResolutionScale < 0.6f && c->msaaSamples > 1) {
+			c->msaaTimer += dt;
+			c->lowestResTimer = 0.0f;
+			if (c->msaaTimer > 5.0f) {
+				c->msaaSamples = 1;
+				c->useFxaa = true;
+				c->forceRecreateTargets = true;
+			}
+		}
 
 		c->renderResolutionScale = sf::clamp(c->renderResolutionScale, minRenderScale, 1.0f);
 		if (c->renderResolutionScale <= minRenderScale + 0.01f) {

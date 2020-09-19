@@ -1455,7 +1455,7 @@ struct GameSystemImp final : GameSystem
 							didHoverTile = true;
 
 							float &amount = tileHoverAmount[tile];
-							amount = sf::min(1.0f, amount + frameArgs.dt * 20.0f);
+							amount = sf::min(1.0f, amount + frameArgs.dt * 10.0f);
 
 							sf::Vec2i prev = reach->previous;
 							while (sv::ReachableTile *prevReach = moveSet.distanceToTile.findValue(prev)) {
@@ -1471,7 +1471,9 @@ struct GameSystemImp final : GameSystem
 
 		for (uint32_t i = 0; i < tileHoverAmount.size(); i++) {
 			auto &pair = tileHoverAmount.data[i];
-			pair.val -= frameArgs.dt * 10.0f;
+			if (!didHoverTile || hoveredTile != pair.key) {
+				pair.val -= frameArgs.dt * 10.0f;
+			}
 			if (pair.val <= 0.0f) {
 				tileHoverAmount.remove(pair.key);
 				i--;
