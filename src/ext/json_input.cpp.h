@@ -1236,12 +1236,10 @@ jsi_noinline static int
 jsi_parse_value(jsi_parser *p, const char *ptr, const char *end, jsi_value *value)
 {
 	for (;;) {
-		printf("%.*s\n", (int)(ptr - end), ptr);
 		char char_type = jsi_char_tab[(uint8_t)*ptr];
 		if (char_type != 0) {
 			value->key_hash = 0;
 			value->flags = 0;
-			printf("%u\n", (uint32_t)char_type);
 			jsi_parse_fn func = jsi_parse_funcs[char_type];
 			return func(p, ptr, end, value);
 		} else {
