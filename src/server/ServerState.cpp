@@ -835,6 +835,7 @@ void ServerState::putStatus(sf::Array<sf::Box<Event>> &events, const StatusInfo 
 		e->status.casterId = statusInfo.casterId;
 		e->status.characterId = statusInfo.targetId;
 		e->status.turnsLeft = e->turnsRoll.total;
+		e->status.ticksOnTurnEnd = statusComp->ticksOnTurnEnd;
 		pushEvent(*this, events, e);
 	}
 }
@@ -877,6 +878,39 @@ void ServerState::doDamage(sf::Array<sf::Box<Event>> &events, const DamageInfo &
 		if (!statusPrefab) continue;
 
 		for (Component *statusComponent : statusPrefab->components) {
+			if (auto *c = statusComponent->as<IncreaseDamageComponent>()) {
+				if ((c->onSpell && damageInfo.magic) || (c->onMelee && damageInfo.melee)) {
+					RollInfo roll = rollDice(c->successRoll, "success");
+
+					bool success = roll.total >= roll.roll.check;
+
+					int32_t increaseDamage = 0;
+					if (success) {
+						increaseDamage = (uint32_t)sf::max((int32_t)(c->increaseAmount * e->finalDamage), 0);
+						e->finalDamage += increaseDamage;
+						e->damageIncrease += increaseDamage;
+					}
+
+					auto e2 = sf::box<IncreaseDamageEvent>();
+					e2->cardName = status->cardName;
+					e2->effectName = c->effectName;
+					e2->successRoll = roll;
+					e2->increaseAmount = c->increaseAmount;
+					e2->increaseDamage = increaseDamage;
+					e2->success = success;
+					pushEvent(*this, events, e2);
+				}
+			}
+		}
+	}
+
+	for (uint32_t statusId : targetChr->statuses) {
+		Status *status = findStatus(*this, statusId);
+		if (!status) continue;
+		Prefab *statusPrefab = loadPrefab(*this, events, status->prefabName);
+		if (!statusPrefab) continue;
+
+		for (Component *statusComponent : statusPrefab->components) {
 			if (auto *c = statusComponent->as<ResistDamageComponent>()) {
 				if ((c->onSpell && damageInfo.magic) || (c->onMelee && damageInfo.melee)) {
 					RollInfo roll = rollDice(c->successRoll, "success");
@@ -887,6 +921,7 @@ void ServerState::doDamage(sf::Array<sf::Box<Event>> &events, const DamageInfo &
 					if (success) {
 						resistDamage = (uint32_t)sf::clamp((int32_t)(c->resistAmount * e->finalDamage), 0, (int32_t)e->finalDamage);
 						e->finalDamage -= resistDamage;
+						e->damageDecrease += resistDamage;
 					}
 
 					auto e2 = sf::box<ResistDamageEvent>();
@@ -920,10 +955,6 @@ void ServerState::doDamage(sf::Array<sf::Box<Event>> &events, const DamageInfo &
 					spell.casterId = damageInfo.causeId;
 					spell.targetId = damageInfo.targetId;
 					castSpell(events, spell);
-				}
-			} else if (auto *c = statusComponent->as<ResistDamageComponent>()) {
-				if ((c->onSpell && damageInfo.magic) || (c->onMelee && damageInfo.melee)) {
-					auto e2 = sf::box<ResistDamageEvent>();
 				}
 			}
 		}
@@ -1046,6 +1077,29 @@ void ServerState::startNextCharacterTurn(sf::Array<sf::Box<Event>> &events)
 
 	uint32_t characterId;
 	do {
+
+		// Process after-turn ticking statuses
+		if (Character *chr = characters.find(turnInfo.characterId)) {
+			sf::SmallArray<uint32_t, 64> statusIds;
+			statusIds.push(chr->statuses.slice());
+			for (uint32_t id : statusIds) {
+				Status *status = statuses.find(id);
+				if (!status) continue;
+
+				if (status->turnsLeft > 0 && status->ticksOnTurnEnd) {
+					auto e = sf::box<StatusTickEvent>();
+					e->statusId = status->id;
+					pushEvent(*this, events, std::move(e));
+				}
+
+				if (status->turnsLeft == 0) {
+					auto e = sf::box<StatusRemoveEvent>();
+					e->statusId = status->id;
+					pushEvent(*this, events, std::move(e));
+				}
+			}
+		}
+
 		characterId = getNextTurnCharacter();
 		Character *chr = characters.find(characterId);
 		if (!chr) return;
@@ -1081,7 +1135,7 @@ void ServerState::startNextCharacterTurn(sf::Array<sf::Box<Event>> &events)
 			Status *status = statuses.find(id);
 			if (!status) continue;
 
-			if (status->turnsLeft > 0) {
+			if (status->turnsLeft > 0 && !status->ticksOnTurnEnd) {
 				auto e = sf::box<StatusTickEvent>();
 				e->statusId = status->id;
 				pushEvent(*this, events, std::move(e));
@@ -2004,6 +2058,14 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 				info.cardName = card->prefabName;
 				info.manualCast = true;
 				castSpell(events, info);
+			} else if (auto *c = comp->as<CardStatusComponent>()) {
+				StatusInfo info;
+				info.statusName = c->statusName;
+				info.cardName = card->prefabName;
+				info.originalCasterId = casterId;
+				info.casterId = casterId;
+				info.targetId = targetId;
+				putStatus(events, info);
 			} else if (auto *c = comp->as<CardCastMeleeComponent>()) {
 				RollInfo numRoll = rollDice(c->hitCount, "hit count");
 				const Card *meleeCard = findMeleeCard(*this, casterChr);

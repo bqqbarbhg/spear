@@ -29,6 +29,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, CastOnReceiveDamage, CastOnReceiveDamageComponent),
 		sf_poly(Component, CastOnDealDamage, CastOnDealDamageComponent),
 		sf_poly(Component, ResistDamage, ResistDamageComponent),
+		sf_poly(Component, IncreaseDamage, IncreaseDamageComponent),
 		sf_poly(Component, CardCast, CardCastComponent),
 		sf_poly(Component, CardCastMelee, CardCastMeleeComponent),
 		sf_poly(Component, Spell, SpellComponent),
@@ -55,6 +56,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, StatusTick, StatusTickEvent),
 		sf_poly(Event, StatusRemove, StatusRemoveEvent),
 		sf_poly(Event, ResistDamage, ResistDamageEvent),
+		sf_poly(Event, IncreaseDamage, IncreaseDamageEvent),
 		sf_poly(Event, CastSpell, CastSpellEvent),
 		sf_poly(Event, MeleeAttack, MeleeAttackEvent),
 		sf_poly(Event, Damage, DamageEvent),
@@ -779,6 +781,23 @@ template<> void initType<ResistDamageComponent>(Type *t)
 	}
 }
 
+template<> void initType<IncreaseDamageComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(IncreaseDamageComponent, onSpell),
+		sf_field(IncreaseDamageComponent, onMelee),
+		sf_field(IncreaseDamageComponent, increaseAmount),
+		sf_field(IncreaseDamageComponent, successRoll),
+		sf_field(IncreaseDamageComponent, effectName),
+	};
+	sf_struct_base(t, IncreaseDamageComponent, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "effectName");
+		info.prefab = true;
+	}
+}
+
 template<> void initType<CardCastComponent>(Type *t)
 {
 	static Field fields[] = {
@@ -844,6 +863,7 @@ template<> void initType<StatusComponent>(Type *t)
 		sf_field(StatusComponent, tickEffect),
 		sf_field(StatusComponent, endEffect),
 		sf_field(StatusComponent, stacks),
+		sf_field(StatusComponent, ticksOnTurnEnd),
 	};
 	sf_struct_base(t, StatusComponent, Component, fields);
 
@@ -1024,6 +1044,19 @@ template<> void initType<ResistDamageEvent>(Type *t)
 	sf_struct_base(t, ResistDamageEvent, Event, fields);
 }
 
+template<> void initType<IncreaseDamageEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(IncreaseDamageEvent, cardName),
+		sf_field(IncreaseDamageEvent, effectName),
+		sf_field(IncreaseDamageEvent, increaseAmount),
+		sf_field(IncreaseDamageEvent, increaseDamage),
+		sf_field(IncreaseDamageEvent, successRoll),
+		sf_field(IncreaseDamageEvent, success),
+	};
+	sf_struct_base(t, IncreaseDamageEvent, Event, fields);
+}
+
 template<> void initType<CastSpellEvent>(Type *t)
 {
 	static Field fields[] = {
@@ -1049,6 +1082,8 @@ template<> void initType<DamageEvent>(Type *t)
 		sf_field(DamageEvent, damageRoll),
 		sf_field(DamageEvent, finalDamage),
 		sf_field(DamageEvent, meleeArmor),
+		sf_field(DamageEvent, damageIncrease),
+		sf_field(DamageEvent, damageDecrease),
 	};
 	sf_struct_base(t, DamageEvent, Event, fields);
 }
@@ -1766,6 +1801,7 @@ template<> void initType<Status>(Type *t)
 		sf_field(Status, originalCasterId),
 		sf_field(Status, casterId),
 		sf_field(Status, turnsLeft),
+		sf_field(Status, ticksOnTurnEnd),
 	};
 	sf_struct(t, Status, fields);
 

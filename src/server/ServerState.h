@@ -50,6 +50,7 @@ struct Component
 		CastOnDealDamage,
 		Projectile,
 		ResistDamage,
+		IncreaseDamage,
 		CardCast,
 		CardCastMelee,
 		Spell,
@@ -386,6 +387,16 @@ struct ResistDamageComponent : ComponentBase<Component::ResistDamage>
 	sf::Symbol effectName sv_reflect(prefab);
 };
 
+struct IncreaseDamageComponent : ComponentBase<Component::IncreaseDamage>
+{
+	// TODO: Enum
+	bool onSpell = false;
+	bool onMelee = false;
+	float increaseAmount = 1.0f;
+	DiceRoll successRoll;
+	sf::Symbol effectName sv_reflect(prefab);
+};
+
 struct CardCastComponent : ComponentBase<Component::CardCast>
 {
 	sf::Symbol spellName sv_reflect(prefab);
@@ -420,6 +431,7 @@ struct StatusComponent : ComponentBase<Component::Status>
 	sf::Symbol tickEffect sv_reflect(prefab);
 	sf::Symbol endEffect sv_reflect(prefab);
 	bool stacks = false;
+	bool ticksOnTurnEnd = false;
 };
 
 struct StarterCard sv_reflect()
@@ -525,6 +537,7 @@ struct Status sv_reflect()
 	uint32_t originalCasterId;
 	uint32_t casterId;
 	uint32_t turnsLeft;
+	bool ticksOnTurnEnd = false;
 };
 
 static const uint32_t NumSelectedCards = 8;
@@ -614,6 +627,7 @@ struct Event
 		StatusTick,
 		StatusRemove,
 		ResistDamage,
+		IncreaseDamage,
 		CastSpell,
 		MeleeAttack,
 		Damage,
@@ -701,6 +715,16 @@ struct ResistDamageEvent : EventBase<Event::ResistDamage>
 	bool success;
 };
 
+struct IncreaseDamageEvent : EventBase<Event::IncreaseDamage>
+{
+	sf::Symbol cardName;
+	sf::Symbol effectName;
+	float increaseAmount;
+	uint32_t increaseDamage;
+	RollInfo successRoll;
+	bool success;
+};
+
 struct CastSpellEvent : EventBase<Event::CastSpell>
 {
 	SpellInfo spellInfo;
@@ -719,6 +743,8 @@ struct DamageEvent : EventBase<Event::Damage>
 	RollInfo damageRoll;
 	uint32_t finalDamage = 0;
 	uint32_t meleeArmor = 0;
+	int32_t damageIncrease = 0;
+	int32_t damageDecrease = 0;
 };
 
 struct LoadPrefabEvent : EventBase<Event::LoadPrefab>

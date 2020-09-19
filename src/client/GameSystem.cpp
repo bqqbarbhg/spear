@@ -274,7 +274,7 @@ struct GameSystemImp final : GameSystem
 	{
 		static const constexpr float BaseHeight = 20.0f;
 
-		sf::SmallStringBuf<16> text;
+		sf::SmallStringBuf<32> text;
 		sf::Vec3 position;
 		sf::Vec2 origin;
 		float time = 0.0f;
@@ -676,10 +676,12 @@ struct GameSystemImp final : GameSystem
 		} else if (const auto *e = event.as<sv::TurnUpdateEvent>()) {
 
 			if (e->turnInfo.startTurn && !ctx.immediate) {
-				if (ctx.timer < 0.5f) return false;
+				if (ctx.timer > 0.5f) turnInfo = e->turnInfo;
+				if (ctx.timer < 1.0f) return false;
 			}
 
 			turnInfo = e->turnInfo;
+
 		} else if (const auto *e = event.as<sv::MeleeAttackEvent>()) {
 			if (ctx.immediate) return true;
 
@@ -715,7 +717,16 @@ struct GameSystemImp final : GameSystem
 					systems.characterModel->addOneShotTag(systems.entities, chr->entityId, symStagger);
 
 					DamageNumber &damageNumber = damageNumbers.push();
-					damageNumber.text.format("-%u", e->damageRoll.total);
+					damageNumber.text.format("%u", e->finalDamage);
+					if (e->damageIncrease != 0) {
+						if (e->damageDecrease != 0) {
+							damageNumber.text.format(" (+%d -%d)", e->damageIncrease, e->damageDecrease);
+						} else {
+							damageNumber.text.format(" (+%d)", e->damageIncrease);
+						}
+					} else if (e->damageDecrease) {
+						damageNumber.text.format(" (-%d)", e->damageDecrease);
+					}
 					damageNumber.position = entity.transform.position + chr->centerOffset;
 					damageNumber.origin = guiResources.damageFont->measureText(damageNumber.text, DamageNumber::BaseHeight) * sf::Vec2(-0.5f, 0.1f);
 				}
@@ -1881,7 +1892,7 @@ struct GameSystemImp final : GameSystem
 		for (uint32_t i = 0; i < damageNumbers.size; i++) {
 			DamageNumber &damageNumber = damageNumbers[i];
 
-			float t = damageNumber.time + frameArgs.dt;
+			float t = damageNumber.time + frameArgs.dt * 0.7f;
 			damageNumber.time = t;
 
 			float fade = gui::smoothEnd(sf::clamp((1.0f - t) * 10.0f, 0.0f, 1.0f));
@@ -1889,7 +1900,7 @@ struct GameSystemImp final : GameSystem
 			sf::Vec3 pos = damageNumber.position + sf::Vec3(0.0f, 0.5f, 0.0f);
 
 			sf::Vec4 projected = frameArgs.mainRenderArgs.worldToClip * sf::Vec4(pos, 1.0f);
-			sf::Vec2 offset = sf::Vec2(projected.x / projected.w, (projected.y + t) / projected.w);
+			sf::Vec2 offset = sf::Vec2(projected.x / projected.w, (projected.y + gui::smoothEnd(t*0.5f)*1.8f) / projected.w);
 			offset = (offset + sf::Vec2(1.0f, -1.0f)) * sf::Vec2(0.5f, -0.5f) * guiArgs.resolution;
 			float height = 0.5f / projected.w * guiArgs.resolution.y;
 			height = sf::clamp(height, 20.0f, 50.0f);
