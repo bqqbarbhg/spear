@@ -45,9 +45,24 @@ void spConfig(sp::MainConfig &config)
 	config.sgDesc.image_pool_size = 10*1024;
 	config.sgDesc.pass_pool_size = 10*1024;
 
-	#if SF_OS_EMSCRIPTEN
+    #if defined(GAME_OVERRIDE_ARGS)
+		static const char *overrideArgs[] = {
+			GAME_OVERRIDE_ARGS
+		};
+		sp::commandLineArgs = sf::slice(overrideArgs);
+    #endif
+    
+	{
+		sargs_desc d = { };
+		d.argv = (char**)sp::commandLineArgs.data;
+		d.argc = (int)sp::commandLineArgs.size;
+		sargs_setup(&d);
+	}
+
+	if (sargs_boolean("slow")) {
+		config.sappDesc.swap_interval = 2;
 		config.sappDesc.high_dpi = false;
-	#endif
+	}
 
 	config.saudioDesc.num_channels = 2;
 	#if SF_OS_EMSCRIPTEN && !SF_USE_PTHREADS
@@ -107,23 +122,10 @@ static void imguiFree(void *ptr, void*) { return sf_free(ptr); }
 
 void spInit()
 {
-    #if defined(GAME_OVERRIDE_ARGS)
-    static const char *overrideArgs[] = {
-        GAME_OVERRIDE_ARGS
-    };
-    sp::commandLineArgs = sf::slice(overrideArgs);
-    #endif
 
 	ImGui::SetAllocatorFunctions(&imguiAlloc, &imguiFree);
 
 	sf::MutexGuard mg(clientMutex);
-    
-	{
-		sargs_desc d = { };
-		d.argv = (char**)sp::commandLineArgs.data;
-		d.argc = (int)sp::commandLineArgs.size;
-		sargs_setup(&d);
-	}
 
 	{
 		bqws_pt_init_opts opts = { };
