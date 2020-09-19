@@ -613,7 +613,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 
 	// Update dynamic resolution / settings (only if no assets are loading)
 	if (sp::Asset::getNumAssetsLoading() == 0) {
-		c->averageDt = sf::lerp(c->averageDt, dt, 0.1f);
+		c->averageDt = sf::lerp(c->averageDt, sf::min(dt, 1.0f/20.0f), 0.1f);
 		float averageFps = 1.0f / c->averageDt;
 		if (averageFps < 58.0f) {
 			c->resolutionDropTimer += dt;
