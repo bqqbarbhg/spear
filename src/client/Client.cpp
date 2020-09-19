@@ -243,6 +243,7 @@ struct Client
 	float averageDt = 1.0f / 60.0f;
 	float resolutionDropTimer = 0.0f;
 	float resolutionGrowTimer = 0.0f;
+	float resolutionGrowLimit = 1.0f;
 	float lowestResTimer = 0.0f;
 	bool slowMode = false;
 
@@ -617,13 +618,15 @@ bool clientUpdate(Client *c, const ClientInput &input)
 		if (averageFps < 58.0f) {
 			c->resolutionDropTimer += dt;
 			c->resolutionGrowTimer = 0.0f;
+			c->resolutionGrowLimit = sf::min(5.0f, c->resolutionGrowLimit * 2.0f);
 			if (c->resolutionDropTimer > 0.2f) {
 				c->resolutionDropTimer = 0.0f;
 				c->renderResolutionScale -= 0.05f;
 			}
 		} else {
 			c->resolutionGrowTimer += dt;
-			if (c->resolutionGrowTimer > 0.2f) {
+			if (c->resolutionGrowTimer > c->resolutionGrowLimit) {
+				c->resolutionGrowLimit = sf::max(1.0f, c->resolutionGrowLimit * 0.8f);
 				c->resolutionGrowTimer = 0.0f;
 				c->renderResolutionScale += 0.05f;
 			}
