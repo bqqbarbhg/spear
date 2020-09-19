@@ -6,9 +6,10 @@
 #define SpShader_DebugEnvSphere 0
 #define SpShader_DynamicMesh 1
 #define SpShader_EnvmapLighting 2
-#define SpShader_TestMesh 3
-#define SpShader_TestSkin 4
-#define SpShaderDataSize 233039
+#define SpShader_TestDepthPrepass 3
+#define SpShader_TestMesh 4
+#define SpShader_TestSkin 5
+#define SpShaderDataSize 233584
 
 #define SP_SHADOWGRID_USE_ARRAY 0
 #define SP_NORMALMAP_REMAP 1
@@ -128,9 +129,9 @@ struct SpPermutationInfo;
 struct SpUniformBlockInfo;
 struct SpSamplerInfo;
 struct SpAttribInfo;
-extern const SpShaderInfo spShaders[5];
-extern const SpPermutationInfo spPermutations[26];
+extern const SpShaderInfo spShaders[6];
+extern const SpPermutationInfo spPermutations[28];
 extern const SpUniformBlockInfo spUniformBlock[11];
 extern const SpSamplerInfo spSamplers[13];
 extern const SpAttribInfo spAttribs[12];
-extern const char spShaderData[6874];
+extern const char spShaderData[6916];

@@ -289,7 +289,9 @@ struct TileModelSystemImp final : TileModelSystem
 	uint32_t numUplodadedChunks = 0;
 	uint32_t garbageCollectChunkIndex = 0;
 
+	Shader2 chunkDepthShader;
 	Shader2 chunkMeshShader;
+	sp::Pipeline chunkDepthPipe[2];
 	sp::Pipeline chunkMeshPipe[2];
 
 	void updateChunkGeometry(uint32_t chunkId, AreaSystem *areaSystem)
@@ -571,7 +573,17 @@ struct TileModelSystemImp final : TileModelSystem
 			permutation[SP_SHADOWGRID_USE_ARRAY] = 0;
 		#endif
 		permutation[SP_NORMALMAP_REMAP] = MeshMaterial::useNormalMapRemap;
+		chunkDepthShader = getShader2(SpShader_TestDepthPrepass, permutation);
 		chunkMeshShader = getShader2(SpShader_TestMesh, permutation);
+
+		for (uint32_t ix = 0; ix < 2; ix++) {
+			uint32_t flags = sp::PipeDepthWrite|sp::PipeCullCCW;
+			flags |= ix == 1 ? sp::PipeIndex32 : sp::PipeIndex16;
+			auto &d = chunkDepthPipe[ix].init(chunkDepthShader.handle, flags);
+			d.blend.color_write_mask = SG_COLORMASK_NONE;
+			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+			d.layout.buffers[0].stride = 28;
+		}
 
 		for (uint32_t ix = 0; ix < 2; ix++) {
 			uint32_t flags = sp::PipeDepthWrite|sp::PipeCullCCW;
@@ -749,6 +761,31 @@ struct TileModelSystemImp final : TileModelSystem
 
 			bindings.vertex_buffers[0] = chunk.vertexBuffer.buffer;
 			bindings.index_buffer = chunk.indexBuffer.buffer;
+			sg_apply_bindings(&bindings);
+
+			sg_draw(0, chunk.numIndices, 1);
+		}
+	}
+
+	void renderDepthPrepass(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
+	{
+		UBO_Transform tu = { };
+		tu.worldToClip = renderArgs.worldToClip;
+
+		sg_bindings bindings = { };
+
+		for (uint32_t chunkId : visibleAreas.get(AreaGroup::TileChunkCulling)) {
+			Chunk &chunk = chunks[chunkId];
+			sf_assert(chunk.type == ChunkType::Normal);
+			if (!chunk.indexBuffer.buffer.id) continue;
+
+			if (chunkDepthPipe[chunk.largeIndices].bind()) {
+				bindUniformVS(chunkMeshShader, tu);
+			}
+
+			bindings.vertex_buffers[0] = chunk.vertexBuffer.buffer;
+			bindings.index_buffer = chunk.indexBuffer.buffer;
+
 			sg_apply_bindings(&bindings);
 
 			sg_draw(0, chunk.numIndices, 1);

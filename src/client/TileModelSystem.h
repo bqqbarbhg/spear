@@ -20,6 +20,7 @@ struct TileModelSystem : EntitySystem
 	virtual void uploadVisibleChunks(const VisibleAreas &activeAreas, AreaSystem *areaSystem, const FrameArgs &frameArgs) = 0;
 
 	virtual void renderShadow(const VisibleAreas &shadowAreas, const RenderArgs &renderArgs) = 0;
+	virtual void renderDepthPrepass(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
 	virtual void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
 	virtual void renderEnvmapGBuffer(const VisibleAreas &envmapAreas, const RenderArgs &renderArgs) = 0;
 
