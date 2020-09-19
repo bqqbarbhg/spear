@@ -46,53 +46,71 @@ void GuiCard::init(const sv::Prefab &prefab, uint32_t svId)
 			}
 		}
 	} else {
-		frame.load(sf::Symbol("Assets/Gui/Card/Spell_Frame.png"));
+		switch (slot) {
+		case GuiCardSlot::Spell: frame.load(sf::Symbol("Assets/Gui/Card/Spell_Frame.png")); break;
+		case GuiCardSlot::Skill: frame.load(sf::Symbol("Assets/Gui/Card/Skill_Frame.png")); break;
+		case GuiCardSlot::Item: frame.load(sf::Symbol("Assets/Gui/Card/Item_Frame.png")); break;
+		}
+		
 	}
 }
 
 void renderCard(sp::Canvas &canvas, const GuiCard &card)
 {
+#if 0
 	if (card.background) {
 		canvas.draw(card.background, sf::Vec2(0.0f, 0.0f), sf::Vec2(500.0f, 800.0f));
 	}
+#endif
 
 	if (card.melee) {
-		canvas.draw(card.image, sf::Vec2(0.0f, 0.0f), sf::Vec2(500.0f, 500.0f));
+		canvas.draw(card.image, sf::Vec2(25.0f, 25.0f), sf::Vec2(450.0f, 450.0f));
 
 		if (card.dice) {
 			canvas.draw(card.dice, sf::Vec2(370.0f, 370.0f), sf::Vec2(100.0f, 100.0f));
 		}
 
 	} else {
-		canvas.draw(card.image, sf::Vec2(0.0f, 0.0f), sf::Vec2(500.0f, 500.0f));
+		canvas.draw(card.image, sf::Vec2(25.0f, 25.0f), sf::Vec2(450.0f, 333.0f));
 	}
 
-	static float nameOffset = 540.0f;
-	static float nameFontHeight = 80.0f;
-	static float bodyOffset = 610.0f;
-	static float bodyFontHeight = 50.0f;
-	static float bodyPad = 35.0f;
+	static float nameOffset = 446.0f;
+	static float nameMeleeOffset = 542.0f;
+	static float nameFontHeight = 72.0f;
+	static float bodyOffset = 515.0f;
+	static float bodyMeleeOffset = 610.0f;
+	static float bodyFontHeight = 43.0f;
+	static float bodyPad = 60.0f;
+	static sf::Vec3 titleColor = { 0.965686262f, 0.923917055f, 0.847342372f };
+	static sf::Vec3 bodyColor = { 0.0686274767f, 0.0671391934f, 0.0649269745f };
 
 #if 0
-	if (card.melee) {
+	static int prevFrameCount = 0;
+	int frameCount = ImGui::GetFrameCount();
+	if (prevFrameCount != frameCount) {
+		prevFrameCount = frameCount;
 		if (ImGui::Begin("Card tweak")) {
 			ImGui::InputFloat("Name offset", &nameOffset);
+			ImGui::InputFloat("Name melee offset", &nameMeleeOffset);
 			ImGui::InputFloat("Name font height", &nameFontHeight);
 			ImGui::InputFloat("Body offset", &bodyOffset);
+			ImGui::InputFloat("Body melee offset", &bodyMeleeOffset);
 			ImGui::InputFloat("Body font height", &bodyFontHeight);
 			ImGui::InputFloat("Body pad", &bodyPad);
+			ImGui::ColorEdit3("Title color", titleColor.v);
+			ImGui::ColorEdit3("Body color", bodyColor.v);
 		}
 		ImGui::End();
 	}
 #endif
 
 	float nameY, descY;
-	nameY = nameOffset;
-	descY = bodyOffset;
-
 	if (!card.melee) {
-		nameY -= 110.0f;
-		descY -= 110.0f;
+		nameY = nameOffset;
+		descY = bodyOffset;
+	} else {
+		nameY = nameMeleeOffset;
+		descY = bodyMeleeOffset;
 	}
 
 	if (card.frame) {
@@ -109,7 +127,7 @@ void renderCard(sp::Canvas &canvas, const GuiCard &card)
 		draw.string = card.name;
 		draw.transform = sf::mat2D::translate(sf::Vec2(250.0f - width * 0.5f, nameY));
 		draw.height = nameHeight;
-		draw.color = sf::Vec4(0.0f, 0.0f, 0.0f, 1.0f);
+		draw.color = sf::Vec4(titleColor, 1.0f);
 		canvas.drawText(draw);
 	}
 
@@ -121,7 +139,7 @@ void renderCard(sp::Canvas &canvas, const GuiCard &card)
 		desc.fontHeight = bodyFontHeight;
 		desc.offset.x = pad;
 		desc.offset.y = descY;
-		desc.baseColor = sf::Vec4(0.0f, 0.0f, 0.0f, 0.9f);
+		desc.baseColor = sf::Vec4(bodyColor, 1.0f);
 		sp::drawRichText(canvas, desc, card.description);
 	}
 }
