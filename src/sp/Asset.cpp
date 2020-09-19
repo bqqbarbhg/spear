@@ -360,6 +360,11 @@ void Asset::assetFailLoading()
 	sp_asset_log("Fail load: %s %s", type->name, name.data);
 }
 
+uint32_t Asset::getNumAssetsLoading()
+{
+	return mxa_load32_rel(&g_assetContext.numAssetsLoading);
+}
+
 void Asset::globalInit()
 {
 }

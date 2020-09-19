@@ -605,43 +605,47 @@ bool clientUpdate(Client *c, const ClientInput &input)
 		}
 	}
 
-	c->averageDt = sf::lerp(c->averageDt, dt, 0.1f);
-	float averageFps = 1.0f / c->averageDt;
-	if (averageFps < 50.0f) {
-		c->resolutionDropTimer += dt;
-		c->resolutionGrowTimer = 0.0f;
-		if (c->resolutionDropTimer > 0.2f) {
-			c->resolutionDropTimer = 0.0f;
-			c->renderResolutionScale -= 0.05f;
-		}
-	} else {
-		c->resolutionGrowTimer += dt;
-		if (c->resolutionGrowTimer > 0.2f) {
-			c->resolutionGrowTimer = 0.0f;
-			c->renderResolutionScale += 0.05f;
-		}
-	}
 
 	if (c->resolution == sf::Vec2i()) {
 		recreateTargets(c, input.resolution);
 	}
 
-	float minHeightRatio = 320.0f / c->mainTarget.resolution.y;
-	float minRenderScale = sf::clamp(minHeightRatio * minHeightRatio, 0.25f, 1.0f);
-
-	c->renderResolutionScale = sf::clamp(c->renderResolutionScale, minRenderScale, 1.0f);
-	if (c->renderResolutionScale <= minRenderScale + 0.01f) {
-		c->lowestResTimer += dt;
-		if (c->lowestResTimer >= 10.0f && !c->slowMode) {
-			c->slowMode = true;
-			c->useFxaa = true;
-			c->msaaSamples = 1;
-			c->renderResolutionScale = 1.0f;
-			c->resolutionScale = 0.25f;
-			c->forceRecreateTargets = true;
+	// Update dynamic resolution / settings (only if no assets are loading)
+	if (sp::Asset::getNumAssetsLoading() == 0) {
+		c->averageDt = sf::lerp(c->averageDt, dt, 0.1f);
+		float averageFps = 1.0f / c->averageDt;
+		if (averageFps < 50.0f) {
+			c->resolutionDropTimer += dt;
+			c->resolutionGrowTimer = 0.0f;
+			if (c->resolutionDropTimer > 0.2f) {
+				c->resolutionDropTimer = 0.0f;
+				c->renderResolutionScale -= 0.05f;
+			}
+		} else {
+			c->resolutionGrowTimer += dt;
+			if (c->resolutionGrowTimer > 0.2f) {
+				c->resolutionGrowTimer = 0.0f;
+				c->renderResolutionScale += 0.05f;
+			}
 		}
-	} else {
-		c->lowestResTimer = 0.0f;
+
+		float minHeightRatio = 320.0f / c->mainTarget.resolution.y;
+		float minRenderScale = sf::clamp(minHeightRatio * minHeightRatio, 0.25f, 1.0f);
+
+		c->renderResolutionScale = sf::clamp(c->renderResolutionScale, minRenderScale, 1.0f);
+		if (c->renderResolutionScale <= minRenderScale + 0.01f) {
+			c->lowestResTimer += dt;
+			if (c->lowestResTimer >= 10.0f && !c->slowMode) {
+				c->slowMode = true;
+				c->useFxaa = true;
+				c->msaaSamples = 1;
+				c->renderResolutionScale = 1.0f;
+				c->resolutionScale = 0.25f;
+				c->forceRecreateTargets = true;
+			}
+		} else {
+			c->lowestResTimer = 0.0f;
+		}
 	}
 
 	if (input.resolution != c->resolution || c->forceRecreateTargets) {

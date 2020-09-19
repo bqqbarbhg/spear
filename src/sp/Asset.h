@@ -113,6 +113,8 @@ struct Asset
 		return (T*)impCreate(&T::SelfType, name, props);
 	}
 
+	static uint32_t getNumAssetsLoading();
+
 	// Lifecycle
 	static void globalInit();
 	static void globalCleanup();
