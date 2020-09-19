@@ -623,7 +623,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 			swapInterval = sapp_query_desc().swap_interval;
 		#endif
 	
-		float targetFps = 60.0f / (float)swapInterval - 2.0f;
+		float targetFps = 59.0f / (float)swapInterval;
 		if (averageFps < targetFps) {
 			c->resolutionDropTimer += dt;
 			c->resolutionGrowTimer = 0.0f;
