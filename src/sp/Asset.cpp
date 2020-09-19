@@ -362,7 +362,7 @@ void Asset::assetFailLoading()
 
 uint32_t Asset::getNumAssetsLoading()
 {
-	return mxa_load32_rel(&g_assetContext.numAssetsLoading);
+	return mxa_load32_acq(&g_assetContext.numAssetsLoading);
 }
 
 void Asset::globalInit()
