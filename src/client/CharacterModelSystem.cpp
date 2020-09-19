@@ -107,6 +107,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		sf::Array<sf::Symbol> frameEvents;
 
 		double lastUpdateTime = 0.0;
+		bool hasBeenUpdated = false;
 
 		bool isLoading() const {
 			for (const Animation &anim : animations) {
@@ -179,6 +180,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 	sf::Array<uint32_t> freeBoneListenerIds;
 
 	sf::Array<uint32_t> attachmentsToUpdate;
+	uint32_t hiddenModelUpdateIndex = 0;
 
 	sf::Array<uint32_t> loadQueue;
 
@@ -200,7 +202,11 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 	void updateAttachmentTransformImp(Systems &systems, Attachment &attach, Model &model)
 	{
-		if (attach.boneIndex == ~0u) return;
+		float dt = (float)(animCtx.updateTime - model.lastUpdateTime);
+		if (attach.boneIndex == ~0u || dt > 0.2f || !model.hasBeenUpdated) {
+			hideAttachmentImp(systems, attach, model);
+			return;
+		}
 
 		sf::Mat34 childToWorld = model.boneToWorld[attach.boneIndex] * sf::mat::scale(100.0f) * attach.childToBone;
 		float scale = cbrtf(sf::abs(sf::determinant(childToWorld)));
@@ -214,6 +220,14 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		transform.position = childToWorld.cols[3];
 		transform.rotation = sf::axesToQuat(x, y, z);
 		transform.scale = scale * attach.scale;
+		systems.entities.updateTransform(systems, attach.entityId, transform);
+	}
+
+	void hideAttachmentImp(Systems &systems, Attachment &attach, Model &model)
+	{
+		Transform transform;
+		transform.position = model.bounds.origin;
+		transform.scale = 0.0f;
 		systems.entities.updateTransform(systems, attach.entityId, transform);
 	}
 
@@ -528,6 +542,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 				if (model.loadQueueIndex == ~0u && model.model.isLoaded()) {
 					finishLoadingAttachmentImp(attach, model);
 					updateAttachmentTransformImp(systems, attach, model);
+				} else {
+					hideAttachmentImp(systems, attach, model);
 				}
 
 				systems.entities.addComponent(childEntityId, this, attachId, 1, 0xff, 0);
@@ -660,6 +676,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 			float dt = (float)(ctx.updateTime - model.lastUpdateTime);
 			model.lastUpdateTime = ctx.updateTime;
+			model.hasBeenUpdated = true;
 
 			model.frameEvents.clear();
 
@@ -785,6 +802,24 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			if (attach.boneIndex == ~0u || attach.modelId == ~0u) continue;
 			Model &model = models[attach.modelId];
 			updateAttachmentTransformImp(systems, attach, model);
+		}
+
+		// Periodically update hidden models
+		for (uint32_t i = 0; i < 3; i++) {
+			uint32_t ix = hiddenModelUpdateIndex++;
+			if (ix >= models.size) {
+				hiddenModelUpdateIndex = 0;
+				break;
+			}
+
+			Model &model = models[ix];
+			float dt = (float)(animCtx.updateTime - model.lastUpdateTime);
+			if (model.hasBeenUpdated && dt < 0.2f) continue;
+
+			for (uint32_t attachId : model.attachIds) {
+				Attachment &attach = attachments[attachId];
+				hideAttachmentImp(systems, attach, model);
+			}
 		}
 
 		attachmentsToUpdate.clear();
