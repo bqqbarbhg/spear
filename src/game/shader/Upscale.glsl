@@ -12,9 +12,14 @@ in vec2 pos;
 
 out vec2 v_uv;
 
+uniform Vertex
+{
+	vec4 uvMad;
+};
+
 void main()
 {
-	v_uv = pos;
+	v_uv = pos * uvMad.xy + uvMad.zw;
     gl_Position = vec4(pos.x * 2.0 - 1.0, pos.y * -2.0 + 1.0, 0.5, 1.0);
 }
 
@@ -128,12 +133,6 @@ in vec2 v_uv;
 out vec4 o_color;
 
 uniform sampler2D tonemapImage;
-
-uniform Pixel
-{
-	vec2 texSize;
-	vec2 rcpTexSize;
-};
 
 void main()
 {

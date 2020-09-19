@@ -115,6 +115,8 @@ void GameShaders::load()
 
 	{
 		sg_pipeline_desc &d = billboardPipe.init(billboard, sp::PipeIndex16 | sp::PipeDepthTest | sp::PipeBlendPremultiply);
+		d.blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
+		d.blend.dst_factor_alpha = SG_BLENDFACTOR_ZERO;
 		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
 		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT2;
 		d.layout.attrs[2].format = SG_VERTEXFORMAT_UBYTE4N;

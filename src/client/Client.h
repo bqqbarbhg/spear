@@ -17,6 +17,13 @@ struct ClientInput
 	sf::Slice<sapp_event> events;
 };
 
+struct ClientRenderOutput
+{
+	sg_image image;
+	sf::Vec2i renderResolution;
+	sf::Vec2i targetResolution;
+};
+
 void clientGlobalInit();
 void clientGlobalCleanup();
 void clientGlobalUpdate();
@@ -26,7 +33,7 @@ void clientFree(Client *c);
 void clientQuit(Client *c);
 void clientEvent(Client *c, const sapp_event *e);
 bool clientUpdate(Client *c, const ClientInput &input);
-sg_image clientRender(Client *c);
+ClientRenderOutput clientRender(Client *c);
 void clientRenderGui(Client *c);
 void clientAudio(Client *c, float *dstBuffer, uint32_t numSamples, uint32_t sampleRate);
 

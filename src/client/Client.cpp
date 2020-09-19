@@ -239,6 +239,10 @@ struct Client
 	bool useFxaa = false;
 	int msaaSamples = 4;
 	float resolutionScale = 1.0f;
+	float renderResolutionScale = 1.0f;
+	float averageDt = 1.0f / 60.0f;
+	float resolutionDropTimer = 0.0f;
+	float resolutionGrowTimer = 0.0f;
 
 	// UI
 	sp::Canvas canvas;
@@ -599,18 +603,38 @@ bool clientUpdate(Client *c, const ClientInput &input)
 		}
 	}
 
-	c->frameArgs.gameTime += dt;
-	c->frameArgs.frameIndex++;
-	c->frameArgs.dt = dt;
-	c->frameArgs.events = input.events;
-	c->frameArgs.resolution = input.resolution;
-	c->frameArgs.editorOpen = c->editor != nullptr;
-	c->frameArgs.guiResolution = c->uiResolution;
+	c->averageDt = sf::lerp(c->averageDt, dt, 0.1f);
+	float averageFps = 1.0f / c->averageDt;
+	if (averageFps < 55.0f) {
+		c->resolutionDropTimer += dt;
+		c->resolutionGrowTimer = 0.0f;
+		if (c->resolutionDropTimer > 0.2f) {
+			c->resolutionDropTimer = 0.0f;
+			c->renderResolutionScale -= 0.05f;
+		}
+	} else {
+		c->resolutionGrowTimer += dt;
+		if (c->resolutionGrowTimer > 0.2f) {
+			c->resolutionGrowTimer = 0.0f;
+			c->renderResolutionScale += 0.05f;
+		}
+	}
+	c->renderResolutionScale = sf::clamp(c->renderResolutionScale, 0.25f, 1.0f);
 
 	if (input.resolution != c->resolution || c->forceRecreateTargets) {
 		c->forceRecreateTargets = false;
 		recreateTargets(c, input.resolution);
 	}
+
+	c->frameArgs.gameTime += dt;
+	c->frameArgs.frameIndex++;
+	c->frameArgs.dt = dt;
+	c->frameArgs.events = input.events;
+	c->frameArgs.editorOpen = c->editor != nullptr;
+	c->frameArgs.guiResolution = c->uiResolution;
+	c->frameArgs.windowResolution = input.resolution;
+	c->frameArgs.mainRenderArgs.targetResolution = c->mainTarget.resolution;
+	c->frameArgs.mainRenderArgs.renderResolution = sf::Vec2i(sf::Vec2(c->frameArgs.mainRenderArgs.targetResolution) * sf::sqrt(c->renderResolutionScale));
 
 	{
 		uint32_t reloadCount = sp::Asset::getReloadCount();
@@ -713,9 +737,18 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	return false;
 }
 
-sg_image clientRender(Client *c)
+ClientRenderOutput clientRender(Client *c)
 {
+	ClientRenderOutput output;
+
 	c->clState->renderShadows();
+
+	sf::Vec2i targetRes = c->frameArgs.mainRenderArgs.targetResolution;
+	sf::Vec2i renderRes = c->frameArgs.mainRenderArgs.renderResolution;
+	output.renderResolution = renderRes;
+	output.targetResolution = targetRes;
+
+	bool topLeft = sg_query_features().origin_top_left;
 
 	{
 		sg_pass_action action = { };
@@ -735,6 +768,8 @@ sg_image clientRender(Client *c)
 
 		sp::beginPass(c->mainPass, &action);
 
+		sg_apply_viewport(0, 0, renderRes.x, renderRes.y, topLeft);
+
 		c->clState->renderMain(c->mainRenderArgs);
 
 		c->debugRender.render(c->mainRenderArgs.worldToClip);
@@ -745,15 +780,24 @@ sg_image clientRender(Client *c)
 	if (c->useFxaa) {
 		sp::beginPass(c->fxaaPass, nullptr);
 
+		sg_apply_viewport(0, 0, renderRes.x, renderRes.y, topLeft);
+
 		{
 			c->fxaaPipe.bind();
 
-			Fxaa_Pixel_t pixel;
-			pixel.rcpTexSize = sf::Vec2(1.0f) / sf::Vec2(c->mainPass.resolution);
-			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_Fxaa_Pixel, &pixel, sizeof(pixel));
+			Fxaa_Vertex_t vu;
+			vu.uvMad.x = (float)renderRes.x / (float)targetRes.x;
+			vu.uvMad.y = (float)renderRes.y / (float)targetRes.y;
+			vu.uvMad.z = 0.0f;
+			vu.uvMad.w = 0.0f;
+			Fxaa_Pixel_t pu;
+			pu.rcpTexSize = sf::Vec2(1.0f) / sf::Vec2(targetRes);
+
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Fxaa_Vertex, &vu, sizeof(vu));
+			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_Fxaa_Pixel, &pu, sizeof(pu));
 
 			sg_bindings bindings = { };
-			bindings.fs_images[SLOT_Fxaa_Pixel] = c->mainTarget.image;
+			bindings.fs_images[SLOT_Fxaa_tonemapImage] = c->mainTarget.image;
 			bindings.vertex_buffers[0] = gameShaders.fullscreenTriangleBuffer;
 			sg_apply_bindings(&bindings);
 
@@ -762,10 +806,12 @@ sg_image clientRender(Client *c)
 
 		sp::endPass();
 
-		return c->fxaaTarget.image;
+		output.image = c->fxaaTarget.image;
+	} else {
+		output.image = c->mainTarget.image;
 	}
 
-	return c->mainTarget.image;
+	return output;
 }
 
 void clientRenderGui(Client *c)

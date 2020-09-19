@@ -241,6 +241,8 @@ struct RenderArgs
 	sf::Mat44 viewToClip;
 	sf::Mat44 worldToClip;
 	sf::Frustum frustum;
+	sf::Vec2i targetResolution;
+	sf::Vec2i renderResolution;
 	bool flipCulling = false;
 };
 
@@ -250,7 +252,7 @@ struct FrameArgs
 	double gameTime = 0.0;
 	float dt = 100.0f;
 	sf::Slice<const sapp_event> events;
-	sf::Vec2i resolution;
+	sf::Vec2i windowResolution;
 	sf::Vec2 guiResolution;
 	bool editorOpen = false;
 

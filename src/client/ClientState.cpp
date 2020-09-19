@@ -190,7 +190,7 @@ void ClientState::renderShadows()
 	}
 
 	if (systems.game->getVisualizeGI()) {
-		systems.envLight->renderEnvmapDebug(systems, systems.frameArgs.mainRenderArgs, systems.frameArgs.resolution);
+		systems.envLight->renderEnvmapDebug(systems, systems.frameArgs.mainRenderArgs);
 	}
 }
 
@@ -204,7 +204,7 @@ void ClientState::renderMain(const RenderArgs &args)
 	{
 		EnvVisualizeSphereOpts envSphereOpts;
 		if (systems.game->getVisualizeGISpheres(envSphereOpts)) {
-			systems.envLight->renderEnvmapDebugSpheres(systems.light, args, systems.frameArgs.resolution, envSphereOpts);
+			systems.envLight->renderEnvmapDebugSpheres(systems.light, args, envSphereOpts);
 		}
 	}
 

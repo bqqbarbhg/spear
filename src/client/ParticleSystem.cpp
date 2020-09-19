@@ -274,6 +274,8 @@ struct ParticleSystemImp final : ParticleSystem
 		{
 			uint32_t flags = sp::PipeIndex16|sp::PipeDepthTest|sp::PipeBlendPremultiply;
 			sg_pipeline_desc &d = particlePipe.init(gameShaders.particle, flags);
+			d.blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
+			d.blend.dst_factor_alpha = SG_BLENDFACTOR_ZERO;
 			d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT4;
 			d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT4;
 		}

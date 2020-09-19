@@ -820,7 +820,7 @@ struct GameSystemImp final : GameSystem
 	{
 		InputUpdateArgs inputArgs;
 		inputArgs.dt = frameArgs.dt;
-		inputArgs.resolution = sf::Vec2(frameArgs.resolution);
+		inputArgs.resolution = sf::Vec2(frameArgs.windowResolution);
 		inputArgs.clipToWorld = sf::inverse(frameArgs.mainRenderArgs.worldToClip);
 		#if !defined(SP_NO_APP)
 			inputArgs.dpiScale = sapp_dpi_scale();
@@ -988,7 +988,8 @@ struct GameSystemImp final : GameSystem
 		const float cameraDt = 0.001f;
 		camera.timeDelta = sf::min(camera.timeDelta + frameArgs.dt, 0.1f);
 
-		float aspect = (float)frameArgs.resolution.x / (float)frameArgs.resolution.y;
+		sf::Vec2i renderRes = frameArgs.mainRenderArgs.renderResolution;
+		float aspect = (float)renderRes.x / (float)renderRes.y;
 
 		static const float cameraExp = 0.02f;
 		static const float cameraLinear = 0.00005f;

@@ -61,7 +61,7 @@ struct MainClient
 	cl::Client *client;
 	sf::Vec2i offset;
 	sf::Vec2i resolution;
-	sg_image image;
+	cl::ClientRenderOutput renderOutput;
 };
 
 sv::Server *server;
@@ -349,7 +349,7 @@ void spFrame(float dt)
 	sp::beginFrame();
 
 	for (MainClient &client : clients) {
-		client.image = cl::clientRender(client.client);
+		client.renderOutput = cl::clientRender(client.client);
 	}
 
 	{
@@ -361,8 +361,16 @@ void spFrame(float dt)
 
 			sg_apply_viewport(client.offset.x, client.offset.y, client.resolution.x, client.resolution.y, true);
 
+			Upscale_Vertex_t vu;
+			vu.uvMad.x = (float)client.renderOutput.renderResolution.x / (float)client.renderOutput.targetResolution.x;
+			vu.uvMad.y = (float)client.renderOutput.renderResolution.y / (float)client.renderOutput.targetResolution.y;
+			vu.uvMad.z = 0.0f;
+			vu.uvMad.w = 0.0f;
+
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_Upscale_Vertex, &vu, sizeof(vu));
+
 			sg_bindings bindings = { };
-			bindings.fs_images[SLOT_Upscale_tonemapImage] = client.image;
+			bindings.fs_images[SLOT_Upscale_tonemapImage] = client.renderOutput.image;
 			bindings.vertex_buffers[0] = gameShaders.fullscreenTriangleBuffer;
 			sg_apply_bindings(&bindings);
 

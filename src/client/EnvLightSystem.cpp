@@ -1133,9 +1133,9 @@ struct EnvLightSystemImp final : EnvLightSystem
 		firstUpdate = false;
 	}
 
-	void renderEnvmapDebug(Systems &systems, const RenderArgs &renderArgs, const sf::Vec2i &resolution) override
+	void renderEnvmapDebug(Systems &systems, const RenderArgs &renderArgs) override
 	{
-		initDebugResources(resolution);
+		initDebugResources(renderArgs.targetResolution);
 
 		bool topLeft = sg_query_features().origin_top_left;
 
@@ -1227,9 +1227,9 @@ struct EnvLightSystemImp final : EnvLightSystem
 		sg_draw(0, 3, 1);
 	}
 
-	void renderEnvmapDebugSpheres(const LightSystem *lightSystem, const RenderArgs &renderArgs, const sf::Vec2i &resolution, const EnvVisualizeSphereOpts &opts) override
+	void renderEnvmapDebugSpheres(const LightSystem *lightSystem, const RenderArgs &renderArgs, const EnvVisualizeSphereOpts &opts) override
 	{
-		initDebugResources(resolution);
+		initDebugResources(renderArgs.targetResolution);
 
 		EnvLightAltas envAtlas = getEnvLightAtlas();
 
