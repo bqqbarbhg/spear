@@ -67,14 +67,11 @@ void spConfig(sp::MainConfig &config)
 
 	if (sargs_boolean("slow")) {
 		config.sappDesc.swap_interval = 2;
-		config.sappDesc.high_dpi = false;
 	}
 
-	#if SF_OS_EMSCRIPTEN
-	if (!g_hack_hd) {
+	if (sargs_boolean("lowdpi")) {
 		config.sappDesc.high_dpi = false;
 	}
-	#endif
 
 	config.saudioDesc.num_channels = 2;
 	#if SF_OS_EMSCRIPTEN && !SF_USE_PTHREADS
