@@ -149,10 +149,11 @@ sapp_desc sokol_main(int argc, char **argv)
 
 	config.sappDesc.high_dpi = true;
 
+	sp::commandLineArgs = sf::slice((const char**)argv, (size_t)argc);
+
 	spConfig(config);
 
 	sp::impSampleCount = config.sappDesc.sample_count;
-	sp::commandLineArgs = sf::slice((const char**)argv, (size_t)argc);
 
 	return config.sappDesc;
 }
