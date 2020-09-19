@@ -6,4 +6,4 @@
 
 #define JSI_IMPL
 
-#include "json_input.cpp"
+#include "json_input.cpp.h"

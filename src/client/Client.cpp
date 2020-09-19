@@ -51,6 +51,9 @@ EM_JS(int, clientEmscReadPersist, (char *data, size_t size), {
 	var persist = sessionStorage.getItem("spear_persist");
 	if (persist) {
 		stringToUTF8(persist, data, size);
+		return 1;
+	} else {
+		return 0;
 	}
 });
 
@@ -369,13 +372,13 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::Str
 	{
 		sf::Array<char> jsonBuf;
 		jsonBuf.resizeUninit(33*1096);
-		clientEmscReadPersist(jsonBuf.data, jsonBuf.capacity);
-
-		jsi_value *value = jsi_parse_string(jsonBuf.data, NULL);
-		if (value) {
-			cl::ClientPersist parsed;
-			if (sp::readJson(value, parsed)) {
-				sf::impSwap(persist, parsed);
+		if (clientEmscReadPersist(jsonBuf.data, jsonBuf.capacity)) {
+			jsi_value *value = jsi_parse_string(jsonBuf.data, NULL);
+			if (value) {
+				cl::ClientPersist parsed;
+				if (sp::readJson(value, parsed)) {
+					sf::impSwap(persist, parsed);
+				}
 			}
 		}
 	}
