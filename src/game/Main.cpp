@@ -33,6 +33,8 @@
 	#include <emscripten/html5.h>
 #endif
 
+extern bool g_hack_hd;
+
 void spConfig(sp::MainConfig &config)
 {
 	config.sappDesc.window_title = "Spear";
@@ -59,10 +61,20 @@ void spConfig(sp::MainConfig &config)
 		sargs_setup(&d);
 	}
 
+	if (sargs_boolean("hd")) {
+		g_hack_hd = true;
+	}
+
 	if (sargs_boolean("slow")) {
 		config.sappDesc.swap_interval = 2;
 		config.sappDesc.high_dpi = false;
 	}
+
+	#if SF_OS_EMSCRIPTEN
+	if (!g_hack_hd) {
+		config.sappDesc.high_dpi = false;
+	}
+	#endif
 
 	config.saudioDesc.num_channels = 2;
 	#if SF_OS_EMSCRIPTEN && !SF_USE_PTHREADS
@@ -115,8 +127,6 @@ static int port;
 static uint32_t sessionId;
 static uint32_t sessionSecret;
 
-extern bool g_hack_hd;
-
 static void *imguiAlloc(size_t size, void*) { return sf_malloc(size); }
 static void imguiFree(void *ptr, void*) { return sf_free(ptr); }
 
@@ -155,9 +165,6 @@ void spInit()
 		sp::ContentFile::addRelativeFileRoot("Build", "Assets/");
 	}
 
-	if (sargs_boolean("hd")) {
-		g_hack_hd = true;
-	}
     
     font.load(sf::Symbol("sp://OpenSans-Ascii.ttf"));
 
