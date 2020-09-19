@@ -13,6 +13,8 @@
 
 #include "client/EnvmapTexture.h"
 
+extern bool g_hack_simple;
+
 namespace cl {
 
 struct ShadowCache
@@ -416,6 +418,8 @@ struct LightSystemImp final : LightSystem
 
 	void queryVisiblePointLights(const VisibleAreas &visibleAreas, sf::Array<PointLight> &outPointLights, const PointLightFilter &filter) const override
 	{
+		if (g_hack_simple && !filter.bounce) return;
+
 		for (uint32_t pointId : visibleAreas.get(AreaGroup::PointLight)) {
 			const PointLightImp &point = pointLights[pointId];
 			if (filter.bounce && !point.hasBounce) continue;
@@ -435,6 +439,8 @@ struct LightSystemImp final : LightSystem
 
 	void queryVisiblePointLights(const VisibleAreas &visibleAreas, sf::Array<PointLight> &outPointLights, const sf::Bounds3 &bounds) const override
 	{
+		if (g_hack_simple) return;
+
 		for (uint32_t pointId : visibleAreas.get(AreaGroup::PointLight)) {
 			const PointLightImp &point = pointLights[pointId];
 			if (sf::intersect(bounds, point.sphere)) {

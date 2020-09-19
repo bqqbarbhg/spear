@@ -12,6 +12,8 @@
 
 #include "sf/Random.h"
 
+extern bool g_hack_simple;
+
 namespace cl {
 
 static sf::Vec3 sampleSphereUniform(const sf::Vec2 &uv)
@@ -875,6 +877,11 @@ struct EnvLightSystemImp final : EnvLightSystem
 		#else
 			permutation[SP_SHADOWGRID_USE_ARRAY] = 0;
 		#endif
+
+		if (g_hack_simple) {
+			permutation[SP_DIRECT_ENV_LIGHT] = 1;
+		}
+
 		lightingShader = getShader2(SpShader_EnvmapLighting, permutation);
 		lightingPipe.init(lightingShader.handle, sp::PipeVertexFloat2);
         

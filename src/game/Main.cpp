@@ -34,6 +34,7 @@
 #endif
 
 extern bool g_hack_hd;
+extern bool g_hack_simple;
 
 void spConfig(sp::MainConfig &config)
 {
@@ -63,6 +64,10 @@ void spConfig(sp::MainConfig &config)
 
 	if (sargs_boolean("hd")) {
 		g_hack_hd = true;
+	}
+
+	if (sargs_boolean("simple")) {
+		g_hack_simple = true;
 	}
 
 	if (sargs_boolean("slow")) {
@@ -423,3 +428,4 @@ void spAudio(float* buffer, int numFrames, int numChannels)
 #endif
 
 bool g_hack_hd;
+bool g_hack_simple;
