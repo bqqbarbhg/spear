@@ -3922,6 +3922,7 @@ _SOKOL_PRIVATE void _sapp_emsc_run(const sapp_desc* desc) {
 
     /* start the frame loop */
     emscripten_request_animation_frame_loop(_sapp_emsc_frame, 0);
+    emscripten_set_main_loop_timing(EM_TIMING_RAF, desc->swap_interval);
 
     /* NOT A BUG: do not call _sapp_discard_state() here, instead this is
        called in _sapp_emsc_frame() when the application is ordered to quit
