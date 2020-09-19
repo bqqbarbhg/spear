@@ -615,7 +615,8 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	if (sp::Asset::getNumAssetsLoading() == 0) {
 		c->averageDt = sf::lerp(c->averageDt, sf::min(dt, 1.0f/20.0f), 0.1f);
 		float averageFps = 1.0f / c->averageDt;
-		if (averageFps < 58.0f) {
+		float targetFps = 60.0f / (float)sapp_query_desc().swap_interval - 2.0f;
+		if (averageFps < targetFps) {
 			c->resolutionDropTimer += dt;
 			c->resolutionGrowTimer = 0.0f;
 			c->resolutionGrowLimit = sf::min(5.0f, c->resolutionGrowLimit * 2.0f);
