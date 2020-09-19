@@ -156,6 +156,7 @@ void spInit()
 		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_s3tc_srgb");
 		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_rgtc");
 		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_bptc");
+		emscripten_webgl_enable_extension(ctx, "WEBGL_debug_renderer_info");
 	}
 	#endif
 

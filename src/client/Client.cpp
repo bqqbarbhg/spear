@@ -41,6 +41,7 @@
 
 #if SF_OS_EMSCRIPTEN
 	#include <emscripten.h>
+	#include <gl/GL.h>
 #endif
 
 namespace cl {
@@ -292,6 +293,14 @@ static sf::Box<sv::Message> readMessageConsume(bqws_msg *wsMsg)
 
 static void recreateTargets(Client *c, const sf::Vec2i &systemRes)
 {
+	// Guesstimate some settings
+	// TODO: Don't do this always
+
+	// Render at most at 1080p
+	if (systemRes.y > 1080) {
+		c->resolutionScale = 1080.0f / (float)systemRes.y;
+	}
+
 	c->resolution = systemRes;
 	c->uiResolution.y = 720.0f;
 	c->uiResolution.x = c->uiResolution.y * ((float)systemRes.x / (float)systemRes.y);
@@ -380,6 +389,17 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::Str
 				if (sp::readJson(value, parsed)) {
 					sf::impSwap(persist, parsed);
 				}
+			}
+		}
+	}
+
+	{
+		const char *unmaskedRenderer = (const char*)glGetString(0x9246);
+		if (unmaskedRenderer) {
+			if (strstr(unmaskedRenderer, "Intel")) {
+				c->renderResolutionScale = 0.5f;
+				c->msaaSamples = 1;
+				c->useFxaa = true;
 			}
 		}
 	}
@@ -615,6 +635,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 		recreateTargets(c, input.resolution);
 	}
 
+#if 0
 	// Update dynamic resolution / settings (only if no assets are loading)
 	if (sp::Asset::getNumAssetsLoading() == 0) {
 		c->averageDt = sf::lerp(c->averageDt, sf::min(dt, 1.0f/20.0f), 0.1f);
@@ -670,6 +691,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 			c->lowestResTimer = 0.0f;
 		}
 	}
+#endif
 
 	if (input.resolution != c->resolution || c->forceRecreateTargets) {
 		c->forceRecreateTargets = false;

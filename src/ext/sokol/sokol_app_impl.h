@@ -3845,9 +3845,7 @@ _SOKOL_PRIVATE void _sapp_emsc_unregister_eventhandlers() {
     #endif
 }
 
-_SOKOL_PRIVATE EM_BOOL _sapp_emsc_frame(double time, void* userData) {
-    _SOKOL_UNUSED(time);
-    _SOKOL_UNUSED(userData);
+_SOKOL_PRIVATE void _sapp_emsc_frame() {
 
     #if defined(SOKOL_WGPU)
         /*
@@ -3887,9 +3885,7 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_frame(double time, void* userData) {
         _sapp_emsc_unregister_eventhandlers();
         _sapp_call_cleanup();
         _sapp_discard_state();
-        return EM_FALSE;
     }
-    return EM_TRUE;
 }
 
 _SOKOL_PRIVATE void _sapp_emsc_run(const sapp_desc* desc) {
@@ -3921,7 +3917,7 @@ _SOKOL_PRIVATE void _sapp_emsc_run(const sapp_desc* desc) {
     _sapp_emsc_register_eventhandlers();
 
     /* start the frame loop */
-    emscripten_request_animation_frame_loop(_sapp_emsc_frame, 0);
+    emscripten_set_main_loop(&_sapp_emsc_frame, 0, 0);
     emscripten_set_main_loop_timing(EM_TIMING_RAF, desc->swap_interval);
 
     /* NOT A BUG: do not call _sapp_discard_state() here, instead this is
