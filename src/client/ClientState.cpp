@@ -18,6 +18,17 @@
 
 #include "sp/Renderer.h"
 
+#ifdef __APPLE__
+	#include <TargetConditionals.h>
+	#if TARGET_OS_IPHONE
+		#define CL_USE_DEPTH_PREPASS 0
+	#endif
+#endif
+
+#ifndef CL_USE_DEPTH_PREPASS
+#define CL_USE_DEPTH_PREPASS 1
+#endif
+
 namespace cl {
 
 static Transform getPropTransform(const sv::PropTransform &transform)
@@ -208,7 +219,10 @@ void ClientState::renderMain(const RenderArgs &args)
 		}
 	}
 
-	systems.tileModel->renderDepthPrepass(systems.visibleAreas, args);
+	#if CL_USE_DEPTH_PREPASS
+		systems.tileModel->renderDepthPrepass(systems.visibleAreas, args);
+	#endif
+
 	systems.model->renderMain(systems.light, systems.envLight, systems.visibleAreas, args);
 	systems.characterModel->renderMain(systems.light, systems.envLight, systems.visibleAreas, args, systems.frameArgs);
 	systems.tileModel->renderMain(systems.light,  systems.envLight, systems.visibleAreas, args);
