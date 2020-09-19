@@ -50,6 +50,7 @@ void GuiCard::init(const sv::Prefab &prefab, uint32_t svId)
 		case GuiCardSlot::Spell: frame.load(sf::Symbol("Assets/Gui/Card/Spell_Frame.png")); break;
 		case GuiCardSlot::Skill: frame.load(sf::Symbol("Assets/Gui/Card/Skill_Frame.png")); break;
 		case GuiCardSlot::Item: frame.load(sf::Symbol("Assets/Gui/Card/Item_Frame.png")); break;
+		default: sf_failf("Unexpected slot: %u", (uint32_t)slot); break;
 		}
 		
 	}
