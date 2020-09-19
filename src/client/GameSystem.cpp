@@ -172,6 +172,7 @@ struct GameSystemImp final : GameSystem
 	uint32_t selectedCharacterId = 0;
 	float selectedCharacterTime = 0.0f;
 	float moveSelectTime = 0.0f;
+	bool autoSelectCharacter = true;
 
 	struct SelectedCard
 	{
@@ -1239,6 +1240,17 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
+		// Character auto-selection
+		if (autoSelectCharacter) {
+			selectedCharacterId = 0;
+			if (Character *chr = findCharacter(turnInfo.characterId)) {
+				const sv::Character *svChr = svState.characters.find(chr->svId);
+				if (svChr && !svChr->enemy) {
+					selectedCharacterId = chr->svId;
+				}
+			}
+		}
+
 		// Update projectiles
 		for (uint32_t i = 0; i < projectiles.size; i++) {
 			Projectile &projectile = projectiles[i];
@@ -1387,7 +1399,7 @@ struct GameSystemImp final : GameSystem
 							requestedActions.push(std::move(action));
 							selectedCardSlot = ~0u;
 						} else {
-							if (chr->svId != selectedCharacterId) {
+							if (chr->svId != selectedCharacterId && !autoSelectCharacter) {
 								selectedCardSlot = ~0u;
 								selectedCharacterId = chr->svId;
 								selectedCharacterTime = 0.0f;
@@ -1398,7 +1410,7 @@ struct GameSystemImp final : GameSystem
 					} else if (didHover) {
 						bool showHover = false;
 
-						if (chr->svId != selectedCharacterId || selectedCardSlot != ~0u) {
+						if ((chr->svId != selectedCharacterId && !autoSelectCharacter) || selectedCardSlot != ~0u) {
 							showHover = true;
 						}
 
