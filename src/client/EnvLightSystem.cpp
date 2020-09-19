@@ -632,10 +632,6 @@ static const sf::Vec3 cubeDirs[] = {
 	{ 0.0f, 0.0f, +1.0f }, { 0.0f, 0.0f, -1.0f },
 };
 
-static const float sliceHeight[] = {
-	0.05f, 1.5f, 3.0f,
-};
-
 static uint16_t pushVertex(sf::HashSet<sf::Vec3> &verts, const sf::Vec3 &v)
 {
 	return (uint16_t)(&verts.insert(v).entry - verts.data);
@@ -653,6 +649,8 @@ struct EnvLightSystemImp final : EnvLightSystem
 		RenderArgs renderArgs;
 		float depthToDistance;
 	};
+
+    sf::SmallArray<float, 4> sliceHeights;
 
 	uint32_t envmapResolution = 64;
 	uint32_t renderResolution = 64;
@@ -877,6 +875,11 @@ struct EnvLightSystemImp final : EnvLightSystem
 		#endif
 		lightingShader = getShader2(SpShader_EnvmapLighting, permutation);
 		lightingPipe.init(lightingShader.handle, sp::PipeVertexFloat2);
+        
+        // TODO: Settings
+        sliceHeights.push(0.05f);
+        sliceHeights.push(1.5f);
+        sliceHeights.push(3.0f);
 
 		{
 			MiscTextureProps props;
