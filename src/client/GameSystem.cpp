@@ -137,6 +137,8 @@ struct Camera
 
 	float touchMove = 0.0f;
 	sf::Vec3 targetDelta;
+	sf::Vec3 target;
+	float targetTime = 0.0f;
     float zoomDelta = 0.0f;
 	sf::Vec3 velocity;
 
@@ -190,7 +192,8 @@ struct GameSystemImp final : GameSystem
 		int32_t health;
 
 		sf::Vec3 centerOffset;
-		sp::SpriteRef statusIcon;
+		sp::SpriteRef statusActiveIcon;
+		sp::SpriteRef statusInactiveIcon;
 
 		sf::Array<uint32_t> cardIds;
 		SelectedCard selectedCards[sv::NumSelectedCards];
@@ -441,7 +444,8 @@ struct GameSystemImp final : GameSystem
 			if (character.svPrefab) {
 				if (auto *c = character.svPrefab->findComponent<sv::CharacterComponent>()) {
 					character.centerOffset = c->centerOffset;
-					character.statusIcon.load(c->statusIcon);
+					character.statusActiveIcon.load(c->statusActiveIcon);
+					character.statusInactiveIcon.load(c->statusInactiveIcon);
 				}
 			}
 
@@ -719,7 +723,12 @@ struct GameSystemImp final : GameSystem
 			// Failsafe
 			if (ctx.timer < 2.0f) return false;
 		} else if (const auto *e = event.as<sv::DamageEvent>()) {
-			if (ctx.immediate) return true;
+			if (ctx.immediate) {
+				if (Character *chr = findCharacter(e->damageInfo.targetId)) {
+					chr->health -= e->finalDamage;
+				}
+				return true;
+			}
 
 			if (Character *chr = findCharacter(e->damageInfo.targetId)) {
 				Entity &entity = systems.entities.entities[chr->entityId];
@@ -746,6 +755,20 @@ struct GameSystemImp final : GameSystem
 
 
 			if (ctx.timer < 0.5f) return false;
+
+		} else if (const auto *e = event.as<sv::TweakCharacterEvent>()) {
+
+			if (Character *chr = findCharacter(e->character.id)) {
+				chr->sv.enemy = e->character.enemy;
+				chr->sv.originalEnemy = e->character.originalEnemy;
+			}
+
+		} else if (const auto *e = event.as<sv::ChangeTeamEvent>()) {
+
+			if (Character *chr = findCharacter(e->characterId)) {
+				chr->sv.enemy = e->enemy;
+			}
+
 		} else if (const auto *e = event.as<sv::CastSpellEvent>()) {
 			if (ctx.immediate) return true;
 
@@ -1023,7 +1046,7 @@ struct GameSystemImp final : GameSystem
 
 		sf::Vec2 cameraMove;
 
-		{
+		if (camera.targetTime <= 0.0f) {
 			if (input.keyDown[SAPP_KEYCODE_A] || input.keyDown[SAPP_KEYCODE_LEFT]) cameraMove.x -= 1.0f;
 			if (input.keyDown[SAPP_KEYCODE_D] || input.keyDown[SAPP_KEYCODE_RIGHT]) cameraMove.x += 1.0f;
 			if (input.keyDown[SAPP_KEYCODE_W] || input.keyDown[SAPP_KEYCODE_UP]) cameraMove.y -= 1.0f;
@@ -1123,7 +1146,12 @@ struct GameSystemImp final : GameSystem
                 }
                 
                 camera.targetDelta = dragStart - dragCurrent;
-            }
+				camera.targetTime = 0.0f;
+            } else if (camera.targetTime > 0.0f) {
+				camera.targetDelta = camera.target - camera.current.origin;
+				float dist = 1.0f / sf::min(1.0f, 0.01f + sf::length(camera.targetDelta)*0.1f);
+				camera.targetTime -= cameraDt * dist;
+			}
 
 			sf::Vec3 delta = camera.targetDelta;
 			float deltaLen = sf::length(delta);
@@ -1643,38 +1671,48 @@ struct GameSystemImp final : GameSystem
 			sv::CharacterComponent *chrComp = chr ? chr->svPrefab->findComponent<sv::CharacterComponent>() : NULL;
 
 			{
-				auto blk = b.push<gui::WidgetBlockPointer>();
 				auto ll = b.push<gui::WidgetLinearLayout>();
 
-				blk->boxOffset.x = 20.0f;
-				blk->boxOffset.y = 20.0f;
+				ll->boxOffset = sf::Vec2(20.0f, 20.0f);
 				ll->boxExtent = sf::Vec2(200.0f, gui::Inf);
 				ll->direction = gui::DirY;
 				ll->padding = 10.0f;
+				ll->anchor = 0.0f;
 
 				for (Character &playerChr : characters) {
 					if (!playerChr.svId) continue;
 					if (playerChr.sv.enemy) continue;
 
 					auto ch = b.push<gui::WidgetCharacter>(playerChr.svId);
-					if (ch->created) {
-						ch->icon = playerChr.statusIcon;
-					}
 					ch->boxExtent = sf::Vec2(gui::Inf, 50.0f);
 					ch->currentHealth = playerChr.health;
 					ch->maxHealth = playerChr.sv.maxHealth;
 					ch->turnChanged = turnChanged;
+					ch->turnActive = turnInfo.characterId == playerChr.svId;
+
+					if (playerChr.svId == turnInfo.characterId) {
+						ch->icon = playerChr.statusActiveIcon;
+					} else {
+						ch->icon = playerChr.statusInactiveIcon;
+					}
+
+					if (ch->clicked) {
+						Entity &entity = systems.entities.entities[playerChr.entityId];
+						sf::Vec3 pos = entity.transform.position;
+						pos.y = 0.0f;
+						pos.z += 2.0f;
+						camera.target = pos;
+						camera.targetTime = 3.0f;
+					}
 
 					b.pop();
 				}
 
 				b.pop(); // LinearLayout
-				b.pop(); // BlockPointer
 			}
 
 			if (chr && chrComp) {
 
-#if 0
 				if (turnInfo.characterId == selectedCharacterId && !frameArgs.editorOpen) {
 					auto bt = b.push<gui::WidgetButton>();
 					if (bt->created) {
@@ -1683,7 +1721,7 @@ struct GameSystemImp final : GameSystem
 						bt->sprite = guiResources.buttonSprite;
 						bt->fontHeight = 40.0f;
 					}
-					bt->boxOffset = sf::Vec2(10.0f, 10.0f);
+					bt->boxOffset = sf::Vec2(frameArgs.guiResolution.x - 140.0f - 20.0f, 20.0f);
 					bt->boxExtent = sf::Vec2(140.0f, 60.0f);
 
 					if (bt->pressed) {
@@ -1694,7 +1732,6 @@ struct GameSystemImp final : GameSystem
 
 					b.pop();
 				}
-#endif
 
 				{
 					float hotbarCardHeight = 140.0f;

@@ -36,6 +36,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, SpellDamage, SpellDamageComponent),
 		sf_poly(Component, SpellStatus, SpellStatusComponent),
 		sf_poly(Component, Status, StatusComponent),
+		sf_poly(Component, StatusChangeTeam, StatusChangeTeamComponent),
 		sf_poly(Component, CharacterTemplate, CharacterTemplateComponent),
 		sf_poly(Component, TileArea, TileAreaComponent),
 		sf_poly(Component, Effect, EffectComponent),
@@ -55,6 +56,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, StatusExtend, StatusExtendEvent),
 		sf_poly(Event, StatusTick, StatusTickEvent),
 		sf_poly(Event, StatusRemove, StatusRemoveEvent),
+		sf_poly(Event, ChangeTeam, ChangeTeamEvent),
 		sf_poly(Event, ResistDamage, ResistDamageEvent),
 		sf_poly(Event, IncreaseDamage, IncreaseDamageEvent),
 		sf_poly(Event, CastSpell, CastSpellEvent),
@@ -501,7 +503,8 @@ template<> void initType<CharacterComponent>(Type *t)
 	static Field fields[] = {
 		sf_field(CharacterComponent, name),
 		sf_field(CharacterComponent, description),
-		sf_field(CharacterComponent, statusIcon),
+		sf_field(CharacterComponent, statusActiveIcon),
+		sf_field(CharacterComponent, statusInactiveIcon),
 		sf_field(CharacterComponent, maxHealth),
 		sf_field(CharacterComponent, baseArmor),
 		sf_field(CharacterComponent, minWeightDice),
@@ -521,7 +524,11 @@ template<> void initType<CharacterComponent>(Type *t)
 		info.multiline = true;
 	}
 	{
-		ReflectionInfo &info = addTypeReflectionInfo(t, "statusIcon");
+		ReflectionInfo &info = addTypeReflectionInfo(t, "statusActiveIcon");
+		info.asset = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "statusInactiveIcon");
 		info.asset = true;
 	}
 	{
@@ -885,6 +892,14 @@ template<> void initType<StatusComponent>(Type *t)
 	}
 }
 
+template<> void initType<StatusChangeTeamComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(StatusChangeTeamComponent, temp),
+	};
+	sf_struct_base(t, StatusChangeTeamComponent, Component, fields);
+}
+
 template<> void initType<CharacterTemplateComponent>(Type *t)
 {
 	static Field fields[] = {
@@ -1029,6 +1044,16 @@ template<> void initType<StatusRemoveEvent>(Type *t)
 		sf_field(StatusRemoveEvent, statusId),
 	};
 	sf_struct_base(t, StatusRemoveEvent, Event, fields);
+}
+
+template<> void initType<ChangeTeamEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(ChangeTeamEvent, cardName),
+		sf_field(ChangeTeamEvent, characterId),
+		sf_field(ChangeTeamEvent, enemy),
+	};
+	sf_struct_base(t, ChangeTeamEvent, Event, fields);
 }
 
 template<> void initType<ResistDamageEvent>(Type *t)
@@ -1828,6 +1853,7 @@ template<> void initType<Character>(Type *t)
 		sf_field(Character, tile),
 		sf_field(Character, armor),
 		sf_field(Character, enemy),
+		sf_field(Character, originalEnemy),
 	};
 	sf_struct(t, Character, fields);
 

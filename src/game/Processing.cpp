@@ -1454,9 +1454,11 @@ void initializeProcessing(const ProcessingDesc &desc)
 
 	int maxGuiExtent = 512;
 	int maxCardExtent = 256;
+	int maxIconExtent = 256;
 	int maxBillboardExtent = 512;
 	p.tasks.push(sf::box<GuiTextureTask>("rgba8", "Gui", maxGuiExtent));
 	p.tasks.push(sf::box<GuiTextureTask>("rgba8", "Cards", maxCardExtent));
+	p.tasks.push(sf::box<GuiTextureTask>("rgba8", "Character_Icons", maxCardExtent));
 	p.tasks.push(sf::box<GuiTextureTask>("rgba8", "Billboards", maxBillboardExtent));
 
 	int maxParticleExtent = 1024;

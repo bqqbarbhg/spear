@@ -57,6 +57,7 @@ struct Component
 		SpellDamage,
 		SpellStatus,
 		Status,
+		StatusChangeTeam,
 		CharacterTemplate,
 		TileArea,
 		Effect,
@@ -226,7 +227,8 @@ struct CharacterComponent : ComponentBase<Component::Character>
 {
 	sf::Symbol name;
 	sf::Symbol description sv_reflect(multiline);
-	sf::Symbol statusIcon sv_reflect(asset);
+	sf::Symbol statusActiveIcon sv_reflect(asset);
+	sf::Symbol statusInactiveIcon sv_reflect(asset);
 	uint32_t maxHealth = 20;
 	uint32_t baseArmor = 0;
 	uint32_t minWeightDice = 1;
@@ -434,6 +436,11 @@ struct StatusComponent : ComponentBase<Component::Status>
 	bool ticksOnTurnEnd = false;
 };
 
+struct StatusChangeTeamComponent : ComponentBase<Component::StatusChangeTeam>
+{
+	bool temp = false;
+};
+
 struct StarterCard sv_reflect()
 {
 	sf::Symbol prefabName sv_reflect(prefab);
@@ -554,6 +561,7 @@ struct Character sv_reflect()
 	sf::Vec2i tile;
 	uint32_t armor = 0;
 	bool enemy = false;
+	bool originalEnemy = false;
 };
 
 struct StatusInfo sv_reflect()
@@ -625,6 +633,7 @@ struct Event
 		StatusAdd,
 		StatusExtend,
 		StatusTick,
+		ChangeTeam,
 		StatusRemove,
 		ResistDamage,
 		IncreaseDamage,
@@ -703,6 +712,13 @@ struct StatusTickEvent : EventBase<Event::StatusTick>
 struct StatusRemoveEvent : EventBase<Event::StatusRemove>
 {
 	uint32_t statusId;
+};
+
+struct ChangeTeamEvent : EventBase<Event::ChangeTeam>
+{
+	sf::Symbol cardName;
+	uint32_t characterId;
+	bool enemy;
 };
 
 struct ResistDamageEvent : EventBase<Event::ResistDamage>

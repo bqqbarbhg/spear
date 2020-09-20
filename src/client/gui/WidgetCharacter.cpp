@@ -8,6 +8,8 @@ void WidgetCharacter::layout(GuiLayout &layout, const sf::Vec2 &min, const sf::V
 {
 	WidgetBase::layout(layout, min, max);
 
+	clicked = false;
+
 	if (currentHealth != prevCurrentHealth || maxHealth != prevMaxHealth) {
 		if (prevMaxHealth < 0) {
 			targetHealth = (float)currentHealth;
@@ -30,12 +32,14 @@ void WidgetCharacter::layout(GuiLayout &layout, const sf::Vec2 &min, const sf::V
 
 void WidgetCharacter::paint(GuiPaint &paint)
 {
-	sf::Vec2 iconSize = sf::Vec2(layoutSize.y);
+	sf::Vec2 size = layoutSize;
+
+	sf::Vec2 iconSize = sf::Vec2(size.y);
 	paint.canvas->draw(paint.resources->statusIconOutline, layoutOffset, iconSize);
 	paint.canvas->draw(icon, layoutOffset, iconSize);
 
-	sf::Vec2 healthOffset = layoutOffset + sf::Vec2(iconSize.x * 1.1f, layoutSize.y * 0.15f);
-	sf::Vec2 healthSize = sf::Vec2(layoutSize.x - healthOffset.x, layoutSize.y * 0.25f);
+	sf::Vec2 healthOffset = layoutOffset + sf::Vec2(iconSize.x * 1.1f, size.y * 0.15f);
+	sf::Vec2 healthSize = sf::Vec2(size.x - healthOffset.x, size.y * 0.25f);
 
 	{
 		sp::SpriteDraw draw;
@@ -73,9 +77,9 @@ void WidgetCharacter::paint(GuiPaint &paint)
 		sp::TextDraw draw;
 		draw.font = paint.resources->statusFont;
 		draw.string = healthStr;
-		draw.transform = sf::mat2D::translate(healthOffset + sf::Vec2(layoutSize.y * 0.05f, layoutSize.y * 0.55f));
+		draw.transform = sf::mat2D::translate(healthOffset + sf::Vec2(size.y * 0.05f, size.y * 0.55f));
 		draw.color = sf::Vec4(1.0f);
-		draw.height = layoutSize.y * 0.4f;
+		draw.height = size.y * 0.4f;
 		paint.canvas->drawText(draw);
 	}
 }
@@ -83,6 +87,11 @@ void WidgetCharacter::paint(GuiPaint &paint)
 bool WidgetCharacter::onPointer(GuiPointer &pointer)
 {
 	pointer.blocked = true;
+
+	if (pointer.action == GuiPointer::Tap && (pointer.button == GuiPointer::MouseLeft || pointer.button == GuiPointer::Touch)) {
+		clicked = true;
+	}
+
 	return false;
 }
 

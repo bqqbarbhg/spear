@@ -23,6 +23,7 @@ struct GuiResources
 	sp::SpriteRef statusIconOutline;
 	sp::SpriteRef statusHealthOutline;
 	sp::SpriteRef statusHealthFilling;
+	sp::SpriteRef statusSkipOutline;
 	sp::FontRef statusFont;
 
 	sp::SpriteRef buttonSprite;

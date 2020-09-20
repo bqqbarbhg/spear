@@ -1188,7 +1188,10 @@ void handleImguiCharacterWindow(EditorState *es)
 				sv::Character chrCopy = *chr;
 				bool modified = false;
 
-				modified |= ImGui::Checkbox("Enemy", &chrCopy.enemy);
+				if (ImGui::Checkbox("Enemy", &chrCopy.originalEnemy)) {
+					chrCopy.enemy = chrCopy.originalEnemy;
+					modified = true;
+				}
 
 				if (modified) {
 					sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();

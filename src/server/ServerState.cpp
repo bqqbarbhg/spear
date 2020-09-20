@@ -365,6 +365,10 @@ void ServerState::applyEvent(const Event &event)
 		bool removed = statuses.remove(e->statusId);
 		sv_check(*this, removed);
 
+	} else if (auto *e = event.as<ChangeTeamEvent>()) {
+		if (Character *chr = findCharacter(*this, e->characterId)) {
+			chr->enemy = e->enemy;
+		}
 	} else if (auto *e = event.as<DamageEvent>()) {
 		if (Character *chr = findCharacter(*this, e->damageInfo.targetId)) {
 			chr->health -= (int32_t)e->finalDamage;
@@ -513,6 +517,7 @@ void ServerState::applyEvent(const Event &event)
 	} else if (auto *e = event.as<TweakCharacterEvent>()) {
 		if (Character *chr = findCharacter(*this, e->character.id)) {
 			chr->enemy = e->character.enemy;
+			chr->originalEnemy = e->character.originalEnemy;
 		}
 	} else if (auto *e = event.as<TurnUpdateEvent>()) {
 		turnInfo = e->turnInfo;
@@ -628,8 +633,8 @@ bool ServerState::canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol
 	if (!self || !target) return false;
 
 	if (self != target) {
-		if (!cardComp->targetEnemies && self->enemy != target->enemy) return false;
-		if (!cardComp->targetFriends && self->enemy == target->enemy) return false;
+		if (!cardComp->targetEnemies && (self->enemy != target->enemy && self->enemy != target->originalEnemy)) return false;
+		if (!cardComp->targetFriends && (self->enemy != !target->enemy && self->enemy != !target->originalEnemy)) return false;
 	}
 
 	const Prefab *selfPrefab = prefabs.find(self->prefabName);
@@ -837,6 +842,18 @@ void ServerState::putStatus(sf::Array<sf::Box<Event>> &events, const StatusInfo 
 		e->status.turnsLeft = e->turnsRoll.total;
 		e->status.ticksOnTurnEnd = statusComp->ticksOnTurnEnd;
 		pushEvent(*this, events, e);
+	}
+
+	for (Component *comp : statusPrefab->components) {
+		if (auto *c = comp->as<StatusChangeTeamComponent>()) {
+			if (chr->enemy == chr->originalEnemy) {
+				auto e = sf::box<ChangeTeamEvent>();
+				e->cardName = statusInfo.cardName;
+				e->characterId = statusInfo.targetId;
+				e->enemy = !chr->originalEnemy;
+				pushEvent(*this, events, e);
+			}
+		}
 	}
 }
 
@@ -1082,6 +1099,9 @@ void ServerState::startNextCharacterTurn(sf::Array<sf::Box<Event>> &events)
 		if (Character *chr = characters.find(turnInfo.characterId)) {
 			sf::SmallArray<uint32_t, 64> statusIds;
 			statusIds.push(chr->statuses.slice());
+
+			bool restoreTeam = chr->enemy != chr->originalEnemy;
+
 			for (uint32_t id : statusIds) {
 				Status *status = statuses.find(id);
 				if (!status) continue;
@@ -1096,7 +1116,24 @@ void ServerState::startNextCharacterTurn(sf::Array<sf::Box<Event>> &events)
 					auto e = sf::box<StatusRemoveEvent>();
 					e->statusId = status->id;
 					pushEvent(*this, events, std::move(e));
+					continue;
 				}
+
+				if (restoreTeam) {
+					Prefab *statusPrefab = findPrefabExisting(*this, status->prefabName);
+					if (statusPrefab) {
+						if (statusPrefab->findComponent<StatusChangeTeamComponent>()) {
+							restoreTeam = false;
+						}
+					}
+				}
+			}
+
+			if (restoreTeam) {
+				auto e = sf::box<ChangeTeamEvent>();
+				e->characterId = chr->id;
+				e->enemy = chr->originalEnemy;
+				pushEvent(*this, events, e);
 			}
 		}
 

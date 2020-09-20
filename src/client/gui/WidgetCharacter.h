@@ -21,6 +21,8 @@ struct WidgetCharacter : WidgetBase<'c','h','a','r'>
 	int32_t prevCurrentHealth = -1;
 	int32_t prevMaxHealth = -1;
 	bool turnChanged = false;
+	bool turnActive = false;
+	bool clicked = false;
 
 	virtual void layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Vec2 &max) override;
 	virtual void paint(GuiPaint &paint) override;
