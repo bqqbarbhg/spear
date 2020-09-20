@@ -948,9 +948,9 @@ struct EnvLightSystemImp final : EnvLightSystem
 			sliceHeights.push(3.0f);
 		} else if (g_settings.diffuseProbeSlices == 2) {
 			sliceHeights.push(0.1f);
-			sliceHeights.push(2.0f);
+			sliceHeights.push(3.0f);
 		} else {
-			sliceHeights.push(0.5f);
+			sliceHeights.push(1.5f);
 		}
 		updateCount = g_settings.diffuseProbeUpdateCount;
 		probeDistance = g_settings.diffuseProbeDistance;

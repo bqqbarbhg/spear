@@ -17,8 +17,8 @@ void initDefaultSettings(ClientSettings &settings, ClientSettings::Preset preset
 		settings.maxAnisotropy = 0;
 		settings.diffuseProbeSlices = 1;
 		settings.diffuseProbeUpdateCount = 1;
-		settings.diffuseProbeResolution = 24;
-		settings.diffuseProbeDistance = 2.0f;
+		settings.diffuseProbeResolution = 48;
+		settings.diffuseProbeDistance = 1.0f;
 		settings.diffuseProbeSmallFloat = true;
 		settings.shadowCacheResolution = 32;
 		settings.shadowCacheSlices = 8;

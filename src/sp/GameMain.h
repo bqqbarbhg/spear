@@ -71,6 +71,11 @@ void impInit()
 		desc.d3d11_render_target_view_cb = sapp_d3d11_get_render_target_view;
 		desc.d3d11_depth_stencil_view_cb = sapp_d3d11_get_depth_stencil_view;
 
+		desc.image_pool_size = 4096;
+		desc.buffer_pool_size = 4096;
+		desc.pipeline_pool_size = 256;
+		desc.shader_pool_size = 256;
+		desc.pass_pool_size = 128;
 
 		sg_setup(&desc);
 	}
