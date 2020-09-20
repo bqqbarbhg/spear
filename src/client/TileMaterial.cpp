@@ -4,10 +4,10 @@
 #include "sp/Renderer.h"
 #include "sf/Mutex.h"
 
+#include "client/ClientSettings.h"
+
 #include "ext/sokol/sokol_gfx.h"
 #include "ext/sp_tools_common.h"
-
-extern bool g_hack_hd;
 
 namespace cl {
 
@@ -45,11 +45,8 @@ struct TileMaterialAtlasTexture
 		desc.height = (int)resolutionY;
 		desc.num_mipmaps = (int)numAllocatedMips;
 		desc.bqq_copy_target = true;
-		desc.mag_filter = SG_FILTER_LINEAR;
-		desc.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
 		desc.max_lod = (float)(numMips - 1);
-		// TODO: Config
-		desc.max_anisotropy = 4;
+		initSampler(desc, g_settings);
 		texture.init(desc);
 	}
 };
@@ -207,7 +204,7 @@ void TileMaterial::globalInit()
 {
 	TileMaterialContext &ctx = g_tileMaterialContext;
 
-	uint32_t resolution = g_hack_hd ? 1024u : 512u;
+	uint32_t resolution = g_settings.tileMaterialResolution;
 
 	ctx.atlases[(uint32_t)MaterialTexture::Albedo].init(ctx.numSlotsX, ctx.numSlotsY, resolution, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Albedo], "TileMaterial albedo");
 	ctx.atlases[(uint32_t)MaterialTexture::Normal].init(ctx.numSlotsX, ctx.numSlotsY, resolution, MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Normal], "TileMaterial normal");

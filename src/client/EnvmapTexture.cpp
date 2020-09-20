@@ -111,7 +111,6 @@ void EnvmapTexture::globalInit()
 		desc.mag_filter = SG_FILTER_LINEAR;
 		desc.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
 		desc.type = SG_IMAGETYPE_CUBE;
-		desc.max_anisotropy = 4;
 
 		{
 			const unsigned char content[] = { 0x00, 0x00, 0x00, 0x00 };

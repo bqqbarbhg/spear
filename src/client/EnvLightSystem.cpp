@@ -7,12 +7,13 @@
 
 #include "game/shader/GameShaders.h"
 #include "game/shader/EnvmapBlend.h"
+#include "game/shader/EnvmapPack.h"
 #include "game/shader/Postprocess.h"
 #include "game/shader2/GameShaders2.h"
 
-#include "sf/Random.h"
+#include "client/ClientSettings.h"
 
-extern bool g_hack_simple;
+#include "sf/Random.h"
 
 namespace cl {
 
@@ -673,6 +674,10 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 	sp::Pipeline envmapBlendPipe;
 
+	sg_shader envPackShader;
+	sp::Pipeline envPackPipe;
+	sp::RenderPass envPackPass;
+
 	sf::Vec2i debugResolution;
 	sp::RenderTarget debugGBufferTarget[2];
 	sp::RenderTarget debugGBufferDepthTarget;
@@ -697,7 +702,9 @@ struct EnvLightSystemImp final : EnvLightSystem
 
 	sp::Texture blendDiffuse[2];
 	sp::Texture envDiffuse[2];
+	sp::Texture envDiffuseSample;
 	sp::RenderPass envBlendPass[2][MaxDepthSlices];
+	sg_image envDiffuseImage[2];
 
 	sp::Texture nullDiffuse;
 
@@ -759,8 +766,18 @@ struct EnvLightSystemImp final : EnvLightSystem
 			d.wrap_u = d.wrap_v = d.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
 			envDiffuse[swapI].init(d);
 
-			d.min_filter = d.mag_filter = SG_FILTER_NEAREST;
-			blendDiffuse[swapI].init(d);
+			{
+				sg_image_desc d2 = d;
+				d2.min_filter = d2.mag_filter = SG_FILTER_NEAREST;
+				blendDiffuse[swapI].init(d2);
+			}
+
+			if (g_settings.diffuseProbeSmallFloat) {
+				sg_image_desc d2 = d;
+				d2.pixel_format = SG_PIXELFORMAT_RG11B10F;
+			} else {
+				envDiffuseImage[swapI] = envDiffuse[swapI].image;
+			}
 
 			sp::FramebufferDesc fbDesc;
 			fbDesc.colorFormat = SG_PIXELFORMAT_RGBA16F;
@@ -777,6 +794,41 @@ struct EnvLightSystemImp final : EnvLightSystem
 				passDesc.color_attachments[1].slice = depthI;
 				envBlendPass[swapI][depthI].init(passDesc, sf::Vec2i((int32_t)envmapResolution), fbDesc);
 			}
+		}
+
+		if (g_settings.diffuseProbeSmallFloat) {
+			{
+				sf::SmallStringBuf<64> label;
+				label.format("envDiffuseSample");
+				sg_image_desc d = { };
+				d.render_target = true;
+				d.label = label.data;
+				d.pixel_format = SG_PIXELFORMAT_RG11B10F;
+				d.type = SG_IMAGETYPE_3D;
+				d.width = envmapResolution * 6;
+				d.height = envmapResolution;
+				d.depth = sliceCount;
+				d.num_mipmaps = 1;
+				d.min_filter = d.mag_filter = SG_FILTER_LINEAR;
+				d.wrap_u = d.wrap_v = d.wrap_w = SG_WRAP_CLAMP_TO_EDGE;
+				envDiffuseSample.init(d);
+				for (uint32_t swapI = 0; swapI < 2; swapI++) {
+					envDiffuseImage[swapI] = envDiffuseSample.image;
+				}
+			}
+
+			sp::FramebufferDesc fbDesc;
+			fbDesc.colorFormat = SG_PIXELFORMAT_RG11B10F;
+			fbDesc.depthFormat = SG_PIXELFORMAT_NONE;
+
+			sg_pass_desc passDesc = { };
+			passDesc.label = "envmapPack";
+			for (uint32_t i = 0; i < sliceCount; i++) {
+				passDesc.color_attachments[i].image = envDiffuseSample.image;
+				passDesc.color_attachments[i].slice = (int)i;
+			}
+
+			envPackPass.init(passDesc, sf::Vec2i((int32_t)envmapResolution * 6, envmapResolution), fbDesc);
 		}
 	}
 
@@ -878,31 +930,48 @@ struct EnvLightSystemImp final : EnvLightSystem
 			permutation[SP_SHADOWGRID_USE_ARRAY] = 0;
 		#endif
 
-		if (g_hack_simple) {
+		if (g_settings.simpleShading) {
 			permutation[SP_DIRECT_ENV_LIGHT] = 1;
 		}
 
 		lightingShader = getShader2(SpShader_EnvmapLighting, permutation);
 		lightingPipe.init(lightingShader.handle, sp::PipeVertexFloat2);
         
-        // TODO: Settings
-#if 0
-        sliceHeights.push(0.05f);
-        sliceHeights.push(1.5f);
-        sliceHeights.push(3.0f);
+		if (g_settings.diffuseProbeSlices == 4) {
+			sliceHeights.push(0.05f);
+			sliceHeights.push(1.0f);
+			sliceHeights.push(2.0f);
+			sliceHeights.push(3.0f);
+		} else if (g_settings.diffuseProbeSlices == 3) {
+			sliceHeights.push(0.05f);
+			sliceHeights.push(1.5f);
+			sliceHeights.push(3.0f);
+		} else if (g_settings.diffuseProbeSlices == 2) {
+			sliceHeights.push(0.1f);
+			sliceHeights.push(2.0f);
+		} else {
+			sliceHeights.push(0.5f);
+		}
+		updateCount = g_settings.diffuseProbeUpdateCount;
+		probeDistance = g_settings.diffuseProbeDistance;
+		envmapResolution = g_settings.diffuseProbeResolution;
 		sliceCount = sliceHeights.size;
-		updateCount = 3;
-		envmapResolution = 64;
-		probeDistance = 1.0f;
-#else
-        sliceHeights.push(0.1f);
-        sliceHeights.push(2.0f);
-		sliceCount = sliceHeights.size;
-		updateCount = 1;
-		envmapResolution = 48;
-		probeDistance = 1.0f;
-#endif
 		renderResolution = envmapResolution;
+
+		if (g_settings.diffuseProbeSmallFloat) {
+			if (sliceCount == 1) {
+				envPackShader = sg_make_shader(EnvmapPack_EnvmapPack1_shader_desc());
+			} else if (sliceCount == 2) {
+				envPackShader = sg_make_shader(EnvmapPack_EnvmapPack2_shader_desc());
+			} else if (sliceCount == 3) {
+				envPackShader = sg_make_shader(EnvmapPack_EnvmapPack3_shader_desc());
+			} else {
+				sf_fail();
+			}
+
+			sg_pipeline_desc &d = envPackPipe.init(envPackShader, sp::PipeVertexFloat2);
+			d.blend.color_attachment_count = sliceCount;
+		}
 
 		initTargets();
 
@@ -911,7 +980,6 @@ struct EnvLightSystemImp final : EnvLightSystem
 			props.minFilter = props.magFilter = SG_FILTER_NEAREST;
 			blueNoiseTex.load(sf::Symbol("Assets/Misc/Misc_RGBA/BlueNoise_64.png"), props);
 		}
-
 
 		{
 			sg_pipeline_desc &d = envmapBlendPipe.init(gameShaders.envmapBlend, sp::PipeVertexFloat2);
@@ -1095,9 +1163,8 @@ struct EnvLightSystemImp final : EnvLightSystem
 		// Pass 3: Update the atlas
 		for (uint32_t depthI = 0; depthI < sliceCount; depthI++) {
 			sg_pass_action action = { };
-			action.colors[0].action = SG_ACTION_CLEAR;
-			action.depth.action = SG_ACTION_CLEAR;
-			action.depth.val = 1.0f;
+			action.colors[0].action = SG_ACTION_DONTCARE;
+			action.colors[1].action = SG_ACTION_DONTCARE;
 			sp::beginPass(envBlendPass[writeSwap][depthI], &action);
 
 			sg_bindings binds = { };
@@ -1122,7 +1189,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 			pu.rcpDepthSlices = 1.0f / (float)sliceCount;
 			pu.rcpNumUpdates = 1.0f / (float)updateCount;
 
-			for (uint32_t i = 0; i < sliceCount; i++) {
+			for (uint32_t i = 0; i < updateCount; i++) {
 				pu.rayDirs[i] = sf::Vec4(rayDirs[i], 0.0f);
 			}
 
@@ -1131,6 +1198,28 @@ struct EnvLightSystemImp final : EnvLightSystem
 			}
 
 			sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_EnvmapBlend_Pixel, &pu, sizeof(pu));
+
+			sg_draw(0, 3, 1);
+
+			sp::endPass();
+		}
+
+		// Pass 4 (optional): Pack the atlas to RG11B10F
+		if (g_settings.diffuseProbeSmallFloat) {
+			sg_pass_action action = { };
+			for (uint32_t i = 0; i < sliceCount; i++) {
+				action.colors[i].action = SG_ACTION_DONTCARE;
+			}
+			sp::beginPass(envPackPass, &action);
+
+			envPackPipe.bind();
+
+			sg_bindings binds = { };
+
+			binds.vertex_buffers[0] = gameShaders.fullscreenTriangleBuffer;
+			binds.fs_images[SLOT_EnvmapPack_envmap] = envDiffuse[writeSwap].image;
+
+			sg_apply_bindings(&binds);
 
 			sg_draw(0, 3, 1);
 
@@ -1283,7 +1372,7 @@ struct EnvLightSystemImp final : EnvLightSystem
 	EnvLightAltas getEnvLightAtlas() const override
 	{
 		EnvLightAltas atlas = { };
-		atlas.image = envDiffuse[envDiffuseIndex].image;
+		atlas.image = envDiffuseImage[envDiffuseIndex];
 		float px = ((float)offsetInProbes.x + probeDeltaOffset.x/probeDistance - 0.5f) / (float)envmapResolution;
 		float py = ((float)offsetInProbes.y + probeDeltaOffset.y/probeDistance + 0.5f) / (float)envmapResolution;
 		atlas.worldMad = sf::Vec4((1.0f / probeDistance) / (float)envmapResolution, (1.0f / probeDistance) / (float)envmapResolution, 0.5f - px, 0.5f - py);

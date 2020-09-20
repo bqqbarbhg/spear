@@ -24,6 +24,7 @@
 #include "Billboard.h"
 #include "MapGBuffer.h"
 #include "EnvmapBlend.h"
+#include "EnvmapPack.h"
 
 #include "GameShaders.h"
 

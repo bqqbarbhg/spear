@@ -9,11 +9,11 @@
 
 #include "game/DebugDraw.h"
 
+
 #include "sf/Sort.h"
 
 #include "client/EnvmapTexture.h"
-
-extern bool g_hack_simple;
+#include "client/ClientSettings.h"
 
 namespace cl {
 
@@ -301,6 +301,8 @@ struct LightSystemImp final : LightSystem
 
 	void addPointLight(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::PointLightComponent &c, const Transform &transform) override
 	{
+		if (c.minQuality > g_settings.lightQuality) return;
+
 		uint32_t pointId = pointLights.size;
 		if (freePointLightIds.size > 0) {
 			pointId = freePointLightIds.popValue();
@@ -418,7 +420,7 @@ struct LightSystemImp final : LightSystem
 
 	void queryVisiblePointLights(const VisibleAreas &visibleAreas, sf::Array<PointLight> &outPointLights, const PointLightFilter &filter) const override
 	{
-		if (g_hack_simple && !filter.bounce) return;
+		if (g_settings.simpleShading && !filter.bounce) return;
 
 		for (uint32_t pointId : visibleAreas.get(AreaGroup::PointLight)) {
 			const PointLightImp &point = pointLights[pointId];
@@ -439,7 +441,7 @@ struct LightSystemImp final : LightSystem
 
 	void queryVisiblePointLights(const VisibleAreas &visibleAreas, sf::Array<PointLight> &outPointLights, const sf::Bounds3 &bounds) const override
 	{
-		if (g_hack_simple) return;
+		if (g_settings.simpleShading) return;
 
 		for (uint32_t pointId : visibleAreas.get(AreaGroup::PointLight)) {
 			const PointLightImp &point = pointLights[pointId];

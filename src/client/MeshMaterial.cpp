@@ -7,11 +7,11 @@
 #include "sp/ContentFile.h"
 #include "sf/String.h"
 
+#include "client/ClientSettings.h"
+
 #if SF_OS_EMSCRIPTEN
 	#include <emscripten/emscripten.h>
 #endif
-
-extern bool g_hack_hd;
 
 namespace cl {
 
@@ -73,9 +73,7 @@ static void loadTextureImp(void *user, const sp::ContentFile &file, MaterialText
 		d.num_mipmaps = header.info.num_mips;
 		d.width = header.info.width;
 		d.height = header.info.height;
-		d.mag_filter = SG_FILTER_LINEAR;
-		d.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
-		d.max_anisotropy = 4;
+        initSampler(d, g_settings);
 
         sf::SmallStringBuf<128> name;
         name.append(imp->name);
@@ -134,7 +132,7 @@ void MeshMaterialImp::assetStartLoading()
 {
 	sf::SmallStringBuf<256> path;
 
-    uint32_t resolution = g_hack_hd ? 1024u : 512u;
+    uint32_t resolution = g_settings.meshMaterialResolution;
 
     path.clear(); path.format("%s_albedo.%s.%u.sptex", name.data, getPixelFormatSuffix(MeshMaterial::materialFormats[(uint32_t)MaterialTexture::Albedo]), resolution);
 	sp::ContentFile::loadAsync(path, &loadAlbedoImp, this);
@@ -213,8 +211,7 @@ void MeshMaterial::globalInit()
 		desc.height = 1;
 		desc.num_mipmaps = 1;
 		desc.mag_filter = SG_FILTER_LINEAR;
-		desc.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
-		desc.max_anisotropy = 4;
+		desc.min_filter = SG_FILTER_LINEAR;
 
 		{
 			const unsigned char content[] = { 0x80, 0x80, 0x80, 0xff };

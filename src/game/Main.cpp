@@ -15,6 +15,7 @@
 #include "ext/sokol/sokol_imgui.h"
 #include "ext/sokol/sokol_args.h"
 #include "ext/imgui/imgui.h"
+#include "client/ClientSettings.h"
 
 #include "GameConfig.h"
 
@@ -32,9 +33,6 @@
 	#include <emscripten/emscripten.h>
 	#include <emscripten/html5.h>
 #endif
-
-extern bool g_hack_hd;
-extern bool g_hack_simple;
 
 void spConfig(sp::MainConfig &config)
 {
@@ -62,20 +60,19 @@ void spConfig(sp::MainConfig &config)
 		sargs_setup(&d);
 	}
 
-	if (sargs_boolean("hd")) {
-		g_hack_hd = true;
-	}
-
-	if (sargs_boolean("simple")) {
-		g_hack_simple = true;
-	}
-
 	if (sargs_boolean("slow")) {
 		config.sappDesc.swap_interval = 2;
 	}
 
 	if (sargs_boolean("lowdpi")) {
 		config.sappDesc.high_dpi = false;
+	}
+
+	int q = sf::clamp(atoi(sargs_value("q")), 0, 6);
+	if (q > 0) {
+		cl::initDefaultSettings(cl::g_settings, (cl::ClientSettings::Preset)q);
+	} else {
+		cl::initDefaultSettings(cl::g_settings, cl::ClientSettings::Medium);
 	}
 
 	config.saudioDesc.num_channels = 2;
@@ -427,6 +424,3 @@ void spAudio(float* buffer, int numFrames, int numChannels)
 }
 
 #endif
-
-bool g_hack_hd;
-bool g_hack_simple;

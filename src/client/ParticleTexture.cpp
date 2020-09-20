@@ -2,6 +2,8 @@
 
 #include "ext/sp_tools_common.h"
 
+#include "client/ClientSettings.h"
+
 #include "sp/ContentFile.h"
 
 namespace cl {
@@ -35,12 +37,8 @@ static void loadTextureImp(void *user, const sp::ContentFile &file)
 		d.num_mipmaps = header.info.num_mips;
 		d.width = header.info.width;
 		d.height = header.info.height;
-		d.mag_filter = SG_FILTER_LINEAR;
-		d.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
 		d.label = imp->name.data;
-
-		// TODO: Config
-		d.max_anisotropy = 4;
+        initSampler(d, g_settings);
 
 		uint32_t mipDrop = 0;
 
@@ -117,8 +115,7 @@ void ParticleTexture::globalInit()
 		desc.height = 1;
 		desc.num_mipmaps = 1;
 		desc.mag_filter = SG_FILTER_LINEAR;
-		desc.min_filter = SG_FILTER_LINEAR_MIPMAP_LINEAR;
-		desc.max_anisotropy = 4;
+		desc.min_filter = SG_FILTER_LINEAR;
 
 		{
 			const unsigned char content[] = { 0xff, 0xff, 0xff, 0xff };

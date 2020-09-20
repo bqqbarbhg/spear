@@ -7,8 +7,6 @@
 #include "ext/sokol/sokol_gfx.h"
 #include "ext/sp_tools_common.h"
 
-extern bool g_hack_hd;
-
 namespace cl {
 
 struct GIMaterialAtlasTexture
