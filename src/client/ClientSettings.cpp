@@ -96,6 +96,24 @@ void initDefaultSettings(ClientSettings &settings, ClientSettings::Preset preset
 		settings.shadowCacheSlices = 8;
 		settings.shadowDepthResolution = 512;
 		settings.lightQuality = 5;
+    } else if (preset == ClientSettings::AppleA12) {
+        settings.simpleShading = false;
+        settings.msaaSamples = 4;
+        settings.useFxaa = false;
+        settings.maxResolution = 1080;
+        settings.tileMaterialResolution = 512;
+        settings.meshMaterialResolution = 512;
+        settings.trilinear = true;
+        settings.maxAnisotropy = 4;
+        settings.diffuseProbeSlices = 2;
+        settings.diffuseProbeUpdateCount = 1;
+        settings.diffuseProbeResolution = 48;
+        settings.diffuseProbeDistance = 1.0f;
+        settings.diffuseProbeSmallFloat = true;
+        settings.shadowCacheResolution = 128;
+        settings.shadowCacheSlices = 8;
+        settings.shadowDepthResolution = 256;
+        settings.lightQuality = 3;
 	}
 }
 

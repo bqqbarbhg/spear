@@ -11,11 +11,16 @@ struct ClientSettings
 	enum Preset
 	{
 		Custom,
+        
+        // Generic PC settings
 		Minimal,
 		Low,
 		Medium,
 		High,
 		Ultra,
+
+        // IOS tiers
+        AppleA12,
 	};
 
 	bool simpleShading;

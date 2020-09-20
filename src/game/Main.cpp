@@ -34,6 +34,38 @@
 	#include <emscripten/html5.h>
 #endif
 
+#if SF_OS_APPLE
+
+#include <TargetConditionals.h>
+
+#if TARGET_OS_IPHONE
+
+#include <sys/utsname.h>
+
+cl::ClientSettings::Preset getDefaultSettingsPreset()
+{
+    struct utsname info;
+    uname(&info);
+    if (!strcmp(info.machine, "iPad11,1")) {
+        return cl::ClientSettings::AppleA12;
+    } else {
+        return cl::ClientSettings::AppleA12;
+    }
+}
+
+#else // TARGET_OS_IPHONE
+
+#endif // TARGET_OS_IPHONE
+
+#else
+
+cl::ClientSettings::Preset getDefaultSettingsPreset()
+{
+    return cl::ClientSettings::High;
+}
+
+#endif
+
 void spConfig(sp::MainConfig &config)
 {
 	config.sappDesc.window_title = "Spear";
@@ -66,13 +98,6 @@ void spConfig(sp::MainConfig &config)
 
 	if (sargs_boolean("lowdpi")) {
 		config.sappDesc.high_dpi = false;
-	}
-
-	int q = sf::clamp(atoi(sargs_value("q")), 0, 6);
-	if (q > 0) {
-		cl::initDefaultSettings(cl::g_settings, (cl::ClientSettings::Preset)q);
-	} else {
-		cl::initDefaultSettings(cl::g_settings, cl::ClientSettings::Medium);
 	}
 
 	config.saudioDesc.num_channels = 2;
@@ -131,6 +156,14 @@ static void imguiFree(void *ptr, void*) { return sf_free(ptr); }
 
 void spInit()
 {
+    int q = sf::clamp(atoi(sargs_value("q")), 0, 6);
+    cl::ClientSettings::Preset preset;
+    if (q > 0) {
+        preset = (cl::ClientSettings::Preset)q;
+    } else {
+        preset = getDefaultSettingsPreset();
+    }
+    cl::initDefaultSettings(cl::g_settings, preset);
 
 	ImGui::SetAllocatorFunctions(&imguiAlloc, &imguiFree);
 
