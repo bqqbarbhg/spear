@@ -367,13 +367,13 @@ static void spriteToQuad(Quad &quad, const SpriteDraw &draw, const CanvasRenderO
 	sf::Vec2 maxVert = sf::min(sprite->maxVert, draw.cropMax);
 	if (minVert.x >= maxVert.x || minVert.y >= maxVert.y) return;
 
-	minVert -= draw.anchor;
-	maxVert -= draw.anchor;
-
 	float uvMinX = minVert.x * sprite->vertUvScale.x + sprite->vertUvBias.x;
 	float uvMinY = minVert.y * sprite->vertUvScale.y + sprite->vertUvBias.y;
 	float uvMaxX = maxVert.x * sprite->vertUvScale.x + sprite->vertUvBias.x;
 	float uvMaxY = maxVert.y * sprite->vertUvScale.y + sprite->vertUvBias.y;
+
+	minVert -= draw.anchor;
+	maxVert -= draw.anchor;
 
 	float xx0 = minVert.x*t.m00 + t.m02;
 	float xx1 = maxVert.x*t.m00 + t.m02;
