@@ -402,8 +402,8 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::Str
 		if (unmaskedRenderer) {
 			sf::debugPrintLine("Found unmasked renderer: %s", unmaskedRenderer);
 			if (strstr(unmaskedRenderer, "Intel")) {
-				sf::debugPrintLine("Detected Intel GPU, dropping MSAA + resolution");
-				c->renderResolutionScale = 0.5f;
+				sf::debugPrintLine("Detected Intel GPU, dropping MSAA");
+				// c->renderResolutionScale = 0.5f;
 				c->msaaSamples = 1;
 				c->useFxaa = true;
 			}
