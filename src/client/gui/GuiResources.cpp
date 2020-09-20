@@ -16,7 +16,6 @@ GuiResources::GuiResources()
 	statusIconOutline.load("Assets/Gui/Status/Icon_Outline.png");
 	statusHealthOutline.load("Assets/Gui/Status/Health_Outline.png");
 	statusHealthFilling.load("Assets/Gui/Status/Health_Filling.png");
-	statusSkipOutline.load("Assets/Gui/Status/EndTurn_Outline.png");
 	statusFont.load("Assets/Gui/Font/Overlock-Bold.ttf");
 
 	slotPlaceholders[(uint32_t)GuiCardSlot::Melee].load("Assets/Gui/Card/Slot_Melee.png");
