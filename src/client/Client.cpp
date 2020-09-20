@@ -19,6 +19,8 @@
 #include "sp/Font.h"
 #include "sp/RichText.h"
 
+#include "client/ClientSettings.h"
+
 #include "client/ClientState.h"
 #include "client/EditorState.h"
 #include "client/ParticleTexture.h"
@@ -296,9 +298,8 @@ static void recreateTargets(Client *c, const sf::Vec2i &systemRes)
 	// Guesstimate some settings
 	// TODO: Don't do this always
 
-	// Render at most at 1080p
-	if (systemRes.y > 1080) {
-		c->resolutionScale = 1080.0f / (float)systemRes.y;
+	if ((uint32_t)systemRes.y > g_settings.maxResolution) {
+		c->resolutionScale = (float)g_settings.maxResolution / (float)systemRes.y;
 	}
 
 	c->resolution = systemRes;
@@ -375,6 +376,9 @@ static sf::Box<cl::ClientState> makeClientState(Client *c, const cl::ClientPersi
 Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::String websocketUrl)
 {
 	Client *c = new Client();
+
+	c->msaaSamples = g_settings.msaaSamples;
+	c->useFxaa = g_settings.useFxaa;
 
 	cl::ClientPersist persist;
 
