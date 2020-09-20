@@ -28,6 +28,8 @@ struct SpriteDraw
 	sf::Vec2 anchor;
 	sf::Vec4 color = sf::Vec4(1.0f);
 	float depth = 0.0f;
+	sf::Vec2 cropMin = sf::Vec2(0.0f);
+	sf::Vec2 cropMax = sf::Vec2(1.0f);
 };
 
 struct TextDraw

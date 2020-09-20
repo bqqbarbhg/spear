@@ -285,7 +285,7 @@ template<> void initType<PointLightComponent>(Type *t)
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "minQuality");
-		info.description = "Minimum quality level needed for this light (0-10)";
+		info.description = "Minimum quality level needed for this light (0-5)";
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "fadeInTime");
@@ -501,7 +501,7 @@ template<> void initType<CharacterComponent>(Type *t)
 	static Field fields[] = {
 		sf_field(CharacterComponent, name),
 		sf_field(CharacterComponent, description),
-		sf_field(CharacterComponent, image),
+		sf_field(CharacterComponent, statusIcon),
 		sf_field(CharacterComponent, maxHealth),
 		sf_field(CharacterComponent, baseArmor),
 		sf_field(CharacterComponent, minWeightDice),
@@ -521,7 +521,7 @@ template<> void initType<CharacterComponent>(Type *t)
 		info.multiline = true;
 	}
 	{
-		ReflectionInfo &info = addTypeReflectionInfo(t, "image");
+		ReflectionInfo &info = addTypeReflectionInfo(t, "statusIcon");
 		info.asset = true;
 	}
 	{

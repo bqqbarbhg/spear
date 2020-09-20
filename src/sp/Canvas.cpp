@@ -359,20 +359,18 @@ static uint32_t packColor(const sf::Vec4 &col)
 static void spriteToQuad(Quad &quad, const SpriteDraw &draw, const CanvasRenderOpts &opts)
 {
 	Sprite *sprite = draw.sprite;
-	float rcpAtlasWidth = 1.0f / (float)sprite->atlas->width;
-	float rcpAtlasHeight = 1.0f / (float)sprite->atlas->height;
-
-	float uvMinX = (float)sprite->x * rcpAtlasWidth;
-	float uvMinY = (float)sprite->y * rcpAtlasHeight;
-	float uvMaxX = (float)(sprite->x + sprite->width) * rcpAtlasWidth;
-	float uvMaxY = (float)(sprite->y + sprite->height) * rcpAtlasHeight;
-
 	uint32_t color = packColor(draw.color * opts.color);
 
 	const sf::Mat23 &t = draw.transform;
 
-	sf::Vec2 minVert = sprite->minVert - draw.anchor;
-	sf::Vec2 maxVert = sprite->maxVert - draw.anchor;
+	sf::Vec2 minVert = sf::max(sprite->minVert, draw.cropMin);
+	sf::Vec2 maxVert = sf::min(sprite->maxVert, draw.cropMax);
+	if (minVert.x >= maxVert.x || minVert.y >= maxVert.y) return;
+
+	float uvMinX = minVert.x * sprite->vertUvScale.x + sprite->vertUvBias.x;
+	float uvMinY = minVert.y * sprite->vertUvScale.y + sprite->vertUvBias.y;
+	float uvMaxX = maxVert.x * sprite->vertUvScale.x + sprite->vertUvBias.x;
+	float uvMaxY = maxVert.y * sprite->vertUvScale.y + sprite->vertUvBias.y;
 
 	float xx0 = minVert.x*t.m00 + t.m02;
 	float xx1 = maxVert.x*t.m00 + t.m02;

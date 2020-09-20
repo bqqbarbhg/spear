@@ -134,6 +134,12 @@ struct WidgetBase : Widget
 	WidgetBase() : Widget(WidgetType) { }
 };
 
+sf_inline void lerpLinear(float &state, float target, float linear, float dt)
+{
+	float speed = linear * dt;
+	state += sf::clamp(target - state, -speed, speed);
+}
+
 sf_inline void lerpExp(float &state, float target, float exponential, float linear, float dt)
 {
 	state = sf::lerp(target, state, exp2f(dt*-exponential));

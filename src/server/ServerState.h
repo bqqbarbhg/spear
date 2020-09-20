@@ -226,7 +226,7 @@ struct CharacterComponent : ComponentBase<Component::Character>
 {
 	sf::Symbol name;
 	sf::Symbol description sv_reflect(multiline);
-	sf::Symbol image sv_reflect(asset);
+	sf::Symbol statusIcon sv_reflect(asset);
 	uint32_t maxHealth = 20;
 	uint32_t baseArmor = 0;
 	uint32_t minWeightDice = 1;

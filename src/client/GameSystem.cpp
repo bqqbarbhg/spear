@@ -32,6 +32,7 @@
 #include "client/gui/WidgetScroll.h"
 #include "client/gui/WidgetCardSlot.h"
 #include "client/gui/WidgetCard.h"
+#include "client/gui/WidgetCharacter.h"
 #include "client/gui/GuiBuilder.h"
 #include "client/gui/GuiResources.h"
 
@@ -186,11 +187,14 @@ struct GameSystemImp final : GameSystem
 		sf::Vec2i tile;
 		uint32_t svId;
 		uint32_t entityId;
+		int32_t health;
 
 		sf::Vec3 centerOffset;
+		sp::SpriteRef statusIcon;
 
 		sf::Array<uint32_t> cardIds;
 		SelectedCard selectedCards[sv::NumSelectedCards];
+		sv::Character sv;
 	};
 
 	struct Card
@@ -327,6 +331,7 @@ struct GameSystemImp final : GameSystem
 	sf::Array<Projectile> projectiles;
 
 	sv::TurnInfo turnInfo;
+	bool turnChanged = false;
 
 	uint32_t selectedCardSlot = ~0u;
 	float selectedCardTime = 0.0f;
@@ -430,10 +435,13 @@ struct GameSystemImp final : GameSystem
 			character.entityId = entityId;
 			character.svId = svId;
 			character.tile = e->character.tile;
+			character.health = e->character.health;
+			character.sv = e->character;
 
 			if (character.svPrefab) {
 				if (auto *c = character.svPrefab->findComponent<sv::CharacterComponent>()) {
 					character.centerOffset = c->centerOffset;
+					character.statusIcon.load(c->statusIcon);
 				}
 			}
 
@@ -682,6 +690,7 @@ struct GameSystemImp final : GameSystem
 				}
 			}
 
+			turnChanged = true;
 			turnInfo = e->turnInfo;
 
 		} else if (const auto *e = event.as<sv::MeleeAttackEvent>()) {
@@ -731,6 +740,7 @@ struct GameSystemImp final : GameSystem
 					}
 					damageNumber.position = entity.transform.position + chr->centerOffset;
 					damageNumber.origin = guiResources.damageFont->measureText(damageNumber.text, DamageNumber::BaseHeight) * sf::Vec2(-0.5f, 0.1f);
+					chr->health -= (int32_t)e->finalDamage;
 				}
 			}
 
@@ -1232,6 +1242,7 @@ struct GameSystemImp final : GameSystem
 	{
 		updateDebugMenu(systems);
 
+		turnChanged = false;
 		while (queuedEvents.size > 0) {
 			if (!applyEventImp(systems, *queuedEvents[0], queuedEventContext)) {
 				queuedEventContext.begin = false;
@@ -1630,8 +1641,40 @@ struct GameSystemImp final : GameSystem
 
 			Character *chr = findCharacter(selectedCharacterId);
 			sv::CharacterComponent *chrComp = chr ? chr->svPrefab->findComponent<sv::CharacterComponent>() : NULL;
+
+			{
+				auto blk = b.push<gui::WidgetBlockPointer>();
+				auto ll = b.push<gui::WidgetLinearLayout>();
+
+				blk->boxOffset.x = 20.0f;
+				blk->boxOffset.y = 20.0f;
+				ll->boxExtent = sf::Vec2(200.0f, gui::Inf);
+				ll->direction = gui::DirY;
+				ll->padding = 10.0f;
+
+				for (Character &playerChr : characters) {
+					if (!playerChr.svId) continue;
+					if (playerChr.sv.enemy) continue;
+
+					auto ch = b.push<gui::WidgetCharacter>(playerChr.svId);
+					if (ch->created) {
+						ch->icon = playerChr.statusIcon;
+					}
+					ch->boxExtent = sf::Vec2(gui::Inf, 50.0f);
+					ch->currentHealth = playerChr.health;
+					ch->maxHealth = playerChr.sv.maxHealth;
+					ch->turnChanged = turnChanged;
+
+					b.pop();
+				}
+
+				b.pop(); // LinearLayout
+				b.pop(); // BlockPointer
+			}
+
 			if (chr && chrComp) {
 
+#if 0
 				if (turnInfo.characterId == selectedCharacterId && !frameArgs.editorOpen) {
 					auto bt = b.push<gui::WidgetButton>();
 					if (bt->created) {
@@ -1651,6 +1694,7 @@ struct GameSystemImp final : GameSystem
 
 					b.pop();
 				}
+#endif
 
 				{
 					float hotbarCardHeight = 140.0f;

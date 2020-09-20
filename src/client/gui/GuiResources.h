@@ -20,6 +20,11 @@ struct GuiResources
 	sp::SpriteRef characterActive;
 	sp::SpriteRef characterMove;
 
+	sp::SpriteRef statusIconOutline;
+	sp::SpriteRef statusHealthOutline;
+	sp::SpriteRef statusHealthFilling;
+	sp::FontRef statusFont;
+
 	sp::SpriteRef buttonSprite;
 	sp::FontRef buttonFont;
 

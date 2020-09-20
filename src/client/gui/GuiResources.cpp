@@ -13,6 +13,11 @@ GuiResources::GuiResources()
 	characterMove.load("Assets/Billboards/Character_Move.png");
 	characterActive.load("Assets/Billboards/Character_Active.png");
 
+	statusIconOutline.load("Assets/Gui/Status/Icon_Outline.png");
+	statusHealthOutline.load("Assets/Gui/Status/Health_Outline.png");
+	statusHealthFilling.load("Assets/Gui/Status/Health_Filling.png");
+	statusFont.load("Assets/Gui/Font/Overlock-Bold.ttf");
+
 	slotPlaceholders[(uint32_t)GuiCardSlot::Melee].load("Assets/Gui/Card/Slot_Melee.png");
 	slotPlaceholders[(uint32_t)GuiCardSlot::Skill].load("Assets/Gui/Card/Slot_Skill.png");
 	slotPlaceholders[(uint32_t)GuiCardSlot::Spell].load("Assets/Gui/Card/Slot_Spell.png");
