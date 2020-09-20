@@ -676,8 +676,10 @@ struct GameSystemImp final : GameSystem
 		} else if (const auto *e = event.as<sv::TurnUpdateEvent>()) {
 
 			if (e->turnInfo.startTurn && !ctx.immediate) {
-				if (ctx.timer > 0.5f) turnInfo = e->turnInfo;
-				if (ctx.timer < 1.0f) return false;
+				if (queuedEvents.size <= 1 || queuedEvents[1]->type != sv::Event::TurnUpdate) {
+					if (ctx.timer > 0.5f) turnInfo = e->turnInfo;
+					if (ctx.timer < 0.75f) return false;
+				}
 			}
 
 			turnInfo = e->turnInfo;
