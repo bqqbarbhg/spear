@@ -298,16 +298,16 @@ static void recreateTargets(Client *c, const sf::Vec2i &systemRes)
 	// Guesstimate some settings
 	// TODO: Don't do this always
 
+    float scale = sqrtf(c->resolutionScale);
 	if ((uint32_t)systemRes.y > g_settings.maxResolution) {
-		c->resolutionScale = (float)g_settings.maxResolution / (float)systemRes.y;
+		scale = (float)g_settings.maxResolution / (float)systemRes.y;
 	}
 
 	c->resolution = systemRes;
 	c->uiResolution.y = 720.0f;
 	c->uiResolution.x = c->uiResolution.y * ((float)systemRes.x / (float)systemRes.y);
 
-    float scale = c->resolutionScale;
-	sf::Vec2i mainRes = sf::Vec2i(sf::Vec2(systemRes) * sqrtf(scale));
+	sf::Vec2i mainRes = sf::Vec2i(sf::Vec2(systemRes) * scale);
 
 	int mainSamples = c->msaaSamples;
 	sg_pixel_format mainFormat = SG_PIXELFORMAT_RGBA8;
