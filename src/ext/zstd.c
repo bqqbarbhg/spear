@@ -3,6 +3,10 @@
 #define malloc(size) sf_malloc(size)
 #define free(ptr) sf_free(ptr)
 
+#if SF_CC_MSC
+    #pragma optimize("", on)
+#endif
+
 /**
  * \file zstd.c
  * Single-file Zstandard library.
