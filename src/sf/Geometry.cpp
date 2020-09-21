@@ -27,7 +27,7 @@ sf::Sphere transformSphere(const sf::Mat34 &transform, const sf::Sphere &sphere)
 	return result;
 }
 
-bool intesersectRay(float &outT, const Ray &ray, const Sphere &sphere, float tMin)
+bool intersectRay(float &outT, const Ray &ray, const Sphere &sphere, float tMin)
 {
 	sf::Vec3 delta = ray.origin - sphere.origin;
 	float a = sf::dot(ray.direction, ray.direction);
@@ -42,7 +42,7 @@ bool intesersectRay(float &outT, const Ray &ray, const Sphere &sphere, float tMi
 	return true;
 }
 
-bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, float tMin)
+bool intersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, float tMin)
 {
 	sf::Vec3 rcpDir = sf::Vec3(1.0f) / ray.direction;
 	sf::Vec3 relOrigin = bounds.origin - ray.origin;
@@ -57,14 +57,14 @@ bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, float tM
 	return true;
 }
 
-bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, const Mat34 &transform, float tMin)
+bool intersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, const Mat34 &transform, float tMin)
 {
 	sf::Mat34 invTransform = sf::inverse(transform);
 	Ray localRay = transformRay(invTransform, ray);
-	return intesersectRay(outT, localRay, bounds, tMin);
+	return intersectRay(outT, localRay, bounds, tMin);
 }
 
-bool intesersectRayObb(float &outT, const Ray &ray, const Mat34 &obb, float tMin)
+bool intersectRayObb(float &outT, const Ray &ray, const Mat34 &obb, float tMin)
 {
 	sf::Mat34 invTransform = sf::inverse(obb);
 	Ray localRay = transformRay(invTransform, ray);

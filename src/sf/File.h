@@ -38,7 +38,7 @@ void appendPath(sf::StringBuf &path, sf::String a, sf::String b);
 void appendPath(sf::StringBuf &path, sf::String a, sf::String b, sf::String c);
 void appendPath(sf::StringBuf &path, sf::String a, sf::String b, sf::String c, sf::String d);
 
-bool containsDirectory(sf::String path, sf::String dir);
+bool containsDirectory(sf::String path, sf::String dir, uint32_t maxDepth=UINT32_MAX);
 
 struct DirectoryMonitor
 {

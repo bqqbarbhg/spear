@@ -4,7 +4,7 @@
 #include "sf/Vector.h"
 
 #ifndef SF_FLOAT4_FORCE_SCALAR
-#define SF_FLOAT4_FORCE_SCALAR 1
+#define SF_FLOAT4_FORCE_SCALAR 0
 #endif
 
 #if SF_ARCH_WASM && SF_WASM_USE_SIMD && !SF_FLOAT4_FORCE_SCALAR

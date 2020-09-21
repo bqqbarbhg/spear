@@ -18,11 +18,13 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, Character, CharacterComponent),
 		sf_poly(Component, CharacterModel, CharacterModelComponent),
 		sf_poly(Component, TapArea, TapAreaComponent),
+		sf_poly(Component, Door, DoorComponent),
 		sf_poly(Component, BlobShadow, BlobShadowComponent),
 		sf_poly(Component, Card, CardComponent),
 		sf_poly(Component, CardAttach, CardAttachComponent),
 		sf_poly(Component, CardStatus, CardStatusComponent),
 		sf_poly(Component, CardMelee, CardMeleeComponent),
+		sf_poly(Component, CardKey, CardKeyComponent),
 		sf_poly(Component, Projectile, ProjectileComponent),
 		sf_poly(Component, DamageOnTurnStart, DamageOnTurnStartComponent),
 		sf_poly(Component, CastOnTurnStart, CastOnTurnStartComponent),
@@ -70,6 +72,8 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, AddProp, AddPropEvent),
 		sf_poly(Event, RemoveProp, RemovePropEvent),
 		sf_poly(Event, ReplaceLocalProp, ReplaceLocalPropEvent),
+		sf_poly(Event, SetPropCollision, SetPropCollisionEvent),
+		sf_poly(Event, DoorOpen, DoorOpenEvent),
 		sf_poly(Event, AddCharacter, AddCharacterEvent),
 		sf_poly(Event, RemoveCharacter, RemoveCharacterEvent),
 		sf_poly(Event, AddCard, AddCardEvent),
@@ -115,6 +119,7 @@ template<> void initType<Action>(Type *t)
 		sf_poly(Action, GiveCard, GiveCardAction),
 		sf_poly(Action, EndTurn, EndTurnAction),
 		sf_poly(Action, UseCard, UseCardAction),
+		sf_poly(Action, OpenDoor, OpenDoorAction),
 	};
 	sf_struct_poly(t, Action, type, { }, polys);
 }
@@ -541,6 +546,8 @@ template<> void initType<CharacterModelComponent>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(CharacterModelComponent, modelName),
+		sf_field(CharacterModelComponent, giModel),
+		sf_field(CharacterModelComponent, giMaterial),
 		sf_field(CharacterModelComponent, materials),
 		sf_field(CharacterModelComponent, scale),
 		sf_field(CharacterModelComponent, animations),
@@ -551,6 +558,16 @@ template<> void initType<CharacterModelComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "modelName");
 		info.description = "Character model asset";
+		info.asset = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "giModel");
+		info.description = "Model used for environment lighting";
+		info.asset = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "giMaterial");
+		info.description = "Color texture used for environment rendering";
 		info.asset = true;
 	}
 	{
@@ -582,6 +599,19 @@ template<> void initType<TapAreaComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "extent");
 		info.description = "Size of the clickable/tappable box";
+	}
+}
+
+template<> void initType<DoorComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(DoorComponent, keyNames),
+	};
+	sf_struct_base(t, DoorComponent, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "keyNames");
+		info.description = "Names of keys that fit the door";
 	}
 }
 
@@ -699,6 +729,24 @@ template<> void initType<CardMeleeComponent>(Type *t)
 		sf_field(CardMeleeComponent, directRoll),
 	};
 	sf_struct_base(t, CardMeleeComponent, Component, fields);
+}
+
+template<> void initType<CardKeyComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(CardKeyComponent, keyNames),
+		sf_field(CardKeyComponent, consumable),
+	};
+	sf_struct_base(t, CardKeyComponent, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "keyNames");
+		info.description = "Types of things to open";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "consumable");
+		info.description = "Is the key removed after use";
+	}
 }
 
 template<> void initType<ProjectileComponent>(Type *t)
@@ -1182,6 +1230,23 @@ template<> void initType<ReplaceLocalPropEvent>(Type *t)
 	sf_struct_base(t, ReplaceLocalPropEvent, Event, fields);
 }
 
+template<> void initType<SetPropCollisionEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(SetPropCollisionEvent, propId),
+		sf_field(SetPropCollisionEvent, collisionEnabled),
+	};
+	sf_struct_base(t, SetPropCollisionEvent, Event, fields);
+}
+
+template<> void initType<DoorOpenEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(DoorOpenEvent, propId),
+	};
+	sf_struct_base(t, DoorOpenEvent, Event, fields);
+}
+
 template<> void initType<AddCharacterEvent>(Type *t)
 {
 	static Field fields[] = {
@@ -1456,6 +1521,16 @@ template<> void initType<UseCardAction>(Type *t)
 		sf_field(UseCardAction, cardId),
 	};
 	sf_struct_base(t, UseCardAction, Action, fields);
+}
+
+template<> void initType<OpenDoorAction>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(OpenDoorAction, characterId),
+		sf_field(OpenDoorAction, doorId),
+		sf_field(OpenDoorAction, cardId),
+	};
+	sf_struct_base(t, OpenDoorAction, Action, fields);
 }
 
 template<> void initType<DiceRoll>(Type *t)

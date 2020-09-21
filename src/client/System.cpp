@@ -64,6 +64,7 @@ void Systems::renderShadows(const RenderArgs &renderArgs)
 	updateVisibility(shadowAreas, Area::Shadow, renderArgs.frustum);
 
 	tileModel->renderShadow(shadowAreas, renderArgs);
+	characterModel->renderShadow(shadowAreas, renderArgs);
 }
 
 void Systems::renderEnvmapGBuffer(const RenderArgs &renderArgs)
@@ -71,6 +72,7 @@ void Systems::renderEnvmapGBuffer(const RenderArgs &renderArgs)
 	updateVisibility(envmapAreas, Area::Envmap, renderArgs.frustum);
 
 	tileModel->renderEnvmapGBuffer(envmapAreas, renderArgs);
+	characterModel->renderEnvmapGBuffer(envmapAreas, renderArgs);
 }
 
 bool EntitySystem::prepareForRemove(Systems &systems, uint32_t entityId, const EntityComponent &ec, const FrameArgs &args)

@@ -39,11 +39,13 @@ struct Component
 		Character,
 		CharacterModel,
 		TapArea,
+		Door,
 		BlobShadow,
 		Card,
 		CardAttach,
 		CardStatus,
 		CardMelee,
+		CardKey,
 		DamageOnTurnStart,
 		CastOnTurnStart,
 		CastOnReceiveDamage,
@@ -278,6 +280,8 @@ struct CharacterMaterial sv_reflect()
 struct CharacterModelComponent : ComponentBase<Component::CharacterModel>
 {
 	sf::Symbol modelName sv_reflect(asset); //! Character model asset
+	sf::Symbol giModel sv_reflect(asset); //! Model used for environment lighting
+	sf::Symbol giMaterial sv_reflect(asset); //! Color texture used for environment rendering
 	sf::Array<CharacterMaterial> materials; //! Material asset links
 	float scale = 1.0f; //! Scale of the character
 	sf::Array<AnimationInfo> animations;
@@ -288,6 +292,11 @@ struct TapAreaComponent : ComponentBase<Component::TapArea>
 {
 	sf::Vec3 offset; //! Offset from the character
 	sf::Vec3 extent = sf::Vec3(1.0f); //! Size of the clickable/tappable box
+};
+
+struct DoorComponent : ComponentBase<Component::Door>
+{
+	sf::Array<sf::Symbol> keyNames; //! Names of keys that fit the door
 };
 
 struct ShadowBlob sv_reflect()
@@ -346,6 +355,12 @@ struct CardMeleeComponent : ComponentBase<Component::CardMelee>
 {
 	DiceRoll hitRoll;
 	bool directRoll = false;
+};
+
+struct CardKeyComponent : ComponentBase<Component::CardKey>
+{
+	sf::Array<sf::Symbol> keyNames; //! Types of things to open
+	bool consumable = true; //! Is the key removed after use
 };
 
 struct ProjectileComponent : ComponentBase<Component::Projectile>
@@ -519,6 +534,7 @@ struct Prop sv_reflect()
 	/* no-reflect */ enum Flag
 	/* no-reflect */ {
 	/* no-reflect */ Wall = 0x1,
+	/* no-reflect */ NoCollision = 0x2,
 	/* no-reflect */ };
 
 	uint32_t id;
@@ -648,6 +664,8 @@ struct Event
 		AddProp,
 		RemoveProp,
 		ReplaceLocalProp,
+		SetPropCollision,
+		DoorOpen,
 		AddCharacter,
 		RemoveCharacter,
 		AddCard,
@@ -806,6 +824,17 @@ struct ReplaceLocalPropEvent : EventBase<Event::ReplaceLocalProp>
 	uint32_t clientId;
 	uint32_t localId;
 	Prop prop;
+};
+
+struct SetPropCollisionEvent : EventBase<Event::SetPropCollision>
+{
+	uint32_t propId;
+	bool collisionEnabled;
+};
+
+struct DoorOpenEvent : EventBase<Event::DoorOpen>
+{
+	uint32_t propId;
 };
 
 struct AddCharacterEvent : EventBase<Event::AddCharacter>
@@ -1040,6 +1069,7 @@ struct Action
 		GiveCard,
 		EndTurn,
 		UseCard,
+		OpenDoor,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -1090,6 +1120,13 @@ struct UseCardAction : ActionBase<Action::UseCard>
 {
 	uint32_t characterId;
 	uint32_t targetId;
+	uint32_t cardId;
+};
+
+struct OpenDoorAction : ActionBase<Action::OpenDoor>
+{
+	uint32_t characterId;
+	uint32_t doorId;
 	uint32_t cardId;
 };
 

@@ -32,6 +32,7 @@ struct GameShaders
 
 	sp::Pipeline mapChunkShadowPipe[2];
 	sp::Pipeline mapChunkEnvmapPipe[2];
+	sp::Pipeline dynamicEnvmapPipe;
 	sp::Pipeline shadowGridPipe;
 	sp::Pipeline fakeShadowPipe;
 	sp::Pipeline debugMeshPipe;

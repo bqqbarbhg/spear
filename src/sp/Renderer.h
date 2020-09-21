@@ -116,6 +116,7 @@ struct Buffer
 	void initVertex(const char *name, const void *data, size_t size);
 	void initDynamicVertex(const char *name, size_t size);
 	void initIndex(const char *name, const void *data, size_t size);
+	void initDynamicIndex(const char *name, size_t size);
 
 	template <typename T>
 	void initVertex(const char *name, const sf::Slice<T> &data) {

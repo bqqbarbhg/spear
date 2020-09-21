@@ -621,7 +621,7 @@ struct ParticleTextureTask : Task
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
 	{
-		if (!sf::containsDirectory(path, directory)) return false;
+		if (!sf::containsDirectory(path, directory, 1)) return false;
 		if (!sf::endsWith(path, ".png")) return false;
 		ti.outputs[s_dst] = symf("%s.%s.sptex", path.data, format.data);
 		ti.inputs[s_src] = path;
@@ -1169,6 +1169,59 @@ struct CharacterModelTask : Task
 	}
 };
 
+struct CharacterModelGITask : Task
+{
+	CharacterModelGITask()
+	{
+		name = "CharacterModelGITask";
+		tools.push("sp-model");
+	}
+
+	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
+	{
+		if (sf::endsWith(path, ".fbx") && sf::contains(path, "_gicharacter")) {
+			ti.inputs[s_src] = path;
+		} else {
+			return false;
+		}
+		ti.outputs[s_dst] = symf("%s.spmdl", path.data);
+		ti.assets.insert(path);
+		return true;
+	}
+
+	virtual void process(Processor &p, TaskInstance &ti)
+	{
+		sf::Array<sf::StringBuf> args;
+
+		sf::StringBuf srcFile, tempFile, dstFile;
+		sf::appendPath(srcFile, p.dataRoot, ti.inputs[s_src]);
+		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
+		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
+
+		args.push("--level");
+		args.push().format("%d", p.level);
+
+		args.push("--vertex");
+		args.push("pos_rgb32f,nrm_rgb32f,uv_rg32f,bonei_rgba8u,bonew_rgba8");
+
+		args.push("--combine-materials");
+		args.push("--mesh");
+
+		args.push("--input");
+		args.push(srcFile);
+
+		args.push("--output");
+		args.push(tempFile);
+
+		JobQueue jq;
+		jq.mkdirsToFile(tempFile);
+		jq.mkdirsToFile(dstFile);
+		jq.exec("sp-model", std::move(args));
+		jq.move(tempFile, dstFile);
+		p.addJobs(JobPriority::Normal, ti, jq);
+	}
+};
+
 struct TileModelTask : Task
 {
 	TileModelTask()
@@ -1234,7 +1287,7 @@ struct ObjectModelTask : Task
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
 	{
-		if (sf::endsWith(path, ".fbx") && sf::containsDirectory(path, "Objects")) {
+		if (sf::endsWith(path, ".fbx") && sf::containsDirectory(path, "Objects", 1)) {
 			ti.inputs[s_src] = path;
 		} else {
 			return false;
@@ -1473,6 +1526,7 @@ void initializeProcessing(const ProcessingDesc &desc)
 
 	p.tasks.push(sf::box<AnimationTask>());
 	p.tasks.push(sf::box<CharacterModelTask>());
+	p.tasks.push(sf::box<CharacterModelGITask>());
 	p.tasks.push(sf::box<TileModelTask>());
 	p.tasks.push(sf::box<ObjectModelTask>());
 

@@ -312,6 +312,8 @@ static void addEntityToTiles(ServerState &state, uint32_t id, const sf::Symbol &
 
 static void addPropToTiles(ServerState &state, const sv::Prop &prop)
 {
+	if ((prop.flags & Prop::NoCollision) != 0) return;
+
 	uint32_t rotation = prop.transform.rotation >> 6;
 	addEntityToTiles(state, prop.id, prop.prefabName, prop.transform.position, rotation, prop.transform.scale << 8);
 }
@@ -399,6 +401,7 @@ void ServerState::applyEvent(const Event &event)
 		prefabProps[e->prop.prefabName].insertIfNew(e->prop.id);
 
 		addPropToTiles(*this, e->prop);
+
 	} else if (auto *e = event.as<RemovePropEvent>()) {
 		if (Prop *prop = findProp(*this, e->propId)) {
 			prefabProps[prop->prefabName].removeOne(e->propId);
@@ -423,6 +426,21 @@ void ServerState::applyEvent(const Event &event)
 		prefabProps[e->prop.prefabName].insertIfNew(e->prop.id);
 		addPropToTiles(*this, e->prop);
 
+	} else if (auto *e = event.as<SetPropCollisionEvent>()) {
+		if (Prop *prop = findProp(*this, e->propId)) {
+			bool hasCollision = (prop->flags & Prop::NoCollision) == 0;
+			if (e->collisionEnabled) {
+				if (!hasCollision) {
+					prop->flags &= ~(uint32_t)Prop::NoCollision;
+					addPropToTiles(*this, *prop);
+				}
+			} else {
+				if (hasCollision) {
+					prop->flags |= Prop::NoCollision;
+					removeEntityFromAllTiles(e->propId);
+				}
+			}
+		}
 	} else if (auto *e = event.as<AddCharacterEvent>()) {
 		auto res = characters.insertOrAssign(e->character);
 		sv_check(*this, res.inserted);
@@ -2116,6 +2134,41 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 					}
 				}
 			}
+		}
+
+		startNextCharacterTurn(events);
+
+		return true;
+	} else if (const auto *ac = action.as<OpenDoorAction>()) {
+		uint32_t openerId = ac->characterId;
+		uint32_t doorId = ac->doorId;
+		uint32_t cardId = ac->cardId;
+		Character *openerChr = findCharacter(*this, openerId);
+		Prop *doorProp = findProp(*this, doorId);
+		Card *card = cardId ? findCard(*this, cardId) : nullptr;
+		if (!openerChr) return false;
+		if (!doorProp) return false;
+		if (cardId && !card) return false;
+		if (doorProp->flags & Prop::NoCollision) return false;
+
+		{
+			auto e = sf::box<SetPropCollisionEvent>();
+			e->propId = doorId;
+			e->collisionEnabled = false;
+			pushEvent(*this, events, e);
+		}
+
+		if (cardId) {
+			auto e = sf::box<RemoveCardEvent>();
+			e->cardId = cardId;
+			e->prevOwnerId = openerId;
+			pushEvent(*this, events, std::move(e));
+		}
+
+		{
+			auto e = sf::box<DoorOpenEvent>();
+			e->propId = doorId;
+			pushEvent(*this, events, e);
 		}
 
 		startNextCharacterTurn(events);

@@ -57,10 +57,10 @@ Ray transformRay(const sf::Mat34 &transform, const Ray &ray);
 sf::Bounds3 transformBounds(const sf::Mat34 &transform, const sf::Bounds3 &bounds);
 sf::Sphere transformSphere(const sf::Mat34 &transform, const sf::Sphere &sphere);
 
-bool intesersectRay(float &outT, const Ray &ray, const Sphere &sphere, float tMin=0.0f);
-bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, float tMin=0.0f);
-bool intesersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, const Mat34 &transform, float tMin=0.0f);
-bool intesersectRayObb(float &outT, const Ray &ray, const Mat34 &obb, float tMin=0.0f);
+bool intersectRay(float &outT, const Ray &ray, const Sphere &sphere, float tMin=0.0f);
+bool intersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, float tMin=0.0f);
+bool intersectRay(float &outT, const Ray &ray, const Bounds3 &bounds, const Mat34 &transform, float tMin=0.0f);
+bool intersectRayObb(float &outT, const Ray &ray, const Mat34 &obb, float tMin=0.0f);
 
 bool intersect(const sf::Bounds3 &a, const sf::Bounds3 &b);
 bool intersect(const sf::Bounds3 &a, const sf::Sphere &b);

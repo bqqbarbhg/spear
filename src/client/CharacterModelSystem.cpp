@@ -4,8 +4,12 @@
 #include "client/LightSystem.h"
 #include "client/EnvLightSystem.h"
 
+#include "game/shader/GameShaders.h"
 #include "game/shader2/GameShaders2.h"
+#include "game/shader/MapGBuffer.h"
+#include "game/shader/MapShadow.h"
 #include "client/MeshMaterial.h"
+#include "client/GIMaterial.h"
 
 #include "sf/Array.h"
 
@@ -22,6 +26,9 @@ namespace cl {
 
 struct CharacterModelSystemImp final : CharacterModelSystem
 {
+	static const constexpr uint32_t MaxGIVertices = 0x10000;
+	static const constexpr uint32_t MaxGIIndices = 0x40000;
+
 	struct Animation
 	{
 		sp::AnimationRef animation;
@@ -72,8 +79,27 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 	struct CharacterModelData
 	{
 		sp::ModelRef model;
+		sp::ModelRef giModel;
+		GIMaterialRef giMaterial;
 		sf::Array<sp::AnimationRef> animations;
 		sf::Array<MeshMaterialRef> materials;
+	};
+
+	struct GIVertexSrc
+	{
+		sf::Vec3 position;
+		sf::Vec3 normal;
+		sf::Vec2 uv;
+		uint8_t boneIndex[4];
+		uint8_t boneWeight[4];
+	};
+
+	struct GIVertexDst
+	{
+		sf::Vec3 position;
+		sf::Vec3 normal;
+		sf::Vec2 uv;
+		uint32_t tint;
 	};
 
 	struct Model
@@ -83,6 +109,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 		uint32_t loadQueueIndex = ~0u;
 		sp::ModelRef model;
+		sp::ModelRef giModel;
+		GIMaterialRef giMaterial;
 		sf::SmallArray<Material, 4> materials;
 
 		sf::Array<Animation> animations;
@@ -106,6 +134,11 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 		sf::Array<sf::Symbol> frameEvents;
 
+		sf::Array<uint32_t> giBoneMapping;
+		sf::Slice<const uint16_t> giIndexSrc;
+		sf::Slice<const GIVertexSrc> giVertexSrc;
+		sf::Array<GIVertexDst> giVertexDst;
+
 		double highlightTime = 0.0;
 		sf::Vec3 highlightColor;
 
@@ -119,6 +152,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			for (const Material &mat : materials) {
 				if (mat.material.isLoading()) return true;
 			}
+			if (giModel && giModel.isLoading()) return false;
+			if (giMaterial && giMaterial.isLoading()) return false;
 			return model.isLoading();
 		}
 
@@ -129,6 +164,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			for (const Material &mat : materials) {
 				if (!mat.material.isLoaded()) return false;
 			}
+			if (giModel && !giModel.isLoaded()) return false;
+			if (giMaterial && !giMaterial.isLoaded()) return false;
 			return model.isLoaded();
 		}
 
@@ -139,7 +176,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 		void removeTag(const sf::Symbol &tag)
 		{
-			if (--tags[tag] < 0) {
+			if (--tags[tag] <= 0) {
 				tags.remove(tag);
 			}
 		}
@@ -187,12 +224,26 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 	sf::Array<uint32_t> loadQueue;
 
+	sf::Array<uint16_t> giRenderIndices;
+	sf::Array<GIVertexDst> giRenderVertices;
+	sf::Array<sf::Vec3> shadowRenderVertices;
+
+	sp::Buffer giIndexBuffer;
+	sp::Buffer giVertexBuffer;
+
 	sf::HashMap<sf::Symbol, double> tagWeights;
 
 	Shader2 skinShader;
 	sp::Pipeline skinPipe;
 
 	AnimWorkCtx animCtx;
+
+	sp::ModelProps getGiLoadProps()
+	{
+		sp::ModelProps props;
+		props.cpuData = true;
+		return props;
+	}
 
 	double getTagWeight(const sf::Symbol &tag)
 	{
@@ -279,12 +330,32 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			finishLoadingListenerImp(listener, model);
 		}
 
-		model.boneToWorld.resize(model.model->bones.size);
+		if (model.giModel) {
+			if (model.giModel->meshes.size == 0 || !model.giModel->meshes[0].cpuIndexData16 || !model.giMaterial) {
+				model.giModel.reset();
+			} else {
+				sp::Mesh &giMesh = model.giModel->meshes[0];
+				model.giIndexSrc = sf::slice(giMesh.cpuIndexData16, giMesh.numIndices);
+				model.giVertexSrc = sf::slice((const GIVertexSrc*)giMesh.streams[0].cpuData, giMesh.numVertices);
+				model.giVertexDst.resize(giMesh.numVertices);
+				model.giBoneMapping.reserve(model.giModel->meshes[0].bones.size);
+				for (const sp::MeshBone &meshBone : giMesh.bones) {
+					const sp::Bone &bone = model.giModel->bones[meshBone.boneIndex];
+					const uint32_t *pIndex = model.model->boneNames.findValue(bone.name);
+					uint32_t ix = pIndex ? *pIndex : ~0u;
+					model.giBoneMapping.push(ix);
+				}
+			}
+		}
+
+		// One extra bone matrix to allow SIMD operations to overflow a bit!
+		model.boneToWorld.resize(model.model->bones.size + 1);
 
 		if (model.areaId != ~0u) {
 			areaSystem->updateBoxArea(model.areaId, model.bounds);
 		} else {
 			uint32_t areaFlags = Area::Activate | Area::Visibility;
+			if (model.giModel) areaFlags |= Area::Envmap | Area::Shadow;
 			model.areaId = areaSystem->addBoxArea(AreaGroup::CharacterModel, modelId, model.bounds, areaFlags);
 		}
 	}
@@ -413,6 +484,8 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		tagWeights[sf::Symbol("Cast")] = 100.0;
 		tagWeights[sf::Symbol("Hit")] = 100.0;
 		tagWeights[sf::Symbol("Run")] = 100.0;
+		tagWeights[sf::Symbol("Opening")] = 100.0;
+		tagWeights[sf::Symbol("Open")] = 100.0;
 		animCtx.rng = sf::Random(desc.seed[0], 756789);
 
 		uint8_t permutation[SP_NUM_PERMUTATIONS] = { };
@@ -435,12 +508,21 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			d.layout.attrs[4].format = SG_VERTEXFORMAT_UBYTE4;
 			d.layout.attrs[5].format = SG_VERTEXFORMAT_UBYTE4N;
 		}
+
+		giIndexBuffer.initDynamicIndex("CharacterModel giIndexBuffer", MaxGIIndices * sizeof(uint16_t));
+		giVertexBuffer.initDynamicVertex("CharacterModel giVertexBuffer", MaxGIVertices * sizeof(GIVertexDst));
 	}
 
 	sf::Box<void> preloadCharacterModel(const sv::CharacterModelComponent &c) override
 	{
 		auto data = sf::box<CharacterModelData>();
 		data->model.load(c.modelName);
+		if (c.giModel) {
+			data->giModel.load(c.giModel, getGiLoadProps());
+		}
+		if (c.giMaterial) {
+			data->giMaterial.load(c.giMaterial);
+		}
 		data->animations.reserve(c.animations.size);
 		for (const sv::AnimationInfo &info : c.animations) {
 			data->animations.push().load(info.file);
@@ -476,6 +558,13 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 			Material &mat = model.materials.push();
 			mat.name = material.name;
 			mat.material.load(material.material);
+		}
+
+		if (c.giModel) {
+			model.giModel.load(c.giModel, getGiLoadProps());
+		}
+		if (c.giMaterial) {
+			model.giMaterial.load(c.giMaterial);
 		}
 
 		model.animations.reserve(c.animations.size);
@@ -780,6 +869,52 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 
 			sp::boneTransformToWorld(model.model, model.boneToWorld, ctx.boneTransforms, model.modelToWorld);
 
+			// Update GI vertices
+			// TODO: Amortize by not doing this every frame?
+			if (model.giVertexSrc.size > 0) {
+				const GIVertexSrc *src = model.giVertexSrc.data, *srcEnd = src + model.giVertexSrc.size;
+				GIVertexDst *dst = model.giVertexDst.data;
+				sf::Mat34 *boneToWorld = model.boneToWorld.data;
+				sf::Vec2 uvBase = model.giMaterial->uvBase;
+				sf::Vec2 uvScale = model.giMaterial->uvScale;
+
+				sf::SmallArray<sf::Mat34, 64> meshToWorld;
+				meshToWorld.resizeUninit(model.giBoneMapping.size);
+				sf::Slice<const sp::MeshBone> srcBones = model.giModel->meshes[0].bones;
+				for (size_t i = 0; i < meshToWorld.size; i++) {
+					uint32_t boneIndex = model.giBoneMapping[i];
+					if (boneIndex != ~0u) {
+						meshToWorld[i] = boneToWorld[boneIndex] * srcBones[i].meshToBone;
+					} else {
+						meshToWorld[i] = sf::Mat34();
+					}
+				}
+
+				while (src != srcEnd) {
+					sf::Mat34 &transform = meshToWorld[src->boneIndex[0]];
+					sf::Float4 col0 = sf::Float4::loadu(transform.cols[0].v);
+					sf::Float4 col1 = sf::Float4::loadu(transform.cols[1].v);
+					sf::Float4 col2 = sf::Float4::loadu(transform.cols[2].v);
+					sf::Float4 col3 = sf::Float4::loadu(transform.cols[3].v);
+					const sf::Vec3 &vp = src->position;
+					const sf::Vec3 &vn = src->normal;
+
+					sf::Float4 tp = col0*vp.x + col1*vp.y + col2*vp.z + col3;
+					sf::Float4 tn = col0*vn.x + col1*vn.y + col2*vn.z;
+					tn *= sf::broadcastRcpLengthXYZ(tn);
+
+					// Pack to unrom
+					tn = tn * 0.5f + 0.5f;
+
+					dst->position = tp.asVec3();
+					dst->normal = tn.asVec3();
+					dst->uv = src->uv * uvScale + uvBase;
+					dst->tint = ~0u;
+					src++;
+					dst++;
+				}
+			}
+
 			// TODO(threads): Mutex
 			attachmentsToUpdate.push(model.attachIds);
 		}
@@ -903,12 +1038,141 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		return model.entityId;
 	}
 
-	void addFrameHighlight(uint32_t modelId, const HighlightDesc &desc, const FrameArgs &frameArgs) override
+	void addFrameHighlightToModel(uint32_t modelId, const HighlightDesc &desc, const FrameArgs &frameArgs) override
 	{
 		Model &model = models[modelId];
 		float highlightFade = sf::max(0.0f, 1.0f - (float)(frameArgs.gameTime - model.highlightTime) * 5.0f);
 		model.highlightColor = sf::lerp(desc.color, model.highlightColor*highlightFade, exp2f(frameArgs.dt*-30.0f));
 		model.highlightTime = frameArgs.gameTime;
+	}
+
+	void addFrameHighlightToEntity(const Entities &entities,uint32_t entityId, const HighlightDesc &desc, const FrameArgs &frameArgs) override
+	{
+		const Entity &entity = entities.entities[entityId];
+		for (const cl::EntityComponent &ec : entity.components) {
+			if (ec.system == this && ec.subsystemIndex == 0) {
+				uint32_t modelId = ec.userId;
+				addFrameHighlightToModel(modelId, desc, frameArgs);
+			}
+		}
+	}
+
+	void renderShadow(const VisibleAreas &shadowAreas, const RenderArgs &renderArgs) override
+	{
+		giRenderIndices.clear();
+		shadowRenderVertices.clear();
+
+		for (uint32_t modelId : shadowAreas.get(AreaGroup::CharacterModel)) {
+			Model &model = models[modelId];
+			if (model.giVertexSrc.size == 0) continue;
+
+			uint32_t base = shadowRenderVertices.size;
+
+			{
+				size_t num = model.giVertexDst.size;
+				sf::Vec3 *dst = shadowRenderVertices.pushUninit(num);
+				const GIVertexDst *src = model.giVertexDst.data, *srcEnd = src + num;
+				while (src != srcEnd) {
+					*dst = src->position;
+					src++;
+					dst++;
+				}
+			}
+
+			{
+				size_t num = model.giIndexSrc.size;
+				uint16_t *dst = giRenderIndices.pushUninit(num);
+				const uint16_t *src = model.giIndexSrc.data, *srcEnd = src + num;
+				while (src != srcEnd) {
+					dst[0] = (uint16_t)((uint32_t)src[0] + base);
+					dst[1] = (uint16_t)((uint32_t)src[1] + base);
+					dst[2] = (uint16_t)((uint32_t)src[2] + base);
+					src += 3;
+					dst += 3;
+				}
+			}
+		}
+
+		if (giRenderIndices.size == 0) return;
+
+		int indexOffset = sg_append_buffer(giIndexBuffer.buffer, giRenderIndices.data, (int)giRenderIndices.byteSize());
+		int vertexOffset = sg_append_buffer(giVertexBuffer.buffer, shadowRenderVertices.data, (int)shadowRenderVertices.byteSize());
+
+		bool ok = true;
+		if (sg_query_buffer_overflow(giVertexBuffer.buffer)) ok = false;
+		if (sg_query_buffer_overflow(giIndexBuffer.buffer)) ok = false;
+		if (ok) {
+			sg_bindings binds = { };
+
+			binds.index_buffer = giIndexBuffer.buffer;
+			binds.index_buffer_offset = indexOffset;
+			binds.vertex_buffers[0] = giVertexBuffer.buffer;
+			binds.vertex_buffer_offsets[0] = vertexOffset;
+
+			MapShadow_Vertex_t vu;
+			vu.cameraPosition = renderArgs.cameraPosition;
+			renderArgs.worldToClip.writeColMajor44(vu.worldToClip);
+
+			gameShaders.mapChunkShadowPipe[0].bind();
+
+			sg_apply_bindings(&binds);
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_MapShadow_Vertex, &vu, sizeof(vu));
+
+			sg_draw(0, (int)giRenderIndices.size, 1);
+		}
+	}
+
+	void renderEnvmapGBuffer(const VisibleAreas &envmapAreas, const RenderArgs &renderArgs) override
+	{
+		giRenderIndices.clear();
+		giRenderVertices.clear();
+
+		for (uint32_t modelId : envmapAreas.get(AreaGroup::CharacterModel)) {
+			Model &model = models[modelId];
+			if (model.giVertexSrc.size == 0) continue;
+
+			uint32_t base = giRenderVertices.size;
+			giRenderVertices.push(model.giVertexDst);
+			uint16_t *dst = giRenderIndices.pushUninit(model.giIndexSrc.size);
+			size_t num = model.giIndexSrc.size;
+			const uint16_t *src = model.giIndexSrc.data, *srcEnd = src + num;
+			while (src != srcEnd) {
+				dst[0] = (uint16_t)((uint32_t)src[0] + base);
+				dst[1] = (uint16_t)((uint32_t)src[1] + base);
+				dst[2] = (uint16_t)((uint32_t)src[2] + base);
+				src += 3;
+				dst += 3;
+			}
+		}
+
+		if (giRenderIndices.size == 0) return;
+
+		int indexOffset = sg_append_buffer(giIndexBuffer.buffer, giRenderIndices.data, (int)giRenderIndices.byteSize());
+		int vertexOffset = sg_append_buffer(giVertexBuffer.buffer, giRenderVertices.data, (int)giRenderVertices.byteSize());
+
+		bool ok = true;
+		if (sg_query_buffer_overflow(giVertexBuffer.buffer)) ok = false;
+		if (sg_query_buffer_overflow(giIndexBuffer.buffer)) ok = false;
+		if (ok) {
+			sg_bindings binds = { };
+
+			binds.index_buffer = giIndexBuffer.buffer;
+			binds.index_buffer_offset = indexOffset;
+			binds.vertex_buffers[0] = giVertexBuffer.buffer;
+			binds.vertex_buffer_offsets[0] = vertexOffset;
+
+			binds.fs_images[SLOT_MapGBuffer_albedoAtlas] = GIMaterial::getAtlasImage();
+
+			MapGBuffer_Vertex_t vu;
+			renderArgs.worldToClip.writeColMajor44(vu.worldToClip);
+
+			gameShaders.dynamicEnvmapPipe.bind();
+
+			sg_apply_bindings(&binds);
+			sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_MapGBuffer_Vertex, &vu, sizeof(vu));
+
+			sg_draw(0, (int)giRenderIndices.size, 1);
+		}
 	}
 
 	void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs, const FrameArgs &frameArgs) override

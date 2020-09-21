@@ -5315,7 +5315,7 @@ _SOKOL_PRIVATE ID3DBlob* _sg_d3d11_compile_shader(const sg_shader_stage_desc* st
         NULL,                           /* pInclude */
         stage_desc->entry ? stage_desc->entry : "main",     /* pEntryPoint */
         target,     /* pTarget (vs_5_0 or ps_5_0) */
-        D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR | D3DCOMPILE_OPTIMIZATION_LEVEL3,   /* Flags1 */
+        D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR | D3DCOMPILE_DEBUG,   /* Flags1 */
         0,          /* Flags2 */
         &output,    /* ppCode */
         &errors);   /* ppErrorMsgs */

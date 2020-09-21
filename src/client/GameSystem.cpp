@@ -14,6 +14,7 @@
 
 #include "sf/UintMap.h"
 #include "sf/Reflection.h"
+#include "sf/Sort.h"
 
 #include "client/GuiCard.h"
 
@@ -47,70 +48,21 @@ static const sf::Symbol symStagger { "Stagger" };
 static const sf::Symbol symCast { "Cast" };
 static const sf::Symbol symHit { "Hit" };
 static const sf::Symbol symRun { "Run" };
+static const sf::Symbol symOpen { "Open" };
+static const sf::Symbol symOpening { "Opening" };
 
 static const constexpr float TapCancelDistance = 0.03f;
 static const constexpr float TapCancelDistanceSq = TapCancelDistance * TapCancelDistance;
 
-struct WidgetTest : gui::WidgetBase<'t','e','s','t'>
+static bool keyMatch(sf::Slice<const sf::Symbol> keys, sf::Slice<const sf::Symbol> locks)
 {
-	sp::SpriteRef sprite;
-	sp::FontRef font;
-	bool tapped = false;
-	bool pressed = false;
-
-	uint32_t index;
-
-	virtual void layout(gui::GuiLayout &layout, const sf::Vec2 &min, const sf::Vec2 &max) override
-	{
-		if (sprite->isLoaded()) {
-			float aspect = sprite->aspect;
-			sf::Vec2 size = sf::clamp(boxExtent, min, max);
-			float scale = sf::min(size.x / aspect, size.y);
-			layoutSize = sf::Vec2(scale * aspect, scale);
-		} else {
-			layoutSize = sf::Vec2();
+	for (const sf::Symbol &key : keys) {
+		for (const sf::Symbol &lock : locks) {
+			if (key == lock) return true;
 		}
 	}
-
-	virtual void paint(gui::GuiPaint &paint) override
-	{
-		paint.canvas->draw(sprite, layoutOffset, layoutSize, pressed ? sf::Vec4(1.0f, 0.0f, 0.0f, 1.0f) : sf::Vec4(1.0f));
-
-		sf::SmallStringBuf<16> number;
-		number.format("%u", index);
-		sp::TextDraw td;
-		td.string = number;
-		td.font = font;
-		td.depth = 1.0f;
-		td.height = 30.0f;
-		td.color = tapped ? sf::Vec4(0.0f, 0.0f, 0.0f, 1.0f) : sf::Vec4(1.0f);
-		sf::Vec2 measure = font->measureText(number, td.height);
-		td.transform = sf::mat2D::translate(layoutOffset + layoutSize * 0.5f - sf::Vec2(measure.x, -measure.y*0.5f) * 0.5f);
-		paint.canvas->drawText(td);
-	}
-
-	virtual bool onPointer(gui::GuiPointer &pointer) override
-	{
-		if (pointer.button == gui::GuiPointer::MouseHover && pointer.action == gui::GuiPointer::Down) {
-			return true;
-		}
-
-		if (pointer.button == gui::GuiPointer::Touch && pointer.action == gui::GuiPointer::Tap) {
-			tapped = !tapped;
-			return true;
-		}
-
-		if (pointer.button == gui::GuiPointer::Touch && pointer.action == gui::GuiPointer::LongPress) {
-			if (!pointer.trackWidget) {
-				pressed = !pressed;
-			}
-			pointer.trackWidget = sf::boxFromPointer(this);
-			return true;
-		}
-
-		return false;
-	}
-};
+	return false;
+}
 
 struct Camera
 {
@@ -223,6 +175,19 @@ struct GameSystemImp final : GameSystem
 		uint32_t effectId = ~0u;
 	};
 
+	struct TapTarget
+	{
+		enum Type
+		{
+			Unknown,
+			Character,
+			Door,
+		};
+
+		Type type = Unknown;
+		uint32_t svId = 0;
+	};
+
 	struct PointerState
 	{
 		uint64_t id;
@@ -230,8 +195,8 @@ struct GameSystemImp final : GameSystem
 		bool hitGui = false;
 		bool hitGuiThisFrame = false;
 		bool hitBackground = false;
-		uint32_t startSvId = 0;
-		uint32_t currentSvId = 0;
+		TapTarget startTarget;
+		TapTarget currentTarget;
 		sf::Box<gui::Widget> trackWidget;
 	};
 
@@ -685,6 +650,33 @@ struct GameSystemImp final : GameSystem
 					selected.currentSvId = 0;
 				}
 			}
+
+		} else if (const auto *e = event.as<sv::AddPropEvent>()) {
+			sv::Prefab *prefab = systems.entities.findPrefab(e->prop.prefabName);
+
+			if (prefab->findComponent<sv::DoorComponent>()){ 
+				if ((e->prop.flags & sv::Prop::NoCollision) != 0) {
+					uint32_t entityId;
+					sf::UintFind find = systems.entities.svToEntity.findAll(e->prop.id);
+					while (find.next(entityId)) {
+						systems.characterModel->addTag(systems.entities, entityId, symOpen);
+					}
+				}
+			}
+
+		} else if (const auto *e = event.as<sv::DoorOpenEvent>()) {
+
+			uint32_t entityId;
+			sf::UintFind find = systems.entities.svToEntity.findAll(e->propId);
+			while (find.next(entityId)) {
+				systems.characterModel->addTag(systems.entities, entityId, symOpen);
+				systems.characterModel->addOneShotTag(systems.entities, entityId, symOpening);
+			}
+
+			if (!ctx.immediate) {
+				if (ctx.timer < 0.5f) return false;
+			}
+
 		} else if (const auto *e = event.as<sv::TurnUpdateEvent>()) {
 
 			if (e->turnInfo.startTurn && !ctx.immediate) {
@@ -1376,6 +1368,8 @@ struct GameSystemImp final : GameSystem
 			systems.billboard->addBillboard(guiResources.characterActive, t, color, 1.0f);
 		}
 
+		sf::SmallArray<uint32_t, 4> openableDoorSvIds;
+
 		if (selectedCardSlot != ~0u) {
 			Character *caster = findCharacter(selectedCharacterId);
 			Card *card = findCard(caster->selectedCards[selectedCardSlot].currentSvId);
@@ -1388,7 +1382,39 @@ struct GameSystemImp final : GameSystem
 					if (svState.canTarget(caster->svId, entity.svId, card->svPrefab->name)) {
 						HighlightDesc desc = { };
 						desc.color = sf::Vec3(1.0f);
-						systems.characterModel->addFrameHighlight(characterModelId, desc, frameArgs);
+						systems.characterModel->addFrameHighlightToModel(characterModelId, desc, frameArgs);
+					}
+				}
+
+				// Check for doors to open with a key card
+				if (auto *keyComp = card->svPrefab->findComponent<sv::CardKeyComponent>()) {
+					static const sf::Vec2i dirs[] = { { -1, 0 }, { +1, 0 }, { 0, -1 }, { 0, +1 } };
+					for (const sf::Vec2i &dir : dirs) {
+						sf::Vec2i tile = caster->tile + dir;
+						uint32_t svId;
+						sf::UintFind find = svState.getTileEntities(tile);
+						while (find.next(svId)) {
+							if (sv::getIdType(svId) != sv::IdType::Prop) continue;
+							const sv::Prop *prop = svState.props.find(svId);
+							if (!prop) continue;
+							if ((prop->flags & sv::Prop::NoCollision) != 0) continue;
+							const sv::Prefab *doorPrefab = svState.prefabs.find(prop->prefabName);
+							if (!doorPrefab) continue;
+							const sv::DoorComponent *doorComp = doorPrefab->findComponent<sv::DoorComponent>();
+							if (!doorComp) continue;
+							if (!keyMatch(keyComp->keyNames, doorComp->keyNames)) continue;
+
+							HighlightDesc desc = { };
+							desc.color = sf::Vec3(1.0f);
+
+							openableDoorSvIds.push(svId);
+
+							uint32_t entityId;
+							sf::UintFind entityFind = systems.entities.svToEntity.findAll(svId);
+							while (entityFind.next(entityId)) {
+								systems.characterModel->addFrameHighlightToEntity(systems.entities, entityId, desc, frameArgs);
+							}
+						}
 					}
 				}
 			}
@@ -1398,17 +1424,38 @@ struct GameSystemImp final : GameSystem
 			PointerState *pointerState = pointerStates.find(pointer.id);
 			if (!pointerState) continue;
 
-			uint32_t svId = 0;
-			uint32_t entityId = systems.tapArea->getClosestTapAreaEntity(systems.area, pointer.current.worldRay);
-			if (entityId != ~0u) {
-				Entity &entity = systems.entities.entities[entityId];
-				svId = entity.svId;
+			sf::SmallArray<HoveredTapArea, 64> hoveredTapAreas;
+
+			systems.tapArea->getHoveredTapAreas(hoveredTapAreas, systems.area, pointer.current.worldRay);
+			sf::sort(hoveredTapAreas);
+
+			TapTarget target;
+
+			for (HoveredTapArea &hover : hoveredTapAreas) {
+				Entity &entity = systems.entities.entities[hover.entityId];
+				Prefab &prefab = systems.entities.prefabs[entity.prefabId];
+
+				// Always select characters
+				if (findCharacter(entity.svId)) {
+					target = { TapTarget::Character, entity.svId };
+					break;
+				}
+
+				// Select closed doors
+				if (prefab.svPrefab->findComponent<sv::DoorComponent>()) {
+					if (const sv::Prop *prop = svState.props.find(entity.svId)) {
+						if ((prop->flags & sv::Prop::NoCollision) == 0) {
+							target = { TapTarget::Door, entity.svId };
+						}
+					}
+				}
+
 			}
 
 			if (pointer.action == Pointer::Down) {
-				pointerState->startSvId = svId;
+				pointerState->startTarget = target;
 			}
-			pointerState->currentSvId = svId;
+			pointerState->currentTarget = target;
 
 			didHoverTile = false;
 
@@ -1425,10 +1472,15 @@ struct GameSystemImp final : GameSystem
 					didHover = false;
 				}
 
-				Character *chr = findCharacter(pointerState->startSvId);
+				Character *chr = nullptr;
 				Character *caster = nullptr;
 				Card *card = nullptr;
 				bool canTarget = true;
+
+				if (pointerState->startTarget.type == TapTarget::Character) {
+					chr = findCharacter(pointerState->startTarget.svId);
+				}
+
 				if (selectedCardSlot != ~0u) {
 					caster = findCharacter(selectedCharacterId);
 					card = findCard(caster->selectedCards[selectedCardSlot].currentSvId);
@@ -1478,6 +1530,26 @@ struct GameSystemImp final : GameSystem
 							systems.billboard->addBillboard(guiResources.characterSelect, t, color, 1.0f);
 						}
 					}
+				} else if (pointerState->startTarget.type == TapTarget::Door) {
+
+					uint32_t doorId = pointerState->startTarget.svId;
+					if (didClick) {
+						if (sf::find(openableDoorSvIds, doorId)) {
+							auto action = sf::box<sv::OpenDoorAction>();
+
+							action->characterId = selectedCharacterId;
+							action->doorId = pointerState->startTarget.svId;
+							if (selectedCardSlot != ~0u) {
+								action->cardId = caster->selectedCards[selectedCardSlot].currentSvId;
+							} else {
+								action->cardId = 0;
+							}
+
+							requestedActions.push(std::move(action));
+							selectedCardSlot = ~0u;
+						}
+					}
+
 				} else if (moveSet.distanceToTile.size() > 0 && selectedCardSlot == ~0u) {
 
 					sf::Vec3 rayPos = intersectHorizontalPlane(0.0f, pointer.current.worldRay);
@@ -1547,22 +1619,24 @@ struct GameSystemImp final : GameSystem
 
 			if (dragPointer.guiPointer.dropType == guiCardSym) {
 				GuiCard *guiCard = dragPointer.guiPointer.dropData.cast<GuiCard>();
-				if (Character *chr = findCharacter(pointerState->currentSvId)) {
-					sf::Vec3 tilePos = sf::Vec3((float)chr->tile.x, 0.0f, (float)chr->tile.y);
+				if (pointerState->currentTarget.type == TapTarget::Character) {
+					if (Character *chr = findCharacter(pointerState->currentTarget.svId)) {
+						sf::Vec3 tilePos = sf::Vec3((float)chr->tile.x, 0.0f, (float)chr->tile.y);
 
-					sf::Vec4 color = sf::Vec4(0.8f, 0.8f, 1.0f, 1.0f) * 0.7f;
-					sf::Mat34 t;
-					t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f);
-					t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f);
-					t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
-					t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
-					systems.billboard->addBillboard(guiResources.characterSelect, t, color, 1.0f);
+						sf::Vec4 color = sf::Vec4(0.8f, 0.8f, 1.0f, 1.0f) * 0.7f;
+						sf::Mat34 t;
+						t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f);
+						t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f);
+						t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
+						t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
+						systems.billboard->addBillboard(guiResources.characterSelect, t, color, 1.0f);
 
-					if (dragPointer.guiPointer.action == gui::GuiPointer::DropCommit) {
-						auto action = sf::box<sv::GiveCardAction>();
-						action->ownerId = chr->svId;
-						action->cardId = guiCard->svId;
-						requestedActions.push(std::move(action));
+						if (dragPointer.guiPointer.action == gui::GuiPointer::DropCommit) {
+							auto action = sf::box<sv::GiveCardAction>();
+							action->ownerId = chr->svId;
+							action->cardId = guiCard->svId;
+							requestedActions.push(std::move(action));
+						}
 					}
 				}
 			}

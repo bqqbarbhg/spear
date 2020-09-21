@@ -88,6 +88,18 @@ void GameShaders::load()
 		d.layout.attrs[3].format = SG_VERTEXFORMAT_UBYTE4N;
 	}
 
+	{
+		uint32_t flags = sp::PipeDepthWrite | sp::PipeIndex16;
+		sg_pipeline_desc &d = dynamicEnvmapPipe.init(mapGBuffer, flags);
+		d.blend.color_attachment_count = 2;
+		d.rasterizer.cull_mode = SG_CULLMODE_NONE;
+		d.rasterizer.face_winding = SG_FACEWINDING_CCW;
+		d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+		d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
+		d.layout.attrs[3].format = SG_VERTEXFORMAT_UBYTE4N;
+	}
+
 	shadowGridPipe.init(shadowGrid, sp::PipeVertexFloat2);
 	postprocessPipe.init(postprocess, sp::PipeVertexFloat2);
 

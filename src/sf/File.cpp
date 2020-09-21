@@ -314,12 +314,17 @@ void appendPath(sf::StringBuf &path, sf::String a, sf::String b, sf::String c, s
 	appendPath(path, d);
 }
 
-bool containsDirectory(sf::String path, sf::String dir)
+bool containsDirectory(sf::String path, sf::String dir, uint32_t maxDepth)
 {
 	size_t begin = 0;
+	uint32_t depth = 0;
 	for (size_t i = 0; i < path.size; i++) {
 		if (path.data[i] == '/' || path.data[i] == '\\') {
 			if (path.substring(begin, i - begin) == dir) return true;
+			if (i != begin) {
+				depth++;
+				if (depth >= maxDepth) return false;
+			}
 			begin = i + 1;
 		}
 	}

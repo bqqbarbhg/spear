@@ -16,6 +16,7 @@ struct TapAreaSystemImp final : TapAreaSystem
 		uint32_t entityId;
 
 		sf::Mat34 entityToWorld;
+		sf::Mat34 worldToEntity;
 		sf::Bounds3 bounds;
 	};
 
@@ -41,6 +42,7 @@ struct TapAreaSystemImp final : TapAreaSystem
 		tapArea.bounds.extent = c.extent;
 		tapArea.entityId = entityId;
 		tapArea.entityToWorld = transform.asMatrix();
+		tapArea.worldToEntity = sf::inverse(tapArea.entityToWorld);
 
 		systems.entities.addComponent(entityId, this, tapAreaId, 0, componentIndex, Entity::UpdateTransform);
 		tapArea.areaId = systems.area->addBoxArea(AreaGroup::TapArea, tapAreaId, tapArea.bounds, tapArea.entityToWorld, Area::EditorPick|Area::GamePick);
@@ -52,6 +54,7 @@ struct TapAreaSystemImp final : TapAreaSystem
 		TapArea &tapArea = tapAreas[tapAreaId];
 
 		tapArea.entityToWorld = update.entityToWorld;
+		tapArea.worldToEntity = sf::inverse(update.entityToWorld);
 		systems.area->updateBoxArea(tapArea.areaId, tapArea.bounds, tapArea.entityToWorld);
 	}
 
@@ -66,11 +69,8 @@ struct TapAreaSystemImp final : TapAreaSystem
 		sf::reset(tapArea);
 	}
 
-	virtual uint32_t getClosestTapAreaEntity(const AreaSystem *areaSystem, const sf::Ray &ray) const override
+	void getHoveredTapAreas(sf::Array<HoveredTapArea> &hovered, const AreaSystem *areaSystem, const sf::Ray &ray) const override
 	{
-		float bestDistSq = HUGE_VALF;
-		uint32_t bestEntityId = ~0u;
-
 		sf::FastRay fastRay { ray };
 
 		sf::SmallArray<Area, 64> areas;
@@ -79,19 +79,15 @@ struct TapAreaSystemImp final : TapAreaSystem
 			if (area.group != AreaGroup::TapArea) continue;
 			uint32_t tapAreaId = area.userId;
 			const TapArea &tapArea = tapAreas[tapAreaId];
-			sf::Vec3 origin = sf::transformPoint(tapArea.entityToWorld, tapArea.bounds.origin);
 
-			sf::Vec3 delta = origin - ray.origin;
-			sf::Vec3 projected = ray.direction * sf::dot(ray.direction, delta) / sf::lengthSq(ray.direction);
-			float dist = sf::lengthSq(delta - projected);
-
-			if (dist < bestDistSq) {
-				bestDistSq = dist;
-				bestEntityId = tapArea.entityId;
+			sf::Ray localRay = sf::transformRay(tapArea.worldToEntity, ray);
+			float t;
+			if (sf::intersectRay(t, localRay, tapArea.bounds)) {
+				HoveredTapArea &hover = hovered.push();
+				hover.t = t;
+				hover.entityId = tapArea.entityId;
 			}
 		}
-
-		return bestEntityId;
 	}
 
 	void editorHighlight(Systems &systems, const EntityComponent &ec, EditorHighlight type) override
@@ -115,7 +111,7 @@ struct TapAreaSystemImp final : TapAreaSystem
 
 		sf::Ray localRay = sf::transformRay(sf::inverse(tapArea.entityToWorld), ray.ray);
 		float t;
-		if (sf::intesersectRay(t, localRay, tapArea.bounds)) {
+		if (sf::intersectRay(t, localRay, tapArea.bounds)) {
 			EntityHit &hit = hits.push();
 			hit.entityId = tapArea.entityId;
 			hit.t = t;

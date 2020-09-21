@@ -44,8 +44,11 @@ struct CharacterModelSystem : EntitySystem
 	virtual void queryFrameEvents(const Entities &entities, uint32_t entityId, sf::Array<sf::Symbol> &events) = 0;
 
 	virtual uint32_t getEntityId(uint32_t modelId) const = 0;
-	virtual void addFrameHighlight(uint32_t characterModelId, const HighlightDesc &desc, const FrameArgs &frameArgs) = 0;
+	virtual void addFrameHighlightToModel(uint32_t characterModelId, const HighlightDesc &desc, const FrameArgs &frameArgs) = 0;
+	virtual void addFrameHighlightToEntity(const Entities &entities, uint32_t entityId, const HighlightDesc &desc, const FrameArgs &frameArgs) = 0;
 
+	virtual void renderShadow(const VisibleAreas &shadowAreas, const RenderArgs &renderArgs) = 0;
+	virtual void renderEnvmapGBuffer(const VisibleAreas &envmapAreas, const RenderArgs &renderArgs) = 0;
 	virtual void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs, const FrameArgs &frameArgs) = 0;
 };
 
