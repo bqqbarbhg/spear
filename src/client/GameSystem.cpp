@@ -1246,7 +1246,7 @@ struct GameSystemImp final : GameSystem
 		persist.zoom = camera.current.zoom;
 	}
 
-	sf::Box<void> preloadCard(const sv::Prefab &svPrefab)
+	sf::Box<void> preloadCard(const sv::Prefab &svPrefab) override
 	{
 		auto box = sf::box<GuiCard>();
 		box->init(svPrefab, 0);
