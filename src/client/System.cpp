@@ -103,6 +103,10 @@ void Entities::addPrefabComponents(Systems &systems, uint32_t prefabId)
 			ComponentData &data = prefab.componentData.push();
 			data.component = c;
 			data.data = systems.audio->preloadSound(*c);
+		} else if (const auto *c = comp->as<sv::CardComponent>()) {
+			ComponentData &data = prefab.componentData.push();
+			data.component = c;
+			data.data = systems.game->preloadCard(*prefab.svPrefab);
 		}
 	}
 }

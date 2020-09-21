@@ -225,6 +225,12 @@ struct ParticleSystemComponent : ComponentBase<Component::ParticleSystem>
 	float spinVariance = 0.0f; //! Random per-particle speed for the particles in degrees
 };
 
+struct DropCard sv_reflect()
+{
+	sf::Symbol cardName sv_reflect(prefab); //! Name of the card to drop
+	bool alwaysDrop = true; //! Always drop this card
+};
+
 struct CharacterComponent : ComponentBase<Component::Character>
 {
 	sf::Symbol name;
@@ -548,7 +554,7 @@ struct Card sv_reflect()
 	uint32_t id;
 	uint32_t ownerId = 0;
 	sf::Symbol prefabName sv_reflect(prefab);
-	uint32_t cooldownLeft;
+	uint32_t cooldownLeft = 0;
 };
 
 struct Status sv_reflect()
@@ -574,6 +580,7 @@ struct Character sv_reflect()
 	uint32_t selectedCards[NumSelectedCards] = { };
 	sf::Array<uint32_t> cards;
 	sf::Array<uint32_t> statuses;
+	sf::Array<DropCard> dropCards;
 	sf::Vec2i tile;
 	uint32_t armor = 0;
 	bool enemy = false;
@@ -834,6 +841,7 @@ struct SetPropCollisionEvent : EventBase<Event::SetPropCollision>
 
 struct DoorOpenEvent : EventBase<Event::DoorOpen>
 {
+	uint32_t characterId;
 	uint32_t propId;
 };
 
@@ -864,11 +872,18 @@ struct MovePropEvent : EventBase<Event::MoveProp>
 	PropTransform transform;
 };
 
+struct GiveCardInfo sv_reflect()
+{
+	bool fromWorld = false;
+	sf::Vec2i worldTile;
+};
+
 struct GiveCardEvent : EventBase<Event::GiveCard>
 {
 	uint32_t cardId;
 	uint32_t previousOwnerId;
 	uint32_t ownerId;
+	GiveCardInfo info;
 };
 
 struct SelectCardEvent : EventBase<Event::SelectCard>
@@ -1246,6 +1261,7 @@ struct ServerState
 
 	void moveProp(sf::Array<sf::Box<Event>> &events, uint32_t propId, const PropTransform &transform);
 
+	void giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId, const GiveCardInfo &info);
 	void giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId);
 	void selectCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId, uint32_t slot);
 

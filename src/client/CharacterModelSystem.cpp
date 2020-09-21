@@ -486,6 +486,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		tagWeights[sf::Symbol("Run")] = 100.0;
 		tagWeights[sf::Symbol("Opening")] = 100.0;
 		tagWeights[sf::Symbol("Open")] = 100.0;
+		tagWeights[sf::Symbol("Use")] = 100.0;
 		animCtx.rng = sf::Random(desc.seed[0], 756789);
 
 		uint8_t permutation[SP_NUM_PERMUTATIONS] = { };

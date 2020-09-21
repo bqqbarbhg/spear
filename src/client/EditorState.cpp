@@ -1186,14 +1186,16 @@ void handleImguiCharacterWindow(EditorState *es)
 			if (ImGui::CollapsingHeader("Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
 				ImGui::PushID("Properties");
 				sv::Character chrCopy = *chr;
-				bool modified = false;
+				ImguiStatus status;
 
 				if (ImGui::Checkbox("Enemy", &chrCopy.originalEnemy)) {
 					chrCopy.enemy = chrCopy.originalEnemy;
-					modified = true;
+					status.modified = true;
 				}
 
-				if (modified) {
+				handleImgui(status, chrCopy.dropCards, "dropCards", imguiCallback, es);
+
+				if (status.modified) {
 					sf::Array<sf::Box<sv::Edit>> &edits = es->requests.edits.push();
 					auto ed = sf::box<sv::TweakCharacterEdit>();
 					ed->character = chrCopy;

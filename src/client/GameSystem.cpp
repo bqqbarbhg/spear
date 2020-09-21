@@ -50,6 +50,7 @@ static const sf::Symbol symHit { "Hit" };
 static const sf::Symbol symRun { "Run" };
 static const sf::Symbol symOpen { "Open" };
 static const sf::Symbol symOpening { "Opening" };
+static const sf::Symbol symUse { "Use" };
 
 static const constexpr float TapCancelDistance = 0.03f;
 static const constexpr float TapCancelDistanceSq = TapCancelDistance * TapCancelDistance;
@@ -220,6 +221,7 @@ struct GameSystemImp final : GameSystem
 
 	struct CardTrade
 	{
+		sf::Vec3 srcPosition;
 		uint32_t srcSvId;
 		uint32_t dstSvId;
 		uint32_t cardSvId;
@@ -313,6 +315,7 @@ struct GameSystemImp final : GameSystem
 
 	bool castAnimDone = false;
 	bool castDone = false;
+	bool doorOpened = false;
 
 	uint32_t moveWaypointIndex = ~0u;
 	sf::Vec3 moveVelocity;
@@ -437,7 +440,9 @@ struct GameSystemImp final : GameSystem
 				}
 				
 				sf::reset(*chr);
-				freeCharacterIds.push((uint32_t)(chr - characters.data));
+				uint32_t chrId = (uint32_t)(chr - characters.data);
+				freeCharacterIds.push(chrId);
+				svToCharacter.removeExistingPair(e->characterId, chrId);
 			}
 
 		} else if (const auto *e = event.as<sv::AddCardEvent>()) {
@@ -467,7 +472,9 @@ struct GameSystemImp final : GameSystem
 
 			if (Card *card = findCard(e->cardId)) {
 				sf::reset(*card);
-				freeCardIds.push((uint32_t)(card - cards.data));
+				uint32_t cardId = (uint32_t)(card - cards.data);
+				freeCardIds.push(cardId);
+				svToCard.removeExistingPair(e->cardId, cardId);
 			}
 
 		} else if (const auto *e = event.as<sv::StatusAddEvent>()) {
@@ -614,18 +621,35 @@ struct GameSystemImp final : GameSystem
 			}
 
 		} else if (const auto *e = event.as<sv::GiveCardEvent>()) {
+			float delay = 0.0f;
 
 			if (e->previousOwnerId != e->ownerId && e->previousOwnerId && e->ownerId && !ctx.immediate) {
-				CardTrade &trade = cardTrades.push();
-				trade.srcSvId = e->previousOwnerId;
-				trade.dstSvId = e->ownerId;
-				trade.cardSvId = e->cardId;
+				delay = 0.2f;
+				if (ctx.begin) {
+					CardTrade &trade = cardTrades.push();
+					trade.srcSvId = e->previousOwnerId;
+					trade.dstSvId = e->ownerId;
+					trade.cardSvId = e->cardId;
+				}
+			} else if (e->info.fromWorld && e->ownerId && !ctx.immediate) {
+				delay = 1.0f;
+				if (ctx.begin) {
+					sf::Vec2i tile = e->info.worldTile;
+					CardTrade &trade = cardTrades.push();
+					trade.srcPosition = sf::Vec3((float)tile.x, 1.0f, (float)tile.y);
+					trade.dstSvId = e->ownerId;
+					trade.cardSvId = e->cardId;
+				}
 			}
 
 			if (Character *chr = findCharacter(e->previousOwnerId)) {
 				if (uint32_t *ptr = sf::find(chr->cardIds, e->cardId)) {
 					chr->cardIds.removeOrderedPtr(ptr);
 				}
+			}
+
+			if (!ctx.immediate) {
+				if (ctx.timer < delay) return false;
 			}
 
 			if (Character *chr = findCharacter(e->ownerId)) {
@@ -666,15 +690,38 @@ struct GameSystemImp final : GameSystem
 
 		} else if (const auto *e = event.as<sv::DoorOpenEvent>()) {
 
-			uint32_t entityId;
-			sf::UintFind find = systems.entities.svToEntity.findAll(e->propId);
-			while (find.next(entityId)) {
-				systems.characterModel->addTag(systems.entities, entityId, symOpen);
-				systems.characterModel->addOneShotTag(systems.entities, entityId, symOpening);
-			}
-
 			if (!ctx.immediate) {
-				if (ctx.timer < 0.5f) return false;
+				if (ctx.begin) {
+					doorOpened = false;
+					if (Character *chr = findCharacter(e->characterId)) {
+						systems.characterModel->addOneShotTag(systems.entities, chr->entityId, symUse);
+					}
+				}
+
+				bool doOpen = false;
+				if (!doorOpened) {
+					if (Character *chr = findCharacter(e->characterId)) {
+						sf::SmallArray<sf::Symbol, 16> events;
+						systems.characterModel->queryFrameEvents(systems.entities, chr->entityId, events);
+						if (sf::find(events, symUse)) doOpen = true;
+						// Failsafe
+						if (ctx.timer >= 2.0f) doOpen = true;
+					} else {
+						doOpen = true;
+					}
+				}
+
+				if (doOpen) {
+					uint32_t entityId;
+					sf::UintFind find = systems.entities.svToEntity.findAll(e->propId);
+					while (find.next(entityId)) {
+						systems.characterModel->addTag(systems.entities, entityId, symOpen);
+						systems.characterModel->addOneShotTag(systems.entities, entityId, symOpening);
+					}
+				} else {
+					return false;
+				}
+				doorOpened = true;
 			}
 
 		} else if (const auto *e = event.as<sv::TurnUpdateEvent>()) {
@@ -753,6 +800,7 @@ struct GameSystemImp final : GameSystem
 			if (Character *chr = findCharacter(e->character.id)) {
 				chr->sv.enemy = e->character.enemy;
 				chr->sv.originalEnemy = e->character.originalEnemy;
+				chr->sv.dropCards = e->character.dropCards;
 			}
 
 		} else if (const auto *e = event.as<sv::ChangeTeamEvent>()) {
@@ -1196,6 +1244,13 @@ struct GameSystemImp final : GameSystem
 		persist.camera.x = camera.current.origin.x;
 		persist.camera.y = camera.current.origin.z;
 		persist.zoom = camera.current.zoom;
+	}
+
+	sf::Box<void> preloadCard(const sv::Prefab &svPrefab)
+	{
+		auto box = sf::box<GuiCard>();
+		box->init(svPrefab, 0);
+		return box;
 	}
 
 	void updateDebugMenu(Systems &systems)
@@ -2011,10 +2066,14 @@ struct GameSystemImp final : GameSystem
 			float fade = gui::smoothEnd(sf::min(sf::min(t/fadeInDuration, (1.0f-t)/fadeOutDuration), 1.0f));
 
 			Character *srcChr = findCharacter(trade.srcSvId);
+			if (srcChr) {
+				trade.srcPosition = systems.entities.entities[srcChr->entityId].transform.position;
+			}
+
 			Character *dstChr = findCharacter(trade.dstSvId);
 			Card *card = findCard(trade.cardSvId);
-			if (srcChr && dstChr && card) {
-				sf::Vec3 srcPos = systems.entities.entities[srcChr->entityId].transform.position;
+			if (dstChr && card) {
+				sf::Vec3 srcPos = trade.srcPosition;
 				sf::Vec3 dstPos = systems.entities.entities[dstChr->entityId].transform.position;
 
 				float moveT = (t - moveOffset) / moveDuration;

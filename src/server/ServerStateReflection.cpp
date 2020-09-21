@@ -1242,6 +1242,7 @@ template<> void initType<SetPropCollisionEvent>(Type *t)
 template<> void initType<DoorOpenEvent>(Type *t)
 {
 	static Field fields[] = {
+		sf_field(DoorOpenEvent, characterId),
 		sf_field(DoorOpenEvent, propId),
 	};
 	sf_struct_base(t, DoorOpenEvent, Event, fields);
@@ -1295,6 +1296,7 @@ template<> void initType<GiveCardEvent>(Type *t)
 		sf_field(GiveCardEvent, cardId),
 		sf_field(GiveCardEvent, previousOwnerId),
 		sf_field(GiveCardEvent, ownerId),
+		sf_field(GiveCardEvent, info),
 	};
 	sf_struct_base(t, GiveCardEvent, Event, fields);
 }
@@ -1664,6 +1666,25 @@ template<> void initType<GravityPoint>(Type *t)
 	}
 }
 
+template<> void initType<DropCard>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(DropCard, cardName),
+		sf_field(DropCard, alwaysDrop),
+	};
+	sf_struct(t, DropCard, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "cardName");
+		info.description = "Name of the card to drop";
+		info.prefab = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "alwaysDrop");
+		info.description = "Always drop this card";
+	}
+}
+
 template<> void initType<AnimationEvent>(Type *t)
 {
 	static Field fields[] = {
@@ -1925,6 +1946,7 @@ template<> void initType<Character>(Type *t)
 		sf_field(Character, selectedCards),
 		sf_field(Character, cards),
 		sf_field(Character, statuses),
+		sf_field(Character, dropCards),
 		sf_field(Character, tile),
 		sf_field(Character, armor),
 		sf_field(Character, enemy),
@@ -2042,6 +2064,15 @@ template<> void initType<CastInfo>(Type *t)
 		ReflectionInfo &info = addTypeReflectionInfo(t, "spellInfo");
 		info.prefab = true;
 	}
+}
+
+template<> void initType<GiveCardInfo>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(GiveCardInfo, fromWorld),
+		sf_field(GiveCardInfo, worldTile),
+	};
+	sf_struct(t, GiveCardInfo, fields);
 }
 
 template<> void initType<Waypoint>(Type *t)

@@ -536,6 +536,7 @@ void ServerState::applyEvent(const Event &event)
 		if (Character *chr = findCharacter(*this, e->character.id)) {
 			chr->enemy = e->character.enemy;
 			chr->originalEnemy = e->character.originalEnemy;
+			chr->dropCards = e->character.dropCards;
 		}
 	} else if (auto *e = event.as<TurnUpdateEvent>()) {
 		turnInfo = e->turnInfo;
@@ -1393,6 +1394,10 @@ uint32_t ServerState::addCharacter(sf::Array<sf::Box<Event>> &events, const Char
 	Prefab *prefab = loadPrefab(*this, events, chr.prefabName);
 	if (!prefab) return 0;
 
+	for (const DropCard &drop : chr.dropCards) {
+		loadPrefab(*this, events, drop.cardName);
+	}
+
 	CharacterComponent *chrComp = findComponent<CharacterComponent>(*this, *prefab);
 	if (!chrComp) return 0;
 
@@ -1465,10 +1470,39 @@ void ServerState::removeCharacter(sf::Array<sf::Box<Event>> &events, uint32_t ch
 		startNextCharacterTurn(events);
 	}
 
+	sf::Vec2i tile = chr->tile;
+
+	sf::SmallArray<DropCard, 32> dropCards;
+	dropCards.push(chr->dropCards);
+
 	{
 		auto e = sf::box<RemoveCharacterEvent>();
 		e->characterId = characterId;
 		pushEvent(*this, events, std::move(e));
+	}
+
+	for (const DropCard &drop : dropCards) {
+
+		// TODO: Just give the cards to a single player
+		uint32_t recipientId = 0;
+		for (Character &recipientChr : characters) {
+			if (!recipientChr.originalEnemy) {
+				recipientId = recipientChr.id;
+				break;
+			}
+		}
+
+		if (!recipientId) continue;
+
+		Card card;
+		card.prefabName = drop.cardName;
+		uint32_t cardId = addCard(events, card);
+		if (!cardId) continue;
+
+		GiveCardInfo info;
+		info.fromWorld = true;
+		info.worldTile = tile;
+		giveCard(events, cardId, recipientId, info);
 	}
 }
 
@@ -1524,7 +1558,7 @@ void ServerState::moveProp(sf::Array<sf::Box<Event>> &events, uint32_t propId, c
 	}
 }
 
-void ServerState::giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId)
+void ServerState::giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId, const GiveCardInfo &info)
 {
 	Card *card = findCard(*this, cardId);
 	if (!card) return;
@@ -1536,6 +1570,7 @@ void ServerState::giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, u
 		e->cardId = cardId;
 		e->previousOwnerId = card->ownerId;
 		e->ownerId = ownerId;
+		e->info = info;
 		pushEvent(*this, events, e);
 	}
 
@@ -1579,6 +1614,11 @@ void ServerState::giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, u
 			}
 		}
 	}
+}
+
+void ServerState::giveCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId)
+{
+	giveCard(events, cardId, ownerId, GiveCardInfo());
 }
 
 void ServerState::selectCard(sf::Array<sf::Box<Event>> &events, uint32_t cardId, uint32_t ownerId, uint32_t slot)
@@ -1893,6 +1933,10 @@ void ServerState::applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit,
 			undoBuf.push(ud);
 		}
 
+		for (const DropCard &drop : ed->character.dropCards) {
+			loadPrefab(*this, events, drop.cardName);
+		}
+
 		{
 			auto e = sf::box<TweakCharacterEvent>();
 			e->character = ed->character;
@@ -2167,6 +2211,7 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 
 		{
 			auto e = sf::box<DoorOpenEvent>();
+			e->characterId = openerId;
 			e->propId = doorId;
 			pushEvent(*this, events, e);
 		}

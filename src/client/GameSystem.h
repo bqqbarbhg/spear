@@ -16,6 +16,8 @@ struct GameSystem : EntitySystem
 
 	virtual void writePersist(Systems &systems, ClientPersist &persist) = 0;
 
+	virtual sf::Box<void> preloadCard(const sv::Prefab &svPrefab) = 0;
+
 	virtual void updateCamera(FrameArgs &frameArgs) = 0;
 
 	virtual void update(const sv::ServerState &svState, Systems &systems, const FrameArgs &frameArgs) = 0;

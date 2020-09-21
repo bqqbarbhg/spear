@@ -20,7 +20,7 @@ void handleImgui(ImguiStatus &status, T &t, sf::String label, ImguiCallback call
 {
 	sf::SmallStringBuf<128> localLabel;
 	localLabel.append(label);
-	return handleInstImgui(status, &t, sf::typeOf<T>(), localLabel, callback, user);
+	return handleInstImgui(status, &t, sf::typeOf<T>(), localLabel, NULL, callback, user);
 }
 
 template <typename T>
