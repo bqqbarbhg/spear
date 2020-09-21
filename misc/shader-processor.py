@@ -200,6 +200,7 @@ class HLSL:
             "smooth": "linear",
             "flat": "nointerpolation",
             "noperspective": "noperspective",
+            "sample": "sample",
         }
 
         sampler_map = {
@@ -377,7 +378,7 @@ def do_attribute(c, location, typ, name):
     c.attribs.append(Attrib(location, name_to_type[typ], name))
     return []
 
-@top_directive(r"\s*(smooth|flat|noperspective|)\s*varying\s+(\w+)\s+(\w+)\s*;?\s*")
+@top_directive(r"\s*(smooth|flat|noperspective|sample|)\s*varying\s+(\w+)\s+(\w+)\s*;?\s*")
 def do_varying(c, interp, typ, name):
     c.varyings.append(Varying(interp, name_to_type[typ], name))
     return []
