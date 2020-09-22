@@ -4,41 +4,63 @@
 
 namespace sv {
 
-static double scorePosition(AiState &ai, const sv::ServerState &state, const Character *chr, const Character *targetChr, const sf::Vec2i &position)
+struct CardToUse
 {
-	bool hitProp = false;
-	bool hitWall = false;
-	sf::Vec2i delta = position - targetChr->tile;
-	if (delta.x < -0) delta.x = -delta.x;
-	if (delta.y < -0) delta.y = -delta.y;
-	uint32_t distance = delta.x + delta.y;
+	const sv::Prefab *prefab;
+	uint32_t cardId = 0;
+	float weight = 0.0f;
+};
 
-	sv::ConservativeLineRasterizer raster(position, targetChr->tile);
-	for (;;) {
-		sf::Vec2i tile = raster.next();
-		if (tile == targetChr->tile) break;
-		if (tile == position) continue;
+template <typename T>
+static void shuffle(sf::Slice<T> ts, sf::Random &rng)
+{
+	for (size_t i = ts.size; i > 1; i--) {
+		size_t j = rng.nextU32() % i;
+		if (i != j) {
+			sf::impSwap(ts[i - 1], ts[j]);
+		}
+	}
+}
 
+bool tryUseCard(AiState &ai, sf::Array<sf::Box<sv::Event>> &events, sv::ServerState &state, CardToUse &cardToUse)
+{
+	uint32_t selfId = state.turnInfo.characterId;
+	const Character *self = state.characters.find(selfId);
+	if (!self) return false;
 
-		uint32_t id;
-		sf::UintFind find = state.getTileEntities(tile);
-		while (find.next(id)) {
-			IdType type = getIdType(id);
-			if (type == IdType::Prop) {
-				hitProp = true;
-				const Prop *prop = state.props.find(id);
-				if (prop && (prop->flags & Prop::Wall) != 0) hitWall = true;
+	for (uint32_t targetId : ai.reachTargets)
+	for (const sf::Vec2i &tile : ai.reachTiles)
+	{
+		if (state.canTarget(selfId, targetId, cardToUse.prefab->name, tile)) {
+			if (tile != self->tile) {
+				ReachableTile *reach = ai.reachableSet.distanceToTile.findValue(tile);
+				if (!reach) continue;
+
+				MoveAction action = { };
+				action.characterId = selfId;
+				action.tile = tile;
+				action.waypoints.resizeUninit(reach->distance);
+				uint32_t waypointIx = action.waypoints.size;
+				action.waypoints[--waypointIx] = tile;
+				sf::Vec2i prev = reach->previous;
+				while (sv::ReachableTile *prevReach = ai.reachableSet.distanceToTile.findValue(prev)) {
+					action.waypoints[--waypointIx] = prev;
+					prev = prevReach->previous;
+				}
+				if (!state.requestAction(events, action)) continue;
+			}
+
+			UseCardAction action = { };
+			action.characterId = selfId;
+			action.targetId = targetId;
+			action.cardId = cardToUse.cardId;
+			if (state.requestAction(events, action)) {
+				return true;
 			}
 		}
 	}
 
-	double score = 1000.0;
-
-	score -= (double)distance;
-	if (hitWall) score -= 100.0;
-	if (hitProp) score -= 5.0;
-
-	return score;
+	return false;
 }
 
 bool doEnemyActions(AiState &ai, sf::Array<sf::Box<sv::Event>> &events, sv::ServerState &state)
@@ -51,111 +73,180 @@ bool doEnemyActions(AiState &ai, sf::Array<sf::Box<sv::Event>> &events, sv::Serv
 	EnemyState &enemyState = ai.enemies[chrId];
 	enemyState.id = chrId;
 
-	const Character *targetChr = state.characters.find(enemyState.targetId);
-	if (!targetChr) {
-		uint32_t bestTargetId = 0;
-		double bestScore = 0.0;
+	sf::SmallArray<CardToUse, 16> cardsToUse;
+	float totalWeight = 0.0f;
 
-		for (const Character &maybeTargetChr : state.characters) {
-			if (maybeTargetChr.enemy) continue;
+	const int32_t targetRange = 20;
+	const uint32_t targetRememberTurns = 4;
 
-			bool hitProp = false;
-			bool hitWall = false;
-			uint32_t distance = 0;
+	// Age targetse
+	for (uint32_t i = 0; i < enemyState.targets.size(); i++) {
+		EnemyTarget &target = enemyState.targets.data[i];
+		Character *targetChr = state.characters.find(target.id);
 
-			sv::ConservativeLineRasterizer raster(chr->tile, maybeTargetChr.tile);
-			for (;;) {
-				sf::Vec2i tile = raster.next();
-				if (tile == maybeTargetChr.tile) break;
-				if (tile == chr->tile) continue;
+		if (--target.turnsLeft == 0 || !targetChr || targetChr->enemy) {
+			enemyState.targets.remove(target.id);
+			i--;
+		}
+	}
 
-				distance++;
+	// Find new targets
+	// TODO: Filter for performance?
+	for (Character &maybeTargetChr : state.characters) {
+		if (maybeTargetChr.enemy) continue;
 
-				uint32_t id;
-				sf::UintFind find = state.getTileEntities(tile);
-				while (find.next(id)) {
-					IdType type = getIdType(id);
-					if (type == IdType::Prop) {
-						hitProp = true;
-						const Prop *prop = state.props.find(id);
-						if (prop && (prop->flags & Prop::Wall) != 0) hitWall = true;
-					}
+		sf::Vec2i delta = maybeTargetChr.tile - chr->tile;
+		if (delta.x < 0) delta.x = -delta.x;
+		if (delta.y < 0) delta.y = -delta.y;
+		int32_t dist = delta.x + delta.y;
+		if (dist > targetRange) continue;
+
+		bool hitProp = false;
+		bool hitWall = false;
+
+		sv::ConservativeLineRasterizer raster(chr->tile, maybeTargetChr.tile);
+		for (;;) {
+			sf::Vec2i tile = raster.next();
+			if (tile == maybeTargetChr.tile) break;
+			if (tile == chr->tile) continue;
+
+			uint32_t id;
+			sf::UintFind find = state.getTileEntities(tile);
+			while (find.next(id)) {
+				IdType type = getIdType(id);
+				if (type == IdType::Prop) {
+					hitProp = true;
+					const Prop *prop = state.props.find(id);
+					if (prop && (prop->flags & Prop::Wall) != 0) hitWall = true;
 				}
-			}
-
-			double score = 12.0;
-
-			if (hitWall) score -= 10.0;
-			score -= (double)distance;
-			if (hitProp) score *= 0.5;
-
-			if (score > bestScore) {
-				bestScore = score;
-				bestTargetId = maybeTargetChr.id;
 			}
 		}
 
-		enemyState.targetId = bestTargetId;
-		targetChr = state.characters.find(enemyState.targetId);
+		if (!hitWall) {
+			EnemyTarget &target = enemyState.targets[maybeTargetChr.id];
+			target.id = maybeTargetChr.id;
+			target.turnsLeft = targetRememberTurns;
+		}
 	}
 
-	if (!targetChr) return true;
+	// Add reachable targets
+	ai.reachTargets.clear();
+	for (EnemyTarget &target : enemyState.targets) {
+		ai.reachTargets.push(target.id);
+	}
+	shuffle(ai.reachTargets.slice(), ai.rng);
+
+	for (uint32_t cardId : chr->selectedCards) {
+		const Card *card = state.cards.find(cardId);
+		if (!card || card->cooldownLeft > 0) continue;
+		const Prefab *cardPrefab = state.prefabs.find(card->prefabName);
+		if (!cardPrefab) continue;
+		const CardComponent *cardComp = cardPrefab->findComponent<CardComponent>();
+		if (!cardComp) continue;
+
+		float weight = 1.0f;
+		weight += (float)cardComp->cooldown * 0.2f;
+
+		cardsToUse.push({ cardPrefab, cardId, weight });
+		totalWeight += weight;
+	}
 
 	sv::PathfindOpts opts;
 	opts.isBlockedFn = &sv::isBlockedByPropOrCharacter;
 	opts.maxDistance = state.turnInfo.movementLeft;
 	sv::findReachableSet(ai.reachableSet, state, opts, chr->tile);
 
-	if (ai.reachableSet.distanceToTile.size() > 0) {
+	ai.reachTiles.clear();
+	ai.reachTiles.push(chr->tile);
+	for (const auto &pair : ai.reachableSet.distanceToTile) {
+		ai.reachTiles.push(pair.key);
+	}
+	shuffle(ai.reachTiles.slice(), ai.rng);
 
-		sf::Vec2i bestTile = chr->tile;
-		double bestScore = scorePosition(ai, state, chr, targetChr, chr->tile);
-
-		for (auto &pair : ai.reachableSet.distanceToTile) {
-			double score = scorePosition(ai, state, chr, targetChr, pair.key);
-
-			if (score > bestScore) {
-				bestScore = score;
-				bestTile = pair.key;
-			}
+	while (cardsToUse.size > 0) {
+		float w = ai.rng.nextFloat() * totalWeight;
+		uint32_t chosenIx;
+		for (chosenIx = 0; chosenIx < cardsToUse.size - 1; chosenIx++) {
+			w -= cardsToUse[chosenIx].weight;
+			if (w <= 0.0f) break;
 		}
 
-		if (bestScore > 0.0) {
-			ReachableTile *reach = ai.reachableSet.distanceToTile.findValue(bestTile);
-			if (reach) {
-				MoveAction action = { };
-				action.characterId = chrId;
-				action.tile = bestTile;
-				action.waypoints.resizeUninit(reach->distance);
-				uint32_t waypointIx = action.waypoints.size;
-				action.waypoints[--waypointIx] = bestTile;
+		if (tryUseCard(ai, events, state, cardsToUse[chosenIx])) return true;
 
-				sf::Vec2i prev = reach->previous;
-				while (sv::ReachableTile *prevReach = ai.reachableSet.distanceToTile.findValue(prev)) {
-					action.waypoints[--waypointIx] = prev;
-					prev = prevReach->previous;
+		totalWeight -= cardsToUse[chosenIx].weight;
+		cardsToUse.removeSwap(chosenIx);
+	}
+
+	// Could not do anything, maybe we can move closer to an enemy?
+
+	if (enemyState.preferredTargetId) {
+		if (!state.characters.find(enemyState.preferredTargetId)) {
+			enemyState.preferredTargetId = 0;
+		} else if (!enemyState.targets.find(enemyState.preferredTargetId)) {
+			enemyState.preferredTargetId = 0;
+		}
+	}
+
+	const uint32_t targetableDistance = sf::max(20u, state.turnInfo.movementLeft * 3);
+
+	if (!enemyState.preferredTargetId) {
+		sv::PathfindOpts opts;
+		opts.isBlockedFn = &sv::isBlockedByProp;
+		opts.maxDistance = targetableDistance;
+		sv::findReachableSet(ai.targetableSet, state, opts, chr->tile);
+
+		uint32_t distance = UINT32_MAX;
+		for (uint32_t targetId : ai.reachTargets) {
+			Character *targetChr = state.characters.find(targetId);
+			if (!targetChr) continue;
+			if (const ReachableTile *reach = ai.targetableSet.distanceToTile.findValue(targetChr->tile)) {
+				uint32_t extraDist = ai.rng.nextU32() % 3;
+				if (reach->distance + extraDist < distance) {
+					distance = reach->distance;
+					enemyState.preferredTargetId = targetId;
 				}
-
-				if (!state.requestAction(events, action)) return true;
-			}
-		}
-
-		for (uint32_t cardId : chr->selectedCards) {
-			const Card *card = state.cards.find(cardId);
-			if (!card) continue;
-
-			if (state.canTarget(chrId, targetChr->id, card->prefabName)) {
-				UseCardAction action;
-				action.characterId = chrId;
-				action.cardId = cardId;
-				action.targetId = targetChr->id;
-				if (!state.requestAction(events, action)) return true;
-				break;
 			}
 		}
 	}
 
-	return true;
+	if (Character *targetChr = state.characters.find(enemyState.preferredTargetId)) {
+		sv::PathfindOpts opts;
+		opts.isBlockedFn = &sv::isBlockedByProp;
+		opts.maxDistance = targetableDistance;
+		sv::findReachableSet(ai.targetableSet, state, opts, targetChr->tile);
+
+		sf::KeyVal<sf::Vec2i, ReachableTile> *bestReach = nullptr;
+		uint32_t bestDistance = UINT32_MAX;
+		for (auto &reachPair : ai.reachableSet.distanceToTile) {
+			if (ReachableTile *targetableReach = ai.targetableSet.distanceToTile.findValue(reachPair.key)) {
+				if (targetableReach->distance < bestDistance) {
+					bestReach = &reachPair;
+					bestDistance = targetableReach->distance;
+				}
+			}
+		}
+
+		if (bestReach) {
+			sf::Vec2i tile = bestReach->key;
+			ReachableTile *reach = &bestReach->val;
+			sf_assert(reach);
+
+			MoveAction action = { };
+			action.characterId = chrId;
+			action.tile = tile;
+			action.waypoints.resizeUninit(reach->distance);
+			uint32_t waypointIx = action.waypoints.size;
+			action.waypoints[--waypointIx] = tile;
+			sf::Vec2i prev = reach->previous;
+			while (sv::ReachableTile *prevReach = ai.reachableSet.distanceToTile.findValue(prev)) {
+				action.waypoints[--waypointIx] = prev;
+				prev = prevReach->previous;
+			}
+			if (state.requestAction(events, action)) return true;
+		}
+	}
+
+	return false;
 }
 
 }

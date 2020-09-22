@@ -1237,6 +1237,7 @@ struct ServerState
 
 	void getAsEvents(EventCallbackFn *callback, void *user) const;
 
+	bool canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol &cardName, const sf::Vec2i &selfTile) const;
 	bool canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol &cardName) const;
 
 	// -- Server only

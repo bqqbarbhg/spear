@@ -641,7 +641,7 @@ void ServerState::getAsEvents(EventCallbackFn *callback, void *user) const
 	}
 }
 
-bool ServerState::canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol &cardName) const
+bool ServerState::canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol &cardName, const sf::Vec2i &selfTile) const
 {
 	const Prefab *cardPrefab = prefabs.find(cardName);
 	if (!cardPrefab) return false;
@@ -677,18 +677,18 @@ bool ServerState::canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol
 	}
 	if (!rangeComp) return false;
 
-	sf::Vec2i delta = target->tile - self->tile;
+	sf::Vec2i delta = target->tile - selfTile;
 	if (delta.x < 0) delta.x = -delta.x;
 	if (delta.y < 0) delta.y = -delta.y;
 
 	if (delta.x + delta.y > rangeComp->targetRadius && sf::max(delta.x, delta.y) > rangeComp->targetBoxRadius) return false;
 
 	if (rangeComp->blockedByCharacter || rangeComp->blockedByProp || rangeComp->blockedByWall) {
-		sv::ConservativeLineRasterizer raster(self->tile, target->tile);
+		sv::ConservativeLineRasterizer raster(selfTile, target->tile);
 		for (;;) {
 			sf::Vec2i tile = raster.next();
 			if (tile == target->tile) break;
-			if (tile == self->tile) continue;
+			if (tile == selfTile) continue;
 
 			uint32_t id;
 			sf::UintFind find = getTileEntities(tile);
@@ -701,6 +701,7 @@ bool ServerState::canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol
 						if (prop && (prop->flags & Prop::Wall) != 0) return false;
 					}
 				} else if (type == IdType::Character) {
+					if (id == selfId) continue;
 					if (rangeComp->blockedByCharacter) return false;
 				}
 			}
@@ -708,6 +709,13 @@ bool ServerState::canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol
 	}
 
 	return true;
+}
+
+bool ServerState::canTarget(uint32_t selfId, uint32_t targetId, const sf::Symbol &cardName) const
+{
+	const Character *self = characters.find(selfId);
+	if (!self) return false;
+	return canTarget(selfId, targetId, cardName, self->tile);
 }
 
 static sf::StaticRecursiveMutex g_configMutex;

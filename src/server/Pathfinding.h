@@ -30,6 +30,7 @@ struct ReachableSet
 	sf::HashMap<sf::Vec2i, ReachableTile> distanceToTile;
 };
 
+bool isBlockedByProp(void *user, const ServerState &state, const sf::Vec2i &tile);
 bool isBlockedByPropOrCharacter(void *user, const ServerState &state, const sf::Vec2i &tile);
 bool isBlockedByPropOrRoomConnection(void *user, const ServerState &state, const sf::Vec2i &tile);
 

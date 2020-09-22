@@ -20,6 +20,17 @@ static const sf::Vec2i cardinalDirections[] = {
 	{ 1, 0 }, { 0, -1 }, { -1, 0 }, { 0, 1 },
 };
 
+bool isBlockedByProp(void *user, const ServerState &state, const sf::Vec2i &tile)
+{
+	uint32_t id;
+	sf::UintFind find = state.getTileEntities(tile);
+	while (find.next(id)) {
+		IdType type = getIdType(id);
+		if (type == IdType::Prop) return true;
+	}
+	return false;
+}
+
 bool isBlockedByPropOrCharacter(void *user, const ServerState &state, const sf::Vec2i &tile)
 {
 	uint32_t id;
