@@ -333,6 +333,10 @@ void ServerState::applyEvent(const Event &event)
 		} else {
 			lastLocalAllocatedIdByType[(uint32_t)getIdType(e->id)] = index - MaxServerIdIndex;
 		}
+	} else if (auto *e = event.as<CardCooldownStartEvent>()) {
+		if (Card *card = findCard(*this, e->cardId)) {
+			card->cooldownLeft = e->cooldown;
+		}
 	} else if (auto *e = event.as<CardCooldownTickEvent>()) {
 		if (Card *card = findCard(*this, e->cardId)) {
 			if (sv_check(*this, card->cooldownLeft > 0)) {
@@ -2134,12 +2138,20 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 		if (!casterChr) return false;
 		if (!targetChr) return false;
 		if (!card) return false;
+		if (card->cooldownLeft > 0) return false;
 		if (turnInfo.characterId != casterId) return false;
 		if (!sf::find(sf::slice(casterChr->selectedCards), cardId)) return false;
 		Prefab *cardPrefab = loadPrefab(*this, events, card->prefabName);
 		if (!cardPrefab) return false;
 		CardComponent *cardComp = findComponent<CardComponent>(*this, *cardPrefab);
 		if (!cardComp) return false;
+
+		if (cardComp->cooldown > 0) {
+			auto e = sf::box<CardCooldownStartEvent>();
+			e->cardId = cardId;
+			e->cooldown = cardComp->cooldown;
+			pushEvent(*this, events, e);
+		}
 
 		for (Component *comp : cardPrefab->components) {
 			if (auto *c = comp->as<CardMeleeComponent>()) {

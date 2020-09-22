@@ -12,6 +12,8 @@ void GuiCard::init(const sv::Prefab &prefab, uint32_t svId)
 	this->svId = svId;
 
 	nameFont.load(sf::Symbol("Assets/Gui/Font/Alegreya-Regular.ttf"));
+	cooldownFont.load(sf::Symbol("Assets/Gui/Font/Alegreya-Bold.ttf"));
+	cooldownOverlay.load(sf::Symbol("Assets/Gui/Card/Cooldown_Overlay.png"));
 	descriptionStyle.font.regular.load(sf::Symbol("Assets/Gui/Font/Overlock-Regular.ttf"));
 	descriptionStyle.font.bold.load(sf::Symbol("Assets/Gui/Font/Overlock-Bold.ttf"));
 	descriptionStyle.font.italic.load(sf::Symbol("Assets/Gui/Font/Overlock-Italic.ttf"));
@@ -33,6 +35,11 @@ void GuiCard::init(const sv::Prefab &prefab, uint32_t svId)
 
 	name = cardComp->name;
 	description = cardComp->description;
+
+	if (cardComp->cooldown > 0) {
+		cooldownIcon.load("Assets/Gui/Card/Hourglass.png");
+		cooldownText.format("%u", cardComp->cooldown);
+	}
 
 	if (cardComp->melee) {
 		frame.load(sf::Symbol("Assets/Gui/Card/Melee_Frame.png"));
@@ -118,6 +125,10 @@ void renderCard(sp::Canvas &canvas, const GuiCard &card)
 		canvas.draw(card.frame, sf::Vec2(0.0f, 0.0f), sf::Vec2(500.0f, 800.0f));
 	}
 
+	if (card.cooldownText.size > 0) {
+		canvas.draw(card.cooldownIcon, sf::Vec2(370.0f, 250.0f), sf::Vec2(90.0f, 90.0f));
+	}
+
 	if (card.nameFont) {
 		float nameHeight = nameFontHeight;
 		sf::Vec2 size = card.nameFont->measureText(card.name, nameHeight);
@@ -142,6 +153,46 @@ void renderCard(sp::Canvas &canvas, const GuiCard &card)
 		desc.offset.y = descY;
 		desc.baseColor = sf::Vec4(bodyColor, 1.0f);
 		sp::drawRichText(canvas, desc, card.description);
+	}
+
+	if (card.cooldownText.size > 0) {
+		float cooldownHeight = 100.0f;
+		sf::Vec2 size = card.cooldownFont->measureText(card.cooldownText, cooldownHeight);
+
+		sp::TextDraw draw;
+		draw.font = card.cooldownFont;
+		draw.string = card.cooldownText;
+		draw.transform = sf::mat2D::translate(sf::Vec2(370.0f + 90.0f*0.5f - size.x * 0.5f, 250.0f + 90.0f*0.5f + size.y * 0.17f));
+		draw.height = cooldownHeight;
+		draw.color = sf::Vec4(0.55f, 0.2f, 0.18f, 1.0f);
+
+		if (card.cooldownText.size > 1) {
+			sp::TextDraw draw2 = draw;
+			draw2.color = sf::Vec4(1.0f, 0.949f, 0.714f, 1.0f);
+			draw2.weight = 0.2f;
+			canvas.drawText(draw2);
+		}
+
+		canvas.drawText(draw);
+	}
+
+	if (card.cooldownLeft > 0) {
+		if (card.cooldownOverlay) {
+			canvas.draw(card.cooldownOverlay, sf::Vec2(0.0f, 0.0f), sf::Vec2(500.0f, 800.0f));
+		}
+
+		sf::SmallStringBuf<16> buf;
+		buf.format("%u", card.cooldownLeft);
+
+		float cooldownHeight = 300.0f;
+		sf::Vec2 size = card.cooldownFont->measureText(buf, cooldownHeight);
+		sp::TextDraw draw;
+		draw.font = card.cooldownFont;
+		draw.string = buf;
+		draw.transform = sf::mat2D::translate(sf::Vec2(250.0f - size.x * 0.5f, 200.0f + size.y * 0.16f));
+		draw.height = cooldownHeight;
+		draw.color = sf::Vec4(0.9f, 0.9f, 0.9f, 1.0f);
+		canvas.drawText(draw);
 	}
 }
 

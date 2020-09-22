@@ -324,7 +324,7 @@ struct CardComponent : ComponentBase<Component::Card>
 	sf::Symbol image sv_reflect(asset);
 	sf::Symbol name;
 	sf::Symbol description sv_reflect(multiline);
-	uint32_t cooldown;
+	uint32_t cooldown = 0;
 	// TODO: Enum
 	bool melee = false;
 	bool skill = false;
@@ -652,6 +652,7 @@ struct Event
 	{
 		Error,
 		AllocateId,
+		CardCooldownStart,
 		CardCooldownTick,
 		StatusAdd,
 		StatusExtend,
@@ -710,6 +711,12 @@ struct EventBase : Event
 struct AllocateIdEvent : EventBase<Event::AllocateId>
 {
 	uint32_t id;
+};
+
+struct CardCooldownStartEvent : EventBase<Event::CardCooldownStart>
+{
+	uint32_t cardId;
+	uint32_t cooldown;
 };
 
 struct CardCooldownTickEvent : EventBase<Event::CardCooldownTick>

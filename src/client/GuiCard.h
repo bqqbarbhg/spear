@@ -46,12 +46,17 @@ struct GuiCard
 	uint32_t prevSlotIndex = ~0u;
 	uint64_t prevSlotFrame = 0;
 
+	uint32_t cooldownLeft = 0;
+
 	sp::SpriteRef background;
 	sp::SpriteRef frame;
 	sp::SpriteRef image;
 	sp::SpriteRef dice;
+	sp::SpriteRef cooldownIcon;
+	sp::SpriteRef cooldownOverlay;
 
 	sp::FontRef nameFont;
+	sp::FontRef cooldownFont;
 	sp::RichTextStyle descriptionStyle;
 
 	bool melee = false;
@@ -59,6 +64,7 @@ struct GuiCard
 
 	sf::Symbol name;
 	sf::Symbol description;
+	sf::SmallStringBuf<8> cooldownText;
 };
 
 // Card virtual grid: 500x800

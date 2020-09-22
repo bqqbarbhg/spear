@@ -160,6 +160,7 @@ struct GameSystemImp final : GameSystem
 		uint32_t svId;
 
 		sf::Box<GuiCard> gui;
+		uint32_t cooldownLeft = 0;
 
 		sf::Array<uint32_t> entityIds;
 	};
@@ -461,6 +462,8 @@ struct GameSystemImp final : GameSystem
 			card.svPrefab = systems.entities.findPrefab(e->card.prefabName);
 			card.gui = sf::box<GuiCard>();
 			card.gui->init(*card.svPrefab, card.svId);
+			card.gui->cooldownLeft = e->card.cooldownLeft;
+			card.cooldownLeft = e->card.cooldownLeft;
 
 			svToCard.insertDuplicate(svId, cardId);
 
@@ -475,6 +478,24 @@ struct GameSystemImp final : GameSystem
 				uint32_t cardId = (uint32_t)(card - cards.data);
 				freeCardIds.push(cardId);
 				svToCard.removeExistingPair(e->cardId, cardId);
+			}
+
+		} else if (const auto *e = event.as<sv::CardCooldownStartEvent>()) {
+
+			if (Card *card = findCard(e->cardId)) {
+				card->gui->cooldownLeft = e->cooldown;
+				card->cooldownLeft = e->cooldown;
+			}
+
+		} else if (const auto *e = event.as<sv::CardCooldownTickEvent>()) {
+
+			if (Card *card = findCard(e->cardId)) {
+				if (card->gui->cooldownLeft > 0) {
+					card->gui->cooldownLeft--;
+				}
+				if (card->cooldownLeft > 0) {
+					card->cooldownLeft--;
+				}
 			}
 
 		} else if (const auto *e = event.as<sv::StatusAddEvent>()) {
@@ -1392,8 +1413,10 @@ struct GameSystemImp final : GameSystem
 		if (selectedCardSlot != ~0u) {
 			bool valid = false;
 			if (Character *chr = findCharacter(selectedCharacterId)) {
-				if (chr->selectedCards[selectedCardSlot].currentSvId) {
-					valid = true;
+				if (Card *card = findCard(chr->selectedCards[selectedCardSlot].currentSvId)) {
+					if (card->cooldownLeft == 0) {
+						valid = true;
+					}
 				}
 			}
 
