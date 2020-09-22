@@ -145,7 +145,7 @@ bool doEnemyActions(AiState &ai, sf::Array<sf::Box<sv::Event>> &events, sv::Serv
 		if (!cardComp) continue;
 
 		float weight = 1.0f;
-		weight += (float)cardComp->cooldown * 0.2f;
+		weight += (float)cardComp->cooldown * 0.5f;
 
 		cardsToUse.push({ cardPrefab, cardId, weight });
 		totalWeight += weight;
