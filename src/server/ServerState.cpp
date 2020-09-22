@@ -2157,7 +2157,7 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 		if (cardComp->cooldown > 0) {
 			auto e = sf::box<CardCooldownStartEvent>();
 			e->cardId = cardId;
-			e->cooldown = cardComp->cooldown;
+			e->cooldown = cardComp->cooldown + 1;
 			pushEvent(*this, events, e);
 		}
 

@@ -333,7 +333,7 @@ void spFrame(float dt)
 		MainClient &client = clients[i];
 
 		cl::ClientInput input;
-		input.dt = dt;
+		input.dt = sf::min(dt, 0.1f);
 		input.mousePosition = (g_mousePos - sf::Vec2(client.offset)) / sf::Vec2(client.resolution);
 		input.resolution = client.resolution;
 		input.events = g_events;

@@ -429,22 +429,24 @@ static void updateSession(Session &session)
 		}
 	}
 
-	{
-		sf::SmallArray<sf::Box<Action>, 128> actions;
+	for (uint32_t i = 0; i < 10; i++) {
 		uint32_t chrId = session.state->turnInfo.characterId;
 		bool isEnemy = false;
 		if (Character *chr = session.state->characters.find(chrId)) {
 			isEnemy = chr->enemy;
 		}
+		if (!isEnemy) break;
 
-		if (isEnemy) {
-			doEnemyActions(session.aiState, session.events, *session.state);
-			// Didn't finish the turn..
-			if (session.state->turnInfo.characterId == chrId) {
-				EndTurnAction endTurn = { };
-				endTurn.characterId = chrId;
-				session.state->requestAction(session.events, endTurn);
-			}
+		if (doEnemyActions(session.aiState, session.events, *session.state)) {
+			// Did something reasonable, continue on the next "frame"
+			break;
+		}
+
+		// Didn't finish the turn..
+		if (session.state->turnInfo.characterId == chrId) {
+			EndTurnAction endTurn = { };
+			endTurn.characterId = chrId;
+			session.state->requestAction(session.events, endTurn);
 		}
 	}
 

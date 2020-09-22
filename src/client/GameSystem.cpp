@@ -483,19 +483,17 @@ struct GameSystemImp final : GameSystem
 		} else if (const auto *e = event.as<sv::CardCooldownStartEvent>()) {
 
 			if (Card *card = findCard(e->cardId)) {
-				card->gui->cooldownLeft = e->cooldown;
+				card->gui->cooldownLeft = e->cooldown - 1;
 				card->cooldownLeft = e->cooldown;
 			}
 
 		} else if (const auto *e = event.as<sv::CardCooldownTickEvent>()) {
 
 			if (Card *card = findCard(e->cardId)) {
-				if (card->gui->cooldownLeft > 0) {
-					card->gui->cooldownLeft--;
-				}
 				if (card->cooldownLeft > 0) {
 					card->cooldownLeft--;
 				}
+				card->gui->cooldownLeft = card->cooldownLeft;
 			}
 
 		} else if (const auto *e = event.as<sv::StatusAddEvent>()) {
