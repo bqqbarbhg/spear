@@ -62,6 +62,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, ChangeTeam, ChangeTeamEvent),
 		sf_poly(Event, ResistDamage, ResistDamageEvent),
 		sf_poly(Event, IncreaseDamage, IncreaseDamageEvent),
+		sf_poly(Event, UseCard, UseCardEvent),
 		sf_poly(Event, CastSpell, CastSpellEvent),
 		sf_poly(Event, MeleeAttack, MeleeAttackEvent),
 		sf_poly(Event, Damage, DamageEvent),
@@ -1138,6 +1139,16 @@ template<> void initType<IncreaseDamageEvent>(Type *t)
 		sf_field(IncreaseDamageEvent, success),
 	};
 	sf_struct_base(t, IncreaseDamageEvent, Event, fields);
+}
+
+template<> void initType<UseCardEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(UseCardEvent, characterId),
+		sf_field(UseCardEvent, targetId),
+		sf_field(UseCardEvent, cardId),
+	};
+	sf_struct_base(t, UseCardEvent, Event, fields);
 }
 
 template<> void initType<CastSpellEvent>(Type *t)

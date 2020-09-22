@@ -63,7 +63,7 @@ void GuiCard::init(const sv::Prefab &prefab, uint32_t svId)
 	}
 }
 
-void renderCard(sp::Canvas &canvas, const GuiCard &card)
+void renderCard(sp::Canvas &canvas, const GuiCard &card, const GuiCard::RenderOpts &opts)
 {
 #if 0
 	if (card.background) {
@@ -176,7 +176,7 @@ void renderCard(sp::Canvas &canvas, const GuiCard &card)
 		canvas.drawText(draw);
 	}
 
-	if (card.cooldownLeft > 0) {
+	if (card.cooldownLeft > 0 && opts.showCooldown) {
 		if (card.cooldownOverlay) {
 			canvas.draw(card.cooldownOverlay, sf::Vec2(0.0f, 0.0f), sf::Vec2(500.0f, 800.0f));
 		}

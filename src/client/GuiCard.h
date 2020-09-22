@@ -39,6 +39,11 @@ struct GuiCard
 	static const constexpr float canvasXByY = canvasWidth / canvasHeight;
 	static const constexpr float canvasYByX = canvasHeight / canvasWidth;
 
+	struct RenderOpts
+	{
+		bool showCooldown = true;
+	};
+
 	void init(const sv::Prefab &prefab, uint32_t svId);
 
 	uint32_t svId;
@@ -68,6 +73,6 @@ struct GuiCard
 };
 
 // Card virtual grid: 500x800
-void renderCard(sp::Canvas &canvas, const GuiCard &card);
+void renderCard(sp::Canvas &canvas, const GuiCard &card, const GuiCard::RenderOpts &opts);
 
 }

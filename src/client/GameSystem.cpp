@@ -229,6 +229,13 @@ struct GameSystemImp final : GameSystem
 		float time = 0.0f;
 	};
 
+	struct CardUse
+	{
+		sf::Vec3 position;
+		uint32_t cardSvId;
+		float time = 0.0f;
+	};
+
 	struct EventContext
 	{
 		float timer = 0.0f;
@@ -290,6 +297,7 @@ struct GameSystemImp final : GameSystem
 	sf::Array<DragPointer> dragPointers;
 
 	sf::Array<CardTrade> cardTrades;
+	sf::Array<CardUse> cardUses;
 
 	bool didHoverTile = false;
 	sf::Vec2i hoveredTile;
@@ -479,6 +487,33 @@ struct GameSystemImp final : GameSystem
 				freeCardIds.push(cardId);
 				svToCard.removeExistingPair(e->cardId, cardId);
 			}
+
+		} else if (const auto *e = event.as<sv::UseCardEvent>()) {
+			if (ctx.immediate) return true;
+
+			Character *chr = findCharacter(e->characterId);
+			if (!chr) return true;
+
+			if (ctx.begin) {
+				Entity &entity = systems.entities.entities[chr->entityId];
+				CardUse &use = cardUses.push();
+				use.position = entity.transform.transformPoint(chr->centerOffset);
+				use.cardSvId = e->cardId;
+			}
+
+			if (e->targetId && e->targetId != e->characterId) {
+				uint32_t targetEntityId = systems.entities.svToEntity.findOne(e->targetId, ~0u);
+				if (targetEntityId != ~0u) {
+					Entity &targetEntity = systems.entities.entities[targetEntityId];
+					Entity &entity = systems.entities.entities[chr->entityId];
+
+					Transform transform = entity.transform;
+					faceTowardsPosition(transform, targetEntity.transform.position, dt, 7.0f);
+					systems.entities.updateTransform(systems, chr->entityId, transform);
+				}
+			}
+
+			if (ctx.timer < 0.8f) return false;
 
 		} else if (const auto *e = event.as<sv::CardCooldownStartEvent>()) {
 
@@ -2113,7 +2148,9 @@ struct GameSystemImp final : GameSystem
 				mat = sf::mat2D::translate(offset) * sf::mat2D::scale(height/800.0f*scale) * sf::mat2D::translate(-250.0f, -800.0f);
 				canvas.pushTint(sf::Vec4(fade));
 				canvas.pushTransform(mat);
-				renderCard(canvas, *card->gui);
+				GuiCard::RenderOpts opts = { };
+				opts.showCooldown = false;
+				renderCard(canvas, *card->gui, opts);
 				canvas.popTransform();
 				canvas.popTint();
 
@@ -2122,6 +2159,45 @@ struct GameSystemImp final : GameSystem
 			trade.time += frameArgs.dt * 0.75f;
 			if (trade.time >= 1.0f) {
 				cardTrades.removeOrdered(i);
+				i--;
+			}
+		}
+
+		for (uint32_t i = 0; i < cardUses.size; i++) {
+			CardUse &use = cardUses[i];
+			float t = use.time;
+			float fadeInDuration = 0.15f;
+			float fadeOutDuration = 0.3f;
+
+			float fade = gui::smoothEnd(sf::min(sf::min(t/fadeInDuration, (1.0f-t)/fadeOutDuration), 1.0f));
+
+			Card *card = findCard(use.cardSvId);
+			if (card) {
+				sf::Vec3 pos = use.position;
+				pos.y += sf::lerp(0.25f, 0.25f + logf(1.0f + t * 0.2f), fade);
+
+				sf::Vec4 projected = frameArgs.mainRenderArgs.worldToClip * sf::Vec4(pos, 1.0f);
+				sf::Vec2 offset = sf::Vec2(projected.x / projected.w, projected.y / projected.w);
+				offset = (offset + sf::Vec2(1.0f, -1.0f)) * sf::Vec2(0.5f, -0.5f) * guiArgs.resolution;
+				float height = 1.5f / projected.w * guiArgs.resolution.y;
+				height = sf::clamp(height, 120.0f, 300.0f);
+
+				float scale = sf::lerp(0.5f, 1.0f, fade);
+				sf::Mat23 mat;
+				mat = sf::mat2D::translate(offset) * sf::mat2D::scale(height/800.0f*scale) * sf::mat2D::translate(-250.0f, -800.0f);
+				canvas.pushTint(sf::Vec4(fade));
+				canvas.pushTransform(mat);
+				GuiCard::RenderOpts opts = { };
+				opts.showCooldown = false;
+				renderCard(canvas, *card->gui, opts);
+				canvas.popTransform();
+				canvas.popTint();
+
+			}
+
+			use.time += frameArgs.dt * 0.75f;
+			if (use.time >= 1.0f) {
+				cardUses.removeOrdered(i);
 				i--;
 			}
 		}
@@ -2200,7 +2276,9 @@ struct GameSystemImp final : GameSystem
 				mat = mat * sf::mat2D::translateY(800.0f) * sf::mat2D::rotate(defaultTilt + tilt*0.25f) * sf::mat2D::translateY(-800.0f);
 
 				canvas.pushTransform(mat);
-				renderCard(canvas, *guiCard);
+				GuiCard::RenderOpts opts = { };
+				opts.showCooldown = false;
+				renderCard(canvas, *guiCard, opts);
 				canvas.popTransform();
 			}
 		}

@@ -661,6 +661,7 @@ struct Event
 		StatusRemove,
 		ResistDamage,
 		IncreaseDamage,
+		UseCard,
 		CastSpell,
 		MeleeAttack,
 		Damage,
@@ -771,6 +772,13 @@ struct IncreaseDamageEvent : EventBase<Event::IncreaseDamage>
 	uint32_t increaseDamage;
 	RollInfo successRoll;
 	bool success;
+};
+
+struct UseCardEvent : EventBase<Event::UseCard>
+{
+	uint32_t characterId;
+	uint32_t targetId;
+	uint32_t cardId;
 };
 
 struct CastSpellEvent : EventBase<Event::CastSpell>

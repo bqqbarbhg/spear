@@ -30,7 +30,10 @@ void WidgetCard::paint(GuiPaint &paint)
 		t.m02 = layoutOffset.x;
 		t.m12 = layoutOffset.y;
 		paint.canvas->pushTransform(t);
-		renderCard(*paint.canvas, *card);
+
+		GuiCard::RenderOpts opts = { };
+		opts.showCooldown = true;
+		renderCard(*paint.canvas, *card, opts);
 
 		if (prevDragTimer > 0.0f) {
 			sf::Vec4 col = sf::Vec4(0.0f, 0.0f, 0.0f, smoothStep(prevDragTimer) * 0.6f);

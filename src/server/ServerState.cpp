@@ -2154,6 +2154,14 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 		CardComponent *cardComp = findComponent<CardComponent>(*this, *cardPrefab);
 		if (!cardComp) return false;
 
+		{
+			auto e = sf::box<UseCardEvent>();
+			e->characterId = casterId;
+			e->targetId = targetId;
+			e->cardId = cardId;
+			pushEvent(*this, events, e);
+		}
+
 		if (cardComp->cooldown > 0) {
 			auto e = sf::box<CardCooldownStartEvent>();
 			e->cardId = cardId;
