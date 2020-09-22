@@ -2223,6 +2223,14 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 		if (cardId && !card) return false;
 		if (doorProp->flags & Prop::NoCollision) return false;
 
+		if (cardId) {
+			auto e = sf::box<UseCardEvent>();
+			e->characterId = openerId;
+			e->targetId = 0;
+			e->cardId = cardId;
+			pushEvent(*this, events, e);
+		}
+
 		{
 			auto e = sf::box<SetPropCollisionEvent>();
 			e->propId = doorId;
