@@ -1414,7 +1414,7 @@ struct GameSystemImp final : GameSystem
 	{
 		updateDebugMenu(systems);
 
-		#if 1
+		#if 0
 		{
 			ImGui::Begin("Event queue");
 			sf::Type *eventType = sf::typeOf<sv::Event>();
