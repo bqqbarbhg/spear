@@ -21,12 +21,14 @@ struct VisFogSystemImp final : VisFogSystem
 
 	sf::Vec2i visFogOffset = sf::Vec2i(-128, -128);
 	sf::Vec2i visFogResolution = sf::Vec2i(256, 256);
+	sp::Texture disabledFogTexture;
 	sp::Texture visFogTexture;
 	sf::Array<uint8_t> visFog;
 	sv::ReachableSet reachableSet;
 	sf::Vec4 worldMad;
 	sf::HashMap<uint32_t, DirtyTile> dirtyTiles;
 	float deltaFade = 0.0f;
+	uint32_t disableFrames = 0;
 
 	void addVisibleTile(const sf::Vec2i &tile, uint32_t val1)
 	{
@@ -59,6 +61,22 @@ struct VisFogSystemImp final : VisFogSystem
 
 		{
 			sg_image_desc d = { };
+			d.label = "disabledFogTexture";
+			d.pixel_format = SG_PIXELFORMAT_RG8;
+			d.width = 1;
+			d.height = 1;
+			d.usage = SG_USAGE_IMMUTABLE;
+			d.min_filter = SG_FILTER_LINEAR;
+			d.mag_filter = SG_FILTER_LINEAR;
+			d.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
+			d.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
+			d.content.subimage[0][0].ptr = "\xff\xff";
+			d.content.subimage[0][0].size = 2;
+			disabledFogTexture.init(d);
+		}
+
+		{
+			sg_image_desc d = { };
 			d.label = "visFogTexture";
 			d.pixel_format = SG_PIXELFORMAT_RG8;
 			d.width = visFogResolution.x;
@@ -66,6 +84,8 @@ struct VisFogSystemImp final : VisFogSystem
 			d.usage = SG_USAGE_DYNAMIC;
 			d.min_filter = SG_FILTER_LINEAR;
 			d.mag_filter = SG_FILTER_LINEAR;
+			d.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
+			d.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
 			visFogTexture.init(d);
 		}
 	}
@@ -79,8 +99,17 @@ struct VisFogSystemImp final : VisFogSystem
 		}
 	}
 
+	void disableForFrame() override
+	{
+		disableFrames = 2;
+	}
+
 	void updateTexture(float dt) override
 	{
+		if (disableFrames > 0 ){
+			disableFrames--;
+		}
+
 		if (dirtyTiles.size() == 0) return;
 
 		const float rcpFadeUnitSpeed = 255.0f / 3.0f;
@@ -115,7 +144,7 @@ struct VisFogSystemImp final : VisFogSystem
 	VisFogImage getVisFogImage() const override
 	{
 		VisFogImage image;
-		image.image = visFogTexture.image;
+		image.image = disableFrames > 0 ? disabledFogTexture.image : visFogTexture.image;
 		image.worldMad = worldMad;
 		return image;
 	}

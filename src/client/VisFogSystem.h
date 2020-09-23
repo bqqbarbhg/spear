@@ -20,6 +20,8 @@ struct VisFogSystem : System
 
 	virtual void updateVisibility(const sv::VisibleUpdateEvent &e) = 0;
 
+	virtual void disableForFrame() = 0;
+
 	virtual void updateTexture(float dt) = 0;
 
 	virtual VisFogImage getVisFogImage() const = 0;

@@ -32,6 +32,7 @@
 #include "ext/sokol/sokol_time.h"
 
 #include "client/AreaSystem.h"
+#include "client/VisFogSystem.h"
 
 #include "sp/Srgb.h"
 
@@ -1403,6 +1404,8 @@ static bool applyDragTransform(EditorState *es, sv::PropTransform &transform, in
 
 void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput &input, const EditorInput &editorInput)
 {
+	es->clState->systems.visFog->disableForFrame();
+
 	for (uint32_t i = 0; i < es->selectedSvIds.size(); i++) {
 		uint32_t svId = es->selectedSvIds.data[i];
 		if (!es->svState->isIdValid(svId)) {
