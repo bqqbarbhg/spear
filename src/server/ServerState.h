@@ -578,7 +578,7 @@ struct Status sv_reflect()
 	bool ticksOnTurnEnd = false;
 };
 
-static const uint32_t NumSelectedCards = 8;
+static const uint32_t NumSelectedCards = 10;
 
 struct Character sv_reflect()
 {

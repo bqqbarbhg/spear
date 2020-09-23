@@ -2151,13 +2151,7 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 			}
 		}
 
-		{
-			auto e = sf::box<GiveCardEvent>();
-			e->ownerId = ac->ownerId;
-			e->cardId = ac->cardId;
-			e->previousOwnerId = card->ownerId;
-			pushEvent(*this, events, e);
-		}
+		giveCard(events, ac->cardId, ac->ownerId);
 
 		startNextCharacterTurn(events);
 
