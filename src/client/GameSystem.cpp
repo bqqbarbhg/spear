@@ -797,7 +797,7 @@ struct GameSystemImp final : GameSystem
 
 		} else if (const auto *e = event.as<sv::VisibleUpdateEvent>()) {
 
-			systems.visFog->updateVisibility(*e);
+			systems.visFog->updateVisibility(*e, ctx.immediate);
 
 		} else if (const auto *e = event.as<sv::MeleeAttackEvent>()) {
 			if (ctx.immediate) return true;

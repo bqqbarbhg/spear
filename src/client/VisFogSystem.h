@@ -18,7 +18,7 @@ struct VisFogSystem : System
 {
 	static sf::Box<VisFogSystem> create();
 
-	virtual void updateVisibility(const sv::VisibleUpdateEvent &e) = 0;
+	virtual void updateVisibility(const sv::VisibleUpdateEvent &e, bool immediate) = 0;
 
 	virtual void disableForFrame() = 0;
 

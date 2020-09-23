@@ -30,7 +30,7 @@ struct VisFogSystemImp final : VisFogSystem
 	float deltaFade = 0.0f;
 	uint32_t disableFrames = 0;
 
-	void addVisibleTile(const sf::Vec2i &tile, uint32_t val1)
+	void addVisibleTile(const sf::Vec2i &tile, uint32_t val1, bool immediate)
 	{
 		sf::Vec2i relBase = tile - visFogOffset;
 		for (const sf::Vec2i &nb : sf::slice(visFogNeighbors)) {
@@ -44,6 +44,11 @@ struct VisFogSystemImp final : VisFogSystem
 				DirtyTile &dirty = dirtyTiles[ix];
 				dirty.val[0] = sf::max(dirty.val[0], (uint8_t)val0, visFog[ix + 0]);
 				dirty.val[1] = sf::max(dirty.val[1], (uint8_t)val1, visFog[ix + 1]);
+
+				if (immediate) {
+					visFog[ix + 0] = dirty.val[0];
+					visFog[ix + 1] = dirty.val[1];
+				}
 			}
 		}
 	}
@@ -90,12 +95,12 @@ struct VisFogSystemImp final : VisFogSystem
 		}
 	}
 
-	void updateVisibility(const sv::VisibleUpdateEvent &e) override
+	void updateVisibility(const sv::VisibleUpdateEvent &e, bool immediate) override
 	{
 		for (const sv::VisibleTile &visTile : e.visibleTiles) {
 			int32_t val = sf::clamp(((int32_t)visTile.amount - 1) * 60, 0, 255);
 			sf::Vec2i tile = sv::unpackTile(visTile.packedTile);
-			addVisibleTile(tile, (uint32_t)val);
+			addVisibleTile(tile, (uint32_t)val, immediate);
 		}
 	}
 
