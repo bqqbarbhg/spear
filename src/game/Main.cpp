@@ -190,11 +190,16 @@ void spInit()
 	}
 	#endif
 
-	if (sargs_boolean("cdn")) {
-		#if defined(GAME_CDN_URL)
-			sp::ContentFile::addRelativeFileRoot(GAME_CDN_URL, "Assets/");
-		#endif
-	} else {
+	bool mapBuild = true;
+
+	#if defined(GAME_CDN_URL)
+	if (!sargs_exists("cdn") || sargs_boolean("cdn")) {
+		sp::ContentFile::addRelativeFileRoot(GAME_CDN_URL, "Assets/");
+		mapBuild = false;
+	}
+	#endif
+
+	if (mapBuild) {
 		sp::ContentFile::addRelativeFileRoot("Build", "Assets/");
 	}
 
