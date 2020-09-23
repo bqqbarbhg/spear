@@ -62,7 +62,14 @@ cl::ClientSettings::Preset getDefaultSettingsPreset()
 
 cl::ClientSettings::Preset getDefaultSettingsPreset()
 {
-	const char *unmaskedRenderer = (const char*)glGetString(0x9246);
+
+	const char *unmaskedRenderer = nullptr;
+	
+	EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
+	if (emscripten_webgl_enable_extension(ctx, "WEBGL_debug_renderer_info")) {
+		unmaskedRenderer = (const char*)glGetString(0x9246);
+	}
+
 	if (unmaskedRenderer) {
 		sf::debugPrintLine("Found unmasked renderer: %s", unmaskedRenderer);
 		if (strstr(unmaskedRenderer, "Intel")) {
@@ -177,6 +184,17 @@ static void imguiFree(void *ptr, void*) { return sf_free(ptr); }
 
 void spInit()
 {
+
+	#if SF_OS_EMSCRIPTEN
+	{
+		EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
+		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_s3tc");
+		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_s3tc_srgb");
+		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_rgtc");
+		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_bptc");
+	}
+	#endif
+
     int q = sf::clamp(atoi(sargs_value("q")), 0, 6);
     cl::ClientSettings::Preset preset;
     if (q > 0) {
@@ -199,17 +217,6 @@ void spInit()
     port = 4004;
 	sessionId = (uint32_t)atoi(sargs_value_def("id", "0"));
 	sessionSecret = (uint32_t)atoi(sargs_value_def("secret", "0"));
-
-	#if SF_OS_EMSCRIPTEN
-	{
-		EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
-		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_s3tc");
-		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_s3tc_srgb");
-		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_rgtc");
-		emscripten_webgl_enable_extension(ctx, "EXT_texture_compression_bptc");
-		emscripten_webgl_enable_extension(ctx, "WEBGL_debug_renderer_info");
-	}
-	#endif
 
 	bool mapBuild = true;
 
