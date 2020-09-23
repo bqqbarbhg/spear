@@ -372,8 +372,8 @@ struct Float4
 		int16x8_t s16 = vld1q_s16(src);
         int32x4_t lo32 = vmovl_s16(vget_low_s16(s16));
         int32x4_t hi32 = vmovl_s16(vget_high_s16(s16));
-		a = vcvtq_s32_f32(lo32);
-		b = vcvtq_s32_f32(hi32);
+		a = vcvtq_f32_s32(lo32);
+		b = vcvtq_f32_s32(hi32);
 	}
 };
 
