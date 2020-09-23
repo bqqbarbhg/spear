@@ -32,6 +32,7 @@
 #if SF_OS_EMSCRIPTEN
 	#include <emscripten/emscripten.h>
 	#include <emscripten/html5.h>
+	#include <GLES2/gl2.h>
 #endif
 
 #if SF_OS_APPLE
@@ -56,6 +57,26 @@ cl::ClientSettings::Preset getDefaultSettingsPreset()
 #else // TARGET_OS_IPHONE
 
 #endif // TARGET_OS_IPHONE
+
+#elif SF_OS_EMSCRIPTEN
+
+cl::ClientSettings::Preset getDefaultSettingsPreset()
+{
+	const char *unmaskedRenderer = (const char*)glGetString(0x9246);
+	if (unmaskedRenderer) {
+		sf::debugPrintLine("Found unmasked renderer: %s", unmaskedRenderer);
+		if (strstr(unmaskedRenderer, "Intel")) {
+			sf::debugPrintLine("..  Intel detected: Medium quality");
+			return cl::ClientSettings::Medium;
+		} else {
+			sf::debugPrintLine(".. Default: High quality");
+			return cl::ClientSettings::High;
+		}
+	} else {
+		sf::debugPrintLine("Did not find unmasked renderer, using Medium conservatively..");
+		return cl::ClientSettings::Medium;
+	}
+}
 
 #else
 
