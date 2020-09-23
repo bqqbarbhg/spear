@@ -347,8 +347,8 @@ struct Float4
 
 	static sf_forceinline void transpose22(Float4 &a, Float4 &b)
 	{
-		float32x4_t t0 = vcombine_f32(vget_low_f32(a), vget_low_f32(b)));
-		float32x4_t t1 = vcombine_f32(vget_high_f32(a), vget_high_f32(b)));
+        float32x4_t t0 = vcombine_f32(vget_low_f32(a.imp), vget_low_f32(b.imp));
+        float32x4_t t1 = vcombine_f32(vget_high_f32(a.imp), vget_high_f32(b.imp));
 		a = t0;
 		b = t1;
 	}
@@ -370,10 +370,10 @@ struct Float4
 	static sf_forceinline void load8xi16(Float4 &a, Float4 &b, const int16_t *src)
 	{
 		int16x8_t s16 = vld1q_s16(src);
-		__m128i lo32 = vmovl_s16(s16);
-		__m128i hi32 = vmovl_s16(vextq_s16(s16, s16, 4));
-		a = vcvt_s32_f32(lo32);
-		b = vcvt_s32_f32(hi32);
+        int32x4_t lo32 = vmovl_s16(vget_low_s16(s16));
+        int32x4_t hi32 = vmovl_s16(vget_high_s16(s16));
+		a = vcvtq_s32_f32(lo32);
+		b = vcvtq_s32_f32(hi32);
 	}
 };
 
