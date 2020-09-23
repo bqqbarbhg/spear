@@ -36,6 +36,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, CardCastMelee, CardCastMeleeComponent),
 		sf_poly(Component, Spell, SpellComponent),
 		sf_poly(Component, SpellDamage, SpellDamageComponent),
+		sf_poly(Component, SpellHeal, SpellHealComponent),
 		sf_poly(Component, SpellStatus, SpellStatusComponent),
 		sf_poly(Component, Status, StatusComponent),
 		sf_poly(Component, StatusChangeTeam, StatusChangeTeamComponent),
@@ -66,6 +67,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, CastSpell, CastSpellEvent),
 		sf_poly(Event, MeleeAttack, MeleeAttackEvent),
 		sf_poly(Event, Damage, DamageEvent),
+		sf_poly(Event, Heal, HealEvent),
 		sf_poly(Event, LoadPrefab, LoadPrefabEvent),
 		sf_poly(Event, ReloadPrefab, ReloadPrefabEvent),
 		sf_poly(Event, MakeUniquePrefab, MakeUniquePrefabEvent),
@@ -636,6 +638,7 @@ template<> void initType<CardComponent>(Type *t)
 		sf_field(CardComponent, skill),
 		sf_field(CardComponent, spell),
 		sf_field(CardComponent, item),
+		sf_field(CardComponent, consumable),
 		sf_field(CardComponent, targetSelf),
 		sf_field(CardComponent, targetEnemies),
 		sf_field(CardComponent, targetFriends),
@@ -655,6 +658,10 @@ template<> void initType<CardComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "description");
 		info.multiline = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "consumable");
+		info.description = "Remove the card after use";
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "targetSelf");
@@ -881,6 +888,7 @@ template<> void initType<SpellComponent>(Type *t)
 	static Field fields[] = {
 		sf_field(SpellComponent, castEffect),
 		sf_field(SpellComponent, successRoll),
+		sf_field(SpellComponent, useItemAnimation),
 	};
 	sf_struct_base(t, SpellComponent, Component, fields);
 
@@ -896,6 +904,14 @@ template<> void initType<SpellDamageComponent>(Type *t)
 		sf_field(SpellDamageComponent, damageRoll),
 	};
 	sf_struct_base(t, SpellDamageComponent, Component, fields);
+}
+
+template<> void initType<SpellHealComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(SpellHealComponent, healRoll),
+	};
+	sf_struct_base(t, SpellHealComponent, Component, fields);
 }
 
 template<> void initType<SpellStatusComponent>(Type *t)
@@ -1156,6 +1172,7 @@ template<> void initType<CastSpellEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(CastSpellEvent, spellInfo),
 		sf_field(CastSpellEvent, successRoll),
+		sf_field(CastSpellEvent, useItemAnimation),
 	};
 	sf_struct_base(t, CastSpellEvent, Event, fields);
 }
@@ -1180,6 +1197,19 @@ template<> void initType<DamageEvent>(Type *t)
 		sf_field(DamageEvent, damageDecrease),
 	};
 	sf_struct_base(t, DamageEvent, Event, fields);
+}
+
+template<> void initType<HealEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(HealEvent, healInfo),
+		sf_field(HealEvent, healRoll),
+		sf_field(HealEvent, finalHeal),
+		sf_field(HealEvent, unclampedFinalHeal),
+		sf_field(HealEvent, healIncrease),
+		sf_field(HealEvent, healDecrease),
+	};
+	sf_struct_base(t, HealEvent, Event, fields);
 }
 
 template<> void initType<LoadPrefabEvent>(Type *t)
@@ -2054,6 +2084,23 @@ template<> void initType<DamageInfo>(Type *t)
 		sf_field(DamageInfo, damageRoll),
 	};
 	sf_struct(t, DamageInfo, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "cardName");
+		info.prefab = true;
+	}
+}
+
+template<> void initType<HealInfo>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(HealInfo, cardName),
+		sf_field(HealInfo, originalCasterId),
+		sf_field(HealInfo, causeId),
+		sf_field(HealInfo, targetId),
+		sf_field(HealInfo, healRoll),
+	};
+	sf_struct(t, HealInfo, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "cardName");

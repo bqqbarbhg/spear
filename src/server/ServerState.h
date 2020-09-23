@@ -57,6 +57,7 @@ struct Component
 		CardCastMelee,
 		Spell,
 		SpellDamage,
+		SpellHeal,
 		SpellStatus,
 		Status,
 		StatusChangeTeam,
@@ -331,6 +332,8 @@ struct CardComponent : ComponentBase<Component::Card>
 	bool spell = false;
 	bool item = false;
 
+	bool consumable = false; //! Remove the card after use
+
 	// Targetting
 	bool targetSelf = false; //! Allow casting the card to self
 	bool targetEnemies = true; //! Allow casting the card to enemies
@@ -434,11 +437,17 @@ struct SpellComponent : ComponentBase<Component::Spell>
 {
 	sf::Symbol castEffect sv_reflect(prefab);
 	DiceRoll successRoll;
+	bool useItemAnimation = false;
 };
 
 struct SpellDamageComponent : ComponentBase<Component::SpellDamage>
 {
 	DiceRoll damageRoll;
+};
+
+struct SpellHealComponent : ComponentBase<Component::SpellHeal>
+{
+	DiceRoll healRoll;
 };
 
 struct SpellStatusComponent : ComponentBase<Component::SpellStatus>
@@ -627,6 +636,15 @@ struct DamageInfo sv_reflect()
 	DiceRoll damageRoll;
 };
 
+struct HealInfo sv_reflect()
+{
+	sf::Symbol cardName sv_reflect(prefab);
+	uint32_t originalCasterId;
+	uint32_t causeId;
+	uint32_t targetId;
+	DiceRoll healRoll;
+};
+
 struct RollInfo sv_reflect()
 {
 	sf::Symbol name;
@@ -665,6 +683,7 @@ struct Event
 		CastSpell,
 		MeleeAttack,
 		Damage,
+		Heal,
 		LoadPrefab,
 		ReloadPrefab,
 		MakeUniquePrefab,
@@ -785,6 +804,7 @@ struct CastSpellEvent : EventBase<Event::CastSpell>
 {
 	SpellInfo spellInfo;
 	RollInfo successRoll;
+	bool useItemAnimation;
 };
 
 struct MeleeAttackEvent : EventBase<Event::MeleeAttack>
@@ -801,6 +821,16 @@ struct DamageEvent : EventBase<Event::Damage>
 	uint32_t meleeArmor = 0;
 	int32_t damageIncrease = 0;
 	int32_t damageDecrease = 0;
+};
+
+struct HealEvent : EventBase<Event::Heal>
+{
+	HealInfo healInfo;
+	RollInfo healRoll;
+	uint32_t finalHeal = 0;
+	uint32_t unclampedFinalHeal = 0;
+	int32_t healIncrease = 0;
+	int32_t healDecrease = 0;
 };
 
 struct LoadPrefabEvent : EventBase<Event::LoadPrefab>
@@ -1254,6 +1284,7 @@ struct ServerState
 
 	void putStatus(sf::Array<sf::Box<Event>> &events, const StatusInfo &statusInfo);
 	void doDamage(sf::Array<sf::Box<Event>> &events, const DamageInfo &damageInfo);
+	void doHeal(sf::Array<sf::Box<Event>> &events, const HealInfo &healInfo);
 	void castSpell(sf::Array<sf::Box<Event>> &events, const SpellInfo &spellInfo);
 	void meleeAttack(sf::Array<sf::Box<Event>> &events, const MeleeInfo &meleeInfo);
 	void processDeadCharacters(sf::Array<sf::Box<Event>> &events, bool startNextTurnIfNecessary);

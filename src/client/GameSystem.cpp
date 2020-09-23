@@ -232,7 +232,7 @@ struct GameSystemImp final : GameSystem
 	struct CardUse
 	{
 		sf::Vec3 position;
-		uint32_t cardSvId;
+		sf::Box<GuiCard> guiCard;
 		float time = 0.0f;
 	};
 
@@ -259,6 +259,7 @@ struct GameSystemImp final : GameSystem
 		sf::SmallStringBuf<32> text;
 		sf::Vec3 position;
 		sf::Vec2 origin;
+		sf::Vec3 color;
 		float time = 0.0f;
 	};
 
@@ -496,9 +497,12 @@ struct GameSystemImp final : GameSystem
 
 			if (ctx.begin) {
 				Entity &entity = systems.entities.entities[chr->entityId];
-				CardUse &use = cardUses.push();
-				use.position = entity.transform.transformPoint(chr->centerOffset);
-				use.cardSvId = e->cardId;
+
+				if (Card *card = findCard(e->cardId)) {
+					CardUse &use = cardUses.push();
+					use.position = entity.transform.transformPoint(chr->centerOffset);
+					use.guiCard = card->gui;
+				}
 			}
 
 			if (e->targetId && e->targetId != e->characterId) {
@@ -849,6 +853,38 @@ struct GameSystemImp final : GameSystem
 
 			if (ctx.timer < 0.5f) return false;
 
+		} else if (const auto *e = event.as<sv::HealEvent>()) {
+			if (ctx.immediate) {
+				if (Character *chr = findCharacter(e->healInfo.targetId)) {
+					chr->health += e->finalHeal;
+				}
+				return true;
+			}
+
+			if (Character *chr = findCharacter(e->healInfo.targetId)) {
+				Entity &entity = systems.entities.entities[chr->entityId];
+
+				if (ctx.begin) {
+					DamageNumber &damageNumber = damageNumbers.push();
+					damageNumber.text.format("+%u", e->finalHeal);
+					if (e->healIncrease != 0) {
+						if (e->healDecrease != 0) {
+							damageNumber.text.format(" (+%d -%d)", e->healIncrease, e->healDecrease);
+						} else {
+							damageNumber.text.format(" (+%d)", e->healIncrease);
+						}
+					} else if (e->healDecrease) {
+						damageNumber.text.format(" (-%d)", e->healDecrease);
+					}
+					damageNumber.position = entity.transform.position + chr->centerOffset;
+					damageNumber.origin = guiResources.damageFont->measureText(damageNumber.text, DamageNumber::BaseHeight) * sf::Vec2(-0.5f, 0.1f);
+					damageNumber.color = sf::Vec3(0.6f, 1.0f, 0.6f);
+					chr->health += (int32_t)e->finalHeal;
+				}
+			}
+
+			if (ctx.timer < 0.5f) return false;
+
 		} else if (const auto *e = event.as<sv::TweakCharacterEvent>()) {
 
 			if (Character *chr = findCharacter(e->character.id)) {
@@ -873,7 +909,7 @@ struct GameSystemImp final : GameSystem
 			if (ctx.begin) {
 				castDone = false;
 				if (e->spellInfo.manualCast) {
-					systems.characterModel->addOneShotTag(systems.entities, chr->entityId, symCast);
+					systems.characterModel->addOneShotTag(systems.entities, chr->entityId, e->useItemAnimation ? symUse : symCast);
 					castAnimDone = false;
 
 					if (sv::Prefab *spellPrefab = systems.entities.findPrefab(e->spellInfo.spellName)) {
@@ -897,7 +933,7 @@ struct GameSystemImp final : GameSystem
 			if (!castAnimDone) {
 				sf::SmallArray<sf::Symbol, 16> events;
 				systems.characterModel->queryFrameEvents(systems.entities, chr->entityId, events);
-				if (sf::find(events, symCast)) castAnimDone = true;
+				if (sf::find(events, e->useItemAnimation ? symUse : symCast)) castAnimDone = true;
 
 				uint32_t targetEntityId = systems.entities.svToEntity.findOne(e->spellInfo.targetId, ~0u);
 				if (targetEntityId != ~0u) {
@@ -2171,29 +2207,25 @@ struct GameSystemImp final : GameSystem
 
 			float fade = gui::smoothEnd(sf::min(sf::min(t/fadeInDuration, (1.0f-t)/fadeOutDuration), 1.0f));
 
-			Card *card = findCard(use.cardSvId);
-			if (card) {
-				sf::Vec3 pos = use.position;
-				pos.y += sf::lerp(0.25f, 0.25f + logf(1.0f + t * 0.2f), fade);
+			sf::Vec3 pos = use.position;
+			pos.y += sf::lerp(0.25f, 0.25f + logf(1.0f + t * 0.2f), fade);
 
-				sf::Vec4 projected = frameArgs.mainRenderArgs.worldToClip * sf::Vec4(pos, 1.0f);
-				sf::Vec2 offset = sf::Vec2(projected.x / projected.w, projected.y / projected.w);
-				offset = (offset + sf::Vec2(1.0f, -1.0f)) * sf::Vec2(0.5f, -0.5f) * guiArgs.resolution;
-				float height = 1.5f / projected.w * guiArgs.resolution.y;
-				height = sf::clamp(height, 120.0f, 300.0f);
+			sf::Vec4 projected = frameArgs.mainRenderArgs.worldToClip * sf::Vec4(pos, 1.0f);
+			sf::Vec2 offset = sf::Vec2(projected.x / projected.w, projected.y / projected.w);
+			offset = (offset + sf::Vec2(1.0f, -1.0f)) * sf::Vec2(0.5f, -0.5f) * guiArgs.resolution;
+			float height = 1.5f / projected.w * guiArgs.resolution.y;
+			height = sf::clamp(height, 120.0f, 300.0f);
 
-				float scale = sf::lerp(0.5f, 1.0f, fade);
-				sf::Mat23 mat;
-				mat = sf::mat2D::translate(offset) * sf::mat2D::scale(height/800.0f*scale) * sf::mat2D::translate(-250.0f, -800.0f);
-				canvas.pushTint(sf::Vec4(fade));
-				canvas.pushTransform(mat);
-				GuiCard::RenderOpts opts = { };
-				opts.showCooldown = false;
-				renderCard(canvas, *card->gui, opts);
-				canvas.popTransform();
-				canvas.popTint();
-
-			}
+			float scale = sf::lerp(0.5f, 1.0f, fade);
+			sf::Mat23 mat;
+			mat = sf::mat2D::translate(offset) * sf::mat2D::scale(height/800.0f*scale) * sf::mat2D::translate(-250.0f, -800.0f);
+			canvas.pushTint(sf::Vec4(fade));
+			canvas.pushTransform(mat);
+			GuiCard::RenderOpts opts = { };
+			opts.showCooldown = false;
+			renderCard(canvas, *use.guiCard, opts);
+			canvas.popTransform();
+			canvas.popTint();
 
 			use.time += frameArgs.dt * 0.75f;
 			if (use.time >= 1.0f) {
@@ -2227,7 +2259,7 @@ struct GameSystemImp final : GameSystem
 				draw.color = sf::Vec4(0.0f, 0.0f, 0.0f, 1.0f) * fade;
 				draw.weight = 0.3f;
 				canvas.drawText(draw);
-				draw.color = sf::Vec4(1.0f, 1.0f, 1.0f, 1.0f) * fade;
+				draw.color = sf::Vec4(damageNumber.color, 1.0f) * fade;
 				draw.weight = 0.48f;
 				canvas.drawText(draw);
 			}

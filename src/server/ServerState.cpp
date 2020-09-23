@@ -379,6 +379,10 @@ void ServerState::applyEvent(const Event &event)
 		if (Character *chr = findCharacter(*this, e->damageInfo.targetId)) {
 			chr->health -= (int32_t)e->finalDamage;
 		}
+	} else if (auto *e = event.as<HealEvent>()) {
+		if (Character *chr = findCharacter(*this, e->healInfo.targetId)) {
+			chr->health += (int32_t)e->finalHeal;
+		}
 	} else if (auto *e = event.as<LoadPrefabEvent>()) {
 		auto res = prefabs.insertOrAssign(e->prefab);
 		sv_check(*this, res.inserted);
@@ -1031,6 +1035,26 @@ void ServerState::doDamage(sf::Array<sf::Box<Event>> &events, const DamageInfo &
 	}
 }
 
+void ServerState::doHeal(sf::Array<sf::Box<Event>> &events, const HealInfo &healInfo)
+{
+	Character *causeChr = findCharacter(*this, healInfo.causeId);
+	Character *targetChr = findCharacter(*this, healInfo.targetId);
+	if (!causeChr || !targetChr) return;
+
+	auto e = sf::box<HealEvent>();
+	e->healInfo = healInfo;
+	e->healRoll = rollDice(healInfo.healRoll, "heal");
+	e->unclampedFinalHeal = e->healRoll.total;
+
+	if (targetChr->health < targetChr->maxHealth) {
+		e->finalHeal = sf::min((uint32_t)(targetChr->maxHealth - targetChr->health), e->unclampedFinalHeal);
+	} else {
+		e->finalHeal = 0;
+	}
+
+	pushEvent(*this, events, e);
+}
+
 void ServerState::castSpell(sf::Array<sf::Box<Event>> &events, const SpellInfo &spellInfo)
 {
 	Prefab *spellPrefab = loadPrefab(*this, events, spellInfo.spellName);
@@ -1045,6 +1069,7 @@ void ServerState::castSpell(sf::Array<sf::Box<Event>> &events, const SpellInfo &
 		auto e = sf::box<CastSpellEvent>();
 		e->spellInfo = spellInfo;
 		e->successRoll = successRoll;
+		e->useItemAnimation = spellComp->useItemAnimation;
 		pushEvent(*this, events, e);
 	}
 
@@ -1053,7 +1078,6 @@ void ServerState::castSpell(sf::Array<sf::Box<Event>> &events, const SpellInfo &
 	for (Component *component : spellPrefab->components) {
 
 		if (auto *c = component->as<SpellDamageComponent>()) {
-			RollInfo damageRoll = rollDice(c->damageRoll, "damage");
 			DamageInfo damage = { };
 			damage.magic = true;
 			damage.cardName = spellInfo.cardName;
@@ -1062,6 +1086,14 @@ void ServerState::castSpell(sf::Array<sf::Box<Event>> &events, const SpellInfo &
 			damage.targetId = spellInfo.targetId;
 			damage.damageRoll = c->damageRoll;
 			doDamage(events, damage);
+		} else if (auto *c = component->as<SpellHealComponent>()) {
+			HealInfo heal = { };
+			heal.cardName = spellInfo.cardName;
+			heal.originalCasterId = spellInfo.originalCasterId;
+			heal.causeId = spellInfo.casterId;
+			heal.targetId = spellInfo.targetId;
+			heal.healRoll = c->healRoll;
+			doHeal(events, heal);
 		} else if (auto *c = component->as<SpellStatusComponent>()) {
 			StatusInfo status = { };
 			status.statusName = c->statusName;
@@ -2169,6 +2201,10 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 			pushEvent(*this, events, e);
 		}
 
+		if (cardComp->consumable) {
+			removeCard(events, cardId);
+		}
+
 		for (Component *comp : cardPrefab->components) {
 			if (auto *c = comp->as<CardMeleeComponent>()) {
 				MeleeInfo info;
@@ -2239,10 +2275,7 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 		}
 
 		if (cardId) {
-			auto e = sf::box<RemoveCardEvent>();
-			e->cardId = cardId;
-			e->prevOwnerId = openerId;
-			pushEvent(*this, events, std::move(e));
+			removeCard(events, cardId);
 		}
 
 		{
