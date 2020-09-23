@@ -396,19 +396,6 @@ Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::Str
 			}
 		}
 	}
-
-	{
-		const char *unmaskedRenderer = (const char*)glGetString(0x9246);
-		if (unmaskedRenderer) {
-			sf::debugPrintLine("Found unmasked renderer: %s", unmaskedRenderer);
-			if (strstr(unmaskedRenderer, "Intel")) {
-				sf::debugPrintLine("Detected Intel GPU, dropping MSAA");
-				// c->renderResolutionScale = 0.5f;
-				c->msaaSamples = 1;
-				c->useFxaa = true;
-			}
-		}
-	}
 	#endif
 
 	c->messageEncoding.compressionLevel = 10;

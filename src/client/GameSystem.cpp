@@ -39,6 +39,7 @@
 #include "client/gui/GuiResources.h"
 
 #include "ext/sokol/sokol_gl.h"
+#include "sf/Reflection.h"
 
 namespace cl {
 
@@ -398,6 +399,7 @@ struct GameSystemImp final : GameSystem
 
 	bool applyEventImp(Systems &systems, const sv::Event &event, EventContext &ctx)
 	{
+
 		float dt = systems.frameArgs.dt;
 		if (const auto *e = event.as<sv::AddCharacterEvent>()) {
 			Transform transform;
@@ -785,11 +787,11 @@ struct GameSystemImp final : GameSystem
 
 		} else if (const auto *e = event.as<sv::TurnUpdateEvent>()) {
 
-			if (e->turnInfo.startTurn && !ctx.immediate) {
-				if (queuedEvents.size <= 1 || queuedEvents[1]->type != sv::Event::TurnUpdate) {
-					if (ctx.timer > 0.5f) turnInfo = e->turnInfo;
-					if (ctx.timer < 0.75f) return false;
-				}
+			moveSelectTime = 0.0f;
+
+			if (e->turnInfo.startTurn && !ctx.immediate && !e->immediate) {
+				if (ctx.timer > 0.5f) turnInfo = e->turnInfo;
+				if (ctx.timer < 0.75f) return false;
 			}
 
 			turnChanged = true;
@@ -1411,6 +1413,17 @@ struct GameSystemImp final : GameSystem
 	void update(const sv::ServerState &svState, Systems &systems, const FrameArgs &frameArgs) override
 	{
 		updateDebugMenu(systems);
+
+		#if 1
+		{
+			ImGui::Begin("Event queue");
+			sf::Type *eventType = sf::typeOf<sv::Event>();
+			for (const sv::Event *event :queuedEvents) {
+				ImGui::Text("%s", eventType->getPolymorphTypeByValue(event->type)->name.data);
+			}
+			ImGui::End();
+		}
+		#endif
 
 		turnChanged = false;
 		while (queuedEvents.size > 0) {

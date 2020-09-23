@@ -1206,7 +1206,7 @@ void ServerState::updateCharacterVisibility(sf::Array<sf::Box<Event>> &events, u
 	}
 }
 
-void ServerState::startNextCharacterTurn(sf::Array<sf::Box<Event>> &events)
+void ServerState::startNextCharacterTurn(sf::Array<sf::Box<Event>> &events, bool immediate)
 {
 	processDeadCharacters(events, false);
 
@@ -1279,6 +1279,7 @@ void ServerState::startNextCharacterTurn(sf::Array<sf::Box<Event>> &events)
 			e->turnInfo.characterId = characterId;
 			e->turnInfo.movementLeft = chrComp->baseSpeed;
 			e->turnInfo.startTurn = true;
+			e->immediate = immediate;
 			pushEvent(*this, events, e);
 		}
 
@@ -1521,7 +1522,7 @@ uint32_t ServerState::addCharacter(sf::Array<sf::Box<Event>> &events, const Char
 	}
 
 	if (turnInfo.characterId == 0) {
-		startNextCharacterTurn(events);
+		startNextCharacterTurn(events, true);
 	}
 
 	return id;
@@ -1575,7 +1576,7 @@ void ServerState::removeCharacter(sf::Array<sf::Box<Event>> &events, uint32_t ch
 	}
 
 	if (turnInfo.characterId == characterId && startNextTurnIfNecessary) {
-		startNextCharacterTurn(events);
+		startNextCharacterTurn(events, true);
 	}
 
 	sf::Vec2i tile = chr->tile;
@@ -2189,7 +2190,7 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 		}
 
 		if (!prevSelectedPtr) {
-			startNextCharacterTurn(events);
+			startNextCharacterTurn(events, false);
 		}
 
 		return true;
@@ -2217,13 +2218,13 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 
 		giveCard(events, ac->cardId, ac->ownerId);
 
-		startNextCharacterTurn(events);
+		startNextCharacterTurn(events, false);
 
 		return true;
 	} else if (const auto *ac = action.as<EndTurnAction>()) {
 		if (turnInfo.characterId != ac->characterId) return false;
 
-		startNextCharacterTurn(events);
+		startNextCharacterTurn(events, true);
 
 		return true;
 	} else if (const auto *ac = action.as<UseCardAction>()) {
@@ -2302,7 +2303,7 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 			}
 		}
 
-		startNextCharacterTurn(events);
+		startNextCharacterTurn(events, false);
 
 		return true;
 	} else if (const auto *ac = action.as<OpenDoorAction>()) {
@@ -2343,7 +2344,7 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 			pushEvent(*this, events, e);
 		}
 
-		startNextCharacterTurn(events);
+		startNextCharacterTurn(events, false);
 
 		return true;
 	} else {

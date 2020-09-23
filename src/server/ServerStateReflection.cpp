@@ -1414,6 +1414,7 @@ template<> void initType<TurnUpdateEvent>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(TurnUpdateEvent, turnInfo),
+		sf_field(TurnUpdateEvent, immediate),
 	};
 	sf_struct_base(t, TurnUpdateEvent, Event, fields);
 }

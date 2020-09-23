@@ -986,6 +986,7 @@ struct TurnInfo sv_reflect()
 struct TurnUpdateEvent : EventBase<Event::TurnUpdate>
 {
 	TurnInfo turnInfo;
+	bool immediate;
 };
 
 struct VisibleTile sv_reflect()
@@ -1306,7 +1307,7 @@ struct ServerState
 	void updateCharacterVisibility(sf::Array<sf::Box<Event>> &events, uint32_t characterId);
 
 	uint32_t getNextTurnCharacter() const;
-	void startNextCharacterTurn(sf::Array<sf::Box<Event>> &events);
+	void startNextCharacterTurn(sf::Array<sf::Box<Event>> &events, bool immediate);
 
 	void preloadPrefab(sf::Array<sf::Box<Event>> &events, const sf::Symbol &name);
 	void reloadPrefab(sf::Array<sf::Box<Event>> &events, const Prefab &prefab);
