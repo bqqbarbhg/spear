@@ -259,7 +259,7 @@ struct GameSystemImp final : GameSystem
 		sf::SmallStringBuf<32> text;
 		sf::Vec3 position;
 		sf::Vec2 origin;
-		sf::Vec3 color;
+		sf::Vec3 color = sf::Vec3(1.0f);
 		float time = 0.0f;
 	};
 
@@ -1768,21 +1768,23 @@ struct GameSystemImp final : GameSystem
 				GuiCard *guiCard = dragPointer.guiPointer.dropData.cast<GuiCard>();
 				if (pointerState->currentTarget.type == TapTarget::Character) {
 					if (Character *chr = findCharacter(pointerState->currentTarget.svId)) {
-						sf::Vec3 tilePos = sf::Vec3((float)chr->tile.x, 0.0f, (float)chr->tile.y);
+						if (!chr->sv.originalEnemy) {
+							sf::Vec3 tilePos = sf::Vec3((float)chr->tile.x, 0.0f, (float)chr->tile.y);
 
-						sf::Vec4 color = sf::Vec4(0.8f, 0.8f, 1.0f, 1.0f) * 0.7f;
-						sf::Mat34 t;
-						t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f);
-						t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f);
-						t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
-						t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
-						systems.billboard->addBillboard(guiResources.characterSelect, t, color, 1.0f);
+							sf::Vec4 color = sf::Vec4(0.8f, 0.8f, 1.0f, 1.0f) * 0.7f;
+							sf::Mat34 t;
+							t.cols[0] = sf::Vec3(1.0f, 0.0f, 0.0f);
+							t.cols[1] = sf::Vec3(0.0f, 0.0f, 1.0f);
+							t.cols[2] = sf::Vec3(0.0f, 1.0f, 0.0f);
+							t.cols[3] = tilePos + sf::Vec3(0.0f, 0.05f, 0.0f);
+							systems.billboard->addBillboard(guiResources.characterSelect, t, color, 1.0f);
 
-						if (dragPointer.guiPointer.action == gui::GuiPointer::DropCommit) {
-							auto action = sf::box<sv::GiveCardAction>();
-							action->ownerId = chr->svId;
-							action->cardId = guiCard->svId;
-							requestedActions.push(std::move(action));
+							if (dragPointer.guiPointer.action == gui::GuiPointer::DropCommit) {
+								auto action = sf::box<sv::GiveCardAction>();
+								action->ownerId = chr->svId;
+								action->cardId = guiCard->svId;
+								requestedActions.push(std::move(action));
+							}
 						}
 					}
 				}
@@ -1997,6 +1999,10 @@ struct GameSystemImp final : GameSystem
 
 							sl->slot = guiSlot;
 							sl->slotIndex = slot;
+
+							if (chr->sv.originalEnemy) {
+								sl->allowDrag = false;
+							}
 
 							if (sl->wantSelect) {
 								if (selectedCardSlot != slot) {

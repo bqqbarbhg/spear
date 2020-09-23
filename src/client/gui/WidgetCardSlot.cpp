@@ -175,22 +175,26 @@ bool WidgetCardSlot::onPointer(GuiPointer &pointer)
 			wantSelect = true;
 			return true;
 		} else if (pointer.button == GuiPointer::MouseLeft && (pointer.action == GuiPointer::Drag || pointer.action == GuiPointer::LongPress)) {
-			pointer.trackWidget = sf::boxFromPointer(this);
-			draggedCard = card;
-			dragTimer = 1.0f;
-			pointer.dropType = guiCardSym;
-			pointer.dropData = card;
-			pointer.dropOffset = layoutOffset;
-			pointer.dropSize = layoutSize;
+			if (allowDrag) {
+				pointer.trackWidget = sf::boxFromPointer(this);
+				draggedCard = card;
+				dragTimer = 1.0f;
+				pointer.dropType = guiCardSym;
+				pointer.dropData = card;
+				pointer.dropOffset = layoutOffset;
+				pointer.dropSize = layoutSize;
+			}
 			return true;
 		} else if (pointer.button == GuiPointer::Touch && pointer.action == GuiPointer::LongPress) {
-			pointer.trackWidget = sf::boxFromPointer(this);
-			draggedCard = card;
-			dragTimer = 1.0f;
-			pointer.dropType = guiCardSym;
-			pointer.dropData = card;
-			pointer.dropOffset = layoutOffset;
-			pointer.dropSize = layoutSize;
+			if (allowDrag) {
+				pointer.trackWidget = sf::boxFromPointer(this);
+				draggedCard = card;
+				dragTimer = 1.0f;
+				pointer.dropType = guiCardSym;
+				pointer.dropData = card;
+				pointer.dropOffset = layoutOffset;
+				pointer.dropSize = layoutSize;
+			}
 			return true;
 		} else if ((pointer.button == GuiPointer::MouseLeft || pointer.button == GuiPointer::Touch) && (pointer.action == GuiPointer::Down || pointer.action == GuiPointer::Hold)) {
 			if (pressTimer < 0.0f) {

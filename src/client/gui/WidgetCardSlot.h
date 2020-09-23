@@ -21,6 +21,7 @@ struct WidgetCardSlot : WidgetBase<'s','l','o','t'>
 	bool dropHover = false;
 	bool wantSelect = false;
 	bool selected = false;
+	bool allowDrag = true;
 	float pressTimer = 0.0f;
 	float selectTime = 0.0f;
 	float startAnim = 0.0f;
