@@ -31,6 +31,21 @@ bool isBlockedByProp(void *user, const ServerState &state, const sf::Vec2i &tile
 	return false;
 }
 
+bool isBlockedByWall(void *user, const ServerState &state, const sf::Vec2i &tile)
+{
+	uint32_t id;
+	sf::UintFind find = state.getTileEntities(tile);
+	while (find.next(id)) {
+		IdType type = getIdType(id);
+		if (type == IdType::Prop) {
+			if (const Prop *prop = state.props.find(id)) {
+				if (prop->flags & Prop::Wall) return true;
+			}
+		}
+	}
+	return false;
+}
+
 bool isBlockedByPropOrCharacter(void *user, const ServerState &state, const sf::Vec2i &tile)
 {
 	uint32_t id;

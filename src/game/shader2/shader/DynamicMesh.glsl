@@ -47,11 +47,13 @@ uniform Pixel
 	float numLightsF;
 	vec3 cameraPosition;
 	vec4 diffuseEnvmapMad;
+	vec4 visFogMad;
 	vec4 pointLightData[MAX_LIGHTS*SP_POINTLIGHT_DATA_SIZE];
 };
 
 #include "light/PointLight.glsl"
 #include "light/IBL.glsl"
+#include "light/VisFog.glsl"
 #include "util/NormalMap.glsl"
 #include "util/Tonemap.glsl"
 
@@ -87,6 +89,8 @@ void main()
 	for (int base = 0; base < end; base += SP_POINTLIGHT_DATA_SIZE) {
 		result += evaluatePointLight(P, N, V, cdiff, f0, alpha2, base);
 	}
+
+	result = evaluateVisFog(result, P);
 
 	o_color = tonemap(result);
 }

@@ -21,7 +21,7 @@ struct TileModelSystem : EntitySystem
 
 	virtual void renderShadow(const VisibleAreas &shadowAreas, const RenderArgs &renderArgs) = 0;
 	virtual void renderDepthPrepass(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
-	virtual void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
+	virtual void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisFogSystem *visFogSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
 	virtual void renderEnvmapGBuffer(const VisibleAreas &envmapAreas, const RenderArgs &renderArgs) = 0;
 
 	virtual void editorPick(sf::Array<EntityHit> &hits, const sf::FastRay &ray, uint32_t userId) const = 0;

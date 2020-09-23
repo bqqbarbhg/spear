@@ -205,6 +205,8 @@ static Session *setupSession(Server *s, uint32_t id, uint32_t secret, const sf::
 		session.id = id;
 		session.secret = rand();
 
+		session.aiState.rng = sf::Random(rand());
+
 		loadSessionState(session, sf::Symbol("Maps/Castle/Autoload.json"));
 
 #if 0

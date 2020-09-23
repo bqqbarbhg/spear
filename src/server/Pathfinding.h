@@ -31,6 +31,7 @@ struct ReachableSet
 };
 
 bool isBlockedByProp(void *user, const ServerState &state, const sf::Vec2i &tile);
+bool isBlockedByWall(void *user, const ServerState &state, const sf::Vec2i &tile);
 bool isBlockedByPropOrCharacter(void *user, const ServerState &state, const sf::Vec2i &tile);
 bool isBlockedByPropOrRoomConnection(void *user, const ServerState &state, const sf::Vec2i &tile);
 

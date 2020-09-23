@@ -9,6 +9,7 @@
 #include "client/EffectSystem.h"
 #include "client/LightSystem.h"
 #include "client/EnvLightSystem.h"
+#include "client/VisFogSystem.h"
 
 #include "game/DebugDraw.h"
 
@@ -793,6 +794,10 @@ struct GameSystemImp final : GameSystem
 
 			turnChanged = true;
 			turnInfo = e->turnInfo;
+
+		} else if (const auto *e = event.as<sv::VisibleUpdateEvent>()) {
+
+			systems.visFog->updateVisibility(*e);
 
 		} else if (const auto *e = event.as<sv::MeleeAttackEvent>()) {
 			if (ctx.immediate) return true;

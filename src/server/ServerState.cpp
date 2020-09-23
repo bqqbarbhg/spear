@@ -553,6 +553,10 @@ void ServerState::applyEvent(const Event &event)
 		if (foundChrId) {
 			turnCharacterIndex = (uint32_t)(foundChrId - turnOrder.data) % turnOrder.size;
 		}
+	} else if (auto *e = event.as<VisibleUpdateEvent>()) {
+		for (const VisibleTile &visTile : e->visibleTiles) {
+			visibleTiles.insertDuplicate(visTile.packedTile, visTile.amount);
+		}
 	}
 }
 
@@ -641,6 +645,17 @@ void ServerState::getAsEvents(EventCallbackFn *callback, void *user) const
 	if (turnInfo.characterId) {
 		TurnUpdateEvent e = { };
 		e.turnInfo = turnInfo;
+		callback(user, e);
+	}
+
+	if (visibleTiles.size() > 0) {
+		VisibleUpdateEvent e = { };
+		e.visibleTiles.reserve(visibleTiles.size());
+		for (sf::UintKeyVal pair : visibleTiles) {
+			VisibleTile &visibleTile = e.visibleTiles.push();
+			visibleTile.packedTile = pair.key;
+			visibleTile.amount = pair.val;
+		}
 		callback(user, e);
 	}
 }
@@ -1151,6 +1166,46 @@ void ServerState::processDeadCharacters(sf::Array<sf::Box<Event>> &events, bool 
 	}
 }
 
+void ServerState::updateCharacterVisibility(sf::Array<sf::Box<Event>> &events, uint32_t characterId)
+{
+	Character *chr = findCharacter(*this, characterId);
+	if (!chr) return;
+
+	// TODO: From character?
+	uint32_t radius = 30;
+
+	PathfindOpts opts;
+	opts.isBlockedFn = &isBlockedByWall;
+	opts.maxDistance = radius;
+
+	sf::Array<VisibleTile> newVisible;
+
+	sv::ReachableSet reachableSet;
+	findReachableSet(reachableSet, *this, opts, chr->tile);
+
+	{
+		uint32_t packed = packTile(chr->tile);
+		uint32_t val = visibleTiles.findOne(packed, 0);
+		if (val < radius) {
+			newVisible.push({ packed, radius + 1 });
+		}
+	}
+
+	for (const auto &pair : reachableSet.distanceToTile) {
+		uint32_t packed = packTile(pair.key);
+		uint32_t val = visibleTiles.findOne(packed, 0);
+		if (val < radius + 1 - pair.val.distance) {
+			newVisible.push({ packed, radius + 1 - pair.val.distance });
+		}
+	}
+
+	if (newVisible.size > 0) {
+		auto e = sf::box<VisibleUpdateEvent>();
+		e->visibleTiles = std::move(newVisible);
+		pushEvent(*this, events, e);
+	}
+}
+
 void ServerState::startNextCharacterTurn(sf::Array<sf::Box<Event>> &events)
 {
 	processDeadCharacters(events, false);
@@ -1158,8 +1213,12 @@ void ServerState::startNextCharacterTurn(sf::Array<sf::Box<Event>> &events)
 	uint32_t characterId;
 	do {
 
-		// Process after-turn ticking statuses
+		// Process after-turn ticking statuses and visibility if player
 		if (Character *chr = characters.find(turnInfo.characterId)) {
+			if (!chr->enemy) {
+				updateCharacterVisibility(events, chr->id);
+			}
+
 			sf::SmallArray<uint32_t, 64> statusIds;
 			statusIds.push(chr->statuses.slice());
 
@@ -1203,6 +1262,11 @@ void ServerState::startNextCharacterTurn(sf::Array<sf::Box<Event>> &events)
 		characterId = getNextTurnCharacter();
 		Character *chr = characters.find(characterId);
 		if (!chr) return;
+
+		// Update new turn visibility if player
+		if (!chr->enemy) {
+			updateCharacterVisibility(events, chr->id);
+		}
 
 		Prefab *chrPrefab = loadPrefab(*this, events, chr->prefabName);
 		if (!chrPrefab) return;
@@ -2290,8 +2354,8 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 void ServerState::addEntityToTile(uint32_t id, const sf::Vec2i &tile)
 {
 	uint32_t key = packTile(tile);
-	tileToEntity.insertIfNew(key, id);
-	entityToTile.insertIfNew(id, key);
+	tileToEntity.insertPairIfNew(key, id);
+	entityToTile.insertPairIfNew(id, key);
 }
 
 void ServerState::removeEntityFromTile(uint32_t id, const sf::Vec2i &tile)
@@ -2403,6 +2467,7 @@ template<> void initType<ServerState>(Type *t)
 		sf_field(ServerState, lastAllocatedIdByType),
 		sf_field(ServerState, tileToEntity),
 		sf_field(ServerState, entityToTile),
+		sf_field(ServerState, visibleTiles),
 		sf_field(ServerState, turnOrder),
 		sf_field(ServerState, turnInfo),
 		sf_field(ServerState, turnCharacterIndex),

@@ -10,6 +10,7 @@ layout(location=0) in vec4 a_PositionLife;
 layout(location=1) in vec4 a_VelocitySeed;
 
 uniform sampler2D u_SplineTexture;
+uniform sampler2D u_VisFogTexture;
 
 out vec2 v_Uv0;
 out vec2 v_Uv1;
@@ -21,6 +22,7 @@ uniform VertexInstance
 {
 	mat4 u_ParticleToWorld;
 	mat4 u_WorldToClip;
+	vec4 u_VisFogMad;
 	float u_InvDelta;
 	float u_Aspect;
 };
@@ -37,6 +39,18 @@ uniform VertexType
 	vec2 u_LifeTimeBaseVariance;
 	float u_RelativeFrameRate;
 };
+
+vec3 evaluateVisFog(vec3 color, vec3 p)
+{
+    vec2 uv = vec2(p.x, p.z) * u_VisFogMad.xy + u_VisFogMad.zw;
+    vec2 factor = textureLod(u_VisFogTexture, uv, 0.0).xy;
+    float t = clamp((factor.x - 0.45) * 20.0, 0.0, 1.0);
+    float u = factor.y*factor.y;
+
+    vec3 luma = vec3(dot(color, vec3(0.299, 0.587, 0.114)));
+    vec3 desat = mix(luma * 0.5, color, u);
+    return desat * (t * u);
+}
 
 float evaluateRotation(vec4 control, float t, vec2 seed)
 {
@@ -112,6 +126,8 @@ void main()
 
 	vec2 frame0 = vec2(mod(frameI, u_FrameCount.x), mod(floor(frameI / u_FrameCount.x), u_FrameCount.y));
 	vec2 frame1 = vec2(mod(frameI + 1, u_FrameCount.x), mod(floor((frameI + 1) / u_FrameCount.x), u_FrameCount.y));
+
+	gradientColor = evaluateVisFog(gradientColor, position);
 
 	vec4 color = vec4(gradientColor, alpha);
 	float erode = spline.w < 1.0 ? 1.0 / max(spline.w, 0.01) : 1.0;

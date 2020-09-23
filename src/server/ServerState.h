@@ -707,6 +707,7 @@ struct Event
 		Move,
 		TweakCharacter,
 		TurnUpdate,
+		VisibleUpdate,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -987,6 +988,17 @@ struct TurnUpdateEvent : EventBase<Event::TurnUpdate>
 	TurnInfo turnInfo;
 };
 
+struct VisibleTile sv_reflect()
+{
+	uint32_t packedTile;
+	uint32_t amount;
+};
+
+struct VisibleUpdateEvent : EventBase<Event::VisibleUpdate>
+{
+	sf::Array<VisibleTile> visibleTiles;
+};
+
 
 enum class IdType {
 	Null,
@@ -1262,6 +1274,8 @@ struct ServerState
 	sf::UintMap tileToEntity;
 	sf::UintMap entityToTile;
 
+	sf::UintMap visibleTiles;
+
 	uint32_t lastAllocatedIdByType[NumServerIdTypes] = { };
 	uint32_t lastLocalAllocatedIdByType[NumServerIdTypes] = { };
 
@@ -1288,6 +1302,8 @@ struct ServerState
 	void castSpell(sf::Array<sf::Box<Event>> &events, const SpellInfo &spellInfo);
 	void meleeAttack(sf::Array<sf::Box<Event>> &events, const MeleeInfo &meleeInfo);
 	void processDeadCharacters(sf::Array<sf::Box<Event>> &events, bool startNextTurnIfNecessary);
+
+	void updateCharacterVisibility(sf::Array<sf::Box<Event>> &events, uint32_t characterId);
 
 	uint32_t getNextTurnCharacter() const;
 	void startNextCharacterTurn(sf::Array<sf::Box<Event>> &events);

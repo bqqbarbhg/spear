@@ -228,6 +228,7 @@ struct TileModelSystem;
 struct CharacterModelSystem;
 struct ParticleSystem;
 struct BlobShadowSystem;
+struct VisFogSystem;
 struct GameSystem;
 struct TapAreaSystem;
 struct BillboardSystem;
@@ -275,6 +276,7 @@ struct Systems
 	sf::Box<CharacterModelSystem> characterModel;
 	sf::Box<ParticleSystem> particle;
 	sf::Box<BlobShadowSystem> blobShadow;
+	sf::Box<VisFogSystem> visFog;
 	sf::Box<GameSystem> game;
 	sf::Box<TapAreaSystem> tapArea;
 	sf::Box<BillboardSystem> billboard;

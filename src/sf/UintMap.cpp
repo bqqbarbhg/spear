@@ -93,7 +93,7 @@ void UintMap::insertDuplicate(uint32_t key, uint32_t value)
 	rhmap_insert_inline(&map, hash, 0, value);
 }
 
-bool UintMap::insertIfNew(uint32_t key, uint32_t value)
+bool UintMap::insertPairIfNew(uint32_t key, uint32_t value)
 {
 	if (map.size == map.capacity) growImp(10);
 	uint32_t hash = sf::hash(key);
@@ -101,6 +101,21 @@ bool UintMap::insertIfNew(uint32_t key, uint32_t value)
 	uint32_t scan = 0, ref;
 	while (rhmap_find_inline(&map, hash, &scan, &ref)) {
 		if (ref == value) return false;
+	}
+
+	rhmap_insert_inline(&map, hash, 0, value);
+	return true;
+}
+
+bool UintMap::insertOrUpdate(uint32_t key, uint32_t value)
+{
+	if (map.size == map.capacity) growImp(10);
+	uint32_t hash = sf::hash(key);
+
+	uint32_t scan = 0, ref;
+	while (rhmap_find_inline(&map, hash, &scan, &ref)) {
+		rhmap_set_inline(&map, hash, scan, value);
+		return false;
 	}
 
 	rhmap_insert_inline(&map, hash, 0, value);
@@ -117,6 +132,12 @@ uint32_t UintMap::findOne(uint32_t key, uint32_t missing) const
 	} else {
 		return missing;
 	}
+}
+
+void UintMap::updateExistingOne(uint32_t key, uint32_t prevValue, uint32_t nextValue)
+{
+	uint32_t hash = sf::hash(key);
+	rhmap_update_value_inline(&map, hash, prevValue, nextValue);
 }
 
 uint32_t UintMap::removeOne(uint32_t key, uint32_t missing)

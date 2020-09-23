@@ -17,7 +17,7 @@ struct ParticleSystem : EntitySystem
 
 	virtual void updateParticles(const VisibleAreas &visibleAreas, const FrameArgs &frameArgs) = 0;
 
-	virtual void renderMain(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
+	virtual void renderMain(const VisFogSystem *visFogSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) = 0;
 
 };
 

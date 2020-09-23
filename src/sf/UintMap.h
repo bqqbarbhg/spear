@@ -65,8 +65,10 @@ struct UintMap
 	sf_forceinline uint32_t capacity() const { return map.capacity; }
 
 	void insertDuplicate(uint32_t key, uint32_t value);
-	bool insertIfNew(uint32_t key, uint32_t value);
+	bool insertPairIfNew(uint32_t key, uint32_t value);
+	bool insertOrUpdate(uint32_t key, uint32_t value);
 	uint32_t findOne(uint32_t key, uint32_t missing) const;
+	void updateExistingOne(uint32_t key, uint32_t prevValue, uint32_t nextValue);
 
 	uint32_t removeOne(uint32_t key, uint32_t missing);
 

@@ -8,6 +8,7 @@
 #include "client/CharacterModelSystem.h"
 #include "client/ParticleSystem.h"
 #include "client/BlobShadowSystem.h"
+#include "client/VisFogSystem.h"
 #include "client/GameSystem.h"
 #include "client/TapAreaSystem.h"
 #include "client/BillboardSystem.h"
@@ -37,6 +38,7 @@ void Systems::init(const SystemsDesc &desc)
 	characterModel = CharacterModelSystem::create(desc);
 	particle = ParticleSystem::create(desc);
 	blobShadow = BlobShadowSystem::create();
+	visFog = VisFogSystem::create();
 	game = GameSystem::create(desc);
 	tapArea = TapAreaSystem::create();
 	billboard = BillboardSystem::create();

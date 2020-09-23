@@ -92,11 +92,13 @@ uniform SkinPixel
 	vec3 highlightColor;
 	vec2 highlightMad;
 	vec4 diffuseEnvmapMad;
+	vec4 visFogMad;
 	vec4 pointLightData[MAX_LIGHTS*SP_POINTLIGHT_DATA_SIZE];
 };
 
 #include "light/PointLight.glsl"
 #include "light/IBL.glsl"
+#include "light/VisFog.glsl"
 #include "util/NormalMap.glsl"
 #include "util/Tonemap.glsl"
 
@@ -138,6 +140,8 @@ void main()
 		h = saturate(h * highlightMad.x + highlightMad.y);
 		result += highlightColor * h;
 	}
+
+	result = evaluateVisFog(result, P);
 
 	o_color = tonemap(result);
 }

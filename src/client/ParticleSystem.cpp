@@ -12,6 +12,7 @@
 
 #include "client/ParticleTexture.h"
 #include "client/BSpline.h"
+#include "client/VisFogSystem.h"
 
 #include "game/shader/GameShaders.h"
 #include "game/shader/Particle.h"
@@ -820,10 +821,12 @@ struct ParticleSystemImp final : ParticleSystem
 		}
 	}
 
-	void renderMain(const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
+	void renderMain(const VisFogSystem *visFogSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
 	{
 		// TODO: Sort by type
 		uint32_t frameParticlesLeft = MaxParticlesPerFrame;
+
+		VisFogImage visFog = visFogSystem->getVisFogImage();
 
 		bufferFrameIndex++;
 		uint64_t frame = bufferFrameIndex;
@@ -870,6 +873,7 @@ struct ParticleSystemImp final : ParticleSystem
 			renderArgs.worldToClip.writeColMajor44(ubo.u_WorldToClip);
 			ubo.u_Aspect = renderArgs.viewToClip.m00 / renderArgs.viewToClip.m11;
 			ubo.u_InvDelta = effect.timeStep - effect.timeDelta;
+			ubo.u_VisFogMad = visFog.worldMad;
 
 			particlePipe.bind();
 
@@ -890,6 +894,7 @@ struct ParticleSystemImp final : ParticleSystem
 			binds.vertex_buffer_offsets[0] = effect.uploadByteOffset;
 			binds.index_buffer = sp::getSharedQuadIndexBuffer();
 			binds.vs_images[SLOT_Particle_u_SplineTexture] = splineTexture.image;
+			binds.vs_images[SLOT_Particle_u_VisFogTexture] = visFog.image;
 			binds.fs_images[SLOT_Particle_u_Texture] = image;
 			sg_apply_bindings(&binds);
 

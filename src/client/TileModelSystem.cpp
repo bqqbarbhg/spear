@@ -5,6 +5,7 @@
 #include "client/GIMaterial.h"
 #include "client/LightSystem.h"
 #include "client/EnvLightSystem.h"
+#include "client/VisFogSystem.h"
 
 #include "sf/Array.h"
 
@@ -792,7 +793,7 @@ struct TileModelSystemImp final : TileModelSystem
 		}
 	}
 
-	void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
+	void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisFogSystem *visFogSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs) override
 	{
 		UBO_Transform tu = { };
 		tu.worldToClip = renderArgs.worldToClip;
@@ -804,6 +805,7 @@ struct TileModelSystemImp final : TileModelSystem
 		const uint32_t maxLights = 16;
 
 		EnvLightAltas envLight = envLightSystem->getEnvLightAtlas();
+		VisFogImage visFog = visFogSystem->getVisFogImage();
 
 		sg_bindings bindings = { };
 		bindImageFS(chunkMeshShader, bindings, CL_SHADOWCACHE_TEX, lightSystem->getShadowTexture());
@@ -811,6 +813,7 @@ struct TileModelSystemImp final : TileModelSystem
 		bindImageFS(chunkMeshShader, bindings, TEX_normalAtlas, cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Normal));
 		bindImageFS(chunkMeshShader, bindings, TEX_maskAtlas, cl::TileMaterial::getAtlasImage(cl::MaterialTexture::Mask));
 		bindImageFS(chunkMeshShader, bindings, TEX_diffuseEnvmapAtlas, envLight.image);
+		bindImageFS(chunkMeshShader, bindings, TEX_visFogTexture, visFog.image);
 
 		for (uint32_t chunkId : visibleAreas.get(AreaGroup::TileChunkCulling)) {
 			Chunk &chunk = chunks[chunkId];
@@ -835,6 +838,7 @@ struct TileModelSystemImp final : TileModelSystem
 			pu.numLightsF = (float)pointLights.size;
 			pu.cameraPosition = renderArgs.cameraPosition;
 			pu.diffuseEnvmapMad = envLight.worldMad;
+			pu.visFogMad = visFog.worldMad;
 			sf::Vec4 *dst = pu.pointLightData;
 			for (PointLight &light : pointLights) {
 				light.writeShader(dst);

@@ -8,6 +8,7 @@
 #include "client/CharacterModelSystem.h"
 #include "client/ParticleSystem.h"
 #include "client/BlobShadowSystem.h"
+#include "client/VisFogSystem.h"
 #include "client/GameSystem.h"
 #include "client/TapAreaSystem.h"
 #include "client/BillboardSystem.h"
@@ -195,6 +196,8 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 
 void ClientState::renderShadows()
 {
+	systems.visFog->updateTexture(systems.frameArgs.dt);
+
 	systems.light->renderShadowMaps(systems, systems.visibleAreas, systems.frameArgs.frameIndex);
 	for (uint32_t i = 0; i < 1; i++) {
 		systems.envLight->renderEnvmap(systems);
@@ -223,12 +226,12 @@ void ClientState::renderMain(const RenderArgs &args)
 		systems.tileModel->renderDepthPrepass(systems.visibleAreas, args);
 	#endif
 
-	systems.model->renderMain(systems.light, systems.envLight, systems.visibleAreas, args);
-	systems.characterModel->renderMain(systems.light, systems.envLight, systems.visibleAreas, args, systems.frameArgs);
-	systems.tileModel->renderMain(systems.light,  systems.envLight, systems.visibleAreas, args);
+	systems.model->renderMain(systems.light, systems.envLight, systems.visFog, systems.visibleAreas, args);
+	systems.characterModel->renderMain(systems.light, systems.envLight, systems.visFog, systems.visibleAreas, args, systems.frameArgs);
+	systems.tileModel->renderMain(systems.light,  systems.envLight, systems.visFog, systems.visibleAreas, args);
 	systems.blobShadow->renderMain(systems.visibleAreas, args);
 	systems.billboard->renderMain(systems.visibleAreas, args);
-	systems.particle->renderMain(systems.visibleAreas, args);
+	systems.particle->renderMain(systems.visFog, systems.visibleAreas, args);
 }
 
 void ClientState::handleGui(const GuiArgs &guiArgs)

@@ -3,6 +3,7 @@
 #include "client/AreaSystem.h"
 #include "client/LightSystem.h"
 #include "client/EnvLightSystem.h"
+#include "client/VisFogSystem.h"
 
 #include "game/shader/GameShaders.h"
 #include "game/shader2/GameShaders2.h"
@@ -1176,7 +1177,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		}
 	}
 
-	void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs, const FrameArgs &frameArgs) override
+	void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisFogSystem *visFogSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs, const FrameArgs &frameArgs) override
 	{
 		sf::SmallArray<cl::PointLight, 64> pointLights;
 		const uint32_t maxLights = 16;
@@ -1186,10 +1187,12 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 		UBO_Bones bones;
 
 		EnvLightAltas envLight = envLightSystem->getEnvLightAtlas();
+		VisFogImage visFog = visFogSystem->getVisFogImage();
 
 		sg_bindings bindings = { };
 		bindImageFS(skinShader, bindings, CL_SHADOWCACHE_TEX, lightSystem->getShadowTexture());
 		bindImageFS(skinShader, bindings, TEX_diffuseEnvmapAtlas, envLight.image);
+		bindImageFS(skinShader, bindings, TEX_visFogTexture, visFog.image);
 
 		tu.worldToClip = renderArgs.worldToClip;
 
@@ -1241,6 +1244,7 @@ struct CharacterModelSystemImp final : CharacterModelSystem
 				pu.highlightColor = model.highlightColor * highlightFade;
 				pu.highlightMad = sf::Vec2(highlightScale, highlightBias);
 				pu.diffuseEnvmapMad = envLight.worldMad;
+				pu.visFogMad = visFog.worldMad;
 				sf::Vec4 *dst = pu.pointLightData;
 				for (PointLight &light : pointLights) {
 					light.writeShader(dst);

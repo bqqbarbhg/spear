@@ -64,7 +64,7 @@ void WidgetCharacter::paint(GuiPaint &paint)
 			if (maxHealth > minHealth) {
 				barDraw.cropMin.x = minHealth * rcpMax;
 				barDraw.cropMax.x = maxHealth * rcpMax;
-				barDraw.color = curHealth < smoothHealth ? sf::Vec4(1.0f, 0.0f, 0.0f, 1.0f) : sf::Vec4(0.0f, 0.0f, 1.0f, 1.0f);
+				barDraw.color = curHealth < smoothHealth ? sf::Vec4(1.0f, 0.0f, 0.0f, 1.0f) : sf::Vec4(0.3f, 1.0f, 0.3f, 1.0f);
 				paint.canvas->draw(barDraw);
 			}
 		}

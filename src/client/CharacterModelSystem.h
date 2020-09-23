@@ -49,7 +49,7 @@ struct CharacterModelSystem : EntitySystem
 
 	virtual void renderShadow(const VisibleAreas &shadowAreas, const RenderArgs &renderArgs) = 0;
 	virtual void renderEnvmapGBuffer(const VisibleAreas &envmapAreas, const RenderArgs &renderArgs) = 0;
-	virtual void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs, const FrameArgs &frameArgs) = 0;
+	virtual void renderMain(const LightSystem *lightSystem, const EnvLightSystem *envLightSystem, const VisFogSystem *visFogSystem, const VisibleAreas &visibleAreas, const RenderArgs &renderArgs, const FrameArgs &frameArgs) = 0;
 };
 
 }

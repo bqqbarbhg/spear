@@ -51,11 +51,13 @@ uniform Pixel
 	float numLightsF;
 	vec3 cameraPosition;
 	vec4 diffuseEnvmapMad;
+	vec4 visFogMad;
 	vec4 pointLightData[MAX_LIGHTS*SP_POINTLIGHT_DATA_SIZE];
 };
 
 #include "light/PointLight.glsl"
 #include "light/IBL.glsl"
+#include "light/VisFog.glsl"
 #include "util/NormalMap.glsl"
 #include "util/Tonemap.glsl"
 
@@ -95,6 +97,8 @@ void main()
 
 	// HACK AO
 	result *= matMask.y;
+
+	result = evaluateVisFog(result, P);
 
 	o_color = tonemap(result);
 }

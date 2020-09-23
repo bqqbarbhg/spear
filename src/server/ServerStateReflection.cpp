@@ -91,6 +91,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, Move, MoveEvent),
 		sf_poly(Event, TweakCharacter, TweakCharacterEvent),
 		sf_poly(Event, TurnUpdate, TurnUpdateEvent),
+		sf_poly(Event, VisibleUpdate, VisibleUpdateEvent),
 	};
 	sf_struct_poly(t, Event, type, { }, polys);
 }
@@ -1417,6 +1418,14 @@ template<> void initType<TurnUpdateEvent>(Type *t)
 	sf_struct_base(t, TurnUpdateEvent, Event, fields);
 }
 
+template<> void initType<VisibleUpdateEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(VisibleUpdateEvent, visibleTiles),
+	};
+	sf_struct_base(t, VisibleUpdateEvent, Event, fields);
+}
+
 template<> void initType<PreloadPrefabEdit>(Type *t)
 {
 	static Field fields[] = {
@@ -2159,6 +2168,15 @@ template<> void initType<TurnInfo>(Type *t)
 		sf_field(TurnInfo, movementLeft),
 	};
 	sf_struct(t, TurnInfo, fields);
+}
+
+template<> void initType<VisibleTile>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(VisibleTile, packedTile),
+		sf_field(VisibleTile, amount),
+	};
+	sf_struct(t, VisibleTile, fields);
 }
 
 }
