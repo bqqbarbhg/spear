@@ -45,11 +45,8 @@ vec3 evaluateVisFog(vec3 color, vec3 p)
     vec2 uv = vec2(p.x, p.z) * u_VisFogMad.xy + u_VisFogMad.zw;
     vec2 factor = textureLod(u_VisFogTexture, uv, 0.0).xy;
     float t = clamp((factor.x - 0.45) * 20.0, 0.0, 1.0);
-    float u = factor.y*factor.y;
-
-    vec3 luma = vec3(dot(color, vec3(0.299, 0.587, 0.114)));
-    vec3 desat = mix(luma * 0.5, color, u);
-    return desat * (t * u);
+    float u = factor.y;
+	return color * (u*u*t);
 }
 
 float evaluateRotation(vec4 control, float t, vec2 seed)

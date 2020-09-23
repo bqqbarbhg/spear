@@ -1172,7 +1172,7 @@ void ServerState::updateCharacterVisibility(sf::Array<sf::Box<Event>> &events, u
 	if (!chr) return;
 
 	// TODO: From character?
-	uint32_t radius = 30;
+	uint32_t radius = 25;
 
 	PathfindOpts opts;
 	opts.isBlockedFn = &isBlockedByWall;
