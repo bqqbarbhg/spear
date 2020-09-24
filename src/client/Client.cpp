@@ -700,6 +700,9 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	c->frameArgs.windowResolution = input.resolution;
 	c->frameArgs.mainRenderArgs.targetResolution = c->mainTarget.resolution;
 	c->frameArgs.mainRenderArgs.renderResolution = sf::Vec2i(sf::Vec2(c->frameArgs.mainRenderArgs.targetResolution) * sf::sqrt(c->renderResolutionScale));
+	if (c->svState) {
+		c->frameArgs.localClientId = c->svState->localClientId;
+	}
 
 	{
 		uint32_t reloadCount = sp::Asset::getReloadCount();

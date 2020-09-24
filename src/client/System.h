@@ -264,6 +264,7 @@ struct FrameArgs
 	sf::Vec2i windowResolution;
 	sf::Vec2 guiResolution;
 	bool editorOpen = false;
+	uint32_t localClientId = 0;
 
 	RenderArgs mainRenderArgs;
 };

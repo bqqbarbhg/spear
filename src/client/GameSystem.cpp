@@ -616,6 +616,7 @@ struct GameSystemImp final : GameSystem
 			if (chrId != ~0u) {
 				Character &character = characters[chrId];
 				character.tile = e->position;
+				character.sv.tile = e->position;
 
 				if (ctx.immediate || e->instant || e->waypoints.size == 0) {
 					Transform transform;
@@ -790,6 +791,34 @@ struct GameSystemImp final : GameSystem
 
 			moveSelectTime = 0.0f;
 			autoSelectCooldown = 0.0f;
+
+			if (!ctx.immediate && ctx.begin) {
+				if (Character *chr = findCharacter(turnInfo.characterId)) {
+					if (!chr->sv.enemy && chr->sv.playerClientId == systems.frameArgs.localClientId) {
+						sf::Vec3 pos = sf::Vec3((float)chr->tile.x, 0.0f, (float)chr->tile.y);
+						sf::Vec4 projected = systems.frameArgs.mainRenderArgs.worldToClip * sf::Vec4(pos, 1.0f);
+						sf::Vec2 offset = sf::Vec2(projected.x / projected.w, projected.y / projected.w);
+						sf::Vec2 screenMin = sf::Vec2(-0.7f, -0.8f);
+						sf::Vec2 screenMax = sf::Vec2(0.7f, 0.8f);
+						sf::Vec2 clamped = sf::clamp(offset, screenMin, screenMax);
+						if (clamped != offset) {
+							sf::Vec2 clampMin = sf::Vec2(-0.4f, -0.4f);
+							sf::Vec2 clampMax = sf::Vec2(0.4f, 0.4f);
+							clamped = sf::clamp(offset, clampMin, clampMax);
+							sf::Mat44 clipToWorld = sf::inverse(systems.frameArgs.mainRenderArgs.worldToClip);
+							sf::Vec4 rayBegin = clipToWorld * sf::Vec4(clamped.x, clamped.y, 0.0f, 1.0f);
+							sf::Vec4 rayEnd = clipToWorld * sf::Vec4(clamped.x, clamped.y, 1.0f, 1.0f);
+							sf::Ray ray;
+							ray.origin = sf::Vec3(rayBegin.v) / rayBegin.w;
+							ray.direction = sf::normalize(sf::Vec3(rayEnd.v) / rayEnd.w - ray.origin);
+							sf::Vec3 target = intersectHorizontalPlane(0.0f, ray);
+							sf::Vec3 delta = camera.current.origin - target;
+							camera.target = pos + delta;
+							camera.targetTime = 3.0f;
+						}
+					}
+				}
+			}
 
 			if (e->turnInfo.startTurn && !ctx.immediate && !e->immediate) {
 				if (ctx.timer > 0.5f) turnInfo = e->turnInfo;
@@ -1319,7 +1348,7 @@ struct GameSystemImp final : GameSystem
                 camera.targetDelta = dragStart - dragCurrent;
 				camera.targetTime = 0.0f;
             } else if (camera.targetTime > 0.0f) {
-				camera.targetDelta = camera.target - camera.current.origin;
+				camera.targetDelta = (camera.target - camera.current.origin) * 0.5f;
 				float dist = 1.0f / sf::min(1.0f, 0.01f + sf::length(camera.targetDelta)*0.1f);
 				camera.targetTime -= cameraDt * dist;
 			}
@@ -2005,11 +2034,11 @@ struct GameSystemImp final : GameSystem
 						bt->text = sf::Symbol("Select character");
 						bt->font = guiResources.buttonFont;
 						bt->sprite = guiResources.buttonSprite;
-						bt->fontHeight = 40.0f;
+						bt->fontHeight = 20.0f;
 					}
-					float width = 220.0f;
+					float width = 120.0f;
 					bt->boxOffset = sf::Vec2(frameArgs.guiResolution.x * 0.5f - width * 0.5f, 20.0f);
-					bt->boxExtent = sf::Vec2(width, 60.0f);
+					bt->boxExtent = sf::Vec2(width, 30.0f);
 
 					if (bt->pressed) {
 						auto action = sf::box<sv::SelectCharacterAction>();
