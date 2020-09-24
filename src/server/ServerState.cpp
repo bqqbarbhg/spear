@@ -559,6 +559,10 @@ void ServerState::applyEvent(const Event &event)
 		}
 	} else if (auto *e = event.as<LoadGlobalsEvent>()) {
 		globalPrefabs = e->globalPrefabs;
+	} else if (auto *e = event.as<SelectCharacterEvent>()) {
+		if (Character *chr = findCharacter(*this, e->characterId)) {
+			chr->playerClientId = e->clientId;
+		}
 	}
 }
 
@@ -2236,6 +2240,16 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 		if (turnInfo.characterId != ac->characterId) return false;
 
 		startNextCharacterTurn(events, true);
+
+		return true;
+	} else if (const auto *ac = action.as<SelectCharacterAction>()) {
+
+		{
+			auto e = sf::box<SelectCharacterEvent>();
+			e->characterId = ac->characterId;
+			e->clientId = ac->clientId;
+			pushEvent(*this, events, e);
+		}
 
 		return true;
 	} else if (const auto *ac = action.as<UseCardAction>()) {

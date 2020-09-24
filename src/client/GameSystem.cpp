@@ -333,6 +333,8 @@ struct GameSystemImp final : GameSystem
 	sf::Vec3 moveVelocity;
 	float moveEndTime = 0.0f;
 
+	float autoSelectCooldown = 0.0f;
+
 	sf::Array<DamageNumber> damageNumbers;
 
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
@@ -787,6 +789,7 @@ struct GameSystemImp final : GameSystem
 		} else if (const auto *e = event.as<sv::TurnUpdateEvent>()) {
 
 			moveSelectTime = 0.0f;
+			autoSelectCooldown = 0.0f;
 
 			if (e->turnInfo.startTurn && !ctx.immediate && !e->immediate) {
 				if (ctx.timer > 0.5f) turnInfo = e->turnInfo;
@@ -904,6 +907,12 @@ struct GameSystemImp final : GameSystem
 				chr->sv.enemy = e->character.enemy;
 				chr->sv.originalEnemy = e->character.originalEnemy;
 				chr->sv.dropCards = e->character.dropCards;
+			}
+
+		} else if (const auto *e = event.as<sv::SelectCharacterEvent>()) {
+
+			if (Character *chr = findCharacter(e->characterId)) {
+				chr->sv.playerClientId = e->clientId;
 			}
 
 		} else if (const auto *e = event.as<sv::ChangeTeamEvent>()) {
@@ -1479,7 +1488,18 @@ struct GameSystemImp final : GameSystem
 			if (Character *chr = findCharacter(turnInfo.characterId)) {
 				const sv::Character *svChr = svState.characters.find(chr->svId);
 				if (svChr && !svChr->enemy) {
-					selectedCharacterId = chr->svId;
+					if (svChr->playerClientId == svState.localClientId) {
+						selectedCharacterId = chr->svId;
+					} else if (svChr->playerClientId == 0) {
+						if (autoSelectCooldown <= 0.0f) {
+							auto action = sf::box<sv::SelectCharacterAction>();
+							action->characterId = chr->svId;
+							action->clientId = svState.localClientId;
+							requestedActions.push(std::move(action));
+						} else {
+							autoSelectCooldown -= frameArgs.dt;
+						}
+					}
 				}
 			}
 		}
@@ -1977,10 +1997,35 @@ struct GameSystemImp final : GameSystem
 				b.pop(); // LinearLayout
 			}
 
+			if (Character *turnChr = findCharacter(turnInfo.characterId)) {
+				if (!turnChr->sv.enemy && turnChr->sv.playerClientId != svState.localClientId) {
+
+					auto bt = b.push<gui::WidgetButton>(1);
+					if (bt->created) {
+						bt->text = sf::Symbol("Select character");
+						bt->font = guiResources.buttonFont;
+						bt->sprite = guiResources.buttonSprite;
+						bt->fontHeight = 40.0f;
+					}
+					float width = 220.0f;
+					bt->boxOffset = sf::Vec2(frameArgs.guiResolution.x * 0.5f - width * 0.5f, 20.0f);
+					bt->boxExtent = sf::Vec2(width, 60.0f);
+
+					if (bt->pressed) {
+						auto action = sf::box<sv::SelectCharacterAction>();
+						action->characterId = turnChr->svId;
+						action->clientId = svState.localClientId;
+						requestedActions.push(std::move(action));
+					}
+
+					b.pop();
+				}
+			}
+
 			if (chr && chrComp) {
 
 				if (turnInfo.characterId == selectedCharacterId && !frameArgs.editorOpen) {
-					auto bt = b.push<gui::WidgetButton>();
+					auto bt = b.push<gui::WidgetButton>(2);
 					if (bt->created) {
 						bt->text = sf::Symbol("End Turn");
 						bt->font = guiResources.buttonFont;

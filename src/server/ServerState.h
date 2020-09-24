@@ -600,6 +600,7 @@ struct Character sv_reflect()
 	sf::Array<DropCard> dropCards;
 	sf::Vec2i tile;
 	uint32_t armor = 0;
+	uint32_t playerClientId = 0;
 	bool enemy = false;
 	bool originalEnemy = false;
 };
@@ -717,6 +718,7 @@ struct Event
 		TurnUpdate,
 		VisibleUpdate,
 		LoadGlobals,
+		SelectCharacter,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -1019,6 +1021,12 @@ struct LoadGlobalsEvent : EventBase<Event::LoadGlobals>
 	GlobalPrefabs globalPrefabs;
 };
 
+struct SelectCharacterEvent : EventBase<Event::SelectCharacter>
+{
+	uint32_t characterId;
+	uint32_t clientId;
+};
+
 enum class IdType {
 	Null,
 	Prop,
@@ -1159,6 +1167,7 @@ struct Action
 		SelectCard,
 		GiveCard,
 		EndTurn,
+		SelectCharacter,
 		UseCard,
 		OpenDoor,
 
@@ -1204,6 +1213,12 @@ struct GiveCardAction : ActionBase<Action::GiveCard>
 
 struct EndTurnAction : ActionBase<Action::EndTurn>
 {
+	uint32_t characterId;
+};
+
+struct SelectCharacterAction : ActionBase<Action::SelectCharacter>
+{
+	uint32_t clientId;
 	uint32_t characterId;
 };
 

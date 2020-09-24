@@ -94,6 +94,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, TurnUpdate, TurnUpdateEvent),
 		sf_poly(Event, VisibleUpdate, VisibleUpdateEvent),
 		sf_poly(Event, LoadGlobals, LoadGlobalsEvent),
+		sf_poly(Event, SelectCharacter, SelectCharacterEvent),
 	};
 	sf_struct_poly(t, Event, type, { }, polys);
 }
@@ -125,6 +126,7 @@ template<> void initType<Action>(Type *t)
 		sf_poly(Action, SelectCard, SelectCardAction),
 		sf_poly(Action, GiveCard, GiveCardAction),
 		sf_poly(Action, EndTurn, EndTurnAction),
+		sf_poly(Action, SelectCharacter, SelectCharacterAction),
 		sf_poly(Action, UseCard, UseCardAction),
 		sf_poly(Action, OpenDoor, OpenDoorAction),
 	};
@@ -1455,6 +1457,15 @@ template<> void initType<LoadGlobalsEvent>(Type *t)
 	sf_struct_base(t, LoadGlobalsEvent, Event, fields);
 }
 
+template<> void initType<SelectCharacterEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(SelectCharacterEvent, characterId),
+		sf_field(SelectCharacterEvent, clientId),
+	};
+	sf_struct_base(t, SelectCharacterEvent, Event, fields);
+}
+
 template<> void initType<PreloadPrefabEdit>(Type *t)
 {
 	static Field fields[] = {
@@ -1602,6 +1613,15 @@ template<> void initType<EndTurnAction>(Type *t)
 		sf_field(EndTurnAction, characterId),
 	};
 	sf_struct_base(t, EndTurnAction, Action, fields);
+}
+
+template<> void initType<SelectCharacterAction>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(SelectCharacterAction, clientId),
+		sf_field(SelectCharacterAction, characterId),
+	};
+	sf_struct_base(t, SelectCharacterAction, Action, fields);
 }
 
 template<> void initType<UseCardAction>(Type *t)
@@ -2038,6 +2058,7 @@ template<> void initType<Character>(Type *t)
 		sf_field(Character, dropCards),
 		sf_field(Character, tile),
 		sf_field(Character, armor),
+		sf_field(Character, playerClientId),
 		sf_field(Character, enemy),
 		sf_field(Character, originalEnemy),
 	};
