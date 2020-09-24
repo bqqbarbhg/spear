@@ -794,7 +794,7 @@ struct GameSystemImp final : GameSystem
 			moveSelectTime = 0.0f;
 			autoSelectCooldown = 0.0f;
 
-			if (!ctx.immediate && ctx.begin) {
+			if (!ctx.immediate && ctx.begin && e->turnInfo.startTurn) {
 				if (Character *chr = findCharacter(turnInfo.characterId)) {
 					if (!chr->sv.enemy && chr->sv.playerClientId == systems.frameArgs.localClientId) {
 						sf::Vec3 pos = sf::Vec3((float)chr->tile.x, 0.0f, (float)chr->tile.y);
