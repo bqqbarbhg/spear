@@ -74,11 +74,11 @@ struct Camera
 		sf::Vec3 origin;
         float zoom = 0.0f;
 
-		void asMatrices(sf::Vec3 &eye, sf::Mat34 &worldToView, sf::Mat44 &viewToClip, float aspect)
+		void asMatrices(sf::Vec3 &eye, sf::Mat34 &worldToView, sf::Mat44 &viewToClip, float aspect, bool unlimited)
 		{
             eye = origin + sf::Vec3(0.0f, 5.0f, 1.0f) * exp2f(zoom);
-            worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, -0.6f + 0.2f * zoom));
-			float near = 0.1f, far = 100.0f;
+            worldToView = sf::mat::look(eye, sf::Vec3(0.0f, -1.0f, sf::min(-0.6f + 0.2f * zoom, -0.3f)));
+			float near = 0.1f, far = unlimited ? 1000.0f : 100.0f;
 			if (sg_query_features().origin_top_left) {
 				viewToClip = sf::mat::perspectiveD3D(1.0f, aspect, near, far);
 			} else {
@@ -323,6 +323,8 @@ struct GameSystemImp final : GameSystem
 	bool simulateTouch = false;
 	bool visualizeEnvLighting = false;
 	bool visualizeEnvSpheres = false;
+	bool debugDisableVisFog = false;
+	bool debugUnlimitedCamera = false;
 	EnvVisualizeSphereOpts visualizeEnvSphereOpts;
 
 	bool castAnimDone = false;
@@ -1273,7 +1275,7 @@ struct GameSystemImp final : GameSystem
 			sf::Vec3 eye;
 			sf::Mat34 worldToView;
 			sf::Mat44 viewToClip;
-			camera.current.asMatrices(eye, worldToView, viewToClip, aspect);
+			camera.current.asMatrices(eye, worldToView, viewToClip, aspect, debugUnlimitedCamera);
 			sf::Mat44 clipToWorld = sf::inverse(viewToClip * worldToView);
 
             uint32_t numDrags = 0;
@@ -1360,7 +1362,10 @@ struct GameSystemImp final : GameSystem
             
 			camera.zoomDelta = sf::clamp(camera.zoomDelta, -10.0f, 10.0f);
             camera.current.zoom += camera.zoomDelta * 0.01f;
-            camera.current.zoom = sf::clamp(camera.current.zoom, -1.5f, 1.5f);
+
+			if (!debugUnlimitedCamera) {
+				camera.current.zoom = sf::clamp(camera.current.zoom, -1.5f, 1.5f);
+			}
 
 			if (deltaLen > 0.00001f) {
 				float applyLen = sf::min(cameraLinear + deltaLen*cameraExp, deltaLen);
@@ -1384,7 +1389,7 @@ struct GameSystemImp final : GameSystem
 		sf::Vec3 eye;
 		sf::Mat34 worldToView;
 		sf::Mat44 viewToClip;
-		state.asMatrices(eye, worldToView, viewToClip, aspect);
+		state.asMatrices(eye, worldToView, viewToClip, aspect, debugUnlimitedCamera);
 		sf::Mat44 worldToClip = viewToClip * worldToView;
 
 		sf::Mat44 clipToWorld = sf::inverse(worldToClip);
@@ -1431,10 +1436,16 @@ struct GameSystemImp final : GameSystem
 					ImGui::SliderFloat("Specular", &visualizeEnvSphereOpts.specular, 0.0f, 1.0f);
 					ImGui::Unindent();
 				}
+				ImGui::Checkbox("Disable VisFog", &debugDisableVisFog);
+				ImGui::Checkbox("Unlimited camera zoom", &debugUnlimitedCamera);
 				ImGui::Checkbox("Simulate touch", &simulateTouch);
 				if (ImGui::Button("Pointers")) showDebugPointers = true;
 			}
 			ImGui::End();
+		}
+
+		if (debugDisableVisFog) {
+			systems.visFog->disableForFrame();
 		}
 
 		if (showDebugPointers) {
