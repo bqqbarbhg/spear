@@ -399,7 +399,6 @@ struct GameSystemImp final : GameSystem
 
 	bool applyEventImp(Systems &systems, const sv::Event &event, EventContext &ctx)
 	{
-
 		float dt = systems.frameArgs.dt;
 		if (const auto *e = event.as<sv::AddCharacterEvent>()) {
 			Transform transform;
@@ -854,6 +853,13 @@ struct GameSystemImp final : GameSystem
 					damageNumber.position = entity.transform.position + chr->centerOffset;
 					damageNumber.origin = guiResources.damageFont->measureText(damageNumber.text, DamageNumber::BaseHeight) * sf::Vec2(-0.5f, 0.1f);
 					chr->health -= (int32_t)e->finalDamage;
+
+					if (auto *c = systems.entities.globalPrefabs.effectsComponent) {
+						if (e->damageInfo.melee && c->meleeHitEffect) {
+							sf::Vec3 targetPos = entity.transform.transformPoint(chr->centerOffset);
+							systems.effect->spawnOneShotEffect(systems, c->meleeHitEffect, targetPos);
+						}
+					}
 				}
 			}
 

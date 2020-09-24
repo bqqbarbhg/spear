@@ -46,6 +46,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, Sound, SoundComponent),
 		sf_poly(Component, RoomConnection, RoomConnectionComponent),
 		sf_poly(Component, Wall, WallComponent),
+		sf_poly(Component, GlobalEffectsComponent, GlobalEffectsComponent),
 	};
 	sf_struct_poly(t, Component, type, { }, polys);
 }
@@ -92,6 +93,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, TweakCharacter, TweakCharacterEvent),
 		sf_poly(Event, TurnUpdate, TurnUpdateEvent),
 		sf_poly(Event, VisibleUpdate, VisibleUpdateEvent),
+		sf_poly(Event, LoadGlobals, LoadGlobalsEvent),
 	};
 	sf_struct_poly(t, Event, type, { }, polys);
 }
@@ -1068,6 +1070,19 @@ template<> void initType<WallComponent>(Type *t)
 	sf_struct_base(t, WallComponent, Component, fields);
 }
 
+template<> void initType<GlobalEffectsComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(GlobalEffectsComponent, meleeHitEffect),
+	};
+	sf_struct_base(t, GlobalEffectsComponent, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "meleeHitEffect");
+		info.prefab = true;
+	}
+}
+
 template<> void initType<AllocateIdEvent>(Type *t)
 {
 	static Field fields[] = {
@@ -1430,6 +1445,14 @@ template<> void initType<VisibleUpdateEvent>(Type *t)
 		sf_field(VisibleUpdateEvent, visibleTiles),
 	};
 	sf_struct_base(t, VisibleUpdateEvent, Event, fields);
+}
+
+template<> void initType<LoadGlobalsEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(LoadGlobalsEvent, globalPrefabs),
+	};
+	sf_struct_base(t, LoadGlobalsEvent, Event, fields);
 }
 
 template<> void initType<PreloadPrefabEdit>(Type *t)
@@ -2183,6 +2206,14 @@ template<> void initType<VisibleTile>(Type *t)
 		sf_field(VisibleTile, amount),
 	};
 	sf_struct(t, VisibleTile, fields);
+}
+
+template<> void initType<GlobalPrefabs>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(GlobalPrefabs, effects),
+	};
+	sf_struct(t, GlobalPrefabs, fields);
 }
 
 }

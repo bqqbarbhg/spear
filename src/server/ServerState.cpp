@@ -557,6 +557,8 @@ void ServerState::applyEvent(const Event &event)
 		for (const VisibleTile &visTile : e->visibleTiles) {
 			visibleTiles.insertDuplicate(visTile.packedTile, visTile.amount);
 		}
+	} else if (auto *e = event.as<LoadGlobalsEvent>()) {
+		globalPrefabs = e->globalPrefabs;
 	}
 }
 
@@ -656,6 +658,12 @@ void ServerState::getAsEvents(EventCallbackFn *callback, void *user) const
 			visibleTile.packedTile = pair.key;
 			visibleTile.amount = pair.val;
 		}
+		callback(user, e);
+	}
+
+	{
+		LoadGlobalsEvent e = { };
+		e.globalPrefabs = globalPrefabs;
 		callback(user, e);
 	}
 }
@@ -834,6 +842,8 @@ static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, s
 			}
 		} else if (auto *c = component->as<CharacterComponent>()) {
 			walkPrefabs(state, events, marks, c->defeatEffect);
+		} else if (auto *c = component->as<GlobalEffectsComponent>()) {
+			walkPrefabs(state, events, marks, c->meleeHitEffect);
 		}
 	}
 }
@@ -2414,6 +2424,20 @@ void ServerState::loadCanonicalPrefabs(sf::Array<sf::Box<sv::Event>> &events)
 	}
 }
 
+void ServerState::loadGlobals(sf::Array<sf::Box<Event>> &events)
+{
+	GlobalPrefabs globals;
+	globals.effects = sf::Symbol("Prefabs/Global/Effects.json");
+
+	loadPrefab(*this, events, globals.effects);
+
+	{
+		auto e = sf::box<sv::LoadGlobalsEvent>();
+		e->globalPrefabs = globals;
+		pushEvent(*this, events, e);
+	}
+}
+
 struct ReflectionFieldKey
 {
 	sf::Type *parent;
@@ -2466,6 +2490,7 @@ template<> void initType<ServerState>(Type *t)
 		sf_field(ServerState, statuses),
 		sf_field(ServerState, charactersToSelect),
 		sf_field(ServerState, prefabProps),
+		sf_field(ServerState, globalPrefabs),
 		sf_field(ServerState, lastAllocatedIdByType),
 		sf_field(ServerState, tileToEntity),
 		sf_field(ServerState, entityToTile),

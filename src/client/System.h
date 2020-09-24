@@ -109,6 +109,12 @@ struct GuiArgs
 	float dt = 0.0f;
 };
 
+struct GlobalPrefabs
+{
+	sf::Box<sv::Prefab> effectsPrefab;
+	sv::GlobalEffectsComponent *effectsComponent = nullptr;
+};
+
 struct Entities
 {
 	sf::Array<Entity> entities;
@@ -120,6 +126,8 @@ struct Entities
 	sf::HashMap<sf::Symbol, uint32_t> nameToPrefab;
 
 	sf::Array<uint32_t> removeQueue;
+
+	GlobalPrefabs globalPrefabs;
 
 	void addPrefabComponents(Systems &systems, uint32_t prefabId);
 	void removePrefabComponents(Systems &systems, uint32_t prefabId);

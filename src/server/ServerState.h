@@ -67,6 +67,7 @@ struct Component
 		Sound,
 		RoomConnection,
 		Wall,
+		GlobalEffectsComponent,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -526,6 +527,12 @@ struct WallComponent : ComponentBase<Component::Wall>
 	bool temp = false;
 };
 
+struct GlobalEffectsComponent : ComponentBase<Component::GlobalEffectsComponent>
+{
+	sf::Symbol meleeHitEffect sv_reflect(prefab);
+};
+
+
 struct Prefab sv_reflect()
 {
 	sf::Symbol name;
@@ -709,6 +716,7 @@ struct Event
 		TweakCharacter,
 		TurnUpdate,
 		VisibleUpdate,
+		LoadGlobals,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -1001,6 +1009,15 @@ struct VisibleUpdateEvent : EventBase<Event::VisibleUpdate>
 	sf::Array<VisibleTile> visibleTiles;
 };
 
+struct GlobalPrefabs sv_reflect()
+{
+	sf::Symbol effects;
+};
+
+struct LoadGlobalsEvent : EventBase<Event::LoadGlobals>
+{
+	GlobalPrefabs globalPrefabs;
+};
 
 enum class IdType {
 	Null,
@@ -1263,8 +1280,8 @@ struct ServerState
 
 	// Not serialized!
 	sf::Array<sf::StringBuf> errors;
-
 	uint32_t localClientId = 0;
+
 	PrefabMap prefabs;
 	PropMap props;
 	CharacterMap characters;
@@ -1272,6 +1289,7 @@ struct ServerState
 	StatusMap statuses;
 	sf::HashMap<sf::Symbol, int32_t> charactersToSelect;
 	sf::HashMap<sf::Symbol, sf::UintSet> prefabProps;
+	GlobalPrefabs globalPrefabs;
 
 	sf::UintMap tileToEntity;
 	sf::UintMap entityToTile;
@@ -1348,6 +1366,7 @@ struct ServerState
 	sf::UintFind getEntityPackedTiles(uint32_t id) const;
 
 	void loadCanonicalPrefabs(sf::Array<sf::Box<sv::Event>> &events);
+	void loadGlobals(sf::Array<sf::Box<Event>> &events);
 };
 
 struct SavedMap

@@ -102,6 +102,11 @@ static void applyEventImp(ClientState &cs, Systems &systems, const sv::Event &ev
 		} else {
 			systems.entities.addPrefab(systems, e->prefab);
 		}
+	} else if (const auto *e = event.as<sv::LoadGlobalsEvent>()) {
+		systems.entities.globalPrefabs.effectsPrefab = systems.entities.findPrefab(e->globalPrefabs.effects);
+		if (sv::Prefab *p = systems.entities.globalPrefabs.effectsPrefab) {
+			systems.entities.globalPrefabs.effectsComponent = p->findComponent<sv::GlobalEffectsComponent>();
+		}
 	}
 }
 

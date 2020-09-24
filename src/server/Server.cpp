@@ -157,6 +157,7 @@ static void loadSessionState(Session &session, const sf::Symbol &name)
 	}
 
 	session.state = state;
+	state->loadGlobals(session.events);
 	state->loadCanonicalPrefabs(session.events);
 }
 
