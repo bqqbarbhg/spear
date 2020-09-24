@@ -888,6 +888,7 @@ template<> void initType<SpellComponent>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(SpellComponent, castEffect),
+		sf_field(SpellComponent, hitEffect),
 		sf_field(SpellComponent, successRoll),
 		sf_field(SpellComponent, useItemAnimation),
 	};
@@ -895,6 +896,10 @@ template<> void initType<SpellComponent>(Type *t)
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "castEffect");
+		info.prefab = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "hitEffect");
 		info.prefab = true;
 	}
 }

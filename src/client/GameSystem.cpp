@@ -978,6 +978,25 @@ struct GameSystemImp final : GameSystem
 						}
 					}
 				}
+				if (sv::Prefab *spellPrefab = systems.entities.findPrefab(e->spellInfo.spellName)) {
+					if (auto *spellComp = spellPrefab->findComponent<sv::SpellComponent>()) {
+						if (spellComp->hitEffect) {
+							sf::Vec3 targetPos = casterEntity.transform.position;
+							if (Character *targetChr = findCharacter(e->spellInfo.targetId)) {
+								Entity &targetEntity = systems.entities.entities[targetChr->entityId];
+								targetPos = targetEntity.transform.transformPoint(targetChr->centerOffset);
+							} else {
+								uint32_t targetEntityId = systems.entities.svToEntity.findOne(e->spellInfo.targetId, ~0u);
+								if (targetEntityId != ~0u) {
+									Entity &targetEntity = systems.entities.entities[targetEntityId];
+									targetPos = targetEntity.transform.position;
+								}
+							}
+
+							systems.effect->spawnOneShotEffect(systems, spellComp->hitEffect, targetPos);
+						}
+					}
+				}
 			}
 
 			// Failsafe 2

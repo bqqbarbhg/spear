@@ -819,6 +819,7 @@ static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, s
 			walkPrefabs(state, events, marks, c->statusName);
 		} else if (auto *c = component->as<SpellComponent>()) {
 			walkPrefabs(state, events, marks, c->castEffect);
+			walkPrefabs(state, events, marks, c->hitEffect);
 		} else if (auto *c = component->as<SpellStatusComponent>()) {
 			walkPrefabs(state, events, marks, c->statusName);
 		} else if (auto *c = component->as<StatusComponent>()) {

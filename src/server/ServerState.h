@@ -436,6 +436,7 @@ struct CardCastMeleeComponent : ComponentBase<Component::CardCastMelee>
 struct SpellComponent : ComponentBase<Component::Spell>
 {
 	sf::Symbol castEffect sv_reflect(prefab);
+	sf::Symbol hitEffect sv_reflect(prefab);
 	DiceRoll successRoll;
 	bool useItemAnimation = false;
 };
