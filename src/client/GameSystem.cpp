@@ -10,6 +10,7 @@
 #include "client/LightSystem.h"
 #include "client/EnvLightSystem.h"
 #include "client/VisFogSystem.h"
+#include "client/AudioSystem.h"
 
 #include "game/DebugDraw.h"
 
@@ -855,7 +856,18 @@ struct GameSystemImp final : GameSystem
 
 				sf::SmallArray<sf::Symbol, 16> events;
 				systems.characterModel->queryFrameEvents(systems.entities, chr->entityId, events);
-				if (sf::find(events, symHit)) return true;
+				if (sf::find(events, symHit)) {
+					if (Character *targetChr = findCharacter(e->meleeInfo.targetId)) {
+						Entity &targetEntity = systems.entities.entities[targetChr->entityId];
+						sf::Vec3 pos = targetEntity.transform.transformPoint(targetChr->centerOffset);
+						if (sv::Prefab *prefab = systems.entities.findPrefab(e->meleeInfo.cardName)) {
+							if (auto *c = prefab->findComponent<sv::CardMeleeComponent>()) {
+								systems.audio->playOneShot(c->hitSound, pos);
+							}
+						}
+					}
+					return true;
+				}
 			}
 
 			// Failsafe
@@ -894,6 +906,11 @@ struct GameSystemImp final : GameSystem
 							sf::Vec3 targetPos = entity.transform.transformPoint(chr->centerOffset);
 							systems.effect->spawnOneShotEffect(systems, c->meleeHitEffect, targetPos);
 						}
+					}
+
+					if (auto *c = chr->svPrefab->findComponent<sv::CharacterComponent>()) {
+						sf::Vec3 targetPos = entity.transform.transformPoint(chr->centerOffset);
+						systems.audio->playOneShot(c->damageSound, targetPos);
 					}
 				}
 			}

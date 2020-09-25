@@ -1848,7 +1848,8 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 	if (!ImGui::IsKeyDown(SAPP_KEYCODE_G)) {
 		for (uint32_t i = 0; i < hits.size; i++) {
 			if (hits[i].approximate) {
-				hits.removeSwap(i--);
+				hits.removeSwap(i);
+				i--;
 			}
 		}
 	}

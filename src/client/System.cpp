@@ -109,6 +109,18 @@ void Entities::addPrefabComponents(Systems &systems, uint32_t prefabId)
 			ComponentData &data = prefab.componentData.push();
 			data.component = c;
 			data.data = systems.game->preloadCard(*prefab.svPrefab);
+		} else if (const auto *c = comp->as<sv::CardMeleeComponent>()) {
+			if (c->hitSound.soundName) {
+				ComponentData &data = prefab.componentData.push();
+				data.component = c;
+				data.data = systems.audio->preloadSound(c->hitSound);
+			}
+		} else if (const auto *c = comp->as<sv::CharacterComponent>()) {
+			if (c->damageSound.soundName) {
+				ComponentData &data = prefab.componentData.push();
+				data.component = c;
+				data.data = systems.audio->preloadSound(c->damageSound);
+			}
 		}
 	}
 }

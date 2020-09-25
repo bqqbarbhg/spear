@@ -218,6 +218,11 @@ struct AudioSystemImp final : AudioSystem
 		sf::Array<sp::SoundRef> refs;
 	};
 
+	struct SoundEffectData
+	{
+		sp::SoundRef ref;
+	};
+
 	struct EntitySound
 	{
 		sf::Vec3 offset;
@@ -253,16 +258,21 @@ struct AudioSystemImp final : AudioSystem
 	{
 		SoundOpts opts;
 
-		sf::Vec3 pos = info.position - viewToWorld.cols[3];
-		float x = sf::dot(pos, viewToWorld.cols[0]);
-		float dist = sf::length(pos);
-		float cosTheta = x / (dist + 1.0f);
-		float sinHalfTheta = sf::sqrt(sf::max(0.0f, 1.0f - cosTheta) * 0.5f);
-		float cosHalfTheta = sf::sqrt(sf::max(0.0f, 1.0f - sinHalfTheta*sinHalfTheta));
+		if (info.positional) {
+			sf::Vec3 pos = info.position - viewToWorld.cols[3];
+			float x = sf::dot(pos, viewToWorld.cols[0]);
+			float dist = sf::length(pos);
+			float cosTheta = x / (dist + 1.0f);
+			float sinHalfTheta = sf::sqrt(sf::max(0.0f, 1.0f - cosTheta) * 0.5f);
+			float cosHalfTheta = sf::sqrt(sf::max(0.0f, 1.0f - sinHalfTheta*sinHalfTheta));
 
-		float volume = 1.0f / (1.0f + dist * 0.1f);
-		opts.volume[0] = sinHalfTheta * info.volume * volume;
-		opts.volume[1] = cosHalfTheta * info.volume * volume;
+			float volume = 1.0f / (1.0f + dist * 0.1f);
+			opts.volume[0] = sinHalfTheta * info.volume * volume;
+			opts.volume[1] = cosHalfTheta * info.volume * volume;
+		} else {
+			opts.volume[0] = info.volume;
+			opts.volume[1] = info.volume;
+		}
 
 		return opts;
 	}
@@ -280,8 +290,12 @@ struct AudioSystemImp final : AudioSystem
 			entitySounds[entitySoundId].instance = inst;
 		}
 
-		inst->spatialSoundIndex = playingSpatialSounds.size;
-		playingSpatialSounds.push(inst);
+		if (info.positional) {
+			inst->spatialSoundIndex = playingSpatialSounds.size;
+			playingSpatialSounds.push(inst);
+		}
+
+		inst->setOpts(evaluateSoundOpts(inst->info));
 
 		g_audioThread.pushInstance(&g_audioThread.incoming, inst);
 	}
@@ -326,8 +340,27 @@ struct AudioSystemImp final : AudioSystem
 		return data;
 	}
 
+	sf::Box<void> preloadSound(const sv::SoundEffect &effect) override
+	{
+		auto data = sf::box<SoundEffectData>();
+		data->ref.load(effect.soundName);
+		return data;
+	}
+
 	void playOneShot(const sp::SoundRef &sound, const AudioInfo &info) override
 	{
+		playSoundImp(sound, info, ~0u);
+	}
+
+	void playOneShot(const sv::SoundEffect &effect, const sf::Vec3 &position) override
+	{
+		if (!effect.soundName) return;
+
+		AudioInfo info = { };
+		info.position = position;
+		info.volume = effect.volume;
+		info.pitch = effect.pitch + effect.pitchVariance * rng.nextFloat();
+		sp::SoundRef sound { effect.soundName };
 		playSoundImp(sound, info, ~0u);
 	}
 

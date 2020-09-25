@@ -23,6 +23,14 @@ struct DiceRoll sv_reflect()
 	uint32_t check = 0;
 };
 
+struct SoundEffect sv_reflect()
+{
+	sf::Symbol soundName sv_reflect(asset);
+	float volume = 1.0f;
+	float pitch = 1.0f;
+	float pitchVariance = 0.0f;
+};
+
 struct Component
 {
 	#if SF_DEBUG
@@ -250,6 +258,7 @@ struct CharacterComponent : ComponentBase<Component::Character>
 	uint32_t baseSpeed = 5;
 	sf::Vec3 centerOffset = sf::Vec3(0.0f, 0.5f, 0.0f);
 	sf::Symbol defeatEffect sv_reflect(prefab);
+	SoundEffect damageSound;
 };
 
 struct AnimationEvent sv_reflect()
@@ -365,6 +374,7 @@ struct CardMeleeComponent : ComponentBase<Component::CardMelee>
 {
 	DiceRoll hitRoll;
 	bool directRoll = false;
+	SoundEffect hitSound;
 };
 
 struct CardKeyComponent : ComponentBase<Component::CardKey>

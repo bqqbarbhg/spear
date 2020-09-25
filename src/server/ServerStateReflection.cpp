@@ -530,6 +530,7 @@ template<> void initType<CharacterComponent>(Type *t)
 		sf_field(CharacterComponent, baseSpeed),
 		sf_field(CharacterComponent, centerOffset),
 		sf_field(CharacterComponent, defeatEffect),
+		sf_field(CharacterComponent, damageSound),
 	};
 	sf_struct_base(t, CharacterComponent, Component, fields);
 
@@ -741,6 +742,7 @@ template<> void initType<CardMeleeComponent>(Type *t)
 	static Field fields[] = {
 		sf_field(CardMeleeComponent, hitRoll),
 		sf_field(CardMeleeComponent, directRoll),
+		sf_field(CardMeleeComponent, hitSound),
 	};
 	sf_struct_base(t, CardMeleeComponent, Component, fields);
 }
@@ -1198,6 +1200,7 @@ template<> void initType<CastSpellEvent>(Type *t)
 		sf_field(CastSpellEvent, spellInfo),
 		sf_field(CastSpellEvent, successRoll),
 		sf_field(CastSpellEvent, useItemAnimation),
+		sf_field(CastSpellEvent, useSkillAnimation),
 	};
 	sf_struct_base(t, CastSpellEvent, Event, fields);
 }
@@ -1655,6 +1658,22 @@ template<> void initType<DiceRoll>(Type *t)
 		sf_field(DiceRoll, check),
 	};
 	sf_struct(t, DiceRoll, fields);
+}
+
+template<> void initType<SoundEffect>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(SoundEffect, soundName),
+		sf_field(SoundEffect, volume),
+		sf_field(SoundEffect, pitch),
+		sf_field(SoundEffect, pitchVariance),
+	};
+	sf_struct(t, SoundEffect, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "soundName");
+		info.asset = true;
+	}
 }
 
 template<> void initType<BSpline2>(Type *t)

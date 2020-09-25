@@ -29,7 +29,7 @@ struct AudioMixOpts
 
 struct AudioSampler
 {
-	float carryBuf[16];
+	float carryBuf[32];
 	uint32_t carryFirstSample = 0;
 	uint32_t carryNumSamples = 0;
 

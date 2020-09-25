@@ -17,6 +17,7 @@ struct AudioInfo
 	float pitch = 1.0f;
 	bool loop = false;
 	bool follow = true;
+	bool positional = true;
 };
 
 struct AudioSystem : EntitySystem
@@ -24,8 +25,10 @@ struct AudioSystem : EntitySystem
 	static sf::Box<AudioSystem> create(const SystemsDesc &desc);
 
 	virtual sf::Box<void> preloadSound(const sv::SoundComponent &c) = 0;
+	virtual sf::Box<void> preloadSound(const sv::SoundEffect &effect) = 0;
 
 	virtual void playOneShot(const sp::SoundRef &sound, const AudioInfo &info) = 0;
+	virtual void playOneShot(const sv::SoundEffect &effect, const sf::Vec3 &position) = 0;
 
 	virtual void addSound(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::SoundComponent &c, const Transform &transform) = 0;
 

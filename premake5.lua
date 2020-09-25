@@ -61,8 +61,8 @@ workspace "spear"
 	defines { "JSI_USE_IMPL=1" }
 
 	-- TODO: Fix mimalloc on WASM
-	-- filter { "not platforms:wasm" }
-		-- defines { "SF_USE_MIMALLOC=1" }
+	filter { "not platforms:wasm" }
+		defines { "SF_USE_MIMALLOC=1" }
 
 	if cppdialect ~= nil then
 		cppdialect "C++14"

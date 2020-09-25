@@ -370,6 +370,13 @@ static sf::Box<cl::ClientState> makeClientState(Client *c, const cl::ClientPersi
 	desc.persist = persist;
 	sf::Box<cl::ClientState> clState = sf::box<cl::ClientState>(desc);
 
+	sp::SoundRef sound { "Assets/Audio/Music/Battle_Loop.ogg" };
+	AudioInfo info;
+	info.volume = 0.3f;
+	info.loop = true;
+	info.positional = false;
+	clState->systems.audio->playOneShot(sound, info);
+
 	return clState;
 }
 
