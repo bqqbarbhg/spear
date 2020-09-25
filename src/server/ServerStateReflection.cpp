@@ -531,6 +531,7 @@ template<> void initType<CharacterComponent>(Type *t)
 		sf_field(CharacterComponent, centerOffset),
 		sf_field(CharacterComponent, defeatEffect),
 		sf_field(CharacterComponent, damageSound),
+		sf_field(CharacterComponent, footstepSound),
 	};
 	sf_struct_base(t, CharacterComponent, Component, fields);
 
@@ -1665,8 +1666,10 @@ template<> void initType<SoundEffect>(Type *t)
 	static Field fields[] = {
 		sf_field(SoundEffect, soundName),
 		sf_field(SoundEffect, volume),
+		sf_field(SoundEffect, volumeVariance),
 		sf_field(SoundEffect, pitch),
 		sf_field(SoundEffect, pitchVariance),
+		sf_field(SoundEffect, loop),
 	};
 	sf_struct(t, SoundEffect, fields);
 

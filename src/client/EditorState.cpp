@@ -213,6 +213,7 @@ void setupEditorDir(EditorDir &dir, const sf::StringBuf &queryRoot, const sv::Qu
 	if (queryRoot == dir.prefix) {
 
 		sf::HashSet<sf::StringBuf> materials;
+		sf::HashSet<sf::StringBuf> sounds;
 		for (const sv::QueryFile &file : queryDir.files) {
 			bool addFile = true;
 			for (sf::String suffix : materialSuffixes) {
@@ -224,6 +225,18 @@ void setupEditorDir(EditorDir &dir, const sf::StringBuf &queryRoot, const sv::Qu
 					addFile = false;
 					break;
 				}
+			}
+			if (sf::endsWith(file.name, ".wav") || sf::endsWith(file.name, ".ogg")) {
+				size_t endIx = sf::indexOf(file.name, "_alt_");
+				if (endIx == SIZE_MAX) {
+					endIx = file.name.size - 4;
+				}
+
+				sf::String baseName = file.name.slice().take(endIx);
+				if (sounds.insert(baseName).inserted) {
+					dir.files.push(EditorFile(dir.prefix, baseName));
+				}
+				addFile = false;
 			}
 
 			if (addFile) {

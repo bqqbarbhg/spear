@@ -27,8 +27,10 @@ struct SoundEffect sv_reflect()
 {
 	sf::Symbol soundName sv_reflect(asset);
 	float volume = 1.0f;
+	float volumeVariance = 0.0f;
 	float pitch = 1.0f;
 	float pitchVariance = 0.0f;
+	bool loop = false;
 };
 
 struct Component
@@ -259,6 +261,7 @@ struct CharacterComponent : ComponentBase<Component::Character>
 	sf::Vec3 centerOffset = sf::Vec3(0.0f, 0.5f, 0.0f);
 	sf::Symbol defeatEffect sv_reflect(prefab);
 	SoundEffect damageSound;
+	SoundEffect footstepSound;
 };
 
 struct AnimationEvent sv_reflect()

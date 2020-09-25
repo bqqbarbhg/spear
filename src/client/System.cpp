@@ -117,9 +117,10 @@ void Entities::addPrefabComponents(Systems &systems, uint32_t prefabId)
 			}
 		} else if (const auto *c = comp->as<sv::CharacterComponent>()) {
 			if (c->damageSound.soundName) {
-				ComponentData &data = prefab.componentData.push();
-				data.component = c;
-				data.data = systems.audio->preloadSound(c->damageSound);
+				prefab.componentData.push({ c, systems.audio->preloadSound(c->damageSound) });
+			}
+			if (c->footstepSound.soundName) {
+				prefab.componentData.push({ c, systems.audio->preloadSound(c->footstepSound) });
 			}
 		}
 	}

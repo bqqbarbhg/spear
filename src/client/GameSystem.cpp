@@ -55,6 +55,7 @@ static const sf::Symbol symOpen { "Open" };
 static const sf::Symbol symOpening { "Opening" };
 static const sf::Symbol symUse { "Use" };
 static const sf::Symbol symSkill { "Skill" };
+static const sf::Symbol symFootstep { "Footstep" };
 
 static const constexpr float TapCancelDistance = 0.03f;
 static const constexpr float TapCancelDistanceSq = TapCancelDistance * TapCancelDistance;
@@ -336,6 +337,8 @@ struct GameSystemImp final : GameSystem
 	uint32_t moveWaypointIndex = ~0u;
 	sf::Vec3 moveVelocity;
 	float moveEndTime = 0.0f;
+	float moveFoostepCooldown = 0.0f;
+	uint32_t moveSoundId = ~0u;
 
 	float autoSelectCooldown = 0.0f;
 
@@ -630,6 +633,34 @@ struct GameSystemImp final : GameSystem
 					Entity &entity = systems.entities.entities[character.entityId];
 					sf::Vec3 pos = entity.transform.position;
 
+					moveFoostepCooldown -= dt;
+
+					if (ctx.begin) {
+						moveSoundId = ~0u;
+						if (auto *c = character.svPrefab->findComponent<sv::CharacterComponent>()) {
+							if (c->footstepSound.loop) {
+								moveSoundId = systems.audio->playAttached(systems.entities, character.entityId, c->footstepSound, sf::Vec3());
+							} else {
+								systems.audio->playOneShot(c->footstepSound, pos);
+							}
+							moveFoostepCooldown = 0.2f;
+						}
+					}
+
+					if (moveFoostepCooldown <= 0.0f && moveSoundId == ~0u) {
+						if (auto *c = character.svPrefab->findComponent<sv::CharacterComponent>()) {
+							if (c->footstepSound.soundName) {
+								sf::SmallArray<sf::Symbol, 64> frameEvents;
+								systems.characterModel->queryFrameEvents(systems.entities, character.entityId, frameEvents);
+								if (sf::find(frameEvents, symFootstep)) {
+									systems.audio->playOneShot(c->footstepSound, pos);
+									moveFoostepCooldown = 0.2f;
+								}
+							}
+						}
+					}
+
+
 					if (ctx.begin) {
 						moveWaypointIndex = 0;
 						moveVelocity = sf::Vec3();
@@ -681,6 +712,18 @@ struct GameSystemImp final : GameSystem
 
 					if (ctx.begin) {
 						systems.characterModel->addTag(systems.entities, character.entityId, symRun);
+					}
+
+					if (end) {
+						if (moveSoundId != ~0u) {
+							systems.audio->removeAttached(systems.entities, moveSoundId);
+							moveSoundId = ~0u;
+						} else if (moveFoostepCooldown <= 0.0f) {
+							if (auto *c = character.svPrefab->findComponent<sv::CharacterComponent>()) {
+								systems.audio->playOneShot(c->footstepSound, pos);
+								moveFoostepCooldown = 0.2f;
+							}
+						}
 					}
 
 					return end;

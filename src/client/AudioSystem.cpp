@@ -229,6 +229,7 @@ struct AudioSystemImp final : AudioSystem
 		sf::Vec3 offset;
 		SoundInstance *instance = nullptr;
 		uint32_t pendingSoundId = ~0u;
+		uint32_t entityId = ~0u;
 	};
 
 	sf::Array<SoundInstance> soundInstances;
@@ -316,6 +317,29 @@ struct AudioSystemImp final : AudioSystem
 		}
 	}
 
+	void stopSoundImp(EntitySound &entitySound)
+	{
+		if (entitySound.instance) {
+			if (entitySound.instance->info.loop) {
+				entitySound.instance->setFlag(SoundInstance::Stop);
+			}
+		}
+
+		uint32_t pendingSoundId = entitySound.pendingSoundId;
+		if (pendingSoundId != ~0u) {
+			PendingSound &p = pendingSounds[pendingSoundId];
+			if (p.info.loop) {
+				uint32_t backEntitySoundId = pendingSounds.back().entitySoundId;
+				if (backEntitySoundId != ~0u) {
+					entitySounds[backEntitySoundId].pendingSoundId = pendingSoundId;
+				}
+				pendingSounds.removeSwap(pendingSoundId);
+			} else {
+				p.entitySoundId = ~0u;
+			}
+		}
+	}
+
 	// API
 
 	AudioSystemImp(const SystemsDesc &desc)
@@ -362,10 +386,50 @@ struct AudioSystemImp final : AudioSystem
 
 		AudioInfo info = { };
 		info.position = position;
-		info.volume = effect.volume;
+		info.volume = effect.volume + effect.volumeVariance * rng.nextFloat();
 		info.pitch = effect.pitch + effect.pitchVariance * rng.nextFloat();
 		sp::SoundRef sound { effect.soundName };
 		playSoundImp(sound, info, ~0u, delay);
+	}
+
+	uint32_t playAttached(Entities &entities, uint32_t entityId, const sv::SoundEffect &effect, const sf::Vec3 &offset, float delay) override
+	{
+		Entity &entity = entities.entities[entityId];
+
+		uint32_t entitySoundId = entitySounds.size;
+		if (freeEntitySoundIds.size > 0) {
+			entitySoundId = freeEntitySoundIds.popValue();
+		} else {
+			entitySounds.push();
+		}
+
+		EntitySound &entitySound = entitySounds[entitySoundId];
+		entitySound.offset = offset;
+		entitySound.entityId = entityId;
+
+		AudioInfo info;
+		info.position = entity.transform.transformPoint(entitySound.offset);
+		info.volume = effect.volume + effect.volumeVariance * rng.nextFloat();
+		info.pitch = effect.pitch + effect.pitchVariance * rng.nextFloat();
+		info.loop = effect.loop;
+
+		sp::SoundRef sound { effect.soundName };
+		playSoundImp(sound, info, entitySoundId);
+
+		entities.addComponent(entityId, this, entitySoundId, 0, 0xff, Entity::UpdateTransform);
+		return entitySoundId;
+	}
+
+	void removeAttached(Entities &entities, uint32_t attachedSoundId) 
+	{
+		uint32_t entitySoundId = attachedSoundId;
+		EntitySound &entitySound = entitySounds[entitySoundId];
+
+		stopSoundImp(entitySound);
+		entities.removeComponent(entitySound.entityId, this, entitySoundId, 0);
+
+		freeEntitySoundIds.push(entitySoundId);
+		sf::reset(entitySound);
 	}
 
 	void addSound(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::SoundComponent &c, const Transform &transform) override
@@ -382,6 +446,7 @@ struct AudioSystemImp final : AudioSystem
 
 		EntitySound &entitySound = entitySounds[entitySoundId];
 		entitySound.offset = c.offset;
+		entitySound.entityId = entityId;
 
 		AudioInfo info;
 		info.position = transform.transformPoint(entitySound.offset);
@@ -412,25 +477,7 @@ struct AudioSystemImp final : AudioSystem
 		uint32_t entitySoundId = ec.userId;
 		EntitySound &entitySound = entitySounds[entitySoundId];
 
-		if (entitySound.instance) {
-			if (entitySound.instance->info.loop) {
-				entitySound.instance->setFlag(SoundInstance::Stop);
-			}
-		}
-
-		uint32_t pendingSoundId = entitySound.pendingSoundId;
-		if (pendingSoundId != ~0u) {
-			PendingSound &p = pendingSounds[pendingSoundId];
-			if (p.info.loop) {
-				uint32_t backEntitySoundId = pendingSounds.back().entitySoundId;
-				if (backEntitySoundId != ~0u) {
-					entitySounds[backEntitySoundId].pendingSoundId = pendingSoundId;
-				}
-				pendingSounds.removeSwap(pendingSoundId);
-			} else {
-				p.entitySoundId = ~0u;
-			}
-		}
+		stopSoundImp(entitySound);
 
 		freeEntitySoundIds.push(entitySoundId);
 		sf::reset(entitySound);

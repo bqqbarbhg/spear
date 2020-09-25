@@ -30,6 +30,9 @@ struct AudioSystem : EntitySystem
 	virtual void playOneShot(const sp::SoundRef &sound, const AudioInfo &info) = 0;
 	virtual void playOneShot(const sv::SoundEffect &effect, const sf::Vec3 &position, float delay=0.0f) = 0;
 
+	virtual uint32_t playAttached(Entities &entities, uint32_t entityId, const sv::SoundEffect &effect, const sf::Vec3 &offset, float delay=0.0f) = 0;
+	virtual void removeAttached(Entities &entities, uint32_t attachedSoundId) = 0;
+
 	virtual void addSound(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::SoundComponent &c, const Transform &transform) = 0;
 
 	virtual void updateSpatialSounds(const sf::Mat34 &worldToView) = 0;

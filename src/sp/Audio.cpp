@@ -102,8 +102,8 @@ void AudioSampler::advanceMixStereoImp(float *dstBuf, uint32_t numDst, AudioSour
 			while (numSafeSamples-- > 0) {
 				uint32_t i0, i1;
 				float d0, d1;
-				i0 = (uint32_t)t; d0 = (float)i0 - t; t += dstToSrc;
-				i1 = (uint32_t)t; d1 = (float)i1 - t; t += dstToSrc;
+				i0 = (uint32_t)t; d0 = t - (float)i0; t += dstToSrc;
+				i1 = (uint32_t)t; d1 = t - (float)i1; t += dstToSrc;
 
 				float a0 = workBuf[i0], b0 = workBuf[i0 + 1];
 				float a1 = workBuf[i1], b1 = workBuf[i1 + 1];
@@ -129,8 +129,8 @@ void AudioSampler::advanceMixStereoImp(float *dstBuf, uint32_t numDst, AudioSour
 			while (numSafeSamples-- > 0) {
 				uint32_t i0, i1;
 				float d0, d1;
-				i0 = (uint32_t)t; d0 = (float)i0 - t; t += dstToSrc;
-				i1 = (uint32_t)t; d1 = (float)i1 - t; t += dstToSrc;
+				i0 = (uint32_t)t; d0 = t - (float)i0; t += dstToSrc;
+				i1 = (uint32_t)t; d1 = t - (float)i1; t += dstToSrc;
 
 				sf::Float4 src0 = sf::Float4::loadu(workBuf + i0*2); // LA0 RA0 LA1 RA1 <-T- (LA0 RA0 LB0 RB0)
 				sf::Float4 src1 = sf::Float4::loadu(workBuf + i1*2); // LB0 RB0 LB1 RB1 <-T- (LA1 RA1 LB1 RB1)

@@ -1393,7 +1393,7 @@ struct SoundTask : Task
 		}
 
 		sf::Symbol baseName = sf::Symbol(path.data, endIx);
-		ti.outputs[s_dst] = symf("%s.spsnd", baseName);
+		ti.outputs[s_dst] = symf("%s.spsnd", baseName.data);
 		ti.assets.insert(baseName);
 		return true;
 	}
