@@ -1149,6 +1149,7 @@ template<> void initType<ChangeTeamEvent>(Type *t)
 	static Field fields[] = {
 		sf_field(ChangeTeamEvent, cardName),
 		sf_field(ChangeTeamEvent, characterId),
+		sf_field(ChangeTeamEvent, playerClientId),
 		sf_field(ChangeTeamEvent, enemy),
 	};
 	sf_struct_base(t, ChangeTeamEvent, Event, fields);

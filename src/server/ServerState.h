@@ -782,6 +782,7 @@ struct ChangeTeamEvent : EventBase<Event::ChangeTeam>
 {
 	sf::Symbol cardName;
 	uint32_t characterId;
+	uint32_t playerClientId;
 	bool enemy;
 };
 

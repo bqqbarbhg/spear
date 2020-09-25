@@ -374,6 +374,9 @@ void ServerState::applyEvent(const Event &event)
 	} else if (auto *e = event.as<ChangeTeamEvent>()) {
 		if (Character *chr = findCharacter(*this, e->characterId)) {
 			chr->enemy = e->enemy;
+			if (e->playerClientId) {
+				chr->playerClientId = e->playerClientId;
+			}
 		}
 	} else if (auto *e = event.as<DamageEvent>()) {
 		if (Character *chr = findCharacter(*this, e->damageInfo.targetId)) {
@@ -916,6 +919,12 @@ void ServerState::putStatus(sf::Array<sf::Box<Event>> &events, const StatusInfo 
 				e->cardName = statusInfo.cardName;
 				e->characterId = statusInfo.targetId;
 				e->enemy = !chr->originalEnemy;
+				e->playerClientId = 0;
+				if (chr->originalEnemy) {
+					if (Character *playerChr = findCharacter(*this, statusInfo.originalCasterId)) {
+						e->playerClientId = playerChr->playerClientId;
+					}
+				}
 				pushEvent(*this, events, e);
 			}
 		}

@@ -950,6 +950,10 @@ struct GameSystemImp final : GameSystem
 
 			if (Character *chr = findCharacter(e->characterId)) {
 				chr->sv.enemy = e->enemy;
+
+				if (e->playerClientId) {
+					chr->sv.playerClientId = e->playerClientId;
+				}
 			}
 
 		} else if (const auto *e = event.as<sv::CastSpellEvent>()) {
