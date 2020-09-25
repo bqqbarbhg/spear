@@ -229,7 +229,7 @@ void AudioLimiter::limitStereo(float *dstSamples, uint32_t numSamples, uint32_t 
 			sf::Float4 max0 = 0.0f, max1 = 0.0f;
 			float *ptr = alignedBuffer + (windowBase + windowSamples) * 2;
 			float *end = ptr + windowSamples * 2;
-			sf_assert(end - buffer.data <= buffer.size);
+			sf_assert(end - buffer.data <= (ptrdiff_t)buffer.size);
 			while (ptr != end) {
 				sf::Float4 v0 = sf::Float4::loadu(ptr);
 				sf::Float4 v1 = sf::Float4::loadu(ptr + 4);
@@ -252,7 +252,7 @@ void AudioLimiter::limitStereo(float *dstSamples, uint32_t numSamples, uint32_t 
 			sf::Float4 maxS = 0.0f;
 			float *ptr = alignedBuffer + windowBase * 2;
 			float *end = ptr + windowSamples * 2;
-			sf_assert(end - buffer.data <= buffer.size);
+			sf_assert(end - buffer.data <= (ptrdiff_t)buffer.size);
 			while (ptr != end) {
 				sf::Float4 v = sf::Float4::loadu(ptr);
 				v *= volume;
@@ -269,7 +269,7 @@ void AudioLimiter::limitStereo(float *dstSamples, uint32_t numSamples, uint32_t 
 			float *base = alignedBuffer + windowBase * 2;
 			float *ptr = base;
 			float *end = ptr + windowSamples * 2;
-			sf_assert(end - buffer.data <= buffer.size);
+			sf_assert(end - buffer.data <= (ptrdiff_t)buffer.size);
 			while (ptr != end) {
 				sf::Float4 v = sf::Float4::loadu(ptr);
 				v *= volume;

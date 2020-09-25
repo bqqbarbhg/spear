@@ -440,6 +440,7 @@ struct SpellComponent : ComponentBase<Component::Spell>
 	sf::Symbol hitEffect sv_reflect(prefab);
 	DiceRoll successRoll;
 	bool useItemAnimation = false;
+	bool useSkillAnimation = false;
 };
 
 struct SpellDamageComponent : ComponentBase<Component::SpellDamage>
@@ -818,6 +819,7 @@ struct CastSpellEvent : EventBase<Event::CastSpell>
 	SpellInfo spellInfo;
 	RollInfo successRoll;
 	bool useItemAnimation;
+	bool useSkillAnimation;
 };
 
 struct MeleeAttackEvent : EventBase<Event::MeleeAttack>

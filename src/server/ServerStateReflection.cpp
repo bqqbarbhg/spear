@@ -895,6 +895,7 @@ template<> void initType<SpellComponent>(Type *t)
 		sf_field(SpellComponent, hitEffect),
 		sf_field(SpellComponent, successRoll),
 		sf_field(SpellComponent, useItemAnimation),
+		sf_field(SpellComponent, useSkillAnimation),
 	};
 	sf_struct_base(t, SpellComponent, Component, fields);
 

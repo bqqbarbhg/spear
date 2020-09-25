@@ -375,7 +375,7 @@ static sf::Box<cl::ClientState> makeClientState(Client *c, const cl::ClientPersi
 
 Client *clientInit(int port, uint32_t sessionId, uint32_t sessionSecret, sf::String websocketUrl)
 {
-	Client *c = new Client();
+	Client *c = sf::make<Client>();
 
 	c->msaaSamples = g_settings.msaaSamples;
 	c->useFxaa = g_settings.useFxaa;

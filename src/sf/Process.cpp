@@ -129,7 +129,7 @@ Process *startProcess(sf::String path, sf::Slice<sf::String> args, const Process
 	}
 
 	if (opts.affinityMask) {
-		SetProcessAffinityMask(p->info.hProcess, opts.affinityMask);
+		SetProcessAffinityMask(p->info.hProcess, (DWORD_PTR)opts.affinityMask);
 		ResumeThread(p->info.hThread);
 	}
 

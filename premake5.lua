@@ -61,8 +61,8 @@ workspace "spear"
 	defines { "JSI_USE_IMPL=1" }
 
 	-- TODO: Fix mimalloc on WASM
-	filter { "not platforms:wasm" }
-		defines { "SF_USE_MIMALLOC=1" }
+	-- filter { "not platforms:wasm" }
+		-- defines { "SF_USE_MIMALLOC=1" }
 
 	if cppdialect ~= nil then
 		cppdialect "C++14"
@@ -135,7 +135,7 @@ workspace "spear"
 
 	filter { "platforms:not wasm",  "system:windows" }
 		libdirs { "dep/lib/windows_%{cfg.platform}" }
-		includedirs { "dep/include/windows" }
+		includedirs { "dep/include/windows_%{cfg.platform}" }
 		defines { "BQWS_PT_USE_OPENSSL=1" }
 		links {
 			"ws2_32.lib",

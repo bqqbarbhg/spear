@@ -53,6 +53,7 @@ static const sf::Symbol symRun { "Run" };
 static const sf::Symbol symOpen { "Open" };
 static const sf::Symbol symOpening { "Opening" };
 static const sf::Symbol symUse { "Use" };
+static const sf::Symbol symSkill { "Skill" };
 
 static const constexpr float TapCancelDistance = 0.03f;
 static const constexpr float TapCancelDistanceSq = TapCancelDistance * TapCancelDistance;
@@ -963,10 +964,14 @@ struct GameSystemImp final : GameSystem
 			if (!chr) return true;
 			Entity &casterEntity = systems.entities.entities[chr->entityId];
 
+			const sf::Symbol *pAnim = &symCast;
+			if (e->useItemAnimation) pAnim = &symUse;
+			if (e->useSkillAnimation) pAnim = &symSkill;
+
 			if (ctx.begin) {
 				castDone = false;
 				if (e->spellInfo.manualCast) {
-					systems.characterModel->addOneShotTag(systems.entities, chr->entityId, e->useItemAnimation ? symUse : symCast);
+					systems.characterModel->addOneShotTag(systems.entities, chr->entityId, *pAnim);
 					castAnimDone = false;
 
 					if (sv::Prefab *spellPrefab = systems.entities.findPrefab(e->spellInfo.spellName)) {
@@ -990,7 +995,7 @@ struct GameSystemImp final : GameSystem
 			if (!castAnimDone) {
 				sf::SmallArray<sf::Symbol, 16> events;
 				systems.characterModel->queryFrameEvents(systems.entities, chr->entityId, events);
-				if (sf::find(events, e->useItemAnimation ? symUse : symCast)) castAnimDone = true;
+				if (sf::find(events, *pAnim)) castAnimDone = true;
 
 				uint32_t targetEntityId = systems.entities.svToEntity.findOne(e->spellInfo.targetId, ~0u);
 				if (targetEntityId != ~0u) {

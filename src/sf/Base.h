@@ -60,6 +60,19 @@ sf_inline void memFreeAligned(void *ptr, size_t align) {
 	}
 }
 
+template <typename T, typename... Args>
+sf_inline T *make(Args &&...args) {
+	void *ptr = memAllocAligned(sizeof(T), alignof(T));
+	new (ptr) T(std::forward<T>(args)...);
+	return (T*)ptr;
+}
+
+template <typename T>
+sf_inline void destroy(T *ptr) {
+	ptr->~T();
+	memFreeAligned(ptr, alignof(T));
+}
+
 // -- Useful inline functions
 
 sf_inline uint32_t alignUp(uint32_t v, uint32_t align) {

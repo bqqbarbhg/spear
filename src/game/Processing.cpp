@@ -1542,7 +1542,7 @@ void initializeProcessing(const ProcessingDesc &desc)
 	// Check for files that need to be updated
 	for (auto &pair : p.taskInstances) {
 		sf::Box<TaskInstance> ti = pair.val;
-		uint64_t oldestOutput = SIZE_MAX;
+		uint64_t oldestOutput = UINT64_MAX;
 		uint64_t newestInput = 0;
 
 		for (auto &tool : ti->task->tools) {
@@ -1569,7 +1569,7 @@ void initializeProcessing(const ProcessingDesc &desc)
 			if (ts) oldestOutput = sf::min(oldestOutput, ts);
 		}
 
-		if (newestInput > oldestOutput || oldestOutput == SIZE_MAX) {
+		if (newestInput > oldestOutput || oldestOutput == UINT64_MAX) {
 			ti->dirty = true;
 			p.dirtyTaskInstances.push(ti);
 		}
