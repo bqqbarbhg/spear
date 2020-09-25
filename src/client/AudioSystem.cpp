@@ -281,10 +281,13 @@ struct AudioSystemImp final : AudioSystem
 	void playLoadedSoundImp(const sp::SoundRef &ref, const AudioInfo &info, uint32_t entitySoundId)
 	{
 		if (!ref.isLoaded()) return;
+
 		SoundInstance *inst = allocInstance();
 		if (!inst) return;
 
-		inst->source = ref->getSource();
+		uint32_t index = rng.nextU32() % ref->takes.size;
+
+		inst->source = ref->getSource(index);
 		inst->info = info;
 
 		if (entitySoundId != ~0u) {

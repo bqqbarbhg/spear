@@ -18,7 +18,7 @@ struct SoundImp : Sound
 	sf::Box<void> data;
 	size_t size = 0;
 
-	sf::Box<AudioSource> sharedSource;
+	sf::Array<sf::Box<AudioSource>> sharedSources;
 };
 
 struct VorbisSource : AudioSource
@@ -27,7 +27,7 @@ struct VorbisSource : AudioSource
 	stb_vorbis *vorbis = nullptr;
 	sf::Array<char> tempMemory;
 
-	VorbisSource(const sf::Box<void> &data, size_t size, uint32_t tempMemorySize, uint32_t sampleRate, uint32_t numChannels)
+	VorbisSource(const sf::Box<void> &data, uint32_t offset, size_t size, uint32_t tempMemorySize, uint32_t sampleRate, uint32_t numChannels)
 		: dataRef(data)
 	{
 		this->sampleRate = sampleRate;
@@ -40,7 +40,7 @@ struct VorbisSource : AudioSource
 		alloc.alloc_buffer_length_in_bytes = (int)tempMemory.size;
 
 		int error = 0;
-		vorbis = stb_vorbis_open_memory((const unsigned char*)data.ptr, (int)size, &error, &alloc);
+		vorbis = stb_vorbis_open_memory((const unsigned char*)data.ptr + offset, (int)size, &error, &alloc);
 	}
 
 	virtual void seek(uint32_t sample) override
@@ -58,12 +58,14 @@ struct Pcm16Source : AudioSource
 {
 	sf::Box<void> dataRef;
 	uint32_t numSamples;
+	void *data;
 
-	Pcm16Source(const sf::Box<void> &data, uint32_t sampleRate, uint32_t numChannels, uint32_t numSamples)
+	Pcm16Source(const sf::Box<void> &data, uint32_t offset, uint32_t sampleRate, uint32_t numChannels, uint32_t numSamples)
 		: dataRef(data), numSamples(numSamples)
 	{
 		this->sampleRate = sampleRate;
 		this->numChannels = numChannels;
+		this->data = (char*)data.ptr + offset;
 	}
 
 	virtual void seek(uint32_t sample) override
@@ -74,7 +76,7 @@ struct Pcm16Source : AudioSource
 	{
 		uint32_t numToRead = (uint32_t)sf::clamp((int32_t)numSamples - (int32_t)sample, 0, (int32_t)num);
 
-		const int16_t *ptr = (const int16_t*)dataRef.ptr + (sample * numChannels);
+		const int16_t *ptr = (const int16_t*)data + (sample * numChannels);
 		uint32_t numUnits = numToRead * numChannels;
 #if SF_FLOAT4_SCALAR
 		float scale = 1.0f/32768.0f;
@@ -127,6 +129,9 @@ static void loadImp(void *user, const ContentFile &file)
 	spsound_util_init(&su, file.data, file.size);
 	spsound_header header = spsound_decode_header(&su);
 	if (!spfile_util_failed(&su.file)) {
+		imp->takes.resizeUninit(header.info.num_takes);
+		spsound_decode_takes_to(&su, imp->takes.data);
+
 		imp->data.reset();
 		imp->data.ptr = sf::impBoxAllocate(header.s_audio.uncompressed_size + 16, &sf::destructRangeImp<char>);
 		imp->size = header.s_audio.uncompressed_size;
@@ -140,11 +145,15 @@ static void loadImp(void *user, const ContentFile &file)
 		return;
 	}
 
-	imp->info = header.info;
-	if (header.info.format == SPSOUND_FORMAT_PCM16) {
-		imp->sharedSource = sf::box<Pcm16Source>(imp->data,
-			header.info.sample_rate, header.info.num_channels, header.info.length_in_samples);
+	for (spsound_take &take : imp->takes) {
+		imp->info = header.info;
+		if (take.format == SPSOUND_FORMAT_PCM16) {
+			imp->sharedSources.push(sf::box<Pcm16Source>(imp->data, take.file_offset, take.sample_rate, take.num_channels, take.length_in_samples));
+		} else {
+			imp->sharedSources.push();
+		}
 	}
+
 
 	imp->assetFinishLoading();
 }
@@ -160,17 +169,23 @@ void SoundImp::assetStartLoading()
 void SoundImp::assetUnload()
 {
 	data.reset();
-	sharedSource.reset();
+	sharedSources.clear();
 }
 
-sf::Box<AudioSource> Sound::getSource() const
+sf::Box<AudioSource> Sound::getSource(uint32_t takeIndex) const
 {
 	SoundImp *imp = (SoundImp*)this;
-	if (imp->info.format == SPSOUND_FORMAT_VORBIS) {
-		return sf::box<VorbisSource>(imp->data, imp->size, imp->info.temp_memory_required,
-			imp->info.sample_rate, imp->info.num_channels);
+	if (imp->sharedSources[takeIndex]) {
+		return imp->sharedSources[takeIndex];
+	}
+
+	const spsound_take &take = takes[takeIndex];
+	if (take.format == SPSOUND_FORMAT_VORBIS) {
+		return sf::box<VorbisSource>(imp->data, take.file_offset, take.file_size, take.temp_memory_required,
+			take.sample_rate, take.num_channels);
 	} else {
-		return imp->sharedSource;
+		sf_failf("Unhandled non-shared source: %u", take.format);
+		return { };
 	}
 }
 

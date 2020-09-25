@@ -14,8 +14,9 @@ struct Sound : Asset
 	using PropType = NoAssetProps;
 
 	spsound_info info = { };
+	sf::Array<spsound_take> takes;
 
-	sf::Box<AudioSource> getSource() const;
+	sf::Box<AudioSource> getSource(uint32_t takeIndex) const;
 };
 
 using SoundRef = Ref<Sound>;

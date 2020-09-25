@@ -358,6 +358,7 @@ void spfile_util_free(spfile_util *su)
 	while (to_free) {
 		void *next = *(void**)to_free;
 		sp_free(to_free);
+
 		to_free = next;
 	}
 	memset(su, 0, sizeof(spfile_util));
@@ -805,12 +806,16 @@ bool spsound_util_init(spsound_util *su, const void *data, size_t size)
 	spfile_check(header->header.magic == SPFILE_HEADER_SPSOUND);
 	spfile_check(header->header.header_info_size == sizeof(spsound_info));
 	spfile_check(header->header.version == 1);
-	spfile_check(header->header.num_sections == 1);
-	spfile_check(header->info.num_channels >= 1);
-	spfile_check(header->info.num_channels <= 2);
-	spfile_check(header->info.format >= SPSOUND_FORMAT_PCM16 && header->info.format <= SPSOUND_FORMAT_VORBIS);
+	spfile_check(header->header.num_sections == 2);
 
 	return true;
+}
+
+bool spsound_decode_takes_to(spsound_util *su, spsound_take *takes)
+{
+	if (su->file.failed) return false;
+	spsound_header *header = (spsound_header*)su->file.data;
+	return spfile_decode_section_to(&su->file, &header->s_takes, takes);
 }
 
 bool spsound_decode_audio_to(spsound_util *su, void *buffer)
@@ -826,6 +831,13 @@ spsound_header spsound_decode_header(spsound_util *su)
 	if (su->file.failed) return header;
 	memcpy(&header, su->file.data, sizeof(spsound_header));
 	return header;
+}
+
+spsound_take *spsound_decode_takes(spsound_util *su)
+{
+	if (su->file.failed) return NULL;
+	spsound_header *header = (spsound_header*)su->file.data;
+	return (spsound_take*)spfile_decode_section(&su->file, &header->s_takes);
 }
 
 void *spsound_decode_audio(spsound_util *su)

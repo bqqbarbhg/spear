@@ -1380,13 +1380,21 @@ struct SoundTask : Task
 
 	virtual bool addInput(TaskInstance &ti, const sf::Symbol &path) 
 	{
+		if (path.size() < 4) return false;
+		size_t endIx = sf::indexOf(path, "_alt_");
+		if (endIx == SIZE_MAX) {
+			endIx = path.size() - 4;
+		}
 		if (sf::endsWith(path, ".ogg") || sf::endsWith(path, ".wav")) {
-			ti.inputs[s_src] = path;
+			sf::Symbol alt = sf::Symbol(path.data + endIx, path.size() - endIx);
+			ti.inputs[alt] = path;
 		} else {
 			return false;
 		}
-		ti.outputs[s_dst] = symf("%s.spsnd", path.data);
-		ti.assets.insert(path);
+
+		sf::Symbol baseName = sf::Symbol(path.data, endIx);
+		ti.outputs[s_dst] = symf("%s.spsnd", baseName);
+		ti.assets.insert(baseName);
 		return true;
 	}
 
@@ -1394,16 +1402,19 @@ struct SoundTask : Task
 	{
 		sf::Array<sf::StringBuf> args;
 
-		sf::StringBuf srcFile, tempFile, dstFile;
-		sf::appendPath(srcFile, p.dataRoot, ti.inputs[s_src]);
+		sf::StringBuf tempFile, dstFile;
 		sf::appendPath(tempFile, p.tempRoot, ti.outputs[s_dst]);
 		sf::appendPath(dstFile, p.buildRoot, ti.outputs[s_dst]);
 
 		args.push("--level");
 		args.push().format("%d", p.level);
 
-		args.push("--input");
-		args.push(srcFile);
+		for (auto &pair : ti.inputs) {
+			sf::StringBuf srcFile;
+			sf::appendPath(srcFile, p.dataRoot, pair.val);
+			args.push("-i");
+			args.push(srcFile);
+		}
 
 		args.push("--output");
 		args.push(tempFile);

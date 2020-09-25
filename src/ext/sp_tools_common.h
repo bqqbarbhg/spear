@@ -148,6 +148,7 @@ typedef enum spfile_section_magic {
 	SPFILE_SECTION_MIP       = 0x2070696d, // 'mip '
 	SPFILE_SECTION_ANIMATION = 0x6d696e61, // 'anim'
 	SPFILE_SECTION_AUDIO     = 0x6f696461, // 'adio'
+	SPFILE_SECTION_TAKES     = 0x656b6174, // 'take'
 
 	SPFILE_SECTION_FORCE_U32 = 0x7fffffff,
 } spfile_section_magic;
@@ -341,18 +342,26 @@ typedef enum {
 	SPSOUND_FORMAT_FORCE_U32 = 0x7fffffff,
 } spsound_format;
 
-typedef struct spsound_info {
+typedef struct spsound_take {
 	spsound_format format;
 	float length_in_seconds;
 	uint32_t length_in_samples;
 	uint32_t sample_rate;
 	uint32_t num_channels;
 	uint32_t temp_memory_required;
+	uint32_t file_offset;
+	uint32_t file_size;
+} spsound_take;
+
+typedef struct spsound_info {
+	uint32_t num_takes;
+	uint32_t temp;
 } spsound_info;
 
 typedef struct spsound_header {
 	spfile_header header;
 	spsound_info info;
+	spfile_section s_takes;
 	spfile_section s_audio;
 } spsound_header;
 
@@ -432,9 +441,11 @@ typedef struct spsound_util {
 
 bool spsound_util_init(spsound_util *su, const void *data, size_t size);
 
+bool spsound_decode_takes_to(spsound_util *su, spsound_take *takes);
 bool spsound_decode_audio_to(spsound_util *su, void *buffer);
 
 spsound_header spsound_decode_header(spsound_util *su);
+spsound_take *spsound_decode_takes(spsound_util *su);
 void *spsound_decode_audio(spsound_util *su);
 
 
