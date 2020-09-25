@@ -211,6 +211,7 @@ struct AudioSystemImp final : AudioSystem
 		sp::SoundRef sound;
 		AudioInfo info;
 		uint32_t entitySoundId = ~0u;
+		float delay = 0.0f;
 	};
 
 	struct SoundComponentData
@@ -300,13 +301,13 @@ struct AudioSystemImp final : AudioSystem
 		g_audioThread.pushInstance(&g_audioThread.incoming, inst);
 	}
 
-	void playSoundImp(const sp::SoundRef &sound, const AudioInfo &info, uint32_t entitySoundId)
+	void playSoundImp(const sp::SoundRef &sound, const AudioInfo &info, uint32_t entitySoundId, float delay=0.0f)
 	{
-		if (sound.isLoading()) {
+		if (sound.isLoading() || delay > 0.0f) {
 			if (entitySoundId != ~0u) {
 				entitySounds[entitySoundId].pendingSoundId = pendingSounds.size;
 			}
-			pendingSounds.push({ sound, info, entitySoundId });
+			pendingSounds.push({ sound, info, entitySoundId, delay });
 		} else {
 			playLoadedSoundImp(sound, info, entitySoundId);
 		}
@@ -352,7 +353,7 @@ struct AudioSystemImp final : AudioSystem
 		playSoundImp(sound, info, ~0u);
 	}
 
-	void playOneShot(const sv::SoundEffect &effect, const sf::Vec3 &position) override
+	void playOneShot(const sv::SoundEffect &effect, const sf::Vec3 &position, float delay) override
 	{
 		if (!effect.soundName) return;
 
@@ -361,7 +362,7 @@ struct AudioSystemImp final : AudioSystem
 		info.volume = effect.volume;
 		info.pitch = effect.pitch + effect.pitchVariance * rng.nextFloat();
 		sp::SoundRef sound { effect.soundName };
-		playSoundImp(sound, info, ~0u);
+		playSoundImp(sound, info, ~0u, delay);
 	}
 
 	void addSound(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::SoundComponent &c, const Transform &transform) override
@@ -441,8 +442,10 @@ struct AudioSystemImp final : AudioSystem
 		}
 	}
 
-	void update() override
+	void update(const FrameArgs &frameArgs) override
 	{
+		float dt = frameArgs.dt;
+
 		// Recycle sound instances
 		{
 			SoundInstance *inst = g_audioThread.popInstances(&g_audioThread.outgoing);
@@ -465,6 +468,8 @@ struct AudioSystemImp final : AudioSystem
 		for (uint32_t i = 0; i < pendingSounds.size; i++) {
 			PendingSound &p = pendingSounds[i];
 			if (p.sound.isLoading()) continue;
+			p.delay -= dt;
+			if (p.delay > 0.0f) continue;
 
 			playLoadedSoundImp(p.sound, p.info, p.entitySoundId);
 

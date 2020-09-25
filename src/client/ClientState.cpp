@@ -190,7 +190,7 @@ void ClientState::update(const sv::ServerState *svState, const FrameArgs &frameA
 	systems.characterModel->updateAttachedEntities(systems);
 
 	systems.effect->update(systems.entities, frameArgs);
-	systems.audio->update();
+	systems.audio->update(frameArgs);
 
 	systems.blobShadow->updatePositions(systems.area, systems.boneUpdates, frameArgs);
 

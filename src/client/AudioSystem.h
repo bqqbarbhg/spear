@@ -28,13 +28,13 @@ struct AudioSystem : EntitySystem
 	virtual sf::Box<void> preloadSound(const sv::SoundEffect &effect) = 0;
 
 	virtual void playOneShot(const sp::SoundRef &sound, const AudioInfo &info) = 0;
-	virtual void playOneShot(const sv::SoundEffect &effect, const sf::Vec3 &position) = 0;
+	virtual void playOneShot(const sv::SoundEffect &effect, const sf::Vec3 &position, float delay=0.0f) = 0;
 
 	virtual void addSound(Systems &systems, uint32_t entityId, uint8_t componentIndex, const sv::SoundComponent &c, const Transform &transform) = 0;
 
 	virtual void updateSpatialSounds(const sf::Mat34 &worldToView) = 0;
 
-	virtual void update() = 0;
+	virtual void update(const FrameArgs &frameArgs) = 0;
 
 };
 

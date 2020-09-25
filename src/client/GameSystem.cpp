@@ -910,7 +910,7 @@ struct GameSystemImp final : GameSystem
 
 					if (auto *c = chr->svPrefab->findComponent<sv::CharacterComponent>()) {
 						sf::Vec3 targetPos = entity.transform.transformPoint(chr->centerOffset);
-						systems.audio->playOneShot(c->damageSound, targetPos);
+						systems.audio->playOneShot(c->damageSound, targetPos, 0.15f);
 					}
 				}
 			}
