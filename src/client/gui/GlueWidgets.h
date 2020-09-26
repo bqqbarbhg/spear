@@ -22,11 +22,16 @@ struct WidgetButton : WidgetBase<'g','b','t','n'>
 {
 	sp::SpriteRef sprite;
 	sf::Vec4 spriteColor = sf::Vec4(1.0f);
+	sf::Vec4 spriteColorHover = sf::Vec4(1.0f);
+	sf::Vec4 spriteColorPress = sf::Vec4(1.0f);
 
 	sp::FontRef font;
 	float fontHeight;
 	sf::Vec4 fontColor = sf::Vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	sf::Symbol text;
+
+	bool impHovered = false;
+	bool impPressed = false;
 
 	bool pressed = false;
 

@@ -351,6 +351,7 @@ struct GameSystemImp final : GameSystem
 	uint32_t moveSoundId = ~0u;
 
 	float autoSelectCooldown = 0.0f;
+	float endTurnTimer = 0.0f;
 
 	sf::Array<DamageNumber> damageNumbers;
 
@@ -840,8 +841,15 @@ struct GameSystemImp final : GameSystem
 					uint32_t entityId;
 					sf::UintFind find = systems.entities.svToEntity.findAll(e->propId);
 					while (find.next(entityId)) {
+						Entity &entity = systems.entities.entities[entityId];
+						Prefab &prefab = systems.entities.prefabs[entity.prefabId];
+
 						systems.characterModel->addTag(systems.entities, entityId, symOpen);
 						systems.characterModel->addOneShotTag(systems.entities, entityId, symOpening);
+
+						if (auto *c = prefab.svPrefab->findComponent<sv::DoorComponent>()) {
+							systems.audio->playOneShot(c->openSound, entity.transform.position);
+						}
 					}
 				} else {
 					return false;
@@ -1887,6 +1895,9 @@ struct GameSystemImp final : GameSystem
 					bt->font = guiResources.buttonFont;
 					bt->sprite = guiResources.buttonSprite;
 					bt->fontHeight = 20.0f;
+					bt->spriteColor = sf::Vec4(0.85f, 0.85f, 0.85f, 1.0f);
+					bt->spriteColorHover = sf::Vec4(1.0f, 1.0f, 1.0f, 1.0f);
+					bt->spriteColorPress = sf::Vec4(0.5f, 0.5f, 0.5f, 1.0f);
 				}
 				float width = 120.0f;
 				bt->boxOffset = sf::Vec2(frameArgs.guiResolution.x * 0.5f - width * 0.5f, 20.0f);
@@ -1903,27 +1914,32 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
-		if (chr && chrComp) {
-
-			if (turnInfo.characterId == selectedCharacterId && !frameArgs.editorOpen) {
-				auto bt = b.push<gui::WidgetButton>(2);
-				if (bt->created) {
-					bt->text = sf::Symbol("End Turn");
-					bt->font = guiResources.buttonFont;
-					bt->sprite = guiResources.buttonSprite;
-					bt->fontHeight = 40.0f;
-				}
-				bt->boxOffset = sf::Vec2(frameArgs.guiResolution.x - 140.0f - 20.0f, 20.0f);
-				bt->boxExtent = sf::Vec2(140.0f, 60.0f);
-
-				if (bt->pressed) {
-					auto action = sf::box<sv::EndTurnAction>();
-					action->characterId = chr->svId;
-					requestedActions.push(std::move(action));
-				}
-
-				b.pop();
+		endTurnTimer -= frameArgs.dt;
+		if (turnInfo.characterId == selectedCharacterId && !frameArgs.editorOpen || endTurnTimer > 0.0f) {
+			auto bt = b.push<gui::WidgetButton>(1001);
+			if (bt->created) {
+				bt->text = sf::Symbol("End Turn");
+				bt->font = guiResources.buttonFont;
+				bt->sprite = guiResources.buttonSprite;
+				bt->fontHeight = 40.0f;
+				bt->spriteColor = sf::Vec4(0.85f, 0.85f, 0.85f, 1.0f);
+				bt->spriteColorHover = sf::Vec4(1.0f, 1.0f, 1.0f, 1.0f);
+				bt->spriteColorPress = sf::Vec4(0.5f, 0.5f, 0.5f, 1.0f);
 			}
+			bt->boxOffset = sf::Vec2(frameArgs.guiResolution.x - 140.0f - 20.0f, 20.0f);
+			bt->boxExtent = sf::Vec2(140.0f, 60.0f);
+
+			if (bt->pressed && turnInfo.characterId == selectedCharacterId) {
+				auto action = sf::box<sv::EndTurnAction>();
+				action->characterId = chr->svId;
+				requestedActions.push(std::move(action));
+				endTurnTimer = 0.5f;
+			}
+
+			b.pop();
+		}
+
+		if (chr && chrComp) {
 
 			{
 				float hotbarCardHeight = 140.0f;

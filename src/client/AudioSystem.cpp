@@ -527,6 +527,9 @@ struct AudioSystemImp final : AudioSystem
 			if (backEntitySoundId != ~0u) {
 				entitySounds[backEntitySoundId].pendingSoundId = i;
 			}
+			if (p.entitySoundId != ~0u) {
+				entitySounds[p.entitySoundId].pendingSoundId = ~0u;
+			}
 			pendingSounds.removeSwap(i--);
 		}
 	}

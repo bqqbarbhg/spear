@@ -317,6 +317,7 @@ struct TapAreaComponent : ComponentBase<Component::TapArea>
 struct DoorComponent : ComponentBase<Component::Door>
 {
 	sf::Array<sf::Symbol> keyNames; //! Names of keys that fit the door
+	SoundEffect openSound; //! Played when the door opens
 };
 
 struct ShadowBlob sv_reflect()

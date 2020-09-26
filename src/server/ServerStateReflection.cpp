@@ -617,12 +617,17 @@ template<> void initType<DoorComponent>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(DoorComponent, keyNames),
+		sf_field(DoorComponent, openSound),
 	};
 	sf_struct_base(t, DoorComponent, Component, fields);
 
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "keyNames");
 		info.description = "Names of keys that fit the door";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "openSound");
+		info.description = "Played when the door opens";
 	}
 }
 

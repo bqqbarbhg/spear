@@ -15,7 +15,13 @@ void WidgetButton::layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Vec2
 
 void WidgetButton::paint(GuiPaint &paint)
 {
-	paint.canvas->draw(sprite, layoutOffset, layoutSize, spriteColor);
+	sf::Vec4 *pColor = &spriteColor;
+	if (impHovered) pColor = &spriteColorHover;
+	if (impPressed) pColor = &spriteColorPress;
+	impHovered = false;
+	impPressed = false;
+
+	paint.canvas->draw(sprite, layoutOffset, layoutSize, *pColor);
 
 	if (font && text) {
 		sf::Vec2 textSize = font->measureText(text, fontHeight);
@@ -34,11 +40,18 @@ void WidgetButton::paint(GuiPaint &paint)
 bool WidgetButton::onPointer(GuiPointer &pointer)
 {
 	pointer.blocked = true;
-	if (pointer.action == GuiPointer::Down) {
-		if (pointer.button == GuiPointer::MouseLeft || pointer.button == GuiPointer::Touch) {
+	if (pointer.button == GuiPointer::MouseLeft || pointer.button == GuiPointer::Touch) {
+		if (pointer.action == GuiPointer::Down) {
 			pressed = true;
+			impPressed = true;
+			return true;
+		} else if (pointer.action == GuiPointer::Hold || pointer.action == GuiPointer::LongPress) {
+			impPressed = true;
 			return true;
 		}
+	} else if (pointer.button == GuiPointer::MouseHover) {
+		impHovered = true;
+		return true;
 	}
 	return false;
 }
