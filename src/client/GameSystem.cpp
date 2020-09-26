@@ -861,17 +861,17 @@ struct GameSystemImp final : GameSystem
 			}
 
 			if (!ctx.immediate && ctx.begin && e->turnInfo.startTurn) {
-				if (Character *chr = findCharacter(turnInfo.characterId)) {
+				if (Character *chr = findCharacter(e->turnInfo.characterId)) {
 					if (!chr->sv.enemy && chr->sv.playerClientId == systems.frameArgs.localClientId) {
 						sf::Vec3 pos = sf::Vec3((float)chr->tile.x, 0.0f, (float)chr->tile.y);
 						sf::Vec4 projected = systems.frameArgs.mainRenderArgs.worldToClip * sf::Vec4(pos, 1.0f);
 						sf::Vec2 offset = sf::Vec2(projected.x / projected.w, projected.y / projected.w);
-						sf::Vec2 screenMin = sf::Vec2(-0.7f, -0.8f);
-						sf::Vec2 screenMax = sf::Vec2(0.7f, 0.8f);
+						sf::Vec2 screenMin = sf::Vec2(-0.6f, -0.7f);
+						sf::Vec2 screenMax = sf::Vec2(0.6f, 0.7f);
 						sf::Vec2 clamped = sf::clamp(offset, screenMin, screenMax);
 						if (clamped != offset) {
-							sf::Vec2 clampMin = sf::Vec2(-0.4f, -0.4f);
-							sf::Vec2 clampMax = sf::Vec2(0.4f, 0.4f);
+							sf::Vec2 clampMin = sf::Vec2(-0.3f, -0.3f);
+							sf::Vec2 clampMax = sf::Vec2(0.3f, 0.3f);
 							clamped = sf::clamp(offset, clampMin, clampMax);
 							sf::Mat44 clipToWorld = sf::inverse(systems.frameArgs.mainRenderArgs.worldToClip);
 							sf::Vec4 rayBegin = clipToWorld * sf::Vec4(clamped.x, clamped.y, 0.0f, 1.0f);
