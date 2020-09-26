@@ -378,7 +378,7 @@ struct AudioSystemImp final : AudioSystem
 		return data;
 	}
 
-	void playOneShot(sf::Box<sp::AudioSource> source, const AudioInfo &info)
+	void playOneShot(sf::Box<sp::AudioSource> source, const AudioInfo &info) override
 	{
 		playAudioSourceImp(std::move(source), info, ~0u);
 	}
@@ -428,7 +428,7 @@ struct AudioSystemImp final : AudioSystem
 		return entitySoundId;
 	}
 
-	void removeAttached(Entities &entities, uint32_t attachedSoundId) 
+	void removeAttached(Entities &entities, uint32_t attachedSoundId) override
 	{
 		uint32_t entitySoundId = attachedSoundId;
 		EntitySound &entitySound = entitySounds[entitySoundId];
