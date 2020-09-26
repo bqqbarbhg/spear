@@ -1589,10 +1589,9 @@ struct GameSystemImp final : GameSystem
 		}
 
 		if (selectedCharacterId == 0) {
-			tutorial.text = "Wait for your turn!";
 			if (Character *chr = findCharacter(turnInfo.characterId)) {
 				if (!chr->sv.enemy) {
-					tutorial.text = "Wait for your turn!\n\nAnother player is controlling this character! Use the [nb][b][[Select character][/][/] button to take control of this character.";
+					tutorial.text = "Wait for your turn!\n\nSomeone else is playing with this character! Use the [nb][b][[Select character][/][/] button to take control.";
 				}
 			}
 			return;
