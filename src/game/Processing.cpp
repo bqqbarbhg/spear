@@ -1512,8 +1512,8 @@ void initializeProcessing(const ProcessingDesc &desc)
 	if (doRgba) p.tasks.push(sf::box<MaskTextureTask>("rgba8", materialResolution, materialMips));
 
 	int giMaterialResolution = 32;
-	p.tasks.push(sf::box<GIAlbedoTextureTask>("bc1", giMaterialResolution));
-	p.tasks.push(sf::box<GIAlbedoTextureTask>("astc8x8", giMaterialResolution));
+	// p.tasks.push(sf::box<GIAlbedoTextureTask>("bc1", giMaterialResolution));
+	// p.tasks.push(sf::box<GIAlbedoTextureTask>("astc8x8", giMaterialResolution));
 	p.tasks.push(sf::box<GIAlbedoTextureTask>("rgba8", giMaterialResolution));
 
 	int maxGuiExtent = 512;

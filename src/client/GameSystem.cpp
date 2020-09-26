@@ -2602,12 +2602,14 @@ struct GameSystemImp final : GameSystem
 
 							requestedActions.push(std::move(action));
 
+#if 0
 							if (!svState.inBattle) {
 								auto skip = sf::box<sv::EndTurnAction>();
 								skip->characterId = selectedCharacterId;
 								skip->onlyNonBattle = true;
 								requestedActions.push(std::move(skip));
 							}
+#endif
 
 						} else if (didHover) {
 							hoveredTile = tile;
