@@ -338,10 +338,8 @@ uint32_t BeginLoopEndAudioSource::advance(uint32_t sample, float *dst, uint32_t 
 		if (mxa_cas32(&impStopFlag, 1, 2)) {
 			impState = End;
 			sample += numBegin;
-			sf::debugPrintLine("Begin->End from: %u", impBeginSample);
 		} else {
 			impState = Loop;
-			sf::debugPrintLine("Begin->Loop from: %u", impBeginSample);
 		}
 	}
 
@@ -357,10 +355,8 @@ uint32_t BeginLoopEndAudioSource::advance(uint32_t sample, float *dst, uint32_t 
 		if (mxa_cas32(&impStopFlag, 1, 2)) {
 			impState = End;
 			sample += numLoop;
-			sf::debugPrintLine("Loop->End from: %u", impBeginSample);
 		} else {
 			loop->seek(0);
-			sf::debugPrintLine("Loop->Loop from: %u", impBeginSample);
 		}
 	}
 
