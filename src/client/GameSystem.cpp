@@ -190,6 +190,7 @@ struct GameSystemImp final : GameSystem
 			Unknown,
 			Character,
 			Door,
+			Chest,
 		};
 
 		Type type = Unknown;
@@ -343,6 +344,7 @@ struct GameSystemImp final : GameSystem
 	bool castAnimDone = false;
 	bool castDone = false;
 	bool doorOpened = false;
+	bool chestOpened = false;
 
 	uint32_t moveWaypointIndex = ~0u;
 	sf::Vec3 moveVelocity;
@@ -811,6 +813,21 @@ struct GameSystemImp final : GameSystem
 					tutorial.enabled = false;
 				}
 			}
+			
+			if (auto *c = prefab->findComponent<sv::ChestComponent>()){ 
+				if ((e->prop.flags & sv::Prop::Used) != 0) {
+					uint32_t entityId;
+					sf::UintFind find = systems.entities.svToEntity.findAll(e->prop.id);
+					bool first = true;
+					while (find.next(entityId)) {
+						if (first) {
+							systems.effect->spawnAttachedEffect(systems, c->openEffect, entityId, c->openEffectOffset);
+							first = false;
+						}
+						systems.characterModel->addTag(systems.entities, entityId, symOpen);
+					}
+				}
+			}
 
 		} else if (const auto *e = event.as<sv::DoorOpenEvent>()) {
 
@@ -855,6 +872,50 @@ struct GameSystemImp final : GameSystem
 					return false;
 				}
 				doorOpened = true;
+			}
+
+		} else if (const auto *e = event.as<sv::ChestOpenEvent>()) {
+
+			if (!ctx.immediate) {
+				if (ctx.begin) {
+					chestOpened = false;
+					if (Character *chr = findCharacter(e->characterId)) {
+						systems.characterModel->addOneShotTag(systems.entities, chr->entityId, symUse);
+					}
+				}
+
+				bool doOpen = false;
+				if (!chestOpened) {
+					if (Character *chr = findCharacter(e->characterId)) {
+						sf::SmallArray<sf::Symbol, 16> events;
+						systems.characterModel->queryFrameEvents(systems.entities, chr->entityId, events);
+						if (sf::find(events, symUse)) doOpen = true;
+						// Failsafe
+						if (ctx.timer >= 2.0f) doOpen = true;
+					} else {
+						doOpen = true;
+					}
+				}
+
+				if (doOpen) {
+					uint32_t entityId;
+					sf::UintFind find = systems.entities.svToEntity.findAll(e->propId);
+					while (find.next(entityId)) {
+						Entity &entity = systems.entities.entities[entityId];
+						Prefab &prefab = systems.entities.prefabs[entity.prefabId];
+
+						systems.characterModel->addTag(systems.entities, entityId, symOpen);
+						systems.characterModel->addOneShotTag(systems.entities, entityId, symOpening);
+
+						if (auto *c = prefab.svPrefab->findComponent<sv::ChestComponent>()) {
+							systems.audio->playOneShot(c->openSound, entity.transform.position);
+							systems.effect->spawnAttachedEffect(systems, c->openEffect, entityId, c->openEffectOffset);
+						}
+					}
+				} else {
+					return false;
+				}
+				chestOpened = true;
 			}
 
 		} else if (const auto *e = event.as<sv::TurnUpdateEvent>()) {
@@ -2220,6 +2281,7 @@ struct GameSystemImp final : GameSystem
 		}
 
 		sf::SmallArray<uint32_t, 4> openableDoorSvIds;
+		sf::SmallArray<uint32_t, 4> openableChestSvIds;
 
 		tutorial.cardHasAnyTargets = false;
 		if (selectedCardSlot != ~0u) {
@@ -2271,6 +2333,42 @@ struct GameSystemImp final : GameSystem
 					}
 				}
 			}
+		} else {
+			Character *self = findCharacter(selectedCharacterId);
+
+			// Openable chests
+			static const sf::Vec2i dirs[] = {
+				{ -1, 0 }, { +1, 0 }, { 0, -1 }, { 0, +1 },
+				{ -1, -1 }, { +1, -1 }, { -1, +1 }, { +1, +1 }, 
+			};
+			for (const sf::Vec2i &dir : dirs) {
+				sf::Vec2i tile = self->tile + dir;
+				uint32_t svId;
+				sf::UintFind find = svState.getTileEntities(tile);
+				while (find.next(svId)) {
+					if (sv::getIdType(svId) != sv::IdType::Prop) continue;
+					const sv::Prop *prop = svState.props.find(svId);
+					if (!prop) continue;
+					if ((prop->flags & sv::Prop::Used) != 0) continue;
+					const sv::Prefab *chestPrefab = svState.prefabs.find(prop->prefabName);
+					if (!chestPrefab) continue;
+					const sv::ChestComponent *chestComp = chestPrefab->findComponent<sv::ChestComponent>();
+					if (!chestComp) continue;
+					if (chestComp->keyNames.size > 0) continue;
+
+					HighlightDesc desc = { };
+					desc.color = sf::Vec3(1.0f);
+
+					openableChestSvIds.push(svId);
+
+					uint32_t entityId;
+					sf::UintFind entityFind = systems.entities.svToEntity.findAll(svId);
+					while (entityFind.next(entityId)) {
+						systems.characterModel->addFrameHighlightToEntity(systems.entities, entityId, desc, frameArgs);
+					}
+				}
+			}
+
 		}
 
 		for (Pointer &pointer : input.pointers) {
@@ -2299,6 +2397,15 @@ struct GameSystemImp final : GameSystem
 					if (const sv::Prop *prop = svState.props.find(entity.svId)) {
 						if ((prop->flags & sv::Prop::NoCollision) == 0) {
 							target = { TapTarget::Door, entity.svId };
+						}
+					}
+				}
+
+				// Select closed chests
+				if (prefab.svPrefab->findComponent<sv::ChestComponent>()) {
+					if (const sv::Prop *prop = svState.props.find(entity.svId)) {
+						if ((prop->flags & sv::Prop::Used) == 0) {
+							target = { TapTarget::Chest, entity.svId };
 						}
 					}
 				}
@@ -2391,7 +2498,7 @@ struct GameSystemImp final : GameSystem
 							auto action = sf::box<sv::OpenDoorAction>();
 
 							action->characterId = selectedCharacterId;
-							action->doorId = pointerState->startTarget.svId;
+							action->doorId = doorId;
 							if (selectedCardSlot != ~0u) {
 								action->cardId = caster->selectedCards[selectedCardSlot].currentSvId;
 							} else {
@@ -2402,6 +2509,27 @@ struct GameSystemImp final : GameSystem
 							selectedCardSlot = ~0u;
 						}
 					}
+
+				} else if (pointerState->startTarget.type == TapTarget::Chest) {
+
+					uint32_t chestId = pointerState->startTarget.svId;
+					if (didClick) {
+						if (sf::find(openableChestSvIds, chestId)) {
+							auto action = sf::box<sv::OpenChestAction>();
+
+							action->characterId = selectedCharacterId;
+							action->chestId = chestId;
+							if (selectedCardSlot != ~0u) {
+								action->cardId = caster->selectedCards[selectedCardSlot].currentSvId;
+							} else {
+								action->cardId = 0;
+							}
+
+							requestedActions.push(std::move(action));
+							selectedCardSlot = ~0u;
+						}
+					}
+
 
 				} else if (moveSet.distanceToTile.size() > 0 && selectedCardSlot == ~0u) {
 

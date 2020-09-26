@@ -126,6 +126,10 @@ void Entities::addPrefabComponents(Systems &systems, uint32_t prefabId)
 			if (c->openSound.soundName) {
 				prefab.componentData.push({ c, systems.audio->preloadSound(c->openSound) });
 			}
+		} else if (const auto *c = comp->as<sv::ChestComponent>()) {
+			if (c->openSound.soundName) {
+				prefab.componentData.push({ c, systems.audio->preloadSound(c->openSound) });
+			}
 		}
 	}
 }

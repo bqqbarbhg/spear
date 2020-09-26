@@ -19,6 +19,7 @@ template<> void initType<Component>(Type *t)
 		sf_poly(Component, CharacterModel, CharacterModelComponent),
 		sf_poly(Component, TapArea, TapAreaComponent),
 		sf_poly(Component, Door, DoorComponent),
+		sf_poly(Component, Chest, ChestComponent),
 		sf_poly(Component, BlobShadow, BlobShadowComponent),
 		sf_poly(Component, Card, CardComponent),
 		sf_poly(Component, CardAttach, CardAttachComponent),
@@ -79,6 +80,7 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, ReplaceLocalProp, ReplaceLocalPropEvent),
 		sf_poly(Event, SetPropCollision, SetPropCollisionEvent),
 		sf_poly(Event, DoorOpen, DoorOpenEvent),
+		sf_poly(Event, ChestOpen, ChestOpenEvent),
 		sf_poly(Event, AddCharacter, AddCharacterEvent),
 		sf_poly(Event, RemoveCharacter, RemoveCharacterEvent),
 		sf_poly(Event, AddCard, AddCardEvent),
@@ -129,6 +131,7 @@ template<> void initType<Action>(Type *t)
 		sf_poly(Action, SelectCharacter, SelectCharacterAction),
 		sf_poly(Action, UseCard, UseCardAction),
 		sf_poly(Action, OpenDoor, OpenDoorAction),
+		sf_poly(Action, OpenChest, OpenChestAction),
 	};
 	sf_struct_poly(t, Action, type, { }, polys);
 }
@@ -628,6 +631,36 @@ template<> void initType<DoorComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "openSound");
 		info.description = "Played when the door opens";
+	}
+}
+
+template<> void initType<ChestComponent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(ChestComponent, drops),
+		sf_field(ChestComponent, keyNames),
+		sf_field(ChestComponent, openSound),
+		sf_field(ChestComponent, openEffect),
+		sf_field(ChestComponent, openEffectOffset),
+	};
+	sf_struct_base(t, ChestComponent, Component, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "keyNames");
+		info.description = "Names of keys that fit the chest";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "openSound");
+		info.description = "Played when the chest opens";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "openEffect");
+		info.description = "Effect to spawn when opened";
+		info.prefab = true;
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "openEffectOffset");
+		info.description = "Offset where openEffect is spawned";
 	}
 }
 
@@ -1333,6 +1366,15 @@ template<> void initType<DoorOpenEvent>(Type *t)
 	sf_struct_base(t, DoorOpenEvent, Event, fields);
 }
 
+template<> void initType<ChestOpenEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(ChestOpenEvent, characterId),
+		sf_field(ChestOpenEvent, propId),
+	};
+	sf_struct_base(t, ChestOpenEvent, Event, fields);
+}
+
 template<> void initType<AddCharacterEvent>(Type *t)
 {
 	static Field fields[] = {
@@ -1655,6 +1697,16 @@ template<> void initType<OpenDoorAction>(Type *t)
 	sf_struct_base(t, OpenDoorAction, Action, fields);
 }
 
+template<> void initType<OpenChestAction>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(OpenChestAction, characterId),
+		sf_field(OpenChestAction, chestId),
+		sf_field(OpenChestAction, cardId),
+	};
+	sf_struct_base(t, OpenChestAction, Action, fields);
+}
+
 template<> void initType<DiceRoll>(Type *t)
 {
 	static Field fields[] = {
@@ -1939,6 +1991,20 @@ template<> void initType<CharacterMaterial>(Type *t)
 		ReflectionInfo &info = addTypeReflectionInfo(t, "material");
 		info.description = "Material asset name";
 		info.asset = true;
+	}
+}
+
+template<> void initType<ChestDrop>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(ChestDrop, cardPrefab),
+	};
+	sf_struct(t, ChestDrop, fields);
+
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "cardPrefab");
+		info.description = "Name of the card to drop";
+		info.prefab = true;
 	}
 }
 

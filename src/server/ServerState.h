@@ -50,6 +50,7 @@ struct Component
 		CharacterModel,
 		TapArea,
 		Door,
+		Chest,
 		BlobShadow,
 		Card,
 		CardAttach,
@@ -320,6 +321,20 @@ struct DoorComponent : ComponentBase<Component::Door>
 	SoundEffect openSound; //! Played when the door opens
 };
 
+struct ChestDrop sv_reflect()
+{
+	sf::Symbol cardPrefab sv_reflect(prefab); //! Name of the card to drop
+};
+
+struct ChestComponent : ComponentBase<Component::Chest>
+{
+	sf::Array<ChestDrop> drops;
+	sf::Array<sf::Symbol> keyNames; //! Names of keys that fit the chest
+	SoundEffect openSound; //! Played when the chest opens
+	sf::Symbol openEffect sv_reflect(prefab); //! Effect to spawn when opened
+	sf::Vec3 openEffectOffset; //! Offset where openEffect is spawned
+};
+
 struct ShadowBlob sv_reflect()
 {
 	sf::Symbol boneName;
@@ -573,6 +588,7 @@ struct Prop sv_reflect()
 	/* no-reflect */ {
 	/* no-reflect */ Wall = 0x1,
 	/* no-reflect */ NoCollision = 0x2,
+	/* no-reflect */ Used = 0x4,
 	/* no-reflect */ };
 
 	uint32_t id;
@@ -718,6 +734,7 @@ struct Event
 		ReplaceLocalProp,
 		SetPropCollision,
 		DoorOpen,
+		ChestOpen,
 		AddCharacter,
 		RemoveCharacter,
 		AddCard,
@@ -914,6 +931,12 @@ struct SetPropCollisionEvent : EventBase<Event::SetPropCollision>
 };
 
 struct DoorOpenEvent : EventBase<Event::DoorOpen>
+{
+	uint32_t characterId;
+	uint32_t propId;
+};
+
+struct ChestOpenEvent : EventBase<Event::ChestOpen>
 {
 	uint32_t characterId;
 	uint32_t propId;
@@ -1187,6 +1210,7 @@ struct Action
 		SelectCharacter,
 		UseCard,
 		OpenDoor,
+		OpenChest,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -1250,6 +1274,13 @@ struct OpenDoorAction : ActionBase<Action::OpenDoor>
 {
 	uint32_t characterId;
 	uint32_t doorId;
+	uint32_t cardId;
+};
+
+struct OpenChestAction : ActionBase<Action::OpenChest>
+{
+	uint32_t characterId;
+	uint32_t chestId;
 	uint32_t cardId;
 };
 

@@ -452,6 +452,10 @@ void ServerState::applyEvent(const Event &event)
 				}
 			}
 		}
+	} else if (auto *e = event.as<ChestOpenEvent>()) {
+		if (Prop *prop = findProp(*this, e->propId)) {
+			prop->flags |= Prop::Used;
+		}
 	} else if (auto *e = event.as<AddCharacterEvent>()) {
 		auto res = characters.insertOrAssign(e->character);
 		sv_check(*this, res.inserted);
@@ -851,6 +855,8 @@ static void walkPrefabs(ServerState &state, sf::Array<sf::Box<Event>> *events, s
 			walkPrefabs(state, events, marks, c->defeatEffect);
 		} else if (auto *c = component->as<GlobalEffectsComponent>()) {
 			walkPrefabs(state, events, marks, c->meleeHitEffect);
+		} else if (auto *c = component->as<ChestComponent>()) {
+			walkPrefabs(state, events, marks, c->openEffect);
 		}
 	}
 }
@@ -2376,6 +2382,58 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 			e->characterId = openerId;
 			e->propId = doorId;
 			pushEvent(*this, events, e);
+		}
+
+		startNextCharacterTurn(events, false);
+
+		return true;
+	} else if (const auto *ac = action.as<OpenChestAction>()) {
+		uint32_t openerId = ac->characterId;
+		uint32_t chestId = ac->chestId;
+		uint32_t cardId = ac->cardId;
+		Character *openerChr = findCharacter(*this, openerId);
+		Prop *chestProp = findProp(*this, chestId);
+		Card *card = cardId ? findCard(*this, cardId) : nullptr;
+		if (!openerChr) return false;
+		if (!chestProp) return false;
+		if (cardId && !card) return false;
+		if (chestProp->flags & Prop::Used) return false;
+		Prefab *chestPrefab = loadPrefab(*this, events, chestProp->prefabName);
+		if (!chestPrefab) return false;
+		ChestComponent *chestComp = chestPrefab->findComponent<ChestComponent>();
+		if (!chestComp) return false;
+
+		if (cardId) {
+			auto e = sf::box<UseCardEvent>();
+			e->characterId = openerId;
+			e->targetId = 0;
+			e->cardId = cardId;
+			pushEvent(*this, events, e);
+		}
+
+		if (cardId) {
+			removeCard(events, cardId);
+		}
+
+		{
+			auto e = sf::box<ChestOpenEvent>();
+			e->characterId = openerId;
+			e->propId = chestId;
+			pushEvent(*this, events, e);
+		}
+
+		for (ChestDrop &drop : chestComp->drops) {
+			Card card;
+			card.prefabName = drop.cardPrefab;
+
+			uint32_t cardId = addCard(events, card);
+			if (!cardId) continue;
+
+			GiveCardInfo giveInfo;
+			giveInfo.worldTile.x = chestProp->transform.position.x >> 16;
+			giveInfo.worldTile.y = chestProp->transform.position.y >> 16;
+			giveInfo.fromWorld = true;
+			giveCard(events, cardId, openerId, giveInfo);
 		}
 
 		startNextCharacterTurn(events, false);
