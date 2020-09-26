@@ -1757,6 +1757,9 @@ struct GameSystemImp final : GameSystem
 				uint32_t cooldown = 0;
 				if (auto *c = card->svPrefab->findComponent<sv::CardComponent>()) {
 					cooldown = c->cooldown;
+					if (c->name == sf::String("Health Potion")) {
+						continue;
+					}
 				}
 
 				if (card->svPrefab->findComponent<sv::CardKeyComponent>()) {
