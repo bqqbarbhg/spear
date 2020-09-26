@@ -274,7 +274,6 @@ struct GameSystemImp final : GameSystem
 		bool enabled = true;
 		bool hasMoved = false;
 		bool cardHasAnyTargets = false;
-		bool hasKey = false;
 		sf::StringBuf text;
 		float requestActionCooldown = 0.0f;
 	};
@@ -777,14 +776,6 @@ struct GameSystemImp final : GameSystem
 
 			if (Character *chr = findCharacter(e->ownerId)) {
 				chr->cardIds.push(e->cardId);
-
-				if (!tutorial.hasKey && !chr->sv.originalEnemy) {
-					if (Card *card = findCard(e->cardId)) {
-						if (auto *c = card->svPrefab->findComponent<sv::CardKeyComponent>()) {
-							tutorial.hasKey = true;
-						}
-					}
-				}
 			}
 
 		} else if (const auto *e = event.as<sv::SelectCardEvent>()) {
@@ -1670,6 +1661,8 @@ struct GameSystemImp final : GameSystem
 			}
 		}
 
+		bool hasKey = false;
+
 		if (!suggestedCardIsOffensive) {
 			for (uint32_t slotI = 0; slotI < sv::NumSelectedCards; slotI++) {
 				uint32_t cardId = chr->selectedCards[slotI].currentSvId;
@@ -1682,6 +1675,10 @@ struct GameSystemImp final : GameSystem
 					cooldown = c->cooldown;
 				}
 
+				if (card->svPrefab->findComponent<sv::CardKeyComponent>()) {
+					hasKey = true;
+				}
+
 				if (svState.canTarget(chr->svId, chr->svId, card->svPrefab->name)) {
 					if (slotI < suggestedCardSlot || cooldown > suggestedBestCooldown) {
 						suggestedBestCooldown = cooldown;
@@ -1692,8 +1689,29 @@ struct GameSystemImp final : GameSystem
 		}
 
 		if (!enemyVisible) {
-			if (tutorial.hasKey) {
-				tutorial.text = "Move to the door and use the card [nb][b]Key[/][/] to open it.";
+			if (hasKey) {
+				// HACK HACK
+				if (chr->tile == sf::Vec2i(1, -12) || chr->tile == sf::Vec2i(2, -12)) {
+					bool keySelected = false;
+					if (selectedCardSlot != ~0u) {
+						if (Card *card = findCard(chr->selectedCards[selectedCardSlot].currentSvId)) {
+							if (card->svPrefab->findComponent<sv::CardKeyComponent>()) {
+								keySelected = true;
+							}
+						}
+					}
+					if (keySelected) {
+						tutorial.text = "Click on the highlighted door to open it using the card [nb][b]Key[/][/]!";
+					} else {
+						tutorial.text = "Click the card [nb][b]Key[/][/] to select it.";
+					}
+				} else {
+					if (turnInfo.movementLeft > 0) {
+						tutorial.text = "Move to the door and use the card [nb][b]Key[/][/] to open it.";
+					} else {
+						tutorial.text = "Use the [nb][b][[End turn][/][/] button to finish your turn.";
+					}
+				}
 			} else {
 				if (!tutorial.hasMoved) {
 					tutorial.text = "Click a green square to move.";
