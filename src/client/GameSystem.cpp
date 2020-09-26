@@ -1666,7 +1666,6 @@ struct GameSystemImp final : GameSystem
 
 				if (!hitWall) {
 					enemyVisible = true;
-					break;
 				}
 			}
 		}
@@ -1997,9 +1996,11 @@ struct GameSystemImp final : GameSystem
 				inventoryButton->inactiveSprite = guiResources.inventory;
 				inventoryButton->activeSprite = guiResources.inventoryOpen;
 			} else {
+#if 0
 				if (input.keyDown[SAPP_KEYCODE_E] && !input.prevKeyDown[SAPP_KEYCODE_E]) {
 					inventoryButton->active = !inventoryButton->active;
 				}
+#endif
 			}
 			inventoryButton->boxOffset.x = frameArgs.guiResolution.x - 140.0f;
 			inventoryButton->boxOffset.y = frameArgs.guiResolution.y - 140.0f;
