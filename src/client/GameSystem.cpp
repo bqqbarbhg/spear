@@ -2336,35 +2336,37 @@ struct GameSystemImp final : GameSystem
 		} else {
 			Character *self = findCharacter(selectedCharacterId);
 
-			// Openable chests
-			static const sf::Vec2i dirs[] = {
-				{ -1, 0 }, { +1, 0 }, { 0, -1 }, { 0, +1 },
-				{ -1, -1 }, { +1, -1 }, { -1, +1 }, { +1, +1 }, 
-			};
-			for (const sf::Vec2i &dir : dirs) {
-				sf::Vec2i tile = self->tile + dir;
-				uint32_t svId;
-				sf::UintFind find = svState.getTileEntities(tile);
-				while (find.next(svId)) {
-					if (sv::getIdType(svId) != sv::IdType::Prop) continue;
-					const sv::Prop *prop = svState.props.find(svId);
-					if (!prop) continue;
-					if ((prop->flags & sv::Prop::Used) != 0) continue;
-					const sv::Prefab *chestPrefab = svState.prefabs.find(prop->prefabName);
-					if (!chestPrefab) continue;
-					const sv::ChestComponent *chestComp = chestPrefab->findComponent<sv::ChestComponent>();
-					if (!chestComp) continue;
-					if (chestComp->keyNames.size > 0) continue;
+			if (self) {
+				// Openable chests
+				static const sf::Vec2i dirsChest[] = {
+					{ -1, 0 }, { +1, 0 }, { 0, -1 }, { 0, +1 },
+					{ -1, -1 }, { +1, -1 }, { -1, +1 }, { +1, +1 }, 
+				};
+				for (const sf::Vec2i &dir : dirsChest) {
+					sf::Vec2i tile = self->tile + dir;
+					uint32_t svId;
+					sf::UintFind find = svState.getTileEntities(tile);
+					while (find.next(svId)) {
+						if (sv::getIdType(svId) != sv::IdType::Prop) continue;
+						const sv::Prop *prop = svState.props.find(svId);
+						if (!prop) continue;
+						if ((prop->flags & sv::Prop::Used) != 0) continue;
+						const sv::Prefab *chestPrefab = svState.prefabs.find(prop->prefabName);
+						if (!chestPrefab) continue;
+						const sv::ChestComponent *chestComp = chestPrefab->findComponent<sv::ChestComponent>();
+						if (!chestComp) continue;
+						if (chestComp->keyNames.size > 0) continue;
 
-					HighlightDesc desc = { };
-					desc.color = sf::Vec3(1.0f);
+						HighlightDesc desc = { };
+						desc.color = sf::Vec3(1.0f);
 
-					openableChestSvIds.push(svId);
+						openableChestSvIds.push(svId);
 
-					uint32_t entityId;
-					sf::UintFind entityFind = systems.entities.svToEntity.findAll(svId);
-					while (entityFind.next(entityId)) {
-						systems.characterModel->addFrameHighlightToEntity(systems.entities, entityId, desc, frameArgs);
+						uint32_t entityId;
+						sf::UintFind entityFind = systems.entities.svToEntity.findAll(svId);
+						while (entityFind.next(entityId)) {
+							systems.characterModel->addFrameHighlightToEntity(systems.entities, entityId, desc, frameArgs);
+						}
 					}
 				}
 			}
