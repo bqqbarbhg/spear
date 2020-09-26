@@ -72,7 +72,10 @@ StringBuf::StringBuf(String s)
 
 StringBuf& StringBuf::operator=(String s)
 {
-	if (s.size == 0) return *this;
+	if (s.size == 0) {
+		clear();
+		return *this;
+	}
 	if (s.size > capacity) impGrowToGeometric(s.size);
 	memcpy(data, s.data, s.size);
 	data[s.size] = '\0';

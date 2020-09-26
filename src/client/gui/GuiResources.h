@@ -2,6 +2,7 @@
 
 #include "sp/Sprite.h"
 #include "sp/Font.h"
+#include "sp/RichText.h"
 
 #include "client/GuiCard.h"
 
@@ -29,6 +30,8 @@ struct GuiResources
 	sp::FontRef buttonFont;
 
 	sp::FontRef damageFont;
+
+	sp::RichTextStyle tutorialRichStyle;
 
 	GuiResources();
 };

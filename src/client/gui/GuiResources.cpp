@@ -26,6 +26,11 @@ GuiResources::GuiResources()
 	buttonSprite.load("Assets/Gui/Misc/Button_Base.png");
 	buttonFont.load("Assets/Gui/Font/Alegreya-Regular.ttf");
 	damageFont.load("Assets/Gui/Font/Overlock-Regular.ttf");
+
+	tutorialRichStyle.font.regular.load(sf::Symbol("Assets/Gui/Font/Overlock-Regular.ttf"));
+	tutorialRichStyle.font.bold.load(sf::Symbol("Assets/Gui/Font/Overlock-Bold.ttf"));
+	tutorialRichStyle.font.italic.load(sf::Symbol("Assets/Gui/Font/Overlock-Italic.ttf"));
+	tutorialRichStyle.font.boldItalic.load(sf::Symbol("Assets/Gui/Font/Overlock-BoldItalic.ttf"));
 }
 
 } }

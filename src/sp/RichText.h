@@ -69,9 +69,18 @@ struct RichTextDesc
 	float wrapWidth = 10000.0f;
 	float fontHeight = 0.0f;
 	float lineSpacing = 1.0f;
-	float paragraphSpacing = 1.5f;
+	float paragraphSpacing = 1.2f;
 };
 
-sf::Vec2 drawRichText(sp::Canvas &canvas, const RichTextDesc &desc, sf::String paragraphs);
+struct RichTextMeasure
+{
+	uint32_t numLines = 0;
+	float maxLineWidth = 0.0f;
+	float lastLineWidth = 0.0f;
+	float height = 0.0f;
+};
+
+RichTextMeasure drawRichText(sp::Canvas &canvas, const RichTextDesc &desc, sf::String text);
+RichTextMeasure measureRichText(const RichTextDesc &desc, sf::String text);
 
 }

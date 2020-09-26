@@ -58,7 +58,7 @@ static RichOffset findNextCharacter(sf::Slice<const RichTextDraw> draws, const R
 	return begin;
 }
 
-static RichSpan findNextWord(sf::Slice<const RichTextDraw> draws, const RichOffset &previousEnd)
+static RichSpan findNextWord(sf::Slice<const RichTextDraw> draws, const RichOffset &previousEnd, bool &outNewLine, bool &outNewParagraph)
 {
 	// Skip leading whitespace
 	RichOffset begin = previousEnd;
@@ -68,6 +68,10 @@ static RichSpan findNextWord(sf::Slice<const RichTextDraw> draws, const RichOffs
 			begin.offset = 0;
 			begin.draw++;
 			continue;
+		}
+		if (begin.offset == 0) {
+			if (draw.newLine) outNewLine = true;
+			if (draw.newParagraph) outNewParagraph = true;
 		}
 		if (draw.style.noBreak) break;
 		while (begin.offset < draw.text.size) {
@@ -136,7 +140,7 @@ static float measureRichText(sf::Slice<const RichTextDraw> draws, const RichOffs
 	return width;
 }
 
-static sf::Vec2 drawRichLine(sf::Slice<const RichTextDraw> draws, const RichOffset &begin, const RichOffset &end, sp::Canvas &canvas, const sf::Vec2 &startPosition, bool forceHyphen=false)
+static void drawRichLine(sf::Slice<const RichTextDraw> draws, const RichOffset &begin, const RichOffset &end, sp::Canvas &canvas, const sf::Vec2 &startPosition, bool forceHyphen=false)
 {
 	sf::Vec2 origin = startPosition;
 	float width = 0.0f;
@@ -203,8 +207,6 @@ static sf::Vec2 drawRichLine(sf::Slice<const RichTextDraw> draws, const RichOffs
 		pos.draw++;
 		pos.offset = 0;
 	}
-
-	return origin;
 }
 
 static uint32_t parseHexDigit(char c) {
@@ -292,7 +294,7 @@ static void setSpriteDraw(RichTextDraw &draw, const RichSprite *sprite, const Ri
 	draw.newParagraph = false;
 }
 
-sf::Vec2 drawRichText(sp::Canvas &canvas, const RichTextDesc &desc, sf::String text)
+static RichTextMeasure drawRichTextImp(sp::Canvas *canvas, const RichTextDesc &desc, sf::String text)
 {
 	sf::SmallArray<sf::Vec4, 8> colorStack;
 	sf::SmallArray<const sf::KeyVal<RichTagString, RichFont>*, 8> fontStack;
@@ -494,8 +496,12 @@ sf::Vec2 drawRichText(sp::Canvas &canvas, const RichTextDesc &desc, sf::String t
 	sf::Vec2 origin = desc.offset;
 	float extraWidth = 0.0f;
 	float currentWidth = 0.0f;
-	RichSpan line = findNextWord(draws, RichOffset{ 0, 0 });
+	bool firstNewLine = false;
+	bool firstNewParagraph = false;
+	RichSpan line = findNextWord(draws, RichOffset{ 0, 0 }, firstNewLine, firstNewParagraph);
 	currentWidth = measureRichText(draws, line.begin, line.end, &extraWidth);
+
+	RichTextMeasure measure;
 
 	while (line.begin.draw < draws.size) {
 
@@ -546,37 +552,60 @@ sf::Vec2 drawRichText(sp::Canvas &canvas, const RichTextDesc &desc, sf::String t
 				split = findNextCharacter(draws, split);
 			}
 
-			drawRichLine(draws, line.begin, split, canvas, origin, true);
+			float extra;
+			float width = measureRichText(draws, line.begin, split, &extra, true);
+
+			if (canvas) drawRichLine(draws, line.begin, split, *canvas, origin, true);
 			origin.x = desc.offset.x;
 			float spacing = desc.lineSpacing;
 			origin.y += desc.fontHeight * spacing;
+			measure.numLines++;
+			measure.maxLineWidth = sf::max(measure.maxLineWidth, width);
+			measure.lastLineWidth = width;
 
 			line.begin = split;
 			currentWidth = measureRichText(draws, line.begin, line.end, &extraWidth);
 		}
 
-		RichSpan word = findNextWord(draws, line.end);
+		bool newLine = false;
+		bool newParagraph = false;
+		RichSpan word = findNextWord(draws, line.end, newLine, newParagraph);
 		float newExtraWidth = 0.0f;
 		float newWidth = currentWidth + measureRichText(draws, line.end, word.end, &newExtraWidth);
-		if (newWidth + newExtraWidth <= wrapWidth && line.end.draw < draws.size) {
+		if (newWidth + newExtraWidth <= wrapWidth && line.end.draw < draws.size && !newLine) {
 			currentWidth = newWidth;
 			extraWidth = newExtraWidth;
 			line.end = word.end;
 			continue;
 		}
 
-		drawRichLine(draws, line.begin, line.end, canvas, origin);
+		if (canvas) drawRichLine(draws, line.begin, line.end, *canvas, origin);
 		origin.x = desc.offset.x;
 		float spacing = desc.lineSpacing;
-		if (word.end.draw > word.begin.draw && word.end.draw < draws.size && draws[word.end.draw].newParagraph) {
+		if (newParagraph) {
 			spacing = desc.paragraphSpacing;
 		}
 		origin.y += desc.fontHeight * spacing;
+		measure.numLines++;
+		measure.maxLineWidth = sf::max(measure.maxLineWidth, currentWidth);
+		measure.lastLineWidth = currentWidth;
 
 		currentWidth = measureRichText(draws, word.begin, word.end, &extraWidth);
 		line = word;
 	}
-	return origin - desc.offset;
+
+	measure.height = origin.y - desc.offset.y;
+	return measure;
+}
+
+RichTextMeasure drawRichText(sp::Canvas &canvas, const RichTextDesc &desc, sf::String text)
+{
+	return drawRichTextImp(&canvas, desc, text);
+}
+
+RichTextMeasure measureRichText(const RichTextDesc &desc, sf::String text)
+{
+	return drawRichTextImp(nullptr, desc, text);
 }
 
 }

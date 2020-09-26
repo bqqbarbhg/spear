@@ -1,6 +1,7 @@
 #include "GameSystem.h"
 
 #include "server/Pathfinding.h"
+#include "server/LineRasterizer.h"
 
 #include "client/CharacterModelSystem.h"
 #include "client/BillboardSystem.h"
@@ -268,6 +269,15 @@ struct GameSystemImp final : GameSystem
 		float time = 0.0f;
 	};
 
+	struct TutorialState
+	{
+		bool enabled = true;
+		bool hasMoved = false;
+		bool cardHasAnyTargets = false;
+		sf::StringBuf text;
+		float requestActionCooldown = 0.0f;
+	};
+
 	sf::Array<Character> characters;
 	sf::Array<uint32_t> freeCharacterIds;
 
@@ -343,6 +353,8 @@ struct GameSystemImp final : GameSystem
 	float autoSelectCooldown = 0.0f;
 
 	sf::Array<DamageNumber> damageNumbers;
+
+	TutorialState tutorial;
 
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
 	{
@@ -836,8 +848,14 @@ struct GameSystemImp final : GameSystem
 
 		} else if (const auto *e = event.as<sv::TurnUpdateEvent>()) {
 
-			moveSelectTime = 0.0f;
-			autoSelectCooldown = 0.0f;
+			if (e->turnInfo.startTurn) {
+				moveSelectTime = 0.0f;
+				autoSelectCooldown = 0.0f;
+				selectedCardSlot = ~0u;
+				tutorial.hasMoved = false;
+			} else {
+				tutorial.hasMoved = true;
+			}
 
 			if (!ctx.immediate && ctx.begin && e->turnInfo.startTurn) {
 				if (Character *chr = findCharacter(turnInfo.characterId)) {
@@ -1553,9 +1571,473 @@ struct GameSystemImp final : GameSystem
 #endif
 	}
 
+	void updateTutorial(const sv::ServerState &svState, Systems &systems, const FrameArgs &frameArgs)
+	{
+		tutorial.text.clear();
+
+		if (requestedActions.size > 0) {
+			tutorial.requestActionCooldown = 0.5f;
+		}
+
+		if (tutorial.requestActionCooldown > 0.0f) {
+			tutorial.requestActionCooldown -= frameArgs.dt;
+			return;
+		}
+
+		if (queuedEvents.size > 0) {
+			return;
+		}
+
+		if (selectedCharacterId == 0) {
+			tutorial.text = "Wait for your turn!";
+			if (Character *chr = findCharacter(turnInfo.characterId)) {
+				if (!chr->sv.enemy) {
+					tutorial.text = "Wait for your turn!\n\nAnother player is controlling this character! Use the [nb][b][[Select character][/][/] button to take control of this character.";
+				}
+			}
+			return;
+		}
+
+		bool enemyVisible = false;
+
+		bool suggestedCardIsOffensive = false;
+		uint32_t suggestedBestCooldown = 0;
+		uint32_t suggestedCardSlot = ~0u;
+		Character *chr = findCharacter(selectedCharacterId);
+		if (!chr) return;
+
+		if (chr) {
+			for (const sv::Character &enemyChr : svState.characters) {
+				if (!enemyChr.enemy) continue;
+				sf::Vec2i delta = enemyChr.tile - chr->tile;
+				if (delta.x < 0) delta.x = -delta.x;
+				if (delta.y < 0) delta.y = -delta.y;
+				if (sf::max(delta.x, delta.y) > 20) continue;
+
+				bool hitWall = false;
+				sv::ConservativeLineRasterizer raster(chr->tile, enemyChr.tile);
+				for (;;) {
+					sf::Vec2i tile = raster.next();
+					if (tile == enemyChr.tile) break;
+					if (tile == chr->tile) continue;
+
+					uint32_t id;
+					sf::UintFind find = svState.getTileEntities(tile);
+					while (find.next(id)) {
+						sv::IdType type = sv::getIdType(id);
+						if (type == sv::IdType::Prop) {
+							const sv::Prop *prop = svState.props.find(id);
+							if (prop && (prop->flags & sv::Prop::Wall) != 0) hitWall = true;
+						}
+					}
+				}
+
+				for (uint32_t slotI = 0; slotI < sv::NumSelectedCards; slotI++) {
+					uint32_t cardId = chr->selectedCards[slotI].currentSvId;
+					Card *card = findCard(cardId);
+					if (!card) continue;
+					if (card->cooldownLeft > 0) continue;
+
+					uint32_t cooldown = 0;
+					if (auto *c = card->svPrefab->findComponent<sv::CardComponent>()) {
+						cooldown = c->cooldown;
+					}
+
+					if (svState.canTarget(chr->svId, enemyChr.id, card->svPrefab->name)) {
+						if (slotI < suggestedCardSlot || cooldown > suggestedBestCooldown) {
+							suggestedBestCooldown = cooldown;
+							suggestedCardSlot = slotI;
+							suggestedCardIsOffensive = true;
+							enemyVisible = true;
+						}
+					}
+				}
+
+				if (!hitWall) {
+					enemyVisible = true;
+					break;
+				}
+			}
+		}
+
+		if (!suggestedCardIsOffensive) {
+			for (uint32_t slotI = 0; slotI < sv::NumSelectedCards; slotI++) {
+				uint32_t cardId = chr->selectedCards[slotI].currentSvId;
+				Card *card = findCard(cardId);
+				if (!card) continue;
+				if (card->cooldownLeft > 0) continue;
+
+				uint32_t cooldown = 0;
+				if (auto *c = card->svPrefab->findComponent<sv::CardComponent>()) {
+					cooldown = c->cooldown;
+				}
+
+				if (svState.canTarget(chr->svId, chr->svId, card->svPrefab->name)) {
+					if (slotI < suggestedCardSlot || cooldown > suggestedBestCooldown) {
+						suggestedBestCooldown = cooldown;
+						suggestedCardSlot = slotI;
+					}
+				}
+			}
+		}
+
+		if (!enemyVisible) {
+			if (!tutorial.hasMoved) {
+				tutorial.text = "Click a green square to move.";
+			} else {
+				tutorial.text = "Use the [nb][b][[End turn][/][/] button to finish your turn";
+				if (turnInfo.movementLeft > 0) {
+					tutorial.text.append(" or click another square to move further.");
+				} else {
+					tutorial.text.append(".");
+				}
+			}
+			return;
+		} else {
+			if (selectedCardSlot == ~0u) {
+				if (suggestedCardIsOffensive) {
+					if (Card *card = findCard(chr->selectedCards[suggestedCardSlot].currentSvId)) {
+						if (auto *cardComp = card->svPrefab->findComponent<sv::CardComponent>()) {
+							if (turnInfo.movementLeft > 0) {
+								tutorial.text.append("Click a green square to move or click");
+							} else {
+								tutorial.text.append("Click");
+							}
+							tutorial.text.append(" the card [nb][b]", cardComp->name, "[/][/] to select it.");
+						}
+					}
+				} else {
+					if (suggestedCardSlot != ~0u) {
+						if (Card *card = findCard(chr->selectedCards[suggestedCardSlot].currentSvId)) {
+							if (auto *cardComp = card->svPrefab->findComponent<sv::CardComponent>()) {
+								if (turnInfo.movementLeft > 0) {
+									tutorial.text.append("Click a green square to move closer to the enemies or click");
+								} else {
+									tutorial.text.append("Click");
+								}
+								tutorial.text.append(" the card [nb][b]", cardComp->name, "[/][/] to select it.");
+							}
+						}
+					} else {
+						if (turnInfo.movementLeft > 0) {
+							tutorial.text.append("Move closer to the enemies or use");
+						} else {
+							tutorial.text.append("Use");
+						}
+						tutorial.text.append(" the [nb][b][[End turn][/][/] button to finish your turn");
+					}
+				}
+			} else {
+				if (tutorial.cardHasAnyTargets) {
+					if (Card *card = findCard(chr->selectedCards[selectedCardSlot].currentSvId)) {
+						if (auto *cardComp = card->svPrefab->findComponent<sv::CardComponent>()) {
+							tutorial.text.append("Click on a highlighted target to use the card [nb][b]", cardComp->name, "[/][/]!");
+						}
+					}
+				} else {
+					if (Card *card = findCard(chr->selectedCards[selectedCardSlot].currentSvId)) {
+						if (auto *cardComp = card->svPrefab->findComponent<sv::CardComponent>()) {
+							tutorial.text.append("The selected card [nb][b]", cardComp->name, "[/][/] can't reach any targets! Select another card or click it again to deselect it.");
+						}
+					}
+				}
+			}
+
+		}
+	}
+
+	void updateGui(const sv::ServerState &svState, Systems &systems, const FrameArgs &frameArgs)
+	{
+		gui::GuiBuilder &b = guiBuilder;
+		b.init(guiRoot);
+
+		Character *chr = findCharacter(selectedCharacterId);
+		sv::CharacterComponent *chrComp = chr ? chr->svPrefab->findComponent<sv::CharacterComponent>() : NULL;
+
+		{
+			auto ll = b.push<gui::WidgetLinearLayout>();
+
+			ll->boxOffset = sf::Vec2(20.0f, 20.0f);
+			ll->boxExtent = sf::Vec2(frameArgs.guiResolution.x, gui::Inf);
+			ll->direction = gui::DirY;
+			ll->padding = 10.0f;
+			ll->anchor = 0.0f;
+
+			for (Character &playerChr : characters) {
+				if (!playerChr.svId) continue;
+				if (playerChr.sv.enemy) continue;
+
+				auto ch = b.push<gui::WidgetCharacter>(playerChr.svId);
+				ch->boxExtent = sf::Vec2(200.0f, 50.0f);
+				ch->currentHealth = playerChr.health;
+				ch->maxHealth = playerChr.sv.maxHealth;
+				ch->turnChanged = turnChanged;
+				ch->turnActive = turnInfo.characterId == playerChr.svId;
+
+				if (playerChr.svId == turnInfo.characterId) {
+					ch->icon = playerChr.statusActiveIcon;
+				} else {
+					ch->icon = playerChr.statusInactiveIcon;
+				}
+
+				if (ch->clicked) {
+					Entity &entity = systems.entities.entities[playerChr.entityId];
+					sf::Vec3 pos = entity.transform.position;
+					pos.y = 0.0f;
+					pos.z += 2.0f;
+					camera.target = pos;
+					camera.targetTime = 3.0f;
+				}
+
+				b.pop();
+			}
+
+			if (tutorial.enabled) {
+				auto ll1 = b.push<gui::WidgetLinearLayout>(10);
+				ll1->direction = gui::DirY;
+				ll1->boxExtent = sf::Vec2(200.0f, gui::Inf);
+				ll1->anchor = 0.0f;
+				ll1->marginBefore = 10.0f;
+				ll1->padding = 10.0f;
+
+				{
+					auto rt = b.push<gui::WidgetRichText>(30);
+					rt->text = "[b]Camera controls[/b]\n\nMove: WASD / arrow keys / middle click\n\nZoom: Scroll wheel\n\nFocus: Click character icon";
+					rt->style = &guiResources.tutorialRichStyle;
+					rt->fontHeight = 15.0f;
+
+					b.pop(); // RichText
+				}
+
+				if (tutorial.text.size > 0) {
+					auto rt = b.push<gui::WidgetRichText>(40);
+					rt->text.clear();
+					rt->text.append("[b]Hint[/b]\n\n");
+					rt->text.append(tutorial.text);
+					rt->style = &guiResources.tutorialRichStyle;
+					rt->fontHeight = 15.0f;
+
+					b.pop(); // RichText
+				}
+
+#if 0
+				{
+					auto bt = b.push<gui::WidgetButton>(100);
+					if (bt->created) {
+						bt->text = sf::Symbol("Hide tutorial");
+						bt->font = guiResources.buttonFont;
+						bt->sprite = guiResources.buttonSprite;
+						bt->fontHeight = 15.0f;
+					}
+
+					bt->boxExtent = sf::Vec2(80.0f, 20.0f);
+
+					if (bt->pressed) {
+						tutorial.enabled = false;
+					}
+
+					b.pop(); // Button
+				}
+#endif
+
+				b.pop(); // LinearLayout
+			}
+
+			b.pop(); // LinearLayout
+		}
+
+		if (Character *turnChr = findCharacter(turnInfo.characterId)) {
+			if (!turnChr->sv.enemy && turnChr->sv.playerClientId != svState.localClientId) {
+
+				auto bt = b.push<gui::WidgetButton>(1);
+				if (bt->created) {
+					bt->text = sf::Symbol("Select character");
+					bt->font = guiResources.buttonFont;
+					bt->sprite = guiResources.buttonSprite;
+					bt->fontHeight = 20.0f;
+				}
+				float width = 120.0f;
+				bt->boxOffset = sf::Vec2(frameArgs.guiResolution.x * 0.5f - width * 0.5f, 20.0f);
+				bt->boxExtent = sf::Vec2(width, 30.0f);
+
+				if (bt->pressed) {
+					auto action = sf::box<sv::SelectCharacterAction>();
+					action->characterId = turnChr->svId;
+					action->clientId = svState.localClientId;
+					requestedActions.push(std::move(action));
+				}
+
+				b.pop();
+			}
+		}
+
+		if (chr && chrComp) {
+
+			if (turnInfo.characterId == selectedCharacterId && !frameArgs.editorOpen) {
+				auto bt = b.push<gui::WidgetButton>(2);
+				if (bt->created) {
+					bt->text = sf::Symbol("End Turn");
+					bt->font = guiResources.buttonFont;
+					bt->sprite = guiResources.buttonSprite;
+					bt->fontHeight = 40.0f;
+				}
+				bt->boxOffset = sf::Vec2(frameArgs.guiResolution.x - 140.0f - 20.0f, 20.0f);
+				bt->boxExtent = sf::Vec2(140.0f, 60.0f);
+
+				if (bt->pressed) {
+					auto action = sf::box<sv::EndTurnAction>();
+					action->characterId = chr->svId;
+					requestedActions.push(std::move(action));
+				}
+
+				b.pop();
+			}
+
+			{
+				float hotbarCardHeight = 140.0f;
+
+				auto blk = b.push<gui::WidgetBlockPointer>(chr->svId);
+				auto ll = b.push<gui::WidgetLinearLayout>(chr->svId);
+
+				ll->boxExtent = sf::Vec2(gui::Inf, hotbarCardHeight);
+				ll->direction = gui::DirX;
+				ll->padding = 10.0f;
+
+				blk->boxOffset.x = 20.0f;
+				blk->boxOffset.y = frameArgs.guiResolution.y - ll->boxExtent.y - 20.0f;
+
+				uint32_t lastMeleeSlot = chrComp->meleeSlots;
+				uint32_t lastSkillSlot = lastMeleeSlot + chrComp->skillSlots;
+				uint32_t lastSpellSlot = lastSkillSlot + chrComp->spellSlots;
+				uint32_t lastItemSlot = lastSpellSlot + chrComp->itemSlots;
+
+				sf::SmallArray<gui::WidgetCardSlot*, 16> slots;
+
+				for (uint32_t slot = 0; slot < sv::NumSelectedCards; slot++) {
+					GuiCardSlot guiSlot = GuiCardSlot::Count;
+					if (slot < lastMeleeSlot) {
+						guiSlot = GuiCardSlot::Melee;
+					} else if (slot < lastSkillSlot) {
+						guiSlot = GuiCardSlot::Skill;
+					} else if (slot < lastSpellSlot) {
+						guiSlot = GuiCardSlot::Spell;
+					} else if (slot < lastItemSlot) {
+						guiSlot = GuiCardSlot::Item;
+					}
+
+
+					if (guiSlot != GuiCardSlot::Count) {
+						auto sl = b.push<gui::WidgetCardSlot>(slot);
+						slots.push(sl);
+
+						if (sl->created) {
+							sl->startAnim = 1.0f + (float)slot * 0.2f;
+						}
+
+						sl->slot = guiSlot;
+						sl->slotIndex = slot;
+
+						if (chr->sv.originalEnemy) {
+							sl->allowDrag = false;
+						}
+
+						if (sl->wantSelect) {
+							if (selectedCardSlot != slot) {
+								selectedCardSlot = slot;
+							} else {
+								selectedCardSlot = ~0u;
+							}
+						}
+
+						uint32_t cardId = chr->selectedCards[slot].currentSvId;
+						if (Card *card = findCard(cardId)) {
+							sl->card = card->gui;
+						} else {
+							sl->card.reset();
+						}
+
+						if (sl->droppedCard) {
+							auto action = sf::box<sv::SelectCardAction>();
+							action->ownerId = chr->svId;
+							action->slot = slot;
+							action->cardId = sl->droppedCard->svId;
+							requestedActions.push(std::move(action));
+							sl->droppedCard.reset();
+						}
+
+						b.pop(); // CardSlot
+					}
+				}
+
+				for (uint32_t i = 0; i < slots.size; i++) {
+					slots[i]->selected = i == selectedCardSlot;
+				}
+
+				b.pop(); // LinearLayout
+				b.pop(); // BlockPointer
+			}
+
+			auto inventoryButton = b.push<gui::WidgetToggleButton>(chr->svId);
+			if (inventoryButton->created) {
+				inventoryButton->inactiveSprite = guiResources.inventory;
+				inventoryButton->activeSprite = guiResources.inventoryOpen;
+			} else {
+				if (input.keyDown[SAPP_KEYCODE_E] && !input.prevKeyDown[SAPP_KEYCODE_E]) {
+					inventoryButton->active = !inventoryButton->active;
+				}
+			}
+			inventoryButton->boxOffset.x = frameArgs.guiResolution.x - 140.0f;
+			inventoryButton->boxOffset.y = frameArgs.guiResolution.y - 140.0f;
+			inventoryButton->boxExtent.x = 120.0f;
+			inventoryButton->boxExtent.y = 120.0f;
+
+			b.pop(); // WidgetToggleButton
+
+			if (inventoryButton->active) {
+				const uint32_t numCols = 3;
+				float inventoryCardWidth = 150.0f;
+
+				auto sc = b.push<gui::WidgetScroll>();
+				sc->scrollSpeed = 250.0f;
+
+				auto gl = b.push<gui::WidgetGridLayout>();
+				gl->direction = gui::DirY;
+				gl->margin = 10.0f;
+				gl->padding = 10.0f;
+
+				sc->boxExtent.x = inventoryCardWidth*(float)numCols + gl->padding*(float)numCols + 2.0f*gl->margin;
+				sc->boxExtent.y = frameArgs.guiResolution.y - 160.0f - 20.0f;
+				sc->boxOffset.x = frameArgs.guiResolution.x - sc->boxExtent.x - 20.0f;
+				sc->boxOffset.y = 20.0f;
+				sc->direction = gui::DirY;
+
+				uint32_t numCards = sf::max(numCols * 3, chr->cardIds.size);
+				numCards += (numCols - numCards % numCols) % numCols;
+				for (uint32_t i = 0; i < numCards; i++) {
+					auto cd = b.push<gui::WidgetCard>(i);
+					cd->boxExtent = sf::Vec2(inventoryCardWidth, gui::Inf);
+					cd->card.reset();
+					if (i < chr->cardIds.size) {
+						if (Card *card = findCard(chr->cardIds[i])) {
+							cd->card = card->gui;
+						}
+					}
+
+					b.pop();
+				}
+
+				b.pop(); // LinearLayout
+				b.pop(); // Scroll
+			}
+		}
+
+		b.finish();
+	}
+
 	void update(const sv::ServerState &svState, Systems &systems, const FrameArgs &frameArgs) override
 	{
 		updateDebugMenu(systems);
+		updateGui(svState, systems, frameArgs);
 
 		#if 0
 		{
@@ -1689,6 +2171,7 @@ struct GameSystemImp final : GameSystem
 
 		sf::SmallArray<uint32_t, 4> openableDoorSvIds;
 
+		tutorial.cardHasAnyTargets = false;
 		if (selectedCardSlot != ~0u) {
 			Character *caster = findCharacter(selectedCharacterId);
 			Card *card = findCard(caster->selectedCards[selectedCardSlot].currentSvId);
@@ -1702,6 +2185,7 @@ struct GameSystemImp final : GameSystem
 						HighlightDesc desc = { };
 						desc.color = sf::Vec3(1.0f);
 						systems.characterModel->addFrameHighlightToModel(characterModelId, desc, frameArgs);
+						tutorial.cardHasAnyTargets = true;
 					}
 				}
 
@@ -2059,242 +2543,6 @@ struct GameSystemImp final : GameSystem
 		}
 
 		{
-			gui::GuiBuilder &b = guiBuilder;
-			b.init(guiRoot);
-
-			Character *chr = findCharacter(selectedCharacterId);
-			sv::CharacterComponent *chrComp = chr ? chr->svPrefab->findComponent<sv::CharacterComponent>() : NULL;
-
-			{
-				auto ll = b.push<gui::WidgetLinearLayout>();
-
-				ll->boxOffset = sf::Vec2(20.0f, 20.0f);
-				ll->boxExtent = sf::Vec2(200.0f, gui::Inf);
-				ll->direction = gui::DirY;
-				ll->padding = 10.0f;
-				ll->anchor = 0.0f;
-
-				for (Character &playerChr : characters) {
-					if (!playerChr.svId) continue;
-					if (playerChr.sv.enemy) continue;
-
-					auto ch = b.push<gui::WidgetCharacter>(playerChr.svId);
-					ch->boxExtent = sf::Vec2(gui::Inf, 50.0f);
-					ch->currentHealth = playerChr.health;
-					ch->maxHealth = playerChr.sv.maxHealth;
-					ch->turnChanged = turnChanged;
-					ch->turnActive = turnInfo.characterId == playerChr.svId;
-
-					if (playerChr.svId == turnInfo.characterId) {
-						ch->icon = playerChr.statusActiveIcon;
-					} else {
-						ch->icon = playerChr.statusInactiveIcon;
-					}
-
-					if (ch->clicked) {
-						Entity &entity = systems.entities.entities[playerChr.entityId];
-						sf::Vec3 pos = entity.transform.position;
-						pos.y = 0.0f;
-						pos.z += 2.0f;
-						camera.target = pos;
-						camera.targetTime = 3.0f;
-					}
-
-					b.pop();
-				}
-
-				b.pop(); // LinearLayout
-			}
-
-			if (Character *turnChr = findCharacter(turnInfo.characterId)) {
-				if (!turnChr->sv.enemy && turnChr->sv.playerClientId != svState.localClientId) {
-
-					auto bt = b.push<gui::WidgetButton>(1);
-					if (bt->created) {
-						bt->text = sf::Symbol("Select character");
-						bt->font = guiResources.buttonFont;
-						bt->sprite = guiResources.buttonSprite;
-						bt->fontHeight = 20.0f;
-					}
-					float width = 120.0f;
-					bt->boxOffset = sf::Vec2(frameArgs.guiResolution.x * 0.5f - width * 0.5f, 20.0f);
-					bt->boxExtent = sf::Vec2(width, 30.0f);
-
-					if (bt->pressed) {
-						auto action = sf::box<sv::SelectCharacterAction>();
-						action->characterId = turnChr->svId;
-						action->clientId = svState.localClientId;
-						requestedActions.push(std::move(action));
-					}
-
-					b.pop();
-				}
-			}
-
-			if (chr && chrComp) {
-
-				if (turnInfo.characterId == selectedCharacterId && !frameArgs.editorOpen) {
-					auto bt = b.push<gui::WidgetButton>(2);
-					if (bt->created) {
-						bt->text = sf::Symbol("End Turn");
-						bt->font = guiResources.buttonFont;
-						bt->sprite = guiResources.buttonSprite;
-						bt->fontHeight = 40.0f;
-					}
-					bt->boxOffset = sf::Vec2(frameArgs.guiResolution.x - 140.0f - 20.0f, 20.0f);
-					bt->boxExtent = sf::Vec2(140.0f, 60.0f);
-
-					if (bt->pressed) {
-						auto action = sf::box<sv::EndTurnAction>();
-						action->characterId = chr->svId;
-						requestedActions.push(std::move(action));
-					}
-
-					b.pop();
-				}
-
-				{
-					float hotbarCardHeight = 140.0f;
-
-					auto blk = b.push<gui::WidgetBlockPointer>(chr->svId);
-					auto ll = b.push<gui::WidgetLinearLayout>(chr->svId);
-
-					ll->boxExtent = sf::Vec2(gui::Inf, hotbarCardHeight);
-					ll->direction = gui::DirX;
-					ll->padding = 10.0f;
-
-					blk->boxOffset.x = 20.0f;
-					blk->boxOffset.y = frameArgs.guiResolution.y - ll->boxExtent.y - 20.0f;
-
-					uint32_t lastMeleeSlot = chrComp->meleeSlots;
-					uint32_t lastSkillSlot = lastMeleeSlot + chrComp->skillSlots;
-					uint32_t lastSpellSlot = lastSkillSlot + chrComp->spellSlots;
-					uint32_t lastItemSlot = lastSpellSlot + chrComp->itemSlots;
-
-					sf::SmallArray<gui::WidgetCardSlot*, 16> slots;
-
-					for (uint32_t slot = 0; slot < sv::NumSelectedCards; slot++) {
-						GuiCardSlot guiSlot = GuiCardSlot::Count;
-						if (slot < lastMeleeSlot) {
-							guiSlot = GuiCardSlot::Melee;
-						} else if (slot < lastSkillSlot) {
-							guiSlot = GuiCardSlot::Skill;
-						} else if (slot < lastSpellSlot) {
-							guiSlot = GuiCardSlot::Spell;
-						} else if (slot < lastItemSlot) {
-							guiSlot = GuiCardSlot::Item;
-						}
-
-
-						if (guiSlot != GuiCardSlot::Count) {
-							auto sl = b.push<gui::WidgetCardSlot>(slot);
-							slots.push(sl);
-
-							if (sl->created) {
-								sl->startAnim = 1.0f + (float)slot * 0.2f;
-							}
-
-							sl->slot = guiSlot;
-							sl->slotIndex = slot;
-
-							if (chr->sv.originalEnemy) {
-								sl->allowDrag = false;
-							}
-
-							if (sl->wantSelect) {
-								if (selectedCardSlot != slot) {
-									selectedCardSlot = slot;
-								} else {
-									selectedCardSlot = ~0u;
-								}
-							}
-
-							uint32_t cardId = chr->selectedCards[slot].currentSvId;
-							if (Card *card = findCard(cardId)) {
-								sl->card = card->gui;
-							} else {
-								sl->card.reset();
-							}
-
-							if (sl->droppedCard) {
-								auto action = sf::box<sv::SelectCardAction>();
-								action->ownerId = chr->svId;
-								action->slot = slot;
-								action->cardId = sl->droppedCard->svId;
-								requestedActions.push(std::move(action));
-								sl->droppedCard.reset();
-							}
-
-							b.pop(); // CardSlot
-						}
-					}
-
-					for (uint32_t i = 0; i < slots.size; i++) {
-						slots[i]->selected = i == selectedCardSlot;
-					}
-
-					b.pop(); // LinearLayout
-					b.pop(); // BlockPointer
-				}
-
-				auto inventoryButton = b.push<gui::WidgetToggleButton>(chr->svId);
-				if (inventoryButton->created) {
-					inventoryButton->inactiveSprite = guiResources.inventory;
-					inventoryButton->activeSprite = guiResources.inventoryOpen;
-				} else {
-					if (input.keyDown[SAPP_KEYCODE_E] && !input.prevKeyDown[SAPP_KEYCODE_E]) {
-						inventoryButton->active = !inventoryButton->active;
-					}
-				}
-				inventoryButton->boxOffset.x = frameArgs.guiResolution.x - 140.0f;
-				inventoryButton->boxOffset.y = frameArgs.guiResolution.y - 140.0f;
-				inventoryButton->boxExtent.x = 120.0f;
-				inventoryButton->boxExtent.y = 120.0f;
-
-				b.pop(); // WidgetToggleButton
-
-				if (inventoryButton->active) {
-					const uint32_t numCols = 3;
-					float inventoryCardWidth = 150.0f;
-
-					auto sc = b.push<gui::WidgetScroll>();
-					sc->scrollSpeed = 250.0f;
-
-					auto gl = b.push<gui::WidgetGridLayout>();
-					gl->direction = gui::DirY;
-					gl->margin = 10.0f;
-					gl->padding = 10.0f;
-
-					sc->boxExtent.x = inventoryCardWidth*(float)numCols + gl->padding*(float)numCols + 2.0f*gl->margin;
-					sc->boxExtent.y = frameArgs.guiResolution.y - 160.0f - 20.0f;
-					sc->boxOffset.x = frameArgs.guiResolution.x - sc->boxExtent.x - 20.0f;
-					sc->boxOffset.y = 20.0f;
-					sc->direction = gui::DirY;
-
-					uint32_t numCards = sf::max(numCols * 3, chr->cardIds.size);
-					numCards += (numCols - numCards % numCols) % numCols;
-					for (uint32_t i = 0; i < numCards; i++) {
-						auto cd = b.push<gui::WidgetCard>(i);
-						cd->boxExtent = sf::Vec2(inventoryCardWidth, gui::Inf);
-						cd->card.reset();
-						if (i < chr->cardIds.size) {
-							if (Card *card = findCard(chr->cardIds[i])) {
-								cd->card = card->gui;
-							}
-						}
-
-						b.pop();
-					}
-
-					b.pop(); // LinearLayout
-					b.pop(); // Scroll
-				}
-			}
-
-			b.finish();
-		}
-
-		{
 			gui::GuiLayout layout;
 			layout.dt = frameArgs.dt;
 			layout.frameIndex = frameArgs.frameIndex;
@@ -2311,6 +2559,10 @@ struct GameSystemImp final : GameSystem
 			} else {
 				ps.active = false;
 			}
+		}
+
+		if (tutorial.enabled) {
+			updateTutorial(svState, systems, frameArgs);
 		}
 	}
 

@@ -61,6 +61,40 @@ bool WidgetToggleButton::onPointer(GuiPointer &pointer)
 	return false;
 }
 
+void WidgetRichText::layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Vec2 &max)
+{
+	sf::Vec2 size = sf::clamp(boxExtent, min, max);
+	impWrapWidth = size.x;
+
+	sp::RichTextDesc desc = { };
+	desc.style = style;
+	desc.wrapWidth = size.x;
+	desc.baseColor = baseColor;
+	desc.fontHeight = fontHeight;
+
+	sp::RichTextMeasure measure = sp::measureRichText(desc, text);
+	float width = measure.numLines > 1 ? desc.wrapWidth : measure.maxLineWidth;
+	float height = measure.height;
+
+	layoutSize = sf::clamp(sf::Vec2(width, height), min, max);
+	for (Widget *w : children) {
+		w->layout(layout, Zero2, layoutSize);
+		w->layoutOffset = w->boxOffset;
+	}
+}
+
+void WidgetRichText::paint(GuiPaint &paint)
+{
+	sp::RichTextDesc desc = { };
+	desc.style = style;
+	desc.wrapWidth = impWrapWidth;
+	desc.baseColor = baseColor;
+	desc.fontHeight = fontHeight;
+	desc.offset = layoutOffset + sf::Vec2(0.0f, fontHeight * 0.7f);
+
+	sp::drawRichText(*paint.canvas, desc, text);
+}
+
 void WidgetBlockPointer::layout(GuiLayout &layout, const sf::Vec2 &min, const sf::Vec2 &max)
 {
 	if (children.size == 1) {
