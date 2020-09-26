@@ -1699,7 +1699,7 @@ struct GameSystemImp final : GameSystem
 					if (Card *card = findCard(chr->selectedCards[suggestedCardSlot].currentSvId)) {
 						if (auto *cardComp = card->svPrefab->findComponent<sv::CardComponent>()) {
 							if (turnInfo.movementLeft > 0) {
-								tutorial.text.append("Click a green square to move or click");
+								tutorial.text.append("Move somewhere or click");
 							} else {
 								tutorial.text.append("Click");
 							}
@@ -1711,7 +1711,7 @@ struct GameSystemImp final : GameSystem
 						if (Card *card = findCard(chr->selectedCards[suggestedCardSlot].currentSvId)) {
 							if (auto *cardComp = card->svPrefab->findComponent<sv::CardComponent>()) {
 								if (turnInfo.movementLeft > 0) {
-									tutorial.text.append("Click a green square to move closer to the enemies or click");
+									tutorial.text.append("Move closer to the enemies or click");
 								} else {
 									tutorial.text.append("Click");
 								}
