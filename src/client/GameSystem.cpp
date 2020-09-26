@@ -274,6 +274,7 @@ struct GameSystemImp final : GameSystem
 		bool enabled = true;
 		bool hasMoved = false;
 		bool cardHasAnyTargets = false;
+		bool hasKey = false;
 		sf::StringBuf text;
 		float requestActionCooldown = 0.0f;
 	};
@@ -776,6 +777,14 @@ struct GameSystemImp final : GameSystem
 
 			if (Character *chr = findCharacter(e->ownerId)) {
 				chr->cardIds.push(e->cardId);
+
+				if (!tutorial.hasKey && !chr->sv.originalEnemy) {
+					if (Card *card = findCard(e->cardId)) {
+						if (auto *c = card->svPrefab->findComponent<sv::CardKeyComponent>()) {
+							tutorial.hasKey = true;
+						}
+					}
+				}
 			}
 
 		} else if (const auto *e = event.as<sv::SelectCardEvent>()) {
@@ -807,10 +816,13 @@ struct GameSystemImp final : GameSystem
 					while (find.next(entityId)) {
 						systems.characterModel->addTag(systems.entities, entityId, symOpen);
 					}
+					tutorial.enabled = false;
 				}
 			}
 
 		} else if (const auto *e = event.as<sv::DoorOpenEvent>()) {
+
+			tutorial.enabled = false;
 
 			if (!ctx.immediate) {
 				if (ctx.begin) {
@@ -1681,14 +1693,18 @@ struct GameSystemImp final : GameSystem
 		}
 
 		if (!enemyVisible) {
-			if (!tutorial.hasMoved) {
-				tutorial.text = "Click a green square to move.";
+			if (tutorial.hasKey) {
+				tutorial.text = "Move to the door and use the card [nb][b]Key[/][/] to open it.";
 			} else {
-				tutorial.text = "Use the [nb][b][[End turn][/][/] button to finish your turn";
-				if (turnInfo.movementLeft > 0) {
-					tutorial.text.append(" or click another square to move further.");
+				if (!tutorial.hasMoved) {
+					tutorial.text = "Click a green square to move.";
 				} else {
-					tutorial.text.append(".");
+					tutorial.text = "Use the [nb][b][[End turn][/][/] button to finish your turn";
+					if (turnInfo.movementLeft > 0) {
+						tutorial.text.append(" or click another square to move further.");
+					} else {
+						tutorial.text.append(".");
+					}
 				}
 			}
 			return;
