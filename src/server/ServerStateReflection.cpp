@@ -97,6 +97,8 @@ template<> void initType<Event>(Type *t)
 		sf_poly(Event, VisibleUpdate, VisibleUpdateEvent),
 		sf_poly(Event, LoadGlobals, LoadGlobalsEvent),
 		sf_poly(Event, SelectCharacter, SelectCharacterEvent),
+		sf_poly(Event, StartBattle, StartBattleEvent),
+		sf_poly(Event, EndBattle, EndBattleEvent),
 	};
 	sf_struct_poly(t, Event, type, { }, polys);
 }
@@ -1519,6 +1521,22 @@ template<> void initType<SelectCharacterEvent>(Type *t)
 	sf_struct_base(t, SelectCharacterEvent, Event, fields);
 }
 
+template<> void initType<StartBattleEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(StartBattleEvent, characterId),
+	};
+	sf_struct_base(t, StartBattleEvent, Event, fields);
+}
+
+template<> void initType<EndBattleEvent>(Type *t)
+{
+	static Field fields[] = {
+		sf_field(EndBattleEvent, temp),
+	};
+	sf_struct_base(t, EndBattleEvent, Event, fields);
+}
+
 template<> void initType<PreloadPrefabEdit>(Type *t)
 {
 	static Field fields[] = {
@@ -1664,6 +1682,7 @@ template<> void initType<EndTurnAction>(Type *t)
 {
 	static Field fields[] = {
 		sf_field(EndTurnAction, characterId),
+		sf_field(EndTurnAction, onlyNonBattle),
 	};
 	sf_struct_base(t, EndTurnAction, Action, fields);
 }

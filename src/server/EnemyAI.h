@@ -31,6 +31,7 @@ struct AiState
 	sf::Array<uint32_t> reachTargets;
 };
 
+bool updateTargets(AiState &ai, uint32_t characterId, sv::ServerState &state);
 bool doEnemyActions(AiState &ai, sf::Array<sf::Box<sv::Event>> &events, sv::ServerState &state);
 
 }

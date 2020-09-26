@@ -27,6 +27,7 @@ struct AudioSystem : EntitySystem
 	virtual sf::Box<void> preloadSound(const sv::SoundComponent &c) = 0;
 	virtual sf::Box<void> preloadSound(const sv::SoundEffect &effect) = 0;
 
+	virtual void playOneShot(sf::Box<sp::AudioSource> source, const AudioInfo &info) = 0;
 	virtual void playOneShot(const sp::SoundRef &sound, const AudioInfo &info) = 0;
 	virtual void playOneShot(const sv::SoundEffect &effect, const sf::Vec3 &position, float delay=0.0f) = 0;
 

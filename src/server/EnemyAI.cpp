@@ -63,32 +63,16 @@ bool tryUseCard(AiState &ai, sf::Array<sf::Box<sv::Event>> &events, sv::ServerSt
 	return false;
 }
 
-bool doEnemyActions(AiState &ai, sf::Array<sf::Box<sv::Event>> &events, sv::ServerState &state)
+bool updateTargets(AiState &ai, uint32_t characterId, sv::ServerState &state)
 {
-	uint32_t chrId = state.turnInfo.characterId;
-	const Character *chr = state.characters.find(chrId);
+	const Character *chr = state.characters.find(characterId);
 	if (!chr) return false;
-	if (!chr->enemy) return false;
-
-	EnemyState &enemyState = ai.enemies[chrId];
-	enemyState.id = chrId;
-
-	sf::SmallArray<CardToUse, 16> cardsToUse;
-	float totalWeight = 0.0f;
 
 	const int32_t targetRange = 20;
 	const uint32_t targetRememberTurns = 4;
 
-	// Age targetse
-	for (uint32_t i = 0; i < enemyState.targets.size(); i++) {
-		EnemyTarget &target = enemyState.targets.data[i];
-		Character *targetChr = state.characters.find(target.id);
-
-		if (--target.turnsLeft == 0 || !targetChr || targetChr->enemy) {
-			enemyState.targets.remove(target.id);
-			i--;
-		}
-	}
+	EnemyState &enemyState = ai.enemies[characterId];
+	enemyState.id = characterId;
 
 	// Find new targets
 	// TODO: Filter for performance?
@@ -129,8 +113,38 @@ bool doEnemyActions(AiState &ai, sf::Array<sf::Box<sv::Event>> &events, sv::Serv
 		}
 	}
 
+	return enemyState.targets.size() > 0;
+}
+
+bool doEnemyActions(AiState &ai, sf::Array<sf::Box<sv::Event>> &events, sv::ServerState &state)
+{
+	uint32_t chrId = state.turnInfo.characterId;
+	const Character *chr = state.characters.find(chrId);
+	if (!chr) return false;
+	if (!chr->enemy) return false;
+
+	if (!updateTargets(ai, chrId, state)) return false;
+
+	EnemyState &enemyState = ai.enemies[chrId];
+	enemyState.id = chrId;
+
+	sf::SmallArray<CardToUse, 16> cardsToUse;
+	float totalWeight = 0.0f;
+
+	// Age targets
+	for (uint32_t i = 0; i < enemyState.targets.size(); i++) {
+		EnemyTarget &target = enemyState.targets.data[i];
+		Character *targetChr = state.characters.find(target.id);
+
+		if (--target.turnsLeft == 0 || !targetChr || targetChr->enemy) {
+			enemyState.targets.remove(target.id);
+			i--;
+		}
+	}
+
 	// Add reachable targets
 	ai.reachTargets.clear();
+	ai.reachTargets.push(chrId);
 	for (EnemyTarget &target : enemyState.targets) {
 		ai.reachTargets.push(target.id);
 	}

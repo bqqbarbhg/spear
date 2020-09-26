@@ -2,6 +2,8 @@
 
 #include "sf/Float4.h"
 
+#include "sf/ext/mx/mx_platform.h"
+
 namespace sp {
 
 void AudioSampler::advanceMixStereo(float *dst, uint32_t numDst, AudioSource *source, const AudioMixOpts &opts)
@@ -292,6 +294,83 @@ void AudioLimiter::limitStereo(float *dstSamples, uint32_t numSamples, uint32_t 
 	buffer.size = copyUnits;
 
 	sf_assert(dst == dstSamples + numSamples * 2);
+}
+
+void BeginLoopEndAudioSource::stop()
+{
+	mxa_cas32(&impStopFlag, 0, 1);
+}
+
+bool BeginLoopEndAudioSource::unstop()
+{
+	if (mxa_load32_nf(&impStopFlag) == 0) return true;
+	return mxa_cas32(&impStopFlag, 1, 0);
+}
+
+void BeginLoopEndAudioSource::seek(uint32_t sample)
+{
+	// TODO: This would be doable by tracking transitions,
+	// but I don't feel like it
+	if (sample == 0) {
+		begin->seek(0);
+		loop->seek(0);
+		end->seek(0);
+		impState = Begin;
+		impBeginSample = 0;
+	} else {
+		sf_failf("TODO");
+	}
+}
+
+uint32_t BeginLoopEndAudioSource::advance(uint32_t sample, float *dst, uint32_t num)
+{
+	uint32_t numTotal = 0;
+
+	if (impState == Begin) {
+		uint32_t numBegin = begin->advance(sample, dst, num);
+		numTotal += numBegin;
+		if (numBegin == num) return numTotal;
+
+		impBeginSample = sample + numBegin;
+		sample += numBegin;
+		dst += numBegin * 2;
+		num -= numBegin;
+		if (mxa_cas32(&impStopFlag, 1, 2)) {
+			impState = End;
+			sample += numBegin;
+			sf::debugPrintLine("Begin->End from: %u", impBeginSample);
+		} else {
+			impState = Loop;
+			sf::debugPrintLine("Begin->Loop from: %u", impBeginSample);
+		}
+	}
+
+	while (impState == Loop) {
+		uint32_t localSample = sample - impBeginSample;
+		uint32_t numLoop = loop->advance(localSample, dst, num);
+		numTotal += numLoop;
+		if (numLoop == num) return numTotal;
+
+		impBeginSample = sample + numLoop;
+		dst += numLoop * 2;
+		num -= numLoop;
+		if (mxa_cas32(&impStopFlag, 1, 2)) {
+			impState = End;
+			sample += numLoop;
+			sf::debugPrintLine("Loop->End from: %u", impBeginSample);
+		} else {
+			loop->seek(0);
+			sf::debugPrintLine("Loop->Loop from: %u", impBeginSample);
+		}
+	}
+
+	if (impState == End) {
+		uint32_t localSample = sample - impBeginSample;
+		uint32_t numEnd = end->advance(localSample, dst, num);
+		numTotal += numEnd;
+	}
+
+	return numTotal;
 }
 
 }

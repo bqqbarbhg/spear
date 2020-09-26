@@ -279,16 +279,11 @@ struct AudioSystemImp final : AudioSystem
 		return opts;
 	}
 
-	void playLoadedSoundImp(const sp::SoundRef &ref, const AudioInfo &info, uint32_t entitySoundId)
+	void playAudioSourceImp(sf::Box<sp::AudioSource> source, const AudioInfo &info, uint32_t entitySoundId)
 	{
-		if (!ref.isLoaded()) return;
-
 		SoundInstance *inst = allocInstance();
 		if (!inst) return;
-
-		uint32_t index = rng.nextU32() % ref->takes.size;
-
-		inst->source = ref->getSource(index);
+		inst->source = std::move(source);
 		inst->info = info;
 
 		if (entitySoundId != ~0u) {
@@ -303,6 +298,14 @@ struct AudioSystemImp final : AudioSystem
 		inst->setOpts(evaluateSoundOpts(inst->info));
 
 		g_audioThread.pushInstance(&g_audioThread.incoming, inst);
+	}
+
+	void playLoadedSoundImp(const sp::SoundRef &ref, const AudioInfo &info, uint32_t entitySoundId)
+	{
+		if (!ref.isLoaded()) return;
+
+		uint32_t index = rng.nextU32() % ref->takes.size;
+		playAudioSourceImp(ref->getSource(index), info, entitySoundId);
 	}
 
 	void playSoundImp(const sp::SoundRef &sound, const AudioInfo &info, uint32_t entitySoundId, float delay=0.0f)
@@ -373,6 +376,11 @@ struct AudioSystemImp final : AudioSystem
 		auto data = sf::box<SoundEffectData>();
 		data->ref.load(effect.soundName);
 		return data;
+	}
+
+	void playOneShot(sf::Box<sp::AudioSource> source, const AudioInfo &info)
+	{
+		playAudioSourceImp(std::move(source), info, ~0u);
 	}
 
 	void playOneShot(const sp::SoundRef &sound, const AudioInfo &info) override
@@ -503,8 +511,10 @@ struct AudioSystemImp final : AudioSystem
 				SoundInstance *next = inst->next;
 
 				uint32_t spatialIx = inst->spatialSoundIndex;
-				playingSpatialSounds.back()->spatialSoundIndex = spatialIx;
-				playingSpatialSounds.removeSwap(spatialIx);
+				if (spatialIx != ~0u) {
+					playingSpatialSounds.back()->spatialSoundIndex = spatialIx;
+					playingSpatialSounds.removeSwap(spatialIx);
+				}
 
 				sf::reset(*inst);
 				inst->next = nextFreeInstance;

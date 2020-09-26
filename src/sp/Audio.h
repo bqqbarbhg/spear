@@ -2,6 +2,7 @@
 
 #include "sf/Base.h"
 #include "sf/Array.h"
+#include "sf/Box.h"
 
 namespace sp {
 
@@ -66,6 +67,30 @@ struct AudioLimiter
 
 	float *getStereoBuffer(uint32_t &requiredSamples, uint32_t numSamples, uint32_t sampleRate);
 	void limitStereo(float *dstSamples, uint32_t numSamples, uint32_t sampleRate);
+};
+
+struct BeginLoopEndAudioSource : AudioSource
+{
+	enum State
+	{
+		Begin,
+		Loop,
+		End,
+	};
+
+	sf::Box<AudioSource> begin;
+	sf::Box<AudioSource> loop;
+	sf::Box<AudioSource> end;
+
+	uint32_t impStopFlag = 0;
+	State impState = Begin;
+	uint32_t impBeginSample = 0;
+
+	void stop();
+	bool unstop();
+
+	virtual void seek(uint32_t sample) override;
+	virtual uint32_t advance(uint32_t sample, float *dst, uint32_t num) override;
 };
 
 }

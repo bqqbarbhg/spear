@@ -302,6 +302,22 @@ static void quitSession(Session &session, Client &client)
 	client.session = nullptr;
 }
 
+static void updateBattleState(Session &session)
+{
+	uint32_t startCharacterId = 0;
+	for (Character &chr : session.state->characters) {
+		if (!chr.enemy) continue;
+		if (updateTargets(session.aiState, chr.id, *session.state)) {
+			startCharacterId = chr.id;
+		}
+	}
+	if (startCharacterId) {
+		session.state->startBattle(session.events, startCharacterId);
+	} else {
+		session.state->endBattle(session.events);
+	}
+}
+
 static void updateSession(Session &session)
 {
 	for (uint32_t i = 0; i < session.clients.size; i++) {
@@ -365,6 +381,8 @@ static void updateSession(Session &session)
 			} else if (auto m = msg->as<sv::MessageRequestAction>()) {
 
 				session.state->requestAction(session.events, *m->action);
+
+				updateBattleState(session);
 
 			} else if (auto m = msg->as<sv::MessageRequestReplayBegin>()) {
 
@@ -432,24 +450,44 @@ static void updateSession(Session &session)
 		}
 	}
 
-	for (uint32_t i = 0; i < 10; i++) {
-		uint32_t chrId = session.state->turnInfo.characterId;
-		bool isEnemy = false;
-		if (Character *chr = session.state->characters.find(chrId)) {
-			isEnemy = chr->enemy;
-		}
-		if (!isEnemy) break;
+	if (session.state->inBattle) {
+		for (uint32_t i = 0; i < 10; i++) {
+			uint32_t chrId = session.state->turnInfo.characterId;
+			bool isEnemy = false;
+			if (Character *chr = session.state->characters.find(chrId)) {
+				isEnemy = chr->enemy;
+			}
+			if (!isEnemy) break;
 
-		if (doEnemyActions(session.aiState, session.events, *session.state)) {
-			// Did something reasonable, continue on the next "frame"
-			break;
+			if (doEnemyActions(session.aiState, session.events, *session.state)) {
+				// Did something reasonable, continue on the next "frame"
+				break;
+			}
+
+			// Didn't finish the turn..
+			if (session.state->turnInfo.characterId == chrId) {
+				EndTurnAction endTurn = { };
+				endTurn.characterId = chrId;
+				session.state->requestAction(session.events, endTurn);
+			}
 		}
 
-		// Didn't finish the turn..
-		if (session.state->turnInfo.characterId == chrId) {
-			EndTurnAction endTurn = { };
-			endTurn.characterId = chrId;
-			session.state->requestAction(session.events, endTurn);
+		updateBattleState(session);
+
+	} else {
+		for (uint32_t i = 0; i < 30; i++) {
+			uint32_t chrId = session.state->turnInfo.characterId;
+			bool isEnemy = false;
+			if (Character *chr = session.state->characters.find(chrId)) {
+				isEnemy = chr->enemy;
+			}
+			if (!isEnemy) break;
+
+			{
+				EndTurnAction endTurn = { };
+				endTurn.characterId = chrId;
+				session.state->requestAction(session.events, endTurn);
+			}
 		}
 	}
 

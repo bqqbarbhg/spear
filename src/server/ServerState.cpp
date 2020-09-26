@@ -570,6 +570,10 @@ void ServerState::applyEvent(const Event &event)
 		if (Character *chr = findCharacter(*this, e->characterId)) {
 			chr->playerClientId = e->clientId;
 		}
+	} else if (auto *e = event.as<StartBattleEvent>()) {
+		inBattle = true;
+	} else if (auto *e = event.as<EndBattleEvent>()) {
+		inBattle = false;
 	}
 }
 
@@ -675,6 +679,14 @@ void ServerState::getAsEvents(EventCallbackFn *callback, void *user) const
 	{
 		LoadGlobalsEvent e = { };
 		e.globalPrefabs = globalPrefabs;
+		callback(user, e);
+	}
+
+	if (inBattle) {
+		StartBattleEvent e = { };
+		callback(user, e);
+	} else {
+		EndBattleEvent e = { };
 		callback(user, e);
 	}
 }
@@ -2253,6 +2265,7 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 		return true;
 	} else if (const auto *ac = action.as<EndTurnAction>()) {
 		if (turnInfo.characterId != ac->characterId) return false;
+		if (ac->onlyNonBattle && inBattle) return false;
 
 		startNextCharacterTurn(events, true);
 
@@ -2444,6 +2457,27 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 	}
 }
 
+void ServerState::startBattle(sf::Array<sf::Box<Event>> &events, uint32_t characterId)
+{
+	if (inBattle) return;
+
+	{
+		auto e = sf::box<StartBattleEvent>();
+		e->characterId = characterId;
+		pushEvent(*this, events, e);
+	}
+}
+
+void ServerState::endBattle(sf::Array<sf::Box<Event>> &events)
+{
+	if (!inBattle) return;
+
+	{
+		auto e = sf::box<EndBattleEvent>();
+		pushEvent(*this, events, e);
+	}
+}
+
 void ServerState::addEntityToTile(uint32_t id, const sf::Vec2i &tile)
 {
 	uint32_t key = packTile(tile);
@@ -2579,6 +2613,7 @@ template<> void initType<ServerState>(Type *t)
 		sf_field(ServerState, turnOrder),
 		sf_field(ServerState, turnInfo),
 		sf_field(ServerState, turnCharacterIndex),
+		sf_field(ServerState, inBattle),
 	};
 	sf_struct(t, ServerState, fields);
 }

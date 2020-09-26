@@ -359,6 +359,13 @@ struct GameSystemImp final : GameSystem
 
 	TutorialState tutorial;
 
+	bool inBattle = false;
+
+	sp::SoundRef battleMusicStart;
+	sp::SoundRef battleMusicLoop;
+	sp::SoundRef battleMusicEnd;
+	sf::Box<sp::BeginLoopEndAudioSource> battleAudioSource;
+
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
 	{
 		Character &chr = characters[characterId];
@@ -1208,6 +1215,10 @@ struct GameSystemImp final : GameSystem
 			if (ctx.timer >= 5.0f) return true;
 
 			if (projectiles.size > 0) return false;
+		} else if (const auto *e = event.as<sv::StartBattleEvent>()) {
+			inBattle = true;
+		} else if (const auto *e = event.as<sv::EndBattleEvent>()) {
+			inBattle = false;
 		}
 
 		return true;
@@ -1219,6 +1230,10 @@ struct GameSystemImp final : GameSystem
 	{
 		camera.previous.origin = camera.current.origin = sf::Vec3(desc.persist.camera.x, 0.0f, desc.persist.camera.y);
 		camera.previous.zoom = camera.current.zoom = desc.persist.zoom;
+
+		battleMusicStart.load("Assets/Audio/Music/Battle_Start");
+		battleMusicLoop.load("Assets/Audio/Music/Battle_Loop");
+		battleMusicEnd.load("Assets/Audio/Music/Battle_End");
 
 		guiRoot = sf::box<gui::Widget>(1000);
 	}
@@ -2150,6 +2165,36 @@ struct GameSystemImp final : GameSystem
 		updateDebugMenu(systems);
 		updateGui(svState, systems, frameArgs);
 
+		if (inBattle) {
+
+			if (battleAudioSource) {
+				if (!battleAudioSource->unstop()) {
+					battleAudioSource.reset();
+				}
+			}
+
+			if (!battleAudioSource) {
+				if (battleMusicStart.isLoaded() && battleMusicLoop.isLoaded() && battleMusicEnd.isLoaded()) {
+					battleAudioSource = sf::box<sp::BeginLoopEndAudioSource>();
+					battleAudioSource->sampleRate = 44100;
+					battleAudioSource->numChannels = 2;
+					battleAudioSource->begin = battleMusicStart->getSource(0);
+					battleAudioSource->loop = battleMusicLoop->getSource(0);
+					battleAudioSource->end = battleMusicEnd->getSource(0);
+
+					AudioInfo info = { };
+					info.volume = 0.3f;
+					info.positional = false;
+					systems.audio->playOneShot(battleAudioSource, info);
+				}
+			}
+
+		} else {
+			if (battleAudioSource) {
+				battleAudioSource->stop();
+			}
+		}
+
 		#if 0
 		{
 			ImGui::Begin("Event queue");
@@ -2556,6 +2601,13 @@ struct GameSystemImp final : GameSystem
 							}
 
 							requestedActions.push(std::move(action));
+
+							if (!svState.inBattle) {
+								auto skip = sf::box<sv::EndTurnAction>();
+								skip->characterId = selectedCharacterId;
+								skip->onlyNonBattle = true;
+								requestedActions.push(std::move(skip));
+							}
 
 						} else if (didHover) {
 							hoveredTile = tile;

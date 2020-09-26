@@ -751,6 +751,8 @@ struct Event
 		VisibleUpdate,
 		LoadGlobals,
 		SelectCharacter,
+		StartBattle,
+		EndBattle,
 
 		Type_Count,
 		Type_ForceU32 = 0x7fffffff,
@@ -1067,6 +1069,17 @@ struct SelectCharacterEvent : EventBase<Event::SelectCharacter>
 	uint32_t clientId;
 };
 
+struct StartBattleEvent : EventBase<Event::StartBattle>
+{
+	uint32_t characterId;
+};
+
+struct EndBattleEvent : EventBase<Event::EndBattle>
+{
+	uint32_t temp;
+};
+
+
 enum class IdType {
 	Null,
 	Prop,
@@ -1255,6 +1268,7 @@ struct GiveCardAction : ActionBase<Action::GiveCard>
 struct EndTurnAction : ActionBase<Action::EndTurn>
 {
 	uint32_t characterId;
+	bool onlyNonBattle = false;
 };
 
 struct SelectCharacterAction : ActionBase<Action::SelectCharacter>
@@ -1366,6 +1380,8 @@ struct ServerState
 	TurnInfo turnInfo;
 	uint32_t turnCharacterIndex = 0;
 
+	bool inBattle = false;
+
 	bool isIdValid(uint32_t id);
 
 	void applyEvent(const Event &event);
@@ -1413,6 +1429,9 @@ struct ServerState
 
 	void applyEdit(sf::Array<sf::Box<Event>> &events, const Edit &edit, sf::Array<sf::Box<Edit>> &undoBuf);
 	bool requestAction(sf::Array<sf::Box<Event>> &events, const Action &action);
+
+	void startBattle(sf::Array<sf::Box<Event>> &events, uint32_t characterId);
+	void endBattle(sf::Array<sf::Box<Event>> &events);
 
 	void garbageCollectIds(sf::Array<uint32_t> &garbageIds) const;
 	void garbageCollectPrefabs(sf::Array<sf::Symbol> &garbagePrefabs) const;

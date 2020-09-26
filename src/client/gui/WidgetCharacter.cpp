@@ -35,8 +35,8 @@ void WidgetCharacter::paint(GuiPaint &paint)
 	sf::Vec2 size = layoutSize;
 
 	sf::Vec2 iconSize = sf::Vec2(size.y);
-	paint.canvas->draw(paint.resources->statusIconOutline, layoutOffset, iconSize);
 	paint.canvas->draw(icon, layoutOffset, iconSize);
+	paint.canvas->draw(paint.resources->statusIconOutline, layoutOffset, iconSize);
 
 	sf::Vec2 healthOffset = layoutOffset + sf::Vec2(iconSize.x * 1.1f, size.y * 0.15f);
 	sf::Vec2 healthSize = sf::Vec2(size.x - healthOffset.x, size.y * 0.25f);
