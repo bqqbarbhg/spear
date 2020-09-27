@@ -1535,6 +1535,7 @@ _SOKOL_PRIVATE void *_saudio_emsc_worklet_cb(void *arg) {
             int32_t prev_queued = (int32_t)emscripten_atomic_add_u32((uint32_t*)&worklet->atomic_quanta_queued, 1);
             if (prev_queued < 0) {
                 emscripten_atomic_store_u32((uint32_t*)&worklet->atomic_quanta_queued, 1);
+                fprintf(stderr, "sokol_audio: Dropped frames!\n");
             }
         }
     }
