@@ -168,7 +168,7 @@ bool doEnemyActions(AiState &ai, sf::Array<sf::Box<sv::Event>> &events, sv::Serv
 			auto *healComp = spellPrefab ? spellPrefab->findComponent<SpellHealComponent>() : NULL;
 			if (healComp) {
 				float healthLeft = sf::clamp((float)chr->health / (float)chr->maxHealth, 0.0f, 1.0f);
-				weight *= sf::max(0.8f - healthLeft, 0.0f) * 10.0f;
+				weight = sf::max(0.8f - healthLeft, 0.0f) * 10.0f;
 			}
 		}
 
