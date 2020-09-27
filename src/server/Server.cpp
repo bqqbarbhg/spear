@@ -450,8 +450,20 @@ static void updateSession(Session &session)
 		}
 	}
 
+	uint32_t maxUpdates = 20;
+	bool hasPlayers = false;
+	for (Character &chr : session.state->characters) {
+		if (!chr.enemy) {
+			hasPlayers = true;
+			break;
+		}
+	}
+	if (!hasPlayers) {
+		maxUpdates = 1;
+	}
+
 	if (session.state->inBattle) {
-		for (uint32_t i = 0; i < 10; i++) {
+		for (uint32_t i = 0; i < maxUpdates; i++) {
 			uint32_t chrId = session.state->turnInfo.characterId;
 			bool isEnemy = false;
 			if (Character *chr = session.state->characters.find(chrId)) {
@@ -475,7 +487,7 @@ static void updateSession(Session &session)
 		updateBattleState(session);
 
 	} else {
-		for (uint32_t i = 0; i < 30; i++) {
+		for (uint32_t i = 0; i < maxUpdates; i++) {
 			uint32_t chrId = session.state->turnInfo.characterId;
 			bool isEnemy = false;
 			if (Character *chr = session.state->characters.find(chrId)) {
