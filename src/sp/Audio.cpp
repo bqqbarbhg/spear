@@ -314,7 +314,7 @@ void BeginLoopEndAudioSource::seek(uint32_t sample)
 	if (sample == 0) {
 		begin->seek(0);
 		loop->seek(0);
-		end->seek(0);
+		if (end) end->seek(0);
 		impState = Begin;
 		impBeginSample = 0;
 	} else {
@@ -382,7 +382,19 @@ bool InterruptLoopAudioSource::unstop()
 
 void InterruptLoopAudioSource::seek(uint32_t sample)
 {
-	sf_failf("TODO");
+	// TODO: This would be doable by tracking transitions,
+	// but I don't feel like it
+	if (sample == 0) {
+		loop->seek(0);
+		end->seek(0);
+		impStopFlag = 0;
+		hasFadeBuffer = false;
+		atEnd = false;
+		totalSamples = 0;
+		fadeBufferFirstSample = 0;
+	} else {
+		sf_failf("TODO");
+	}
 }
 
 uint32_t InterruptLoopAudioSource::advance(uint32_t sample, float *dst, uint32_t num)
@@ -476,6 +488,98 @@ uint32_t InterruptLoopAudioSource::advance(uint32_t sample, float *dst, uint32_t
 	uint32_t numRead = sample - beginSample;
 	totalSamples += numRead;
 	return numRead;
+}
+
+void SwappingAudioSource::play(uint32_t sourceIndex)
+{
+	mxa_cas32(&impShouldStart[sourceIndex], 0, 1);
+}
+
+void SwappingAudioSource::unplay(uint32_t sourceIndex)
+{
+	mxa_cas32(&impShouldStart[sourceIndex], 1, 0);
+}
+
+bool SwappingAudioSource::isPlaying(uint32_t sourceIndex) const
+{
+	return mxa_load32(&impPlaying[sourceIndex]) != 0;
+}
+
+void SwappingAudioSource::seek(uint32_t sample)
+{
+	sf_failf("TODO");
+}
+
+uint32_t SwappingAudioSource::advance(uint32_t sample, float *dst, uint32_t num)
+{
+	uint32_t beginSample = sample;
+	uint32_t originalNum = num;
+
+	while (num > 0) {
+		uint32_t numToRead = num;
+
+		bool crossesBoundary = false;
+		uint64_t samplesUntilNextInterrupt = (uint64_t)swapInterval - totalSamples % (uint64_t)swapInterval;
+		if (samplesUntilNextInterrupt <= num) {
+			numToRead = (uint32_t)samplesUntilNextInterrupt;
+			crossesBoundary = true;
+		}
+
+		uint32_t chunkSize = 512 / numChannels;
+		float buf[512];
+		uint32_t base = 0;
+		for (uint32_t base = 0; base < numToRead; base += chunkSize) {
+			uint32_t chunkActual = sf::min(num - base, chunkSize);
+
+			uint32_t numPlaying = 0;
+			for (uint32_t srcI = 0; srcI < 2; srcI++) {
+				if (!mxa_load32_rel(&impPlaying[srcI])) continue;
+				uint32_t localSample = (uint32_t)(totalSamples - startSample[srcI]);
+
+				uint32_t localNum;
+				if (numPlaying == 0) {
+					localNum = source[srcI]->advance(localSample, dst, chunkActual);
+					memset(dst + localNum*numChannels, 0, (chunkActual - localNum) * numChannels * sizeof(float));
+				} else {
+					localNum = source[srcI]->advance(localSample, buf, chunkActual);
+					uint32_t floatsToAdd = localNum * numChannels;
+					for (uint32_t i = 0; i < floatsToAdd; i++) {
+						dst[i] += buf[i];
+					}
+				}
+				numPlaying++;
+
+				if (localNum < chunkActual) {
+					mxa_cas32(&impPlaying[srcI], 1, 0);
+				}
+			}
+
+			if (numPlaying == 0) {
+				memset(dst, 0, chunkActual * numChannels * sizeof(float));
+			}
+
+			sample += chunkActual;
+			dst += chunkActual * numChannels;
+			num -= chunkActual;
+			totalSamples += chunkActual;
+		}
+
+		if (crossesBoundary) {
+			for (uint32_t srcI = 0; srcI < 2; srcI++) {
+				if (mxa_load32_rel(&impPlaying[srcI])) continue;
+				if (mxa_load32_rel(&impShouldStart[srcI]) == 0) continue;
+				if (!mxa_cas32(&impShouldStart[srcI], 1, 0)) continue;
+
+				startSample[srcI] = totalSamples;
+				source[srcI]->seek(0);
+				mxa_cas32(&impPlaying[srcI], 0, 1);
+			}
+		}
+	}
+
+	(void)beginSample;
+	sf_assert(sample - beginSample == originalNum);
+	return originalNum;
 }
 
 }

@@ -364,7 +364,13 @@ struct GameSystemImp final : GameSystem
 	sp::SoundRef battleMusicStart;
 	sp::SoundRef battleMusicLoop;
 	sp::SoundRef battleMusicEnd;
-	sf::Box<sp::InterruptLoopAudioSource> battleAudioSource;
+	sp::SoundRef ambientMusicStart;
+	sp::SoundRef ambientMusicLoop;
+	sp::SoundRef ambientMusicEnd;
+
+	sf::Box<sp::InterruptLoopAudioSource> battleLoopSource;
+	sf::Box<sp::InterruptLoopAudioSource> ambientLoopSource;
+	sf::Box<sp::SwappingAudioSource> musicSource;
 
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
 	{
@@ -1240,6 +1246,9 @@ struct GameSystemImp final : GameSystem
 		battleMusicStart.load("Assets/Audio/Music/Battle_Start");
 		battleMusicLoop.load("Assets/Audio/Music/Battle_Loop");
 		battleMusicEnd.load("Assets/Audio/Music/Battle_End");
+		ambientMusicStart.load("Assets/Audio/Music/Ambient_Start");
+		ambientMusicLoop.load("Assets/Audio/Music/Ambient_Loop");
+		ambientMusicEnd.load("Assets/Audio/Music/Ambient_End");
 
 		guiRoot = sf::box<gui::Widget>(1000);
 	}
@@ -2170,45 +2179,75 @@ struct GameSystemImp final : GameSystem
 		b.finish();
 	}
 
+	void setupMusic(Systems &systems)
+	{
+		if (musicSource) return;
+		if (!(battleMusicStart.isLoaded() && battleMusicLoop.isLoaded() && battleMusicEnd.isLoaded())) return;
+		if (!(ambientMusicStart.isLoaded() && ambientMusicLoop.isLoaded() && ambientMusicEnd.isLoaded())) return;
+
+		auto battleMusicSource = sf::box<sp::BeginLoopEndAudioSource>();
+		battleMusicSource->sampleRate = 44100;
+		battleMusicSource->numChannels = 2;
+		battleMusicSource->begin = battleMusicStart->getSource(0);
+		battleMusicSource->loop = battleMusicLoop->getSource(0);
+
+		battleLoopSource = sf::box<sp::InterruptLoopAudioSource>();
+		battleLoopSource->interruptInterval = 100800 * 2;
+		battleLoopSource->sampleRate = 44100;
+		battleLoopSource->numChannels = 2;
+		battleLoopSource->loop = battleMusicSource;
+		battleLoopSource->end = battleMusicEnd->getSource(0);
+		battleLoopSource->fadeBuffer.resize(256);
+
+		auto ambientMusicSource = sf::box<sp::BeginLoopEndAudioSource>();
+		ambientMusicSource->sampleRate = 44100;
+		ambientMusicSource->numChannels = 2;
+		ambientMusicSource->begin = ambientMusicStart->getSource(0);
+		ambientMusicSource->loop = ambientMusicLoop->getSource(0);
+
+		ambientLoopSource = sf::box<sp::InterruptLoopAudioSource>();
+		ambientLoopSource->interruptInterval = 100800 * 2;
+		ambientLoopSource->sampleRate = 44100;
+		ambientLoopSource->numChannels = 2;
+		ambientLoopSource->loop = ambientMusicSource;
+		ambientLoopSource->end = ambientMusicEnd->getSource(0);
+		ambientLoopSource->fadeBuffer.resize(1024);
+
+		musicSource = sf::box<sp::SwappingAudioSource>();
+		musicSource->sampleRate = 44100;
+		musicSource->numChannels = 2;
+		musicSource->swapInterval = 100800 * 2;
+		musicSource->source[0] = ambientLoopSource;
+		musicSource->source[1] = battleLoopSource;
+
+		AudioInfo info = { };
+		info.volume = 0.3f;
+		info.positional = false;
+		systems.audio->playOneShot(musicSource, info);
+	}
+
 	void update(const sv::ServerState &svState, Systems &systems, const FrameArgs &frameArgs) override
 	{
 		updateDebugMenu(systems);
 		updateGui(svState, systems, frameArgs);
 
+		setupMusic(systems);
+
 		if (inBattle) {
-
-			if (battleAudioSource) {
-				if (!battleAudioSource->unstop()) {
-					battleAudioSource.reset();
+			if (musicSource) {
+				musicSource->play(1);
+				if (musicSource->isPlaying(0)) {
+					musicSource->unplay(0);
+					ambientLoopSource->stop();
 				}
 			}
-
-			if (!battleAudioSource) {
-				if (battleMusicStart.isLoaded() && battleMusicLoop.isLoaded() && battleMusicEnd.isLoaded()) {
-					auto battleMusicSource = sf::box<sp::BeginLoopEndAudioSource>();
-					battleMusicSource->sampleRate = 44100;
-					battleMusicSource->numChannels = 2;
-					battleMusicSource->begin = battleMusicStart->getSource(0);
-					battleMusicSource->loop = battleMusicLoop->getSource(0);
-
-					battleAudioSource = sf::box<sp::InterruptLoopAudioSource>();
-					battleAudioSource->interruptInterval = 100800;
-					battleAudioSource->sampleRate = 44100;
-					battleAudioSource->numChannels = 2;
-					battleAudioSource->loop = battleMusicSource;
-					battleAudioSource->end = battleMusicEnd->getSource(0);
-					battleAudioSource->fadeBuffer.resize(256);
-
-					AudioInfo info = { };
-					info.volume = 0.3f;
-					info.positional = false;
-					systems.audio->playOneShot(battleAudioSource, info);
-				}
-			}
-
 		} else {
-			if (battleAudioSource) {
-				battleAudioSource->stop();
+			if (musicSource) {
+				musicSource->play(0);
+				if (musicSource->isPlaying(1)) {
+					musicSource->unplay(1);
+					battleLoopSource->stop();
+				}
 			}
 		}
 

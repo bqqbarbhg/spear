@@ -117,4 +117,23 @@ struct InterruptLoopAudioSource : AudioSource
 	virtual uint32_t advance(uint32_t sample, float *dst, uint32_t num) override;
 };
 
+struct SwappingAudioSource : AudioSource
+{
+	sf::Box<AudioSource> source[2];
+	uint64_t startSample[2] = { };
+	uint32_t impShouldStart[2] = { };
+	uint32_t impPlaying[2] = { };
+
+	uint32_t swapInterval = 1;
+
+	uint64_t totalSamples = 0;
+
+	void play(uint32_t sourceIndex);
+	void unplay(uint32_t sourceIndex);
+	bool isPlaying(uint32_t sourceIndex) const;
+
+	virtual void seek(uint32_t sample) override;
+	virtual uint32_t advance(uint32_t sample, float *dst, uint32_t num) override;
+};
+
 }
