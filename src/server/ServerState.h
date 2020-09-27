@@ -263,6 +263,7 @@ struct CharacterComponent : ComponentBase<Component::Character>
 	sf::Symbol defeatEffect sv_reflect(prefab);
 	SoundEffect damageSound;
 	SoundEffect footstepSound;
+	float walkSpeed = 1.0f;
 };
 
 struct AnimationEvent sv_reflect()

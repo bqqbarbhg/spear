@@ -693,6 +693,11 @@ struct GameSystemImp final : GameSystem
 
 					Transform transform = entity.transform;
 
+					float visualSpeed = 1.0f;
+					if (auto *c = character.svPrefab->findComponent<sv::CharacterComponent>()) {
+						visualSpeed = c->walkSpeed;
+					}
+
 					bool end = false;
 					if (moveWaypointIndex < e->waypoints.size) {
 						const sv::Waypoint &wp = e->waypoints[moveWaypointIndex];
@@ -729,7 +734,7 @@ struct GameSystemImp final : GameSystem
 						}
 					}
 
-					transform.position += moveVelocity * dt;
+					transform.position += moveVelocity * dt * visualSpeed;
 					systems.entities.updateTransform(systems, character.entityId, transform);
 
 					if (ctx.begin) {

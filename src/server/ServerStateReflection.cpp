@@ -537,6 +537,7 @@ template<> void initType<CharacterComponent>(Type *t)
 		sf_field(CharacterComponent, defeatEffect),
 		sf_field(CharacterComponent, damageSound),
 		sf_field(CharacterComponent, footstepSound),
+		sf_field(CharacterComponent, walkSpeed),
 	};
 	sf_struct_base(t, CharacterComponent, Component, fields);
 
