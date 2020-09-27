@@ -1048,6 +1048,7 @@ typedef struct sg_image_desc {
     uint32_t max_anisotropy;
     float min_lod;
     float max_lod;
+    float bqq_lod_bias;
     sg_image_content content;
     const char* label;
     bool bqq_copy_target;

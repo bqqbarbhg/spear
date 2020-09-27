@@ -687,6 +687,7 @@ template<> void initType<CardComponent>(Type *t)
 		sf_field(CardComponent, spell),
 		sf_field(CardComponent, item),
 		sf_field(CardComponent, consumable),
+		sf_field(CardComponent, aiWeight),
 		sf_field(CardComponent, targetSelf),
 		sf_field(CardComponent, targetEnemies),
 		sf_field(CardComponent, targetFriends),
@@ -710,6 +711,10 @@ template<> void initType<CardComponent>(Type *t)
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "consumable");
 		info.description = "Remove the card after use";
+	}
+	{
+		ReflectionInfo &info = addTypeReflectionInfo(t, "aiWeight");
+		info.description = "Modifies how much AI enemies prefer to use this";
 	}
 	{
 		ReflectionInfo &info = addTypeReflectionInfo(t, "targetSelf");

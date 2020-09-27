@@ -1,3 +1,4 @@
+
 #include "util/Defines.glsl"
 
 layout(location=0) attribute vec3 a_position;
@@ -5,11 +6,19 @@ layout(location=1) attribute vec3 a_normal;
 layout(location=2) attribute vec4 a_tangent;
 layout(location=3) attribute vec2 a_uv;
 
-varying vec3 v_position;
-varying vec3 v_normal;
-varying vec3 v_tangent;
-varying vec3 v_bitangent;
-varying vec2 v_uv;
+#pragma permutation SP_SAMPLE_SHADING 2
+
+#if SP_SAMPLE_SHADING && defined(SP_HLSL)
+	#define PER_SAMPLE sample
+#else
+	#define PER_SAMPLE
+#endif
+
+PER_SAMPLE varying vec3 v_position;
+PER_SAMPLE varying vec3 v_normal;
+PER_SAMPLE varying vec3 v_tangent;
+PER_SAMPLE varying vec3 v_bitangent;
+PER_SAMPLE varying vec2 v_uv;
 
 #ifdef SP_VS
 

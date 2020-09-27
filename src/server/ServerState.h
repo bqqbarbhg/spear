@@ -363,6 +363,7 @@ struct CardComponent : ComponentBase<Component::Card>
 	bool item = false;
 
 	bool consumable = false; //! Remove the card after use
+	float aiWeight = 1.0f; //! Modifies how much AI enemies prefer to use this
 
 	// Targetting
 	bool targetSelf = false; //! Allow casting the card to self

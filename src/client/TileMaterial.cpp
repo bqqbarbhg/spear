@@ -46,6 +46,7 @@ struct TileMaterialAtlasTexture
 		desc.num_mipmaps = (int)numAllocatedMips;
 		desc.bqq_copy_target = true;
 		desc.max_lod = (float)(numMips - 1);
+        desc.bqq_lod_bias = g_settings.materialLodBias;
 		initSampler(desc, g_settings);
 		texture.init(desc);
 	}

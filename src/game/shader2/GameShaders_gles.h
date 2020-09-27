@@ -9,13 +9,14 @@
 #define SpShader_TestDepthPrepass 3
 #define SpShader_TestMesh 4
 #define SpShader_TestSkin 5
-#define SpShaderDataSize 163894
+#define SpShaderDataSize 269813
 
-#define SP_SHADOWGRID_USE_ARRAY 0
-#define SP_NORMALMAP_REMAP 1
-#define SP_DEBUG_MODE 2
-#define SP_DIRECT_ENV_LIGHT 3
-#define SP_NUM_PERMUTATIONS 4
+#define SP_SAMPLE_SHADING 0
+#define SP_SHADOWGRID_USE_ARRAY 1
+#define SP_NORMALMAP_REMAP 2
+#define SP_DEBUG_MODE 3
+#define SP_DIRECT_ENV_LIGHT 4
+#define SP_NUM_PERMUTATIONS 5
 
 struct UBO_DebugEnvSphereVertex {
 	static const constexpr uint32_t UboIndex = 1;
@@ -133,8 +134,8 @@ struct SpUniformBlockInfo;
 struct SpSamplerInfo;
 struct SpAttribInfo;
 extern const SpShaderInfo spShaders[6];
-extern const SpPermutationInfo spPermutations[28];
+extern const SpPermutationInfo spPermutations[43];
 extern const SpUniformBlockInfo spUniformBlock[11];
 extern const SpSamplerInfo spSamplers[14];
 extern const SpAttribInfo spAttribs[12];
-extern const char spShaderData[4513];
+extern const char spShaderData[4691];

@@ -7,12 +7,20 @@ layout(location=2) attribute vec4 a_tangent;
 layout(location=3) attribute vec2 a_uv;
 layout(location=4) attribute vec4 a_tint;
 
-varying vec3 v_position;
-varying vec3 v_normal;
-varying vec3 v_tangent;
-varying vec3 v_bitangent;
-varying vec2 v_uv;
-varying vec4 v_tint;
+#pragma permutation SP_SAMPLE_SHADING 2
+
+#if SP_SAMPLE_SHADING && defined(SP_HLSL)
+	#define PER_SAMPLE sample
+#else
+	#define PER_SAMPLE
+#endif
+
+PER_SAMPLE varying vec3 v_position;
+PER_SAMPLE varying vec3 v_normal;
+PER_SAMPLE varying vec3 v_tangent;
+PER_SAMPLE varying vec3 v_bitangent;
+PER_SAMPLE varying vec2 v_uv;
+PER_SAMPLE varying vec4 v_tint;
 
 #ifdef SP_VS
 

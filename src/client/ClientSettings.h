@@ -24,8 +24,10 @@ struct ClientSettings
 	};
 
 	bool simpleShading;
+	bool perSampleShading;
 	bool useFxaa;
 	uint32_t maxResolution;
+	float materialLodBias;
 	bool trilinear;
 	uint32_t msaaSamples;
 	uint32_t tileMaterialResolution;

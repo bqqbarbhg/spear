@@ -11,6 +11,7 @@ void initDefaultSettings(ClientSettings &settings, ClientSettings::Preset preset
 		settings.msaaSamples = 1;
 		settings.useFxaa = false;
 		settings.maxResolution = 540;
+		settings.materialLodBias = 0.0f;
 		settings.tileMaterialResolution = 128;
 		settings.meshMaterialResolution = 128;
 		settings.trilinear = false;
@@ -29,6 +30,7 @@ void initDefaultSettings(ClientSettings &settings, ClientSettings::Preset preset
 		settings.msaaSamples = 1;
 		settings.useFxaa = true;
 		settings.maxResolution = 720;
+		settings.materialLodBias = 0.0f;
 		settings.tileMaterialResolution = 256;
 		settings.meshMaterialResolution = 512;
 		settings.trilinear = false;
@@ -47,6 +49,7 @@ void initDefaultSettings(ClientSettings &settings, ClientSettings::Preset preset
 		settings.msaaSamples = 1;
 		settings.useFxaa = true;
 		settings.maxResolution = 1080;
+		settings.materialLodBias = 0.0f;
 		settings.tileMaterialResolution = 512;
 		settings.meshMaterialResolution = 512;
 		settings.trilinear = true;
@@ -65,10 +68,11 @@ void initDefaultSettings(ClientSettings &settings, ClientSettings::Preset preset
 		settings.msaaSamples = 4;
 		settings.useFxaa = false;
 		settings.maxResolution = 1440;
+		settings.materialLodBias = 0.0f;
 		settings.tileMaterialResolution = 1024;
 		settings.meshMaterialResolution = 1024;
 		settings.trilinear = true;
-		settings.maxAnisotropy = 4;
+		settings.maxAnisotropy = 8;
 		settings.diffuseProbeSlices = 3;
 		settings.diffuseProbeUpdateCount = 3;
 		settings.diffuseProbeResolution = 128;
@@ -81,12 +85,14 @@ void initDefaultSettings(ClientSettings &settings, ClientSettings::Preset preset
 	} else if (preset == ClientSettings::Ultra) {
 		settings.simpleShading = false;
 		settings.msaaSamples = 8;
+		settings.perSampleShading = true;
 		settings.useFxaa = false;
 		settings.maxResolution = UINT32_MAX;
+		settings.materialLodBias = -1.0f;
 		settings.tileMaterialResolution = 1024;
 		settings.meshMaterialResolution = 1024;
 		settings.trilinear = true;
-		settings.maxAnisotropy = 8;
+		settings.maxAnisotropy = 16;
 		settings.diffuseProbeSlices = 4;
 		settings.diffuseProbeUpdateCount = 3;
 		settings.diffuseProbeResolution = 128;
@@ -101,6 +107,7 @@ void initDefaultSettings(ClientSettings &settings, ClientSettings::Preset preset
         settings.msaaSamples = 4;
         settings.useFxaa = false;
         settings.maxResolution = 1080;
+		settings.materialLodBias = 0.0f;
         settings.tileMaterialResolution = 512;
         settings.meshMaterialResolution = 512;
         settings.trilinear = true;

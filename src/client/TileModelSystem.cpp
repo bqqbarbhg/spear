@@ -6,6 +6,7 @@
 #include "client/LightSystem.h"
 #include "client/EnvLightSystem.h"
 #include "client/VisFogSystem.h"
+#include "client/ClientSettings.h"
 
 #include "sf/Array.h"
 
@@ -574,6 +575,7 @@ struct TileModelSystemImp final : TileModelSystem
 			permutation[SP_SHADOWGRID_USE_ARRAY] = 0;
 		#endif
 		permutation[SP_NORMALMAP_REMAP] = MeshMaterial::useNormalMapRemap;
+		permutation[SP_SAMPLE_SHADING] = g_settings.perSampleShading;
 		chunkDepthShader = getShader2(SpShader_TestDepthPrepass, permutation);
 		chunkMeshShader = getShader2(SpShader_TestMesh, permutation);
 

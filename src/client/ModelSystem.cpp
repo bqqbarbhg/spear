@@ -4,6 +4,7 @@
 #include "client/LightSystem.h"
 #include "client/EnvLightSystem.h"
 #include "client/VisFogSystem.h"
+#include "client/ClientSettings.h"
 
 #include "game/shader2/GameShaders2.h"
 #include "client/MeshMaterial.h"
@@ -174,6 +175,7 @@ struct ModelSystemImp final : ModelSystem
 			permutation[SP_SHADOWGRID_USE_ARRAY] = 0;
 		#endif
 		permutation[SP_NORMALMAP_REMAP] = MeshMaterial::useNormalMapRemap;
+		permutation[SP_SAMPLE_SHADING] = g_settings.perSampleShading;
 		meshShader = getShader2(SpShader_DynamicMesh, permutation);
 
 

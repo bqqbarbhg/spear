@@ -103,6 +103,9 @@
     #ifndef GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT
     #define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
     #endif
+    #ifndef GL_TEXTURE_LOD_BIAS_EXT
+    #define GL_TEXTURE_LOD_BIAS_EXT 0x8501
+    #endif
     #ifndef GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
     #define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT 0x83F1
     #endif
@@ -569,6 +572,7 @@ typedef struct {
     sg_pass cur_pass_id;
     _sg_gl_state_cache_t cache;
     bool ext_anisotropic;
+    bool ext_lod_bias;
     GLint max_anisotropy;
     GLint max_combined_texture_image_units;
     GLuint uniform_buffers[SG_HACK_GL_NUM_UNIFORM_BUFFERS];
@@ -2649,6 +2653,9 @@ _SOKOL_PRIVATE void _sg_gl_init_caps_glcore33(void) {
             else if (strstr(ext, "_texture_filter_anisotropic")) {
                 _sg.gl.ext_anisotropic = true;
             }
+            else if (strstr(ext, "_texture_lod_bias")) {
+                _sg.gl.ext_lod_bias = true;
+            }
         }
     }
 
@@ -2754,6 +2761,9 @@ _SOKOL_PRIVATE void _sg_gl_init_caps_gles3(void) {
             else if (strstr(ext, "_texture_filter_anisotropic")) {
                 _sg.gl.ext_anisotropic = true;
             }
+            else if (strstr(ext, "_texture_lod_bias")) {
+                _sg.gl.ext_lod_bias = true;
+            }
         }
     }
 
@@ -2821,6 +2831,7 @@ _SOKOL_PRIVATE void _sg_gl_init_caps_gles2(void) {
         */
         has_instancing = strstr(ext, "_instanced_arrays");
         _sg.gl.ext_anisotropic = strstr(ext, "ext_anisotropic");
+		_sg.gl.ext_lod_bias = false;
     }
 
     _sg.features.origin_top_left = false;
@@ -3286,6 +3297,9 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
                         max_aniso = _sg.gl.max_anisotropy;
                     }
                     glTexParameteri(img->gl_target, GL_TEXTURE_MAX_ANISOTROPY_EXT, max_aniso);
+                }
+                if (_sg.gl.ext_lod_bias && (desc->bqq_lod_bias != 0.0f)) {
+                    glTexParameterf(img->gl_target, GL_TEXTURE_LOD_BIAS_EXT, desc->bqq_lod_bias);
                 }
                 if (img->type == SG_IMAGETYPE_CUBE) {
                     glTexParameteri(img->gl_target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -5245,6 +5259,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
         d3d11_smp_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
         d3d11_smp_desc.MinLOD = desc->min_lod;
         d3d11_smp_desc.MaxLOD = desc->max_lod;
+        d3d11_smp_desc.MipLODBias = desc->bqq_lod_bias;
         hr = ID3D11Device_CreateSamplerState(_sg.d3d11.dev, &d3d11_smp_desc, &img->d3d11_smp);
         SOKOL_ASSERT(SUCCEEDED(hr) && img->d3d11_smp);
     }

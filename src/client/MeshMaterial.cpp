@@ -73,6 +73,7 @@ static void loadTextureImp(void *user, const sp::ContentFile &file, MaterialText
 		d.num_mipmaps = header.info.num_mips;
 		d.width = header.info.width;
 		d.height = header.info.height;
+        d.bqq_lod_bias = g_settings.materialLodBias;
         initSampler(d, g_settings);
 
         sf::SmallStringBuf<128> name;
