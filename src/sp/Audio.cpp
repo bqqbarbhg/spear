@@ -296,6 +296,60 @@ void AudioLimiter::limitStereo(float *dstSamples, uint32_t numSamples, uint32_t 
 	sf_assert(dst == dstSamples + numSamples * 2);
 }
 
+void BeginLoopAudioSource::seek(uint32_t sample)
+{
+	// Only support seeking into the beginning for now
+	begin->seek(sample);
+	loop->seek(0);
+	inLoop = false;
+}
+
+BeginLoopAudioSource::BeginLoopAudioSource()
+{
+}
+
+BeginLoopAudioSource::BeginLoopAudioSource(sf::Box<AudioSource> begin_, sf::Box<AudioSource> loop_)
+	: begin(std::move(begin_))
+	, loop(std::move(loop_))
+{
+	numChannels = begin->numChannels;
+	sampleRate = begin->sampleRate;
+	sf_assert(numChannels == loop->numChannels);
+	sf_assert(sampleRate == loop->sampleRate);
+}
+
+uint32_t BeginLoopAudioSource::advance(uint32_t sample, float *dst, uint32_t num)
+{
+	uint32_t numTotal = 0;
+
+	if (!inLoop) {
+		uint32_t numBegin = begin->advance(sample, dst, num);
+		numTotal += numBegin;
+		sample += numBegin;
+		dst += numBegin * numChannels;
+		num -= numBegin;
+		if (numBegin < num) {
+			inLoop = true;
+			loopBeginSample = sample;
+		}
+	}
+
+	while (inLoop && num > 0) {
+		uint32_t localSample = sample - loopBeginSample;
+		uint32_t numLoop = loop->advance(localSample, dst, num);
+		numTotal += numLoop;
+		sample += numLoop;
+		dst += numLoop * numChannels;
+		num -= numLoop;
+		if (num > 0) {
+			loop->seek(0);
+			loopBeginSample = sample;
+		}
+	}
+
+	return numTotal;
+}
+
 void BeginLoopEndAudioSource::stop()
 {
 	mxa_cas32(&impStopFlag, 0, 1);
@@ -312,13 +366,11 @@ void BeginLoopEndAudioSource::seek(uint32_t sample)
 	// TODO: This would be doable by tracking transitions,
 	// but I don't feel like it
 	if (sample == 0) {
-		begin->seek(0);
+		begin->seek(sample);
 		loop->seek(0);
 		if (end) end->seek(0);
 		impState = Begin;
 		impBeginSample = 0;
-	} else {
-		sf_failf("TODO");
 	}
 }
 

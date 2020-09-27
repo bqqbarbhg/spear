@@ -69,6 +69,21 @@ struct AudioLimiter
 	void limitStereo(float *dstSamples, uint32_t numSamples, uint32_t sampleRate);
 };
 
+struct BeginLoopAudioSource : AudioSource
+{
+	sf::Box<AudioSource> begin;
+	sf::Box<AudioSource> loop;
+
+	bool inLoop = false;
+	uint32_t loopBeginSample = 0;
+
+	BeginLoopAudioSource();
+	BeginLoopAudioSource(sf::Box<AudioSource> begin, sf::Box<AudioSource> loop);
+
+	virtual void seek(uint32_t sample) override;
+	virtual uint32_t advance(uint32_t sample, float *dst, uint32_t num) override;
+};
+
 struct BeginLoopEndAudioSource : AudioSource
 {
 	enum State
