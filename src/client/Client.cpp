@@ -586,7 +586,7 @@ bool clientUpdate(Client *c, const ClientInput &input)
 	// TODO: Don't always create editor
 	for (const sapp_event &event : input.events) {
 		if (event.type == SAPP_EVENTTYPE_KEY_DOWN) {
-			if (event.key_code == SAPP_KEYCODE_SPACE) {
+			if (event.key_code == SAPP_KEYCODE_F2) {
 				if (c->svState && !ImGui::GetIO().WantCaptureKeyboard) {
 					if (c->editor) {
 						editorFree(c->editor);

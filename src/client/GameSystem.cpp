@@ -1812,14 +1812,14 @@ struct GameSystemImp final : GameSystem
 					if (turnInfo.movementLeft > 0) {
 						tutorial.text = "Move to the door and use the card [nb][b]Key[/][/] to open it.";
 					} else {
-						tutorial.text = "Use the [nb][b][[End turn][/][/] button to finish your turn.";
+						tutorial.text = "Press [b]space[/b] or the [nb][b][[End turn][/][/] button to finish your turn.";
 					}
 				}
 			} else {
 				if (!tutorial.hasMoved) {
 					tutorial.text = "Click a green square to move.";
 				} else {
-					tutorial.text = "Use the [nb][b][[End turn][/][/] button to finish your turn";
+					tutorial.text = "Press [b]space[/b] or the [nb][b][[End turn][/][/] button to finish your turn";
 					if (turnInfo.movementLeft > 0) {
 						tutorial.text.append(" or click another square to move further.");
 					} else {
@@ -1855,11 +1855,11 @@ struct GameSystemImp final : GameSystem
 						}
 					} else {
 						if (turnInfo.movementLeft > 0) {
-							tutorial.text.append("Move closer to the enemies or use");
+							tutorial.text.append("Move closer to the enemies or press");
 						} else {
-							tutorial.text.append("Use");
+							tutorial.text.append("Press");
 						}
-						tutorial.text.append(" the [nb][b][[End turn][/][/] button to finish your turn");
+						tutorial.text.append(" [b]space[/b] or the [nb][b][[End turn][/][/] button to finish your turn.");
 					}
 				}
 			} else {
@@ -2024,7 +2024,8 @@ struct GameSystemImp final : GameSystem
 			bt->boxOffset = sf::Vec2(frameArgs.guiResolution.x - 140.0f - 20.0f, 20.0f);
 			bt->boxExtent = sf::Vec2(140.0f, 60.0f);
 
-			if (bt->pressed && turnInfo.characterId == selectedCharacterId) {
+			bool spacePressed = input.keyDown[SAPP_KEYCODE_SPACE] && !input.prevKeyDown[SAPP_KEYCODE_SPACE];
+			if ((bt->pressed || spacePressed) && turnInfo.characterId == selectedCharacterId) {
 				auto action = sf::box<sv::EndTurnAction>();
 				action->characterId = chr->svId;
 				requestedActions.push(std::move(action));
