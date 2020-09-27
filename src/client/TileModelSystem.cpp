@@ -619,7 +619,9 @@ struct TileModelSystemImp final : TileModelSystem
 		sp::ModelProps modelProps;
 		modelProps.cpuData = true;
 
-		model.model[(uint32_t)ChunkType::Normal].load(c.model, modelProps);
+		if (c.model) {
+			model.model[(uint32_t)ChunkType::Normal].load(c.model, modelProps);
+		}
 		if (c.castShadows) {
 			if (c.shadowModel) {
 				model.model[(uint32_t)ChunkType::Shadow].load(c.shadowModel, modelProps);
@@ -888,6 +890,7 @@ struct TileModelSystemImp final : TileModelSystem
 	{
 		uint32_t modelId = ec.userId;
 		const Model &model = models[modelId];
+		if (!model.model[(uint32_t)ChunkType::Normal]) return;
 
 		sf::Vec3 color;
 		switch (type) {
@@ -900,11 +903,13 @@ struct TileModelSystemImp final : TileModelSystem
 
 	void editorPick(sf::Array<EntityHit> &hits, const sf::FastRay &ray, uint32_t userId) const override
 	{
+
 		uint32_t chunkId = userId;
 		const Chunk &chunk = chunks[chunkId];
 
 		for (uint32_t modelId : chunk.modelIds) {
 			const Model &model = models[modelId];
+			if (!model.model[(uint32_t)ChunkType::Normal]) continue;
 			float t = model.model[(uint32_t)ChunkType::Normal]->castModelRay(ray.ray, model.modelToWorld);
 			if (t < HUGE_VALF) {
 				hits.push({ model.entityId, t });

@@ -1695,7 +1695,9 @@ void editorUpdate(EditorState *es, const FrameArgs &frameArgs, const ClientInput
 					if (auto *c = comp->as<sv::DynamicModelComponent>()) {
 						shouldAdd = false;
 					} else if (auto *c = comp->as<sv::TileModelComponent>()) {
-						shouldAdd = false;
+						if (c->model) {
+							shouldAdd = false;
+						}
 					} else if (auto *c = comp->as<sv::SoundComponent>()) {
 						if (iconLevel < 1) {
 							pSprite = &es->entityIconResources.sound;
