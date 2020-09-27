@@ -369,5 +369,114 @@ uint32_t BeginLoopEndAudioSource::advance(uint32_t sample, float *dst, uint32_t 
 	return numTotal;
 }
 
+void InterruptLoopAudioSource::stop()
+{
+	mxa_cas32(&impStopFlag, 0, 1);
+}
+
+bool InterruptLoopAudioSource::unstop()
+{
+	if (mxa_load32_nf(&impStopFlag) == 0) return true;
+	return mxa_cas32(&impStopFlag, 1, 0);
+}
+
+void InterruptLoopAudioSource::seek(uint32_t sample)
+{
+	sf_failf("TODO");
+}
+
+uint32_t InterruptLoopAudioSource::advance(uint32_t sample, float *dst, uint32_t num)
+{
+	uint32_t beginSample = sample;
+
+	if (!hasFadeBuffer) {
+		uint32_t stopFlag = mxa_load32_nf(&impStopFlag);
+		bool shouldStop = false;
+		if (stopFlag == 2) {
+			shouldStop = true;
+		} else if (stopFlag == 1) {
+			shouldStop = mxa_cas32(&impStopFlag, 1, 2);
+		}
+
+		uint32_t numToLoop = num;
+		bool makeCrossfade = false;
+		if (shouldStop) {
+			uint64_t samplesUntilNextInterrupt = (uint64_t)interruptInterval - totalSamples % (uint64_t)interruptInterval;
+			if (samplesUntilNextInterrupt <= num) {
+				numToLoop = (uint32_t)samplesUntilNextInterrupt;
+				makeCrossfade = true;
+			}
+		}
+
+		uint32_t numLoop = loop->advance(sample, dst, numToLoop);
+		sample += numToLoop;
+		dst += numToLoop * numChannels;
+		num -= numToLoop;
+
+		if (makeCrossfade) {
+			// TODO: In-place with smaller buffer
+			float localFadeBuffer[1024];
+			sf_assert(fadeBuffer.size <= 1024);
+			uint32_t fadeSamples = fadeBuffer.size / numChannels;
+
+			loop->advance(sample, localFadeBuffer, fadeSamples);
+			end->advance(0, fadeBuffer.data, fadeSamples);
+
+			// TODO: Float4
+			float dt = 1.0f / (float)fadeSamples;
+			if (numChannels == 1) {
+				float t = 0.0f;
+				float *a = localFadeBuffer;
+				float *b = fadeBuffer.data;
+				for (uint32_t i = 0; i < fadeSamples; i++) {
+					b[0] = a[0] * (1.0f - t) + b[0] * t;
+					a++;
+					b++;
+					t += dt;
+				}
+			} else if (numChannels == 2) {
+				float t = 0.0f;
+				float *a = localFadeBuffer;
+				float *b = fadeBuffer.data;
+				for (uint32_t i = 0; i < fadeSamples; i++) {
+					b[0] = a[0] * (1.0f - t) + b[0] * t;
+					b[1] = a[1] * (1.0f - t) + b[1] * t;
+					a += 2;
+					b += 2;
+					t += dt;
+				}
+			}
+
+			fadeBufferFirstSample = sample;
+			hasFadeBuffer = true;
+		}
+	}
+
+	if (!atEnd && hasFadeBuffer) {
+		uint32_t offset = sample - fadeBufferFirstSample;
+		uint32_t fadeLeft = fadeBuffer.size / numChannels - offset;
+		uint32_t numToCopy = sf::min(fadeLeft, num);
+		memcpy(dst, fadeBuffer.data + offset * numChannels, sizeof(float) * numChannels * numToCopy);
+		sample += numToCopy;
+		dst += numToCopy * numChannels;
+		num -= numToCopy;
+		if (num > 0) {
+			atEnd = true;
+		}
+	}
+
+	if (atEnd && num > 0) {
+		uint32_t localSample = sample - fadeBufferFirstSample;
+		uint32_t numEnd = end->advance(sample, dst, num);
+		sample += numEnd;
+		dst += numEnd * numChannels;
+		num -= numEnd;
+	}
+
+	uint32_t numRead = sample - beginSample;
+	totalSamples += numRead;
+	return numRead;
+}
+
 }
 

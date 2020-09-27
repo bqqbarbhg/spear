@@ -93,4 +93,28 @@ struct BeginLoopEndAudioSource : AudioSource
 	virtual uint32_t advance(uint32_t sample, float *dst, uint32_t num) override;
 };
 
+struct InterruptLoopAudioSource : AudioSource
+{
+	sf::Box<AudioSource> loop;
+	sf::Box<AudioSource> end;
+
+	uint32_t impStopFlag = 0;
+
+	sf::Array<float> fadeBuffer;
+	bool hasFadeBuffer = false;
+	bool atEnd = false;
+
+	uint64_t totalSamples;
+
+	uint32_t fadeBufferFirstSample;
+
+	uint32_t interruptInterval = 1;
+
+	void stop();
+	bool unstop();
+
+	virtual void seek(uint32_t sample) override;
+	virtual uint32_t advance(uint32_t sample, float *dst, uint32_t num) override;
+};
+
 }

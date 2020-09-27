@@ -364,7 +364,7 @@ struct GameSystemImp final : GameSystem
 	sp::SoundRef battleMusicStart;
 	sp::SoundRef battleMusicLoop;
 	sp::SoundRef battleMusicEnd;
-	sf::Box<sp::BeginLoopEndAudioSource> battleAudioSource;
+	sf::Box<sp::InterruptLoopAudioSource> battleAudioSource;
 
 	void equipCardImp(Systems &systems, uint32_t characterId, uint32_t cardId, uint32_t slot)
 	{
@@ -1619,6 +1619,7 @@ struct GameSystemImp final : GameSystem
 				ImGui::Checkbox("Disable VisFog", &debugDisableVisFog);
 				ImGui::Checkbox("Unlimited camera zoom", &debugUnlimitedCamera);
 				ImGui::Checkbox("Simulate touch", &simulateTouch);
+				ImGui::Checkbox("In battle", &inBattle);
 				if (ImGui::Button("Pointers")) showDebugPointers = true;
 			}
 			ImGui::End();
@@ -2184,12 +2185,19 @@ struct GameSystemImp final : GameSystem
 
 			if (!battleAudioSource) {
 				if (battleMusicStart.isLoaded() && battleMusicLoop.isLoaded() && battleMusicEnd.isLoaded()) {
-					battleAudioSource = sf::box<sp::BeginLoopEndAudioSource>();
+					auto battleMusicSource = sf::box<sp::BeginLoopEndAudioSource>();
+					battleMusicSource->sampleRate = 44100;
+					battleMusicSource->numChannels = 2;
+					battleMusicSource->begin = battleMusicStart->getSource(0);
+					battleMusicSource->loop = battleMusicLoop->getSource(0);
+
+					battleAudioSource = sf::box<sp::InterruptLoopAudioSource>();
+					battleAudioSource->interruptInterval = 100800;
 					battleAudioSource->sampleRate = 44100;
 					battleAudioSource->numChannels = 2;
-					battleAudioSource->begin = battleMusicStart->getSource(0);
-					battleAudioSource->loop = battleMusicLoop->getSource(0);
+					battleAudioSource->loop = battleMusicSource;
 					battleAudioSource->end = battleMusicEnd->getSource(0);
+					battleAudioSource->fadeBuffer.resize(256);
 
 					AudioInfo info = { };
 					info.volume = 0.3f;
