@@ -533,7 +533,7 @@ uint32_t SwappingAudioSource::advance(uint32_t sample, float *dst, uint32_t num)
 
 			uint32_t numPlaying = 0;
 			for (uint32_t srcI = 0; srcI < 2; srcI++) {
-				if (!mxa_load32_rel(&impPlaying[srcI])) continue;
+				if (!mxa_load32_nf(&impPlaying[srcI])) continue;
 				uint32_t localSample = (uint32_t)(totalSamples - startSample[srcI]);
 
 				uint32_t localNum;
@@ -566,8 +566,8 @@ uint32_t SwappingAudioSource::advance(uint32_t sample, float *dst, uint32_t num)
 
 		if (crossesBoundary) {
 			for (uint32_t srcI = 0; srcI < 2; srcI++) {
-				if (mxa_load32_rel(&impPlaying[srcI])) continue;
-				if (mxa_load32_rel(&impShouldStart[srcI]) == 0) continue;
+				if (mxa_load32_nf(&impPlaying[srcI])) continue;
+				if (mxa_load32_nf(&impShouldStart[srcI]) == 0) continue;
 				if (!mxa_cas32(&impShouldStart[srcI], 1, 0)) continue;
 
 				startSample[srcI] = totalSamples;
