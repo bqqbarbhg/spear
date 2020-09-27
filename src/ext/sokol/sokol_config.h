@@ -8,7 +8,7 @@
 #if defined(SP_NO_APP)
 	#define SOKOL_DUMMY_BACKEND
 #elif SF_OS_WINDOWS
-	#if defined(SP_USE_OPENGL) || 1
+	#if defined(SP_USE_OPENGL)
 		#define SOKOL_GLCORE33
 	#else
 		#define SOKOL_D3D11
