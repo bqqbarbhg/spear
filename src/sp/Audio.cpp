@@ -331,6 +331,7 @@ uint32_t BeginLoopAudioSource::advance(uint32_t sample, float *dst, uint32_t num
 		if (numBegin < num) {
 			inLoop = true;
 			loopBeginSample = sample;
+			sf::debugPrintLine("BEGIN");
 		}
 	}
 
@@ -344,6 +345,7 @@ uint32_t BeginLoopAudioSource::advance(uint32_t sample, float *dst, uint32_t num
 		if (num > 0) {
 			loop->seek(0);
 			loopBeginSample = sample;
+			sf::debugPrintLine("LOOP");
 		}
 	}
 
