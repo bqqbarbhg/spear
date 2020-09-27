@@ -125,7 +125,7 @@ void AudioSampler::advanceMixStereoImp(float *dstBuf, uint32_t numDst, AudioSour
 			}
 		} else {
 			float t = (float)(srcSampleTime - (double)workFirstSample);
-			uint32_t numSafeSamples = sf::min(dstLeft, (uint32_t)((float)(workNumSamples - 2) * srcToDst - t - 2.0f)) >> 1;
+			uint32_t numSafeSamples = sf::min(dstLeft, (uint32_t)((float)(workNumSamples - 2) * srcToDst - t)) >> 1;
 			srcSampleTime += dstToSrc * (float)(numSafeSamples * 2);
 
 			while (numSafeSamples-- > 0) {
