@@ -69,7 +69,7 @@ void AudioSampler::advanceMixStereoImp(float *dstBuf, uint32_t numDst, AudioSour
 		sf_assert(dstPtr < dstEnd);
 		uint32_t dstLeft = (uint32_t)(dstEnd - dstPtr) >> 1;
 		uint32_t minSample = (uint32_t)srcSampleTime;
-		uint32_t maxSample = (uint32_t)(srcSampleTime + (double)(dstLeft + 4.0f) * dstToSrc);
+		uint32_t maxSample = (uint32_t)(srcSampleTime + (double)dstLeft * dstToSrc) + 4;
 
 		uint32_t workLastSample = workFirstSample + workNumSamples;
 		int32_t missingSamples = (int32_t)maxSample - (int32_t)workLastSample;
@@ -98,7 +98,7 @@ void AudioSampler::advanceMixStereoImp(float *dstBuf, uint32_t numDst, AudioSour
 
 		if (srcChannels == 1) {
 			float t = (float)(srcSampleTime - (double)workFirstSample);
-			uint32_t numSafeSamples = sf::min(dstLeft, (uint32_t)((float)workNumSamples * srcToDst - t - 2.0f)) >> 1;
+			uint32_t numSafeSamples = sf::min(dstLeft, (uint32_t)((float)(workNumSamples - 2) * srcToDst - t)) >> 1;
 			srcSampleTime += dstToSrc * (float)(numSafeSamples * 2);
 
 			while (numSafeSamples-- > 0) {
@@ -125,7 +125,7 @@ void AudioSampler::advanceMixStereoImp(float *dstBuf, uint32_t numDst, AudioSour
 			}
 		} else {
 			float t = (float)(srcSampleTime - (double)workFirstSample);
-			uint32_t numSafeSamples = sf::min(dstLeft, (uint32_t)((float)workNumSamples * srcToDst - t - 2.0f)) >> 1;
+			uint32_t numSafeSamples = sf::min(dstLeft, (uint32_t)((float)(workNumSamples - 2) * srcToDst - t - 2.0f)) >> 1;
 			srcSampleTime += dstToSrc * (float)(numSafeSamples * 2);
 
 			while (numSafeSamples-- > 0) {
