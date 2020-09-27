@@ -551,6 +551,7 @@ void ServerState::applyEvent(const Event &event)
 		if (Character *chr = findCharacter(*this, e->character.id)) {
 			chr->enemy = e->character.enemy;
 			chr->originalEnemy = e->character.originalEnemy;
+			chr->hackResistCurse = e->character.hackResistCurse;
 			chr->dropCards = e->character.dropCards;
 		}
 	} else if (auto *e = event.as<TurnUpdateEvent>()) {
@@ -932,7 +933,7 @@ void ServerState::putStatus(sf::Array<sf::Box<Event>> &events, const StatusInfo 
 
 	for (Component *comp : statusPrefab->components) {
 		if (auto *c = comp->as<StatusChangeTeamComponent>()) {
-			if (chr->enemy == chr->originalEnemy) {
+			if (chr->enemy == chr->originalEnemy && !chr->hackResistCurse) {
 				auto e = sf::box<ChangeTeamEvent>();
 				e->cardName = statusInfo.cardName;
 				e->characterId = statusInfo.targetId;
@@ -971,7 +972,7 @@ void ServerState::doDamage(sf::Array<sf::Box<Event>> &events, const DamageInfo &
 			}
 			if (val < e->meleeArmor) {
 				// Armor halves melee damage
-				damage /= 2;
+				damage = (damage + 1) / 2;
 			}
 			total += damage;
 		}
@@ -2333,14 +2334,6 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 				info.cardName = card->prefabName;
 				info.manualCast = true;
 				castSpell(events, info);
-			} else if (auto *c = comp->as<CardStatusComponent>()) {
-				StatusInfo info;
-				info.statusName = c->statusName;
-				info.cardName = card->prefabName;
-				info.originalCasterId = casterId;
-				info.casterId = casterId;
-				info.targetId = targetId;
-				putStatus(events, info);
 			} else if (auto *c = comp->as<CardCastMeleeComponent>()) {
 				RollInfo numRoll = rollDice(c->hitCount, "hit count");
 				const Card *meleeCard = findMeleeCard(*this, casterChr);

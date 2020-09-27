@@ -635,6 +635,7 @@ struct Character sv_reflect()
 	uint32_t playerClientId = 0;
 	bool enemy = false;
 	bool originalEnemy = false;
+	bool hackResistCurse = false;
 };
 
 struct StatusInfo sv_reflect()

@@ -1207,6 +1207,10 @@ void handleImguiCharacterWindow(EditorState *es)
 					status.modified = true;
 				}
 
+				if (ImGui::Checkbox("Resist Curse (HACK)", &chrCopy.hackResistCurse)) {
+					status.modified = true;
+				}
+
 				handleImgui(status, chrCopy.dropCards, "dropCards", imguiCallback, es);
 
 				if (status.modified) {

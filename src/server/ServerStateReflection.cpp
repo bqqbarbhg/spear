@@ -2176,6 +2176,7 @@ template<> void initType<Character>(Type *t)
 		sf_field(Character, playerClientId),
 		sf_field(Character, enemy),
 		sf_field(Character, originalEnemy),
+		sf_field(Character, hackResistCurse),
 	};
 	sf_struct(t, Character, fields);
 

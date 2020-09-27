@@ -1100,6 +1100,7 @@ struct GameSystemImp final : GameSystem
 			if (Character *chr = findCharacter(e->character.id)) {
 				chr->sv.enemy = e->character.enemy;
 				chr->sv.originalEnemy = e->character.originalEnemy;
+				chr->sv.hackResistCurse = e->character.hackResistCurse;
 				chr->sv.dropCards = e->character.dropCards;
 			}
 
