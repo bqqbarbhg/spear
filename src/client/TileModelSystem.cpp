@@ -11,6 +11,7 @@
 #include "sf/Array.h"
 
 #include "sp/Model.h"
+#include "sp/Profiler.h"
 
 #include "game/DebugDraw.h"
 
@@ -298,6 +299,8 @@ struct TileModelSystemImp final : TileModelSystem
 
 	void updateChunkGeometry(uint32_t chunkId, AreaSystem *areaSystem)
 	{
+		SP_ZONE_FUNC();
+
 		Chunk &chunk = chunks[chunkId];
 		ChunkType type = chunk.type;
 

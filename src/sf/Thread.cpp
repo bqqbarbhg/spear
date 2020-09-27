@@ -1,6 +1,10 @@
 #include "Thread.h"
 #include "Internal.h"
 
+#if defined(TRACY_ENABLE)
+    #include "ext/tracy/Tracy.hpp"
+#endif
+
 #if SF_OS_WINDOWS
 	#define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
@@ -83,6 +87,9 @@ DWORD WINAPI threadEntry(LPVOID arg)
     ThreadImp *imp = (ThreadImp*)arg;
     if (imp->debugName.size > 0) {
         setDebugThreadName(imp->debugName);
+		#if defined(TRACY_ENABLE)
+            tracy::SetThreadName(imp->debugName.data);
+		#endif
     }
 
     imp->entry(imp->user);
@@ -140,6 +147,9 @@ void *threadEntry(void *arg)
     ThreadImp *imp = (ThreadImp*)arg;
     if (imp->debugName.size > 0) {
         setDebugThreadName(imp->debugName);
+		#if defined(TRACY_ENABLE)
+            tracy::SetThreadName(imp->debugName.data);
+		#endif
     }
     imp->entry(imp->user);
     return 0;

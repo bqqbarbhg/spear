@@ -45,6 +45,11 @@ newoption {
    description = "Use address sanitizer"
 }
 
+newoption {
+   trigger     = "profiler",
+   description = "Enable profiler"
+}
+
 workspace "spear"
 	configurations { "debug", "develop", "release" }
 
@@ -57,6 +62,7 @@ workspace "spear"
 	staticruntime "on"
 	exceptionhandling "Off"
 	rtti "Off"
+	editAndContinue "Off"
 
 	defines { "JSI_USE_IMPL=1" }
 
@@ -200,6 +206,10 @@ workspace "spear"
 		linkoptions { "-pthread" }
 		targetsuffix "-threads"
 		objdir "proj/obj/wasm-threads/%{cfg.buildcfg}"
+
+	filter "options:profiler"
+		defines { "TRACY_ENABLE=1" }
+		defines { "TRACY_CALLSTACK=8" }
 
 	filter { "platforms:wasm", "options:wasm-simd", "options:wasm-threads" }
 		targetsuffix "-simd-threads"

@@ -29,6 +29,8 @@
 
 #include "ext/sokol/sokol_gl.h"
 
+#include "sp/Profiler.h"
+
 #if SF_OS_EMSCRIPTEN
 	#include <emscripten/emscripten.h>
 	#include <emscripten/html5.h>
@@ -354,6 +356,8 @@ void spEvent(const sapp_event *e)
 
 void spFrame(float dt)
 {
+	SP_ZONE_FUNC();
+
 	simgui_new_frame(sapp_width(), sapp_height(), dt);
 
 	updateProcessing();
@@ -473,10 +477,16 @@ void spFrame(float dt)
 	sp::endFrame();
 
 	sg_commit();
+
+	#if defined(TRACY_ENABLE)
+		FrameMark
+	#endif
 }
 
 void spAudio(float* buffer, int numFrames, int numChannels)
 {
+	SP_ZONE_FUNC();
+
 	sf_assert(numFrames % 4 == 0);
 	uint32_t sampleRate = saudio_sample_rate();
 	sf::MutexGuard mg(clientMutex);
