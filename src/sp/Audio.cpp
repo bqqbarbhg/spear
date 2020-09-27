@@ -525,11 +525,11 @@ uint32_t SwappingAudioSource::advance(uint32_t sample, float *dst, uint32_t num)
 			crossesBoundary = true;
 		}
 
-		uint32_t chunkSize = 512 / numChannels;
 		float buf[512];
+		uint32_t chunkSize = sf_arraysize(buf) / numChannels;
 		uint32_t base = 0;
 		for (uint32_t base = 0; base < numToRead; base += chunkSize) {
-			uint32_t chunkActual = sf::min(num - base, chunkSize);
+			uint32_t chunkActual = sf::min(num, chunkSize);
 
 			uint32_t numPlaying = 0;
 			for (uint32_t srcI = 0; srcI < 2; srcI++) {
