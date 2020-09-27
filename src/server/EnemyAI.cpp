@@ -174,8 +174,10 @@ bool doEnemyActions(AiState &ai, sf::Array<sf::Box<sv::Event>> &events, sv::Serv
 
 		weight *= cardComp->aiWeight;
 
-		cardsToUse.push({ cardPrefab, cardId, weight });
-		totalWeight += weight;
+		if (weight > 0.0f) {
+			cardsToUse.push({ cardPrefab, cardId, weight });
+			totalWeight += weight;
+		}
 	}
 
 	sv::PathfindOpts opts;
