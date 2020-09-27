@@ -161,6 +161,17 @@ bool doEnemyActions(AiState &ai, sf::Array<sf::Box<sv::Event>> &events, sv::Serv
 		float weight = 1.0f;
 		weight += (float)cardComp->cooldown * 0.5f;
 
+		// Bias self healing items depending on HP left
+		if (cardComp->targetSelf) {
+			auto *castComp = cardPrefab->findComponent<CardCastComponent>();
+			auto *spellPrefab = castComp ? state.prefabs.find(castComp->spellName) : NULL;
+			auto *healComp = spellPrefab ? spellPrefab->findComponent<SpellHealComponent>() : NULL;
+			if (healComp) {
+				float healthLeft = sf::clamp((float)chr->health / (float)chr->maxHealth, 0.0f, 1.0f);
+				weight *= sf::max(0.8f - healthLeft, 0.0f) * 10.0f;
+			}
+		}
+
 		cardsToUse.push({ cardPrefab, cardId, weight });
 		totalWeight += weight;
 	}

@@ -1244,13 +1244,16 @@ void handleImguiCharacterWindow(EditorState *es)
 						label = "Item";
 					}
 
-					if (!label.size) break;
+					uint32_t cardId = chr->selectedCards[i];
+					if (label.size == 0) {
+						if (!cardId) continue;
+						label = "(ERROR)";
+					}
 
 					ImGui::PushID((int)i);
 
 					sf::SmallStringBuf<512> textBuf;
 
-					uint32_t cardId = chr->selectedCards[i];
 					sv::Card *card = es->svState->cards.find(cardId);
 					if (card) {
 						textBuf.append(card->prefabName);
