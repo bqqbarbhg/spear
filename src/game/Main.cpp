@@ -132,7 +132,7 @@ void spConfig(sp::MainConfig &config)
 
 	config.saudioDesc.num_channels = 2;
 	#if SF_OS_EMSCRIPTEN
-		config.saudioDesc.buffer_frames = 2048;
+		config.saudioDesc.buffer_frames = 4096;
 	#else
 		config.saudioDesc.buffer_frames = 1024;
 	#endif

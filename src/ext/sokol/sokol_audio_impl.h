@@ -1597,7 +1597,7 @@ _SOKOL_PRIVATE bool _saudio_backend_init(void) {
     }
 
     /* try to use worklets if available */
-#if defined(__EMSCRIPTEN_PTHREADS__)
+#if defined(__EMSCRIPTEN_PTHREADS__) && 0
     if (_saudio_backend_init_worklet()) {
         return true;
     }
