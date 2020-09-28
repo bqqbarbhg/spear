@@ -24,7 +24,7 @@ struct GameMusicSource : sp::AudioSource
 	uint32_t prevTrack = 0;
 	uint32_t nextTrack = 0;
 
-	uint32_t swapInteval = 100800;
+	uint32_t swapInteval = 4 * 100800;
 
 	uint32_t atomicNextTrack = 0;
 
