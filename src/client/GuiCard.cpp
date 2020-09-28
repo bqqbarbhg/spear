@@ -49,7 +49,7 @@ void GuiCard::init(const sv::Prefab &prefab, uint32_t svId)
 		melee = true;
 		if (meleeComp) {
 			if (meleeComp->hitRoll.die == 4) {
-				dice.load(sf::Symbol("Assets/Gui/Card/Dice_4.png"));
+				// dice.load(sf::Symbol("Assets/Gui/Card/Dice_4.png"));
 			}
 		}
 	} else {
