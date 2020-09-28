@@ -2187,7 +2187,7 @@ struct GameSystemImp final : GameSystem
 		musicSource = sf::box<cl::GameMusicSource>(sources);
 
 		AudioInfo info = { };
-		info.volume = 0.3f;
+		info.volume = 0.32f;
 		info.positional = false;
 		systems.audio->playOneShot(musicSource, info);
 	}
