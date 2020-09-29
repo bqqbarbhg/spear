@@ -246,7 +246,6 @@ void spInit()
 
 	bool mapBuild = true;
 
-
 	#if defined(GAME_CDN_URL)
 	if (!sargs_exists("cdn") || sargs_boolean("cdn")) {
 		#if defined(SP_SINGLE_EXE)
@@ -275,21 +274,40 @@ void spInit()
     	sp::ContentFile::addRelativeFileRoot("Game", "Game/");
     #endif
 
+	#if defined(SP_SINGLE_EXE)
+		port = 0;
+	#endif
+
 	sv::ServerOpts serverOpts;
 	serverOpts.port = port;
 	serverOpts.messageEncoding.compressionLevel = 5;
 
+    sf::String websocketUrl;
+
+#if defined(SP_SINGLE_EXE)
+
+	if (sargs_boolean("connect")) {
+		#if defined(GAME_WEBSOCKET_URL)
+			websocketUrl = sf::String(GAME_WEBSOCKET_URL);
+		#endif
+	} else {
+		server = sv::serverInit(serverOpts);
+		sf::debugPrintLine("Server: %p", server);
+	}
+
+#else
     #if !defined(GAME_WEBSOCKET_URL)
 		server = sv::serverInit(serverOpts);
 		sf::debugPrintLine("Server: %p", server);
 	#endif
-
-	MainClient &client = clients.push();
     
-    sf::String websocketUrl;
     #if defined(GAME_WEBSOCKET_URL)
         websocketUrl = sf::String(GAME_WEBSOCKET_URL);
     #endif
+#endif
+
+
+	MainClient &client = clients.push();
 	client.client = cl::clientInit(port, sessionId, sessionSecret, websocketUrl);
 
 	{
