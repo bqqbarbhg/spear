@@ -20,6 +20,7 @@
 #include "sf/Sort.h"
 
 #include "client/GuiCard.h"
+#include "client/ClientSettings.h"
 
 #include "sp/Renderer.h"
 #include "sp/Srgb.h"
@@ -1418,7 +1419,11 @@ struct GameSystemImp final : GameSystem
 		camera.zoomDelta += scrollAmount * 0.1f;
 
 		const float cameraDt = 0.001f;
-		camera.timeDelta = sf::min(camera.timeDelta + frameArgs.dt, 0.1f);
+		if (g_settings.hackSlowCamera) {
+			camera.timeDelta = sf::min(camera.timeDelta + frameArgs.dt * 0.5f, 0.1f);
+		} else {
+			camera.timeDelta = sf::min(camera.timeDelta + frameArgs.dt, 0.1f);
+		}
 
 		sf::Vec2i renderRes = frameArgs.mainRenderArgs.renderResolution;
 		float aspect = (float)renderRes.x / (float)renderRes.y;
@@ -1445,8 +1450,9 @@ struct GameSystemImp final : GameSystem
 
 		while (camera.timeDelta >= cameraDt) {
 			camera.timeDelta -= cameraDt;
+
 			camera.previous = camera.current;
-            
+
             camera.zoomDelta *= 0.99f;
             camera.zoomDelta -= sf::clamp(camera.zoomDelta, -0.0005f, 0.0005f);
 
@@ -2179,6 +2185,7 @@ struct GameSystemImp final : GameSystem
 	{
 		if (musicSource) return;
 		if (!(musicBattleLoop.isLoaded() && musicAmbientLoop.isLoaded() && musicAmbientToBattle.isLoaded() && musicBattleToAmbient.isLoaded())) return;
+		if (!g_settings.musicEnabled) return;
 
 		sf::Box<sp::AudioSource> sources[2];
 		sources[0] = sf::box<sp::BeginLoopAudioSource>(musicBattleToAmbient->getSource(0), musicAmbientLoop->getSource(0));

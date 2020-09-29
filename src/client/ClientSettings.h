@@ -44,6 +44,10 @@ struct ClientSettings
 	uint32_t shadowDepthResolution;
 
 	uint32_t lightQuality;
+
+	bool musicEnabled = true;
+	bool hackSlowCamera = false;
+	bool hackSpeedMode = false;
 };
 
 void initDefaultSettings(ClientSettings &settings, ClientSettings::Preset preset);

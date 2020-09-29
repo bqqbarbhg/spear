@@ -212,8 +212,16 @@ static void fetchCacheCallback(const sfetch_response_t *response)
 		// Finished: Copy to cache and call callback with actual data
 
 		{
+			const char *slash = strrchr(data->destinationFile, '/');
+			const char *backslash = strrchr(data->destinationFile, '\\');
+			const char *dirEnd = data->destinationFile;
+			if (slash && slash > dirEnd) dirEnd = slash;
+			if (backslash && backslash > dirEnd) dirEnd = backslash;
+			if (dirEnd > data->destinationFile) {
+				sf::createDirectories(sf::String(data->destinationFile, dirEnd - data->destinationFile));
+			}
+
 			sf::MutexGuard mg(data->package->cacheMutex);
-			sf::createDirectories(sf::CString(data->destinationFile));
 			sf::writeFile(sf::String(data->destinationFile), response->buffer_ptr, response->fetched_size);
 		}
 

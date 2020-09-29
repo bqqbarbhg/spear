@@ -50,6 +50,11 @@ newoption {
    description = "Enable profiler"
 }
 
+newoption {
+   trigger     = "single-exe",
+   description = "Create a single exe binary"
+}
+
 workspace "spear"
 	configurations { "debug", "develop", "release" }
 
@@ -130,6 +135,9 @@ workspace "spear"
 
 	filter { "configurations:debug", "platforms:wasm" }
 		linkoptions { "-g" }
+
+	filter { "options:single-exe" }
+		defines { "SP_SINGLE_EXE=1" }
 
 	filter "platforms:x86"
 		architecture "x86"

@@ -184,6 +184,14 @@ static uint32_t sessionSecret;
 static void *imguiAlloc(size_t size, void*) { return sf_malloc(size); }
 static void imguiFree(void *ptr, void*) { return sf_free(ptr); }
 
+static bool cdnCacheResolve(const sf::CString &name, sf::StringBuf &url, sf::StringBuf &path, void *user)
+{
+	if (!sf::beginsWith(name, "Assets/")) return false;
+	url.append(GAME_CDN_URL, "/", name.slice().drop(7));
+	path.append("Cache/", name.slice().drop(7));
+	return true;
+}
+
 void spInit()
 {
 
@@ -206,6 +214,18 @@ void spInit()
     }
     cl::initDefaultSettings(cl::g_settings, preset);
 
+	if (sargs_exists("music") && !sargs_boolean("music")) {
+		cl::g_settings.musicEnabled = false;
+	}
+
+	if (sargs_boolean("hackslowcamera")) {
+		cl::g_settings.hackSlowCamera = true;
+	}
+
+	if (sargs_boolean("hackspeedmode")) {
+		cl::g_settings.hackSpeedMode = true;
+	}
+
 	ImGui::SetAllocatorFunctions(&imguiAlloc, &imguiFree);
 
 	sf::MutexGuard mg(clientMutex);
@@ -222,9 +242,14 @@ void spInit()
 
 	bool mapBuild = true;
 
+
 	#if defined(GAME_CDN_URL)
 	if (!sargs_exists("cdn") || sargs_boolean("cdn")) {
-		sp::ContentFile::addRelativeFileRoot(GAME_CDN_URL, "Assets/");
+		#if defined(SP_SINGLE_EXE)
+			sp::ContentFile::addCacheDownloadRoot(GAME_CDN_URL, &cdnCacheResolve, NULL);
+		#else
+			sp::ContentFile::addRelativeFileRoot(GAME_CDN_URL, "Assets/");
+		#endif
 		mapBuild = false;
 	}
 	#endif
@@ -249,8 +274,11 @@ void spInit()
 	sv::ServerOpts serverOpts;
 	serverOpts.port = port;
 	serverOpts.messageEncoding.compressionLevel = 5;
-	server = sv::serverInit(serverOpts);
-	sf::debugPrintLine("Server: %p", server);
+
+    #if !defined(GAME_WEBSOCKET_URL)
+		server = sv::serverInit(serverOpts);
+		sf::debugPrintLine("Server: %p", server);
+	#endif
 
 	MainClient &client = clients.push();
     
@@ -371,6 +399,7 @@ void spFrame(float dt)
 
 		cl::ClientInput input;
 		input.dt = sf::min(dt, 0.1f);
+		if (cl::g_settings.hackSpeedMode) input.dt *= 2.0f;
 		input.mousePosition = (g_mousePos - sf::Vec2(client.offset)) / sf::Vec2(client.resolution);
 		input.resolution = client.resolution;
 		input.events = g_events;
