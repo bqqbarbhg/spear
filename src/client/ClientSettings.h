@@ -45,6 +45,7 @@ struct ClientSettings
 
 	uint32_t lightQuality;
 
+	bool spectatorMode = false;
 	bool musicEnabled = true;
 	bool hackSlowCamera = false;
 	bool hackSpeedMode = false;

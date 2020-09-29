@@ -226,6 +226,10 @@ void spInit()
 		cl::g_settings.hackSpeedMode = true;
 	}
 
+	if (sargs_boolean("spectate")) {
+		cl::g_settings.spectatorMode = true;
+	}
+
 	ImGui::SetAllocatorFunctions(&imguiAlloc, &imguiFree);
 
 	sf::MutexGuard mg(clientMutex);

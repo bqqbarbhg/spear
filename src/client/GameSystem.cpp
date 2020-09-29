@@ -1265,6 +1265,10 @@ struct GameSystemImp final : GameSystem
 
 		input.update(inputArgs);
 
+		if (g_settings.spectatorMode) {
+			tutorial.enabled = false;
+		}
+
 		if (input.keyDown[SAPP_KEYCODE_F3] && !input.prevKeyDown[SAPP_KEYCODE_F3]) {
 			showDebugMenu = true;
 		}
@@ -1983,7 +1987,7 @@ struct GameSystemImp final : GameSystem
 		}
 
 		if (Character *turnChr = findCharacter(turnInfo.characterId)) {
-			if (!turnChr->sv.enemy && turnChr->sv.playerClientId != svState.localClientId) {
+			if (!turnChr->sv.enemy && turnChr->sv.playerClientId != svState.localClientId && !g_settings.spectatorMode) {
 
 				auto bt = b.push<gui::WidgetButton>(1);
 				if (bt->created) {
@@ -2255,7 +2259,7 @@ struct GameSystemImp final : GameSystem
 			selectedCharacterId = 0;
 			if (Character *chr = findCharacter(turnInfo.characterId)) {
 				const sv::Character *svChr = svState.characters.find(chr->svId);
-				if (svChr && !svChr->enemy) {
+				if (svChr && !svChr->enemy && !g_settings.spectatorMode) {
 					if (svChr->playerClientId == svState.localClientId) {
 						selectedCharacterId = chr->svId;
 					} else if (svChr->playerClientId == 0) {
