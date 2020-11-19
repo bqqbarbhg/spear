@@ -15,6 +15,8 @@
 #include "sf/File.h"
 #include "sf/Sort.h"
 
+#include <time.h>
+
 namespace sv {
 
 struct Session;
@@ -53,6 +55,8 @@ struct Session
 
 	sf::Symbol editMapPath;
 	AiState aiState;
+
+	time_t idleTime = 0;
 };
 
 struct Server
@@ -547,6 +551,8 @@ static void updateSession(Session &session)
 
 void serverUpdate(Server *s)
 {
+	time_t currentTime = time(NULL);
+
 	// Accept new clients
 	{
 		bqws_opts opts = { };
@@ -593,8 +599,28 @@ void serverUpdate(Server *s)
 
 	// Update active sessions
 	for (uint32_t i = 0; i < s->sessions.size(); i++) {
+		bool remove = false;
 		Session &session = *s->sessions.data[i].val;
 		updateSession(session);
+
+		if (session.clients.size == 0) {
+			if (session.idleTime == 0) {
+				session.idleTime = currentTime;
+			}
+			uint64_t secondsIdled = (uint64_t)(currentTime - session.idleTime);
+
+			if (secondsIdled >= 10) {
+				remove = true;
+			}
+
+		} else {
+			session.idleTime = 0;
+		}
+
+		if (remove) {
+			s->sessions.remove(session.id);
+			i--;
+		}
 	}
 }
 
