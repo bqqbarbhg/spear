@@ -83,12 +83,12 @@ void debugPrintLine(const char *fmt, ...)
 		line.vformat(fmt, args);
 		line.append('\n');
 		OutputDebugStringA(line.data);
-		fprintf(stderr, "%s", line.data);
+		fprintf(stderr, "%s\n", line.data);
 	}
 #else
 	{
 		vfprintf(stderr, fmt, args);
-		putchar('\n');
+		putc('\n', stderr);
 	}
 #endif
 
