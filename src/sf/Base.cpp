@@ -61,11 +61,11 @@ void debugPrint(const char *fmt, ...)
 		SmallStringBuf<1024> line;
 		line.vformat(fmt, args);
 		OutputDebugStringA(line.data);
-		printf("%s", line.data);
+		fprintf(stderr, "%s", line.data);
 	}
 #else
 	{
-		vprintf(fmt, args);
+		vfprintf(stderr, fmt, args);
 	}
 #endif
 
@@ -83,11 +83,11 @@ void debugPrintLine(const char *fmt, ...)
 		line.vformat(fmt, args);
 		line.append('\n');
 		OutputDebugStringA(line.data);
-		printf("%s", line.data);
+		fprintf(stderr, "%s", line.data);
 	}
 #else
 	{
-		vprintf(fmt, args);
+		vfprintf(stderr, fmt, args);
 		putchar('\n');
 	}
 #endif

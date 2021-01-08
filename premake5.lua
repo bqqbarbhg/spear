@@ -128,6 +128,7 @@ workspace "spear"
 	filter "configurations:release"
 		defines { "NDEBUG" }
 		optimize "On"
+		symbols_on()
         flags { "LinkTimeOptimization", "NoIncrementalLink" }
 
 	filter { "configurations:release", "action:vs*" }

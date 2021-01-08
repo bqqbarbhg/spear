@@ -85,6 +85,8 @@ Server *serverInit(const ServerOpts &opts)
 		localServer = localServerInit(opts.port);
 	}
 
+	sf::debugPrintLine("Serving at: %u", opts.port);
+
 	Server *s = new Server();
 	s->server = server;
 	s->localServer = localServer;
