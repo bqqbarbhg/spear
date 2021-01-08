@@ -144,6 +144,7 @@ static sf::Box<ServerState> loadState(const sf::Symbol &name)
 	}
 
 	jsi_free(value);
+	jsi_free(value);
 
 	return map.state;
 }
