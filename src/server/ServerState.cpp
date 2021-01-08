@@ -2163,6 +2163,8 @@ bool ServerState::requestAction(sf::Array<sf::Box<Event>> &events, const Action 
 	if (const auto *ac = action.as<MoveAction>()) {
 		// TODO: Check waypoints
 
+		((Action*)ac)->as<SelectCardAction>()->cardId = 0;
+
 		if (turnInfo.characterId != ac->characterId) return false;
 		if (ac->waypoints.size > turnInfo.movementLeft) return false;
 
