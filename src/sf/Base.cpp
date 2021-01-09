@@ -63,6 +63,10 @@ void debugPrint(const char *fmt, ...)
 		OutputDebugStringA(line.data);
 		fprintf(stderr, "%s", line.data);
 	}
+#elif SF_OS_EMSCRIPTEN
+	{
+		vfprintf(stdout, fmt, args);
+	}
 #else
 	{
 		vfprintf(stderr, fmt, args);
@@ -84,6 +88,11 @@ void debugPrintLine(const char *fmt, ...)
 		line.append('\n');
 		OutputDebugStringA(line.data);
 		fprintf(stderr, "%s\n", line.data);
+	}
+#elif SF_OS_EMSCRIPTEN
+	{
+		vfprintf(stdout, fmt, args);
+		putc('\n', stdout);
 	}
 #else
 	{
