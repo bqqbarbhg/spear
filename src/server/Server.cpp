@@ -614,7 +614,7 @@ void serverUpdate(Server *s)
 			}
 			uint64_t secondsIdled = (uint64_t)(currentTime - session.idleTime);
 
-			if (secondsIdled >= 10) {
+			if (secondsIdled >= 10*60) {
 				remove = true;
 			}
 
