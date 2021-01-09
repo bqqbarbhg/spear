@@ -24,7 +24,7 @@ sf::Box<Message> decodeMessage(sf::Slice<char> compressed, const MessageDecoding
 		encoded = buffer;
 	}
 
-	if (encoded.size > limits.maxDataSize) {
+	if (encoded.size < 2 || encoded.size > limits.maxDataSize) {
 		return msg;
 	}
 
