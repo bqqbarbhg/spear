@@ -8,7 +8,7 @@
 
 namespace sv {
 
-sf::Box<Message> decodeMessage(sf::Slice<char> compressed)
+sf::Box<Message> decodeMessage(sf::Slice<char> compressed, const MessageDecodingLimits &limits)
 {
 	if (compressed.size == 0) return { };
 
@@ -24,17 +24,21 @@ sf::Box<Message> decodeMessage(sf::Slice<char> compressed)
 		encoded = buffer;
 	}
 
+	if (encoded.size > limits.maxDataSize) {
+		return msg;
+	}
+
 	if (encoded[0] == '{') {
 		jsi_args args = { };
 		args.dialect.allow_comments = true;
 		jsi_value *value = jsi_parse_memory(encoded.data, encoded.size, &args);
-		if (!sp::readJson(value, msg)) {
+		if (!value || !sp::readJson(value, msg)) {
 			msg.reset();
 		}
 		jsi_free(value);
-	} else if (encoded.size >= 8 && !memcmp(encoded.data, "sfbinv01", 8)) {
+	} else if (limits.allowBinary && encoded.size >= 8 && !memcmp(encoded.data, "sfbinv01", 8)) {
 		sf::Slice<const char> slice = encoded.drop(8);
-		if (!sf::readBinary(slice, msg)) {
+		if ( !sf::readBinary(slice, msg)) {
 			msg.reset();
 		}
 	}

@@ -126,7 +126,13 @@ struct MessageEncoding
 	int compressionLevel = 0;
 };
 
-sf::Box<Message> decodeMessage(sf::Slice<char> data);
+struct MessageDecodingLimits
+{
+	bool allowBinary = false;
+	size_t maxDataSize = 32*1024*1024;
+};
+
+sf::Box<Message> decodeMessage(sf::Slice<char> data, const MessageDecodingLimits &limits);
 void encodeMessage(sf::Array<char> &data, const Message &message, const MessageEncoding &encoding);
 
 }

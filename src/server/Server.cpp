@@ -117,7 +117,8 @@ static void sendMessage(Client &client, const sv::Message &msg)
 
 static sf::Box<Message> readMessageConsume(bqws_msg *wsMsg)
 {
-	sf::Box<Message> msg = decodeMessage(sf::slice(wsMsg->data, wsMsg->size));
+	MessageDecodingLimits limits;
+	sf::Box<Message> msg = decodeMessage(sf::slice(wsMsg->data, wsMsg->size), limits);
 	bqws_free_msg(wsMsg);
 	return msg;
 }
@@ -340,6 +341,8 @@ static void updateSession(Session &session)
 
 		while (bqws_msg *wsMsg = bqws_recv(client.ws)) {
 			sf::Box<Message> msg = readMessageConsume(wsMsg);
+			if (!msg) continue;
+
 			if (auto m = msg->as<sv::MessageJoin>()) {
 				Session *maybeSession = setupSession(session.server, m->sessionId, m->sessionSecret, m->editPath);
 				if (maybeSession) {

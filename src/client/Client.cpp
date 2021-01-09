@@ -288,7 +288,8 @@ static void sendMessage(Client &client, const sv::Message &msg)
 
 static sf::Box<sv::Message> readMessageConsume(bqws_msg *wsMsg)
 {
-	sf::Box<sv::Message> msg = sv::decodeMessage(sf::slice(wsMsg->data, wsMsg->size));
+	sv::MessageDecodingLimits limits;
+	sf::Box<sv::Message> msg = sv::decodeMessage(sf::slice(wsMsg->data, wsMsg->size), limits);
 	bqws_free_msg(wsMsg);
 	return msg;
 }
