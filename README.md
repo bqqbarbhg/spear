@@ -2,7 +2,7 @@
 
 ## Building
 
-**NOTE: Actually building something useful from this repository requires private assets.**
+**NOTE: Actually building something useful from this repository requires private assets!**
 The code is available for reference and there might be some neat reusable parts eg. `src/sf` for
 a "standard library" with reflection support.
 
