@@ -1,4 +1,17 @@
-# spear
+# Spear "engine"
+
+Game engine powering https://dealers-dungeon.com/demo/
+
+Repository structure:
+- [src/sf](/src/sf): Standard base library: Compiler abstraction, data structures, synchronization primitives, etc.
+- [src/sp](/src/sp): More game-focused utilities
+- [src/client](/src/client): Most of the game engine is here, it's fairly non-generic
+- [src/server](/src/server): Backend for the game server, gameplay logic lives here
+
+Further related:
+- [bqqbarbhg/sp-tools](https://github.com/bqqbarbhg/sp-tools): Content pipeline tools invoked by the editor
+- [bqqbarbhg/bq_websocket](https://github.com/bqqbarbhg/bq_websocket): WebSocket implementation for networking
+- [ufbx/ufbx](https://github.com/ufbx/ufbx): FBX importer library started for this project, now grown into its own thing
 
 ## Building
 
